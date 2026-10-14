@@ -57,13 +57,13 @@ def now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def connect(path) -> sqlite3.Connection:
+def connect(path, busy_ms: int = 5000) -> sqlite3.Connection:
     """Open (creating and migrating if needed) the shared database."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=5)
+    conn = sqlite3.connect(path, timeout=busy_ms / 1000)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute(f"PRAGMA busy_timeout = {int(busy_ms)}")
     conn.execute("PRAGMA journal_mode = WAL")
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     for target in range(version + 1, SCHEMA_VERSION + 1):

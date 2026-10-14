@@ -31,6 +31,8 @@ gentle-lite status    [same options]
 gentle-lite skill-registry refresh [--cwd DIR] [--quiet] [--no-gitignore] [--force]
 gentle-lite skill-registry list    [--cwd DIR]
 gentle-lite review assess [--cwd DIR] [--base-ref REF] [--committed-only] [--json]
+#   --base-ref / MCP base_ref accept plain refs only (no leading '-', '..' ranges or whitespace)
+#   and are resolved to a commit sha before any git diff
 gentle-lite review mode   enable|disable|status [--scope global|clone] [--cwd DIR]
 ```
 
@@ -44,7 +46,6 @@ fail open; an empty stdout is a no-op.
   a project marker and a symlinked `.atl`. Home paths are written as `~/...`.
 - `review-stop` (SessionStart/Stop): when receipt-driven development is on and this session
   produced a candidate that `review assess` marks as due, blocks the stop once per candidate.
-  `--base-ref` / `base_ref` accept only plain refs (no leading `-`, no `..` ranges, no whitespace) and are resolved to a commit sha before any git diff.
   RDD is off by default; clone-local `off` (in `.git/gentle-lite-rdd-mode`) wins over global.
 
 ## Memory (Python, stdlib only)
@@ -64,6 +65,19 @@ FTS5 syntax in a query is plain text. No conflict/judgment machinery (deliberate
 ```
 PYTHONPATH=python python3 -m gentle_lite.memory serve
 PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/engram.db   # read-only, idempotent
+```
+
+## Telemetry (local only)
+
+`install` registers `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `SubagentStop`
+hooks that run `env PYTHONPATH=<repo>/python GENTLE_LITE_STATE_DIR=<state> python3 -m gentle_lite.telemetry hook`.
+Each call appends one row to the `events` table of `memory.db`: time, session id, event, tool name,
+cwd/project, payload size, ok flag. Prompt text and tool inputs/outputs are never stored, the hook
+always exits 0 with empty stdout, and the package has no network code (a test enforces it).
+`install --no-telemetry` skips the hooks (`state.json` records `telemetry: false`); `uninstall` removes them.
+
+```
+PYTHONPATH=python GENTLE_LITE_STATE_DIR=<state> python3 -m gentle_lite.telemetry report [--days N] [--json]
 ```
 
 ## Safety: parameterized targets
