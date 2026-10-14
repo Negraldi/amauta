@@ -4,9 +4,10 @@ AskUserQuestion preflight and the human answered it (corroborated in the session
 Contract (observed black-box on gentle-ai 3.4.0, re-implemented here): stdin = Claude Code hook JSON; stdout = empty
 (allow, not our business) or a `hookSpecificOutput` permission decision; exit status is always 0.
 
-Deliberate difference from a fail-open hook: for an `sdd-*` dispatch every failure (unreadable payload, oversized
-payload, unexpected exception) is a DENY, because allowing would silently drop the human gate. For anything that does not
-look like an `sdd-*` dispatch the hook is silent, so a broken payload can never block unrelated agents.
+Deliberate difference from a fail-open hook: the hook is only registered for PreToolUse(Agent), so a payload it cannot
+fully read (oversized, malformed, too deeply nested) is DENIED without guessing whether it was an `sdd-*` dispatch:
+any guess made from a truncated or undecoded prefix can be defeated. A readable non-`sdd-*` dispatch stays silent, and an
+unexpected exception while validating an `sdd-*` dispatch is also a DENY.
 """
 from __future__ import annotations
 
@@ -14,12 +15,11 @@ import json
 import re
 import sys
 
-MAX_PAYLOAD = 256 * 1024
+MAX_PAYLOAD = 4 * 1024 * 1024  # bytes
 MAX_LINE = 8 * 1024 * 1024
 HEADER = "## SDD Session Preflight"
 PREFIX = "Gentle AI SDD preflight "
 SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-LOOKS_SDD = re.compile(r'"subagent_type"\s*:\s*"sdd-')
 LABELS = (("Interactive", "Automatic"), ("OpenSpec", "Engram", "Both"), ("Ask me", "Single PR", "Auto"))
 PACE = ("interactive", "auto")
 STORE = ("openspec", "engram", "hybrid")
@@ -150,15 +150,15 @@ def decide(payload) -> str | None:
     return _output("allow", "parent-confirmed SDD preflight attached by gentle-lite", {**tool_input, "prompt": f"{block}\n\n{prompt}"})
 
 
-def run(raw: str) -> str | None:
-    """Decision for the raw stdin text; never raises. Fail closed for anything that looks like an sdd-* dispatch."""
-    sdd_like = bool(LOOKS_SDD.search(raw or ""))
-    if len(raw) > MAX_PAYLOAD:
-        return _deny("SDD child dispatch refused: the hook payload is too large to validate.") if sdd_like else None
+def run(raw: str | bytes) -> str | None:
+    """Decision for the raw stdin payload; never raises. Fail closed for anything that cannot be fully read."""
+    data = raw.encode("utf-8", "surrogatepass") if isinstance(raw, str) else raw
+    if len(data) > MAX_PAYLOAD:
+        return _deny("SDD child dispatch refused: the hook payload is too large to validate.")
     try:
-        payload = json.loads(raw)
-    except ValueError:
-        return _deny("SDD child dispatch refused: the hook payload is unreadable.") if sdd_like else None
+        payload = json.loads(data)
+    except Exception:  # noqa: BLE001 - ValueError, RecursionError, UnicodeDecodeError: all unreadable
+        return _deny("SDD child dispatch refused: the hook payload is unreadable.")
     try:
         return decide(payload)
     except Exception:  # noqa: BLE001 - the gate must answer, never crash
@@ -170,10 +170,9 @@ def run(raw: str) -> str | None:
 
 def main() -> int:
     try:
-        raw = sys.stdin.buffer.read(MAX_PAYLOAD + 1).decode("utf-8", "replace")
-        out = run(raw)
-    except Exception:  # noqa: BLE001
-        out = None
+        out = run(sys.stdin.buffer.read(MAX_PAYLOAD + 1))
+    except Exception:  # noqa: BLE001 - registered for Agent only: an unanswerable payload is denied
+        out = _deny("SDD child dispatch refused: the hook payload could not be read.")
     if out:
         sys.stdout.write(out + "\n")
     return 0

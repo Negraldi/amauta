@@ -150,19 +150,19 @@ class FailClosedTest(Base):
             self.assertNotIn("boom", json.dumps(out))
             self.assertIsNone(preflight.run(json.dumps(payload(self.transcript, subagent="general-purpose"))))
 
-    def test_malformed_payload_denies_only_when_it_looks_like_an_sdd_dispatch(self):
-        self.assertIsNone(preflight.run("{ not json"))
-        self.assertIsNone(preflight.run(""))
+    def test_malformed_payload_is_always_denied(self):
+        for broken in ("{ not json", ""):
+            self.assertEqual(json.loads(preflight.run(broken))["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertIsNone(preflight.run("[1,2]"))
         out = json.loads(preflight.run('{"tool_name": "Agent", "tool_input": {"subagent_type": "sdd-apply", "prompt": '))  # truncated
         self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertIn("unreadable", out["hookSpecificOutput"]["permissionDecisionReason"])
 
-    def test_oversized_payload_is_denied_for_sdd_and_allowed_otherwise(self):
+    def test_oversized_payload_is_always_denied(self):
         big = json.dumps(payload(self.transcript, prompt="x" * (preflight.MAX_PAYLOAD + 10)))
         self.assertEqual(json.loads(preflight.run(big))["hookSpecificOutput"]["permissionDecision"], "deny")
         other = json.dumps(payload(self.transcript, subagent="general-purpose", prompt="x" * (preflight.MAX_PAYLOAD + 10)))
-        self.assertIsNone(preflight.run(other))
+        self.assertEqual(json.loads(preflight.run(other))["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_oversized_transcript_line_is_skipped_and_scanning_continues(self):
         self.write(["x" * (preflight.MAX_LINE + 5), ask_line(), answer_line(["Interactive", "OpenSpec", "Ask me"])])
@@ -185,7 +185,7 @@ class CliTest(Base):
         r = self.run_hook(json.dumps(payload(self.transcript, subagent="general-purpose")))
         self.assertEqual((r.returncode, r.stdout), (0, ""))
         r = self.run_hook("garbage")
-        self.assertEqual((r.returncode, r.stdout), (0, ""))
+        self.assertEqual((r.returncode, json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"]), (0, "deny"))
 
     def test_does_not_import_code_from_cwd(self):
         evil = self.dir / "evil"
@@ -199,3 +199,42 @@ class CliTest(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FailClosedHardeningTest(unittest.TestCase):
+    """The hook only runs for PreToolUse(Agent): anything it cannot fully read or validate must be denied."""
+
+    def deny_reason(self, raw):
+        out = preflight.run(raw)
+        self.assertIsNotNone(out, "silent allow")
+        decision = json.loads(out)["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        return decision["permissionDecisionReason"]
+
+    def test_oversized_with_subagent_type_after_the_prompt_is_denied(self):
+        raw = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Agent",
+                          "tool_input": {"prompt": "x" * (preflight.MAX_PAYLOAD + 10), "subagent_type": "sdd-apply"}})
+        self.assertIn("too large", self.deny_reason(raw))
+
+    def test_unicode_escaped_sdd_subagent_is_recognised(self):
+        raw = ('{"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "%s", '
+               '"tool_input": {"prompt": "p", "subagent_type": "\\u0073dd-apply"}}' % SID)
+        self.assertIn("transcript", self.deny_reason(raw))
+
+    def test_deeply_nested_payload_is_denied_not_crashing(self):
+        raw = '{"tool_name": "Agent", "tool_input": {"subagent_type": "sdd-apply", "x": ' + "[" * 100000 + "]" * 100000 + "}}"
+        self.assertIn("unreadable", self.deny_reason(raw))
+
+    def test_size_limit_counts_bytes_not_characters(self):
+        raw = json.dumps({"tool_input": {"prompt": "\u00e9" * (preflight.MAX_PAYLOAD // 2 + 10)}}, ensure_ascii=False)
+        self.assertLessEqual(len(raw), preflight.MAX_PAYLOAD)
+        self.assertIn("too large", self.deny_reason(raw))
+
+    def test_main_denies_oversized_stdin_even_when_subagent_type_comes_last(self):
+        from unittest import mock
+        raw = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Agent",
+                          "tool_input": {"prompt": "x" * (preflight.MAX_PAYLOAD + 10), "subagent_type": "sdd-apply"}}).encode()
+        out = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.TextIOWrapper(io.BytesIO(raw))), mock.patch.object(sys, "stdout", out):
+            self.assertEqual(preflight.main(), 0)
+        self.assertEqual(json.loads(out.getvalue())["hookSpecificOutput"]["permissionDecision"], "deny")
