@@ -77,8 +77,13 @@ always exits 0 with empty stdout, and the package has no network code (a test en
 `install --no-telemetry` skips the hooks (`state.json` records `telemetry: false`); `uninstall` removes them.
 
 ```
-PYTHONPATH=python GENTLE_LITE_STATE_DIR=<state> python3 -m gentle_lite.telemetry report [--days N] [--json]
+PYTHONPATH=python GENTLE_LITE_STATE_DIR=<state> python3 -P -m gentle_lite.telemetry report [--days N] [--json]
+PYTHONPATH=python GENTLE_LITE_STATE_DIR=<state> python3 -P -m gentle_lite.telemetry prune --days N
 ```
+
+If an event cannot be written (database locked, full disk) the hook still exits 0 silently but appends one byte to
+`<state>/telemetry.dropped`; its size is the dropped-event count shown by `report` and the portal. Events older than
+90 days (`GENTLE_LITE_TELEMETRY_RETENTION_DAYS`) are pruned automatically at most once per UTC day.
 
 ## Usage ingestion (local only)
 

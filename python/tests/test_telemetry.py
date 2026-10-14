@@ -12,6 +12,7 @@ from unittest import mock
 
 from python.gentle_lite.memory import store as mstore
 from python.gentle_lite.telemetry import hook as thook
+from python.gentle_lite.telemetry import housekeeping
 from python.gentle_lite.telemetry import report as treport
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -90,6 +91,76 @@ class HookTest(unittest.TestCase):
         self.assertLessEqual(len(e["session_id"]), 128)
         self.assertLessEqual(len(e["event"]), 64)
         self.assertLessEqual(len(e["tool_name"]), 128)
+
+
+class DroppedAndRetentionTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.state = Path(self.tmp.name) / "state"
+        self.env = {"GENTLE_LITE_STATE_DIR": str(self.state)}
+        self.conn = mstore.connect(self.state / "memory.db")
+        self.addCleanup(self.conn.close)
+
+    def add_event(self, days_ago, event="PostToolUse"):
+        ts = (datetime.now(timezone.utc) - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.conn.execute("INSERT INTO events (ts, event, payload_bytes, ok) VALUES (?,?,1,1)", (ts, event))
+        self.conn.commit()
+
+    def test_write_failure_is_counted_in_sidecar(self):
+        locker = sqlite3.connect(self.state / "memory.db")
+        locker.execute("BEGIN EXCLUSIVE")
+        self.addCleanup(locker.close)
+        for _ in range(2):
+            thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env=self.env)
+        self.assertEqual(housekeeping.dropped(self.env), 2)
+        self.assertEqual(treport.build(self.state / "memory.db", days=7, env=self.env)["dropped"], 2)
+        locker.rollback()
+        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env=self.env)
+        self.assertEqual(housekeeping.dropped(self.env), 2)  # success does not reset or bump it
+
+    def test_dropped_defaults_to_zero_and_counter_failure_is_silent(self):
+        self.assertEqual(housekeeping.dropped(self.env), 0)
+        blocker = Path(self.tmp.name) / "f"
+        blocker.write_text("x")
+        housekeeping.count_dropped({"GENTLE_LITE_STATE_DIR": str(blocker / "inside")})  # must not raise
+
+    def test_prune_removes_only_old_events(self):
+        self.add_event(100)
+        self.add_event(95)
+        self.add_event(5)
+        self.assertEqual(housekeeping.prune(self.conn, 90), 2)
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM events").fetchone()[0], 1)
+        with self.assertRaises(ValueError):
+            housekeeping.prune(self.conn, 0)
+
+    def test_cli_prune(self):
+        self.add_event(40)
+        self.add_event(1)
+        r = run_cli(self.state, "prune", "--days", "30")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), {"deleted": 1, "days": 30})
+        self.assertEqual(len(events(self.state)), 1)
+
+    def test_hook_prunes_automatically_at_most_once_per_day(self):
+        self.add_event(100)
+        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env=self.env)
+        self.assertEqual([e["event"] for e in events(self.state)], ["Stop"])
+        self.add_event(100)
+        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env=self.env)
+        self.assertEqual(len(events(self.state)), 3)  # second old row survives: pruned today already
+        (self.state / "telemetry.pruned").write_text("2000-01-01")
+        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env=self.env)
+        self.assertEqual(len(events(self.state)), 3)  # old row gone, one new row added
+
+    def test_retention_days_env_and_invalid_values(self):
+        self.assertEqual(housekeeping.retention_days({}), 90)
+        self.assertEqual(housekeeping.retention_days({"GENTLE_LITE_TELEMETRY_RETENTION_DAYS": "30"}), 30)
+        for bad in ("x", "0", "-3", ""):
+            self.assertEqual(housekeeping.retention_days({"GENTLE_LITE_TELEMETRY_RETENTION_DAYS": bad}), 90)
+        self.add_event(40)
+        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env={**self.env, "GENTLE_LITE_TELEMETRY_RETENTION_DAYS": "30"})
+        self.assertEqual([e["event"] for e in events(self.state)], ["Stop"])
 
 
 class ReportTest(unittest.TestCase):

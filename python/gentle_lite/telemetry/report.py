@@ -4,9 +4,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from ..memory import store as mstore
+from . import housekeeping
 
 
-def build(db_path, days: int = 7) -> dict:
+def build(db_path, days: int = 7, env=None) -> dict:
     since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn = mstore.connect(db_path)
     try:
@@ -22,7 +23,7 @@ def build(db_path, days: int = 7) -> dict:
         }
     finally:
         conn.close()
-    return {"days": days, "since": since, "total": sum(events.values()), "events": events, "top_tools": tools, "sessions_per_day": per_day}
+    return {"days": days, "since": since, "total": sum(events.values()), "events": events, "top_tools": tools, "sessions_per_day": per_day, "dropped": housekeeping.dropped(env)}
 
 
 def render(data: dict) -> str:
@@ -30,4 +31,5 @@ def render(data: dict) -> str:
     lines += [f"  {name:<20} {n}" for name, n in data["events"].items()] or ["  (none)"]
     lines += ["", "Top tools"] + ([f"  {t['tool']:<28} {t['count']}" for t in data["top_tools"]] or ["  (none)"])
     lines += ["", "Sessions per day"] + ([f"  {d}  {n}" for d, n in data["sessions_per_day"].items()] or ["  (none)"])
+    lines += ["", f"Dropped events: {data.get('dropped', 0)}"]
     return "\n".join(lines) + "\n"

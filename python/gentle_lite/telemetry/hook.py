@@ -7,6 +7,7 @@ import sys
 
 from .. import paths
 from ..memory import store as mstore
+from . import housekeeping
 
 # The hook must not slow Claude Code down: give up quickly when the database is locked.
 BUSY_MS = 500
@@ -40,16 +41,20 @@ def record(payload: dict, payload_bytes: int, env=None) -> None:
         payload_bytes,
         _ok(payload),
     )
-    conn = mstore.connect(paths.db_path(env), busy_ms=BUSY_MS)
     try:
-        with conn:
-            conn.execute(
-                "INSERT INTO events (ts, session_id, event, tool_name, cwd, project, duration_ms, payload_bytes, ok) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                row,
-            )
-    finally:
-        conn.close()
+        conn = mstore.connect(paths.db_path(env), busy_ms=BUSY_MS)
+        try:
+            with conn:
+                conn.execute(
+                    "INSERT INTO events (ts, session_id, event, tool_name, cwd, project, duration_ms, payload_bytes, ok) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    row,
+                )
+            housekeeping.maybe_prune(conn, env)
+        finally:
+            conn.close()
+    except Exception:  # lock contention, full disk, unwritable state: count the loss so the portal can show it
+        housekeeping.count_dropped(env)
 
 
 def main() -> int:

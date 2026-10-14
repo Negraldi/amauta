@@ -26,7 +26,22 @@ def main(argv=None) -> int:
     rep.add_argument("--days", type=int, default=7)
     rep.add_argument("--json", action="store_true")
     sub.add_parser("hook", help="record one Claude Code hook event from stdin")
+    pr = sub.add_parser("prune", help="delete events older than N days")
+    pr.add_argument("--days", type=int, required=True)
     args = parser.parse_args(argv)
+    if args.cmd == "prune":
+        from ..memory import store as mstore
+        from . import housekeeping
+
+        if args.days < 1:
+            parser.error("--days must be >= 1")
+        conn = mstore.connect(paths.db_path())
+        try:
+            deleted = housekeeping.prune(conn, args.days)
+        finally:
+            conn.close()
+        sys.stdout.write(json.dumps({"deleted": deleted, "days": args.days}) + "\n")
+        return 0
     data = report.build(paths.db_path(), days=args.days)
     sys.stdout.write(json.dumps(data, indent=2) + "\n" if args.json else report.render(data))
     return 0
