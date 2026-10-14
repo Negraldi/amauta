@@ -32,7 +32,7 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 
 ## Constraints
 
-- No compiled programs; Node >= 22 (stdlib first) and Python 3.12 stdlib.
+- No compiled programs OF OUR OWN: gentle-lite's code is Node >= 22 and Python >= 3.11 (stdlib first). User decision 2026-10-14: the harness MAY call Node/npm and Python dependencies/libraries, including native C/C++ extensions (e.g. codegraph's native kernel, graphify's tree-sitter/numpy). External tools stay optional and detected on PATH, never vendored.
 - Never touch the real `~/.claude` during development or tests: every write goes through `--claude-home` / `GENTLE_LITE_CLAUDE_HOME` and `--state-dir` / `GENTLE_LITE_STATE_DIR`; tests use temp dirs.
 - Real install on this machine is a separate, explicit user decision (it would overlap gentle-ai 3.4.0 currently installed).
 - Artifacts in English. Conventional commits, no AI attribution lines.
@@ -71,6 +71,13 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - usage: ingest holds one write transaction up to 3 s (starves telemetry) → commit in small batches; backfill must count `sqlite3.OperationalError` per file instead of aborting; dead argparse `hook` subparser; USAGE_EVENTS push without `??=` guard.
   - portal server/API: negative/invalid Content-Length; `parse_qsl` ValueError and any unexpected view exception → JSON 400/500 instead of dropped connection; `memory_history` connection leak; rename `_compatible`; invalid prices in prices.json must be reported, not silently 0.
   - UI/CLI: `gentle-lite portal` must print the spawn error (e.g. python3 missing); memories `load()`/row handlers catch async errors and check `available` before `facets`; strengthen the vacuous `#usage` UI test assertion.
+  Route: delegated.
+- [ ] T13b Fix RDD warnings from the T11b/T12/T13 reviews (scratchpad `c12cap2.json`, `c13cap3.json`, `c14cap3.json`):
+  - usage ingest: each batch must be an explicit transaction (`with conn:` per batch incl. state save) so a mid-batch failure rolls back; portal catch-all must log the exception (stderr) before returning 500.
+  - codegraph: remove the prompt hook we added when codegraph is no longer on PATH on re-install; test the failing-init branch (FAKE_CODEGRAPH_RC) and fix the misleading test name.
+  - graphify hook: single-flight lock (e.g. `flock`-free mkdir lock in `.git/gentle-lite-graphify.lock` with stale timeout) + coalescing so concurrent commits never stack runs; log failures to `<state-dir>/graphify-hook.log` instead of /dev/null.
+  - graph queries: dedupe by node (min depth) during the walk and bound rows before GROUP BY; check `sqlite3.sqlite_version_info >= (3,34)` and fall back to a Python BFS otherwise; store/drop `norm_label`, `_src/_tgt` consistently; MCP `graph_query` normalizes `repo` with realpath like sync does.
+  - UI test helper: restore shared routes via the helper, not manual rewrites.
   Route: delegated.
 - [ ] T6 Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
 - [x] T9 (commit `a86c3f0`) Python memory MCP (stdlib sqlite3 + FTS5, hand-rolled stdio JSON-RPC): engram-compatible tool names (mem_save, mem_search, mem_context, mem_get_observation, mem_session_summary, mem_update), topic_key upsert, projects/sessions. Installer registers it as `engram`-equivalent server; harness never requires the compiled engram binary. Route: delegated.
@@ -180,6 +187,13 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - T13: the hook block is `graphify update .` (if on PATH) then `env PYTHONPATH=<abs>/python GENTLE_LITE_STATE_DIR=<state> python3 -P -m gentle_lite.graph sync --repo .`, all inside a silent `( ... ) &` subshell; `core.hooksPath` is honoured through `git rev-parse --git-path`; non-shell hooks are refused; the file is deleted on uninstall only if nothing but our block remained.
   - Not done: RDD review of these commits (not run per instructions); live test against a real graphify install (not installed; fixture only).
 
+- 2026-10-14: RDD for T11b/T12/T13, grouped per task:
+  - `8080003..c3ad086` T11b: high, 377 lines → granted → approved, acknowledged (review-e1d5e720c82ed7ea). 5 warnings → T13b.
+  - `c3ad086..5a97ca1` T12: high, 309 lines → granted → approved, acknowledged (review-ad66b5be4929fa49). 4 warnings → T13b.
+  - `5a97ca1..2d9875a` T13: high, 1141 lines → granted → approved, acknowledged (review-8e56578ab6adabdc). 6 warnings → T13b.
+  - Docs commits `035877b`, `b2be93a`: passive.
+- 2026-10-14: verified compiled parts of external tools: codegraph npm package ships its own Node 24 ELF + native `codegraph-kernel.node` + 68 wasm grammars; graphify wheel is pure Python but depends on numpy, rapidfuzz and ~28 tree-sitter grammar C extensions; the (non-gentle-lite) `impeccable` skill runs a 16 MB static ELF and its launcher can curl-download binaries. User decision: libraries/dependencies with native extensions are allowed (see Constraints). T15 must decide on impeccable (outside gentle-lite scope; keep as optional external or remove).
+
 ## Next step
 
-T6 SDD, T7 e2e, T14 audit, T15 cleanup (RDD review for T11b/T12/T13 commits pending).
+T13b fixes + T6 SDD, then T7 e2e, T14 audit, T15 cleanup.
