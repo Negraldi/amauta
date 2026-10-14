@@ -135,6 +135,12 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - T10: the telemetry installer pieces (hooks, `--no-telemetry`, `state.telemetry`, their tests) landed in the T9 commit `a86c3f0` because they share `installer.js`; the hooks pointed at a not-yet-existing module for that one commit. Hook commands use `env PYTHONPATH=... GENTLE_LITE_STATE_DIR=... python3 -m gentle_lite.telemetry hook` (each assignment shell-quoted when needed). Telemetry is on by default. Hook busy timeout is 500 ms; project is `basename(cwd)` with no git call.
   - Strict TDD: RED observed for each module before implementation (T4b: 6 failing then 7 with registry/stop tests; T9: import errors for store/server/importer, 7 failing installer tests; T10: import error for the telemetry package). Three T4b tests (valid-refs, regression, mode statedir) passed immediately as guards.
 
+- 2026-10-14: RDD for T4b/T9/T10 (per-commit, base = parent):
+  - `44538b5` T4b: high → granted → 4 lenses → approved, acknowledged (review-45c015a3a70dde63). 3 warnings (git < 2.24 lacks `--end-of-options`; validateArgs TYPES map only string/boolean; SessionStart without `source`) → T15.
+  - `a86c3f0` T9: high → granted → 4 lenses → correction_required: CRITICAL R1-001 `python3 -m` puts hook cwd on sys.path (malicious repo code execution). Correction `a15a063` (detached, cherry-picked to branch as `b4c4e65`): `-P` for memory server and telemetry hook + behavior test planting a fake `gentle_lite` package in cwd (RED observed: marker written; GREEN after). Targeted validator: `-P` fix validated, but rejected overall because the telemetry module was absent in that isolated commit (it lands in `e945363`) → state `escalated`, no receipt. User accepted the escalation. Validator notes → T15: cover the telemetry hook in the -P test and assert exit status; declare Python >= 3.11 minimum.
+  - `e945363` T10: high → granted → 4 lenses → approved, acknowledged (review-2bad28a4eb455bde). Warnings: silent event drop under lock contention, unbounded events growth → T11; README claims (split artifact) → T15.
+  - `7f32424` docs: passive.
+
 ## Next step
 
-T6 optional SDD module, then T11 explorer, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup. RDD assess of `44538b5`, `a86c3f0`, `e945363` is pending (parent runs it).
+T11 control portal (+ telemetry drop counter and retention), then T6 SDD, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup.
