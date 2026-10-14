@@ -57,6 +57,16 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 - [x] T2b Fix RDD reliability warnings on core (review-8f9838a7dfe90f22): R3-002 `backup.js` statOrNull must only map ENOENT to null (other errors throw; never record existed:false on EACCES/ELOOP/ENOTDIR); R3-001 `fsatomic.js` unlink temp file on writeFile/sync failure; R3-003 `restoreBackup` pre-validates all entries (snapshot present for existed entries) before mutating, and reports partial failure. Route: delegated. Commit: `b1c88b9`.
 - [x] T4 Hooks + review: skill-registry refresh (fingerprint cache), review assess heuristic (passive/medium/high), review mode on/off, stop reminder hook. Hook commands registered as absolute `node <repo>/bin/gentle-lite.js hook <name>` (no PATH dependency); uninstall matches the `gentle-lite.js hook ` / `gentle-lite ` substrings. codegraph-guidance: replace `gentle-ai codegraph init` with upstream `codegraph init`. Route: delegated. Commit: `2b61f1b`.
 - [x] T5 Node MCP server `gentle-lite` (stdio) exposing registry/assess/status tools. Route: delegated. Commit: `0cb7011`.
+- [ ] T4b Fix RDD warnings from T4 (review-0383217060cd12f0) and T5 (review-31d944ec5806a00e):
+  - SECURITY T5 R1-001: validate `base_ref` everywhere it reaches git (MCP `review_assess`, CLI): reject values starting with `-`, containing `..`/`...` range syntax, whitespace or control chars; resolve with `git rev-parse --verify --end-of-options <ref>^{commit}` before use; pass `--end-of-options` / `--` separators to all git invocations.
+  - T5 R4-002/R3-004/R2-001: `validateArgs` validates per-tool inputSchema (types, required, absolute `cwd`, existing directory).
+  - T5 R4-001/R3-003: `oddTasksStatus` maps only ENOENT to empty; other readdir errors surface as tool errors.
+  - T5 R3-001: entrypoint guard compares realpaths. T5 R3-002: all JSON-RPC replies (including -32700/-32600) go through the same ordered write path.
+  - T4 R1-001/R1-002: skill-registry hook only writes `.atl/` when the project already opted in (existing `.atl/` dir or `.atl/` already in .gitignore), or via explicit CLI `refresh`; registry paths under $HOME rendered as `~/...`; hook never creates files in arbitrary repos.
+  - T4 R4-001/R3-stop-rebaseline-on-compact: SessionStart only writes a baseline on `startup`/`clear` (or when none exists); `resume`/`compact` keep baseline and notified list.
+  - T4 R2-stop-baseline-sentinel: replace the empty-diff sentinel with explicit "not a git repo" / "no HEAD" branches + comments.
+  - T4 R3-mode-global-missing-statedir: `setMode` creates stateDir before atomic write.
+  Route: delegated.
 - [ ] T6 Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
 - [ ] T9 Python memory MCP (stdlib sqlite3 + FTS5, hand-rolled stdio JSON-RPC): engram-compatible tool names (mem_save, mem_search, mem_context, mem_get_observation, mem_session_summary, mem_update), topic_key upsert, projects/sessions. Installer registers it as `engram`-equivalent server; harness never requires the compiled engram binary. Route: delegated.
 - [ ] T10 Local-only telemetry (Python, same SQLite module): hooks SessionStart/UserPromptSubmit/PostToolUse/Stop/SubagentStop append events; no network ever. Route: delegated.
@@ -104,6 +114,12 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - `.gitignore` gets `.atl/` only when the dir has `.git` or an existing `.gitignore`; the hook never touches `.gitignore`.
   - `review-stop` also no-ops when `stop_hook_active` is set (loop guard).
 
+- 2026-10-14: RDD for T2b/T4/T5 (per-commit, base = parent):
+  - `b1c88b9` T2b: medium, 131 lines → under_budget, no review (pending in slice).
+  - `2b61f1b` T4: high (process_boundary), 1042 lines → granted → 4 lenses → approved, acknowledged (review-0383217060cd12f0). 6 warnings → T4b, 13 suggestions → T15.
+  - `0cb7011` T5: high (process_boundary) → granted → 4 lenses → approved, acknowledged (review-31d944ec5806a00e). 8 warnings (1 security: git option injection via base_ref) → T4b, 6 suggestions → T15.
+  - `3a1cd8d` docs: passive.
+
 ## Next step
 
-T6 optional SDD module (or reorder to T9 per user priority).
+T4b fixes (security first), then T9 memory MCP and T10 telemetry (Python).
