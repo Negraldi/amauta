@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, stat, utimes, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installHook, uninstallHook, BEGIN, END } from '../src/graphify/hook.js';
 import { main } from '../src/cli.js';
@@ -58,7 +58,10 @@ test('install creates an executable post-commit hook with only the marked block'
   assert.equal(text.split(END).length - 1, 1);
   assert.ok(await executable(t.hook));
   assert.match(text, /export GRAPHIFY_QUERY_LOG_DISABLE=1/);
-  assert.match(text, /command -v graphify >\/dev\/null 2>&1 && graphify update \. >\/dev\/null 2>&1 \|\| true/);
+  assert.match(text, /command -v graphify >\/dev\/null 2>&1/);
+  assert.match(text, /graphify update \./);
+  assert.match(text, /gentle-lite-graphify\.lock/);
+  assert.ok(text.includes(path.join(t.state, 'graphify-hook.log')), 'failures are logged under the state dir');
   assert.match(text, new RegExp(`PYTHONPATH='?${path.join(repoRoot, 'python').replaceAll('/', '\\/')}'? .*python3 -P -m gentle_lite\\.graph sync --repo`));
   assert.ok(text.includes(`GENTLE_LITE_STATE_DIR=${t.state}`));
   assert.match(text, /\) >\/dev\/null 2>&1 &\n/);
@@ -193,5 +196,61 @@ test('re-install with another state dir refreshes the block in place, keeping su
   assert.ok(text.startsWith('#!/bin/sh\necho before\n'));
   await uninstallHook({ cwd: t.repo });
   assert.equal(await readFile(t.hook, 'utf8'), '#!/bin/sh\necho before\n');
+  await t.cleanup();
+});
+
+const exists = (p) => access(p).then(() => true, () => false);
+const lines = async (p) => ((await exists(p)) ? (await readFile(p, 'utf8')).split('\n').filter(Boolean) : []);
+const runHook = (t) => spawn('sh', [t.hook], { cwd: t.repo, env: { ...process.env, ...t.env }, stdio: 'ignore' });
+
+test('concurrent commits never stack runs: one at a time, extra triggers coalesce into one rerun', async () => {
+  const t = await sandbox({ graphify: `echo S >> "$(dirname "$0")/../trace.log"\nsleep 1\nmkdir -p graphify-out\necho '${GRAPH}' > graphify-out/graph.json\necho E >> "$(dirname "$0")/../trace.log"` });
+  await installHook(t.opts());
+  const trace = path.join(t.root, 'trace.log');
+  for (let i = 0; i < 6; i += 1) runHook(t);
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  await sleep(300);
+  await waitFor(async () => !(await exists(lock)) && (await lines(trace)).length >= 2);
+  await sleep(600);
+  const seq = (await lines(trace)).join('');
+  assert.match(seq, /^(SE){1,2}$/, `runs must not overlap and must coalesce: ${seq}`);
+  assert.equal(await exists(lock), false, 'lock is released');
+  await t.cleanup();
+});
+
+test('a fresh lock makes a trigger leave a pending marker instead of running', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  await mkdir(lock);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(`${lock}.pending`)), 'pending marker written');
+  await sleep(300);
+  assert.equal(await exists(t.log), false, 'graphify did not run while the lock is held');
+  await t.cleanup();
+});
+
+test('a stale lock is taken over', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  await mkdir(lock);
+  const old = new Date(Date.now() - 3600_000);
+  await utimes(lock, old, old);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(t.log)), 'graphify ran despite the old lock');
+  assert.ok(await waitFor(async () => !(await exists(lock))));
+  await t.cleanup();
+});
+
+test('failures are appended to <state>/graphify-hook.log instead of being discarded', async () => {
+  const t = await sandbox({ graphify: 'echo boom-marker >&2\nexit 9' });
+  await installHook(t.opts());
+  runHook(t);
+  const logFile = path.join(t.state, 'graphify-hook.log');
+  const text = await waitFor(async () => { const l = await lines(logFile); return l.length ? l.join('\n') : null; });
+  assert.ok(text, 'log written');
+  assert.match(text, /graphify update failed/);
+  assert.match(text, /boom-marker/);
   await t.cleanup();
 });
