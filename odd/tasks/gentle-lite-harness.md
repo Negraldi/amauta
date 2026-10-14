@@ -72,14 +72,14 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - portal server/API: negative/invalid Content-Length; `parse_qsl` ValueError and any unexpected view exception → JSON 400/500 instead of dropped connection; `memory_history` connection leak; rename `_compatible`; invalid prices in prices.json must be reported, not silently 0.
   - UI/CLI: `gentle-lite portal` must print the spawn error (e.g. python3 missing); memories `load()`/row handlers catch async errors and check `available` before `facets`; strengthen the vacuous `#usage` UI test assertion.
   Route: delegated.
-- [ ] T13b Fix RDD warnings from the T11b/T12/T13 reviews (scratchpad `c12cap2.json`, `c13cap3.json`, `c14cap3.json`):
+- [x] T13b (commits `e2bf6cb` usage/portal, `30e1a95` codegraph, `1880d94` graphify hook, `c8c5c8f` graph queries + UI helper) Fix RDD warnings from the T11b/T12/T13 reviews (scratchpad `c12cap2.json`, `c13cap3.json`, `c14cap3.json`):
   - usage ingest: each batch must be an explicit transaction (`with conn:` per batch incl. state save) so a mid-batch failure rolls back; portal catch-all must log the exception (stderr) before returning 500.
   - codegraph: remove the prompt hook we added when codegraph is no longer on PATH on re-install; test the failing-init branch (FAKE_CODEGRAPH_RC) and fix the misleading test name.
   - graphify hook: single-flight lock (e.g. `flock`-free mkdir lock in `.git/gentle-lite-graphify.lock` with stale timeout) + coalescing so concurrent commits never stack runs; log failures to `<state-dir>/graphify-hook.log` instead of /dev/null.
   - graph queries: dedupe by node (min depth) during the walk and bound rows before GROUP BY; check `sqlite3.sqlite_version_info >= (3,34)` and fall back to a Python BFS otherwise; store/drop `norm_label`, `_src/_tgt` consistently; MCP `graph_query` normalizes `repo` with realpath like sync does.
   - UI test helper: restore shared routes via the helper, not manual rewrites.
   Route: delegated.
-- [ ] T6 Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
+- [x] T6 (commits `8e36596` status, `bd9d469` preflight hook, `127a75a` assets, `2fd4c93` installer) Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
 - [x] T9 (commit `a86c3f0`) Python memory MCP (stdlib sqlite3 + FTS5, hand-rolled stdio JSON-RPC): engram-compatible tool names (mem_save, mem_search, mem_context, mem_get_observation, mem_session_summary, mem_update), topic_key upsert, projects/sessions. Installer registers it as `engram`-equivalent server; harness never requires the compiled engram binary. Route: delegated.
 - [x] T10 (commits `a86c3f0` installer hooks + `e945363` package) Local-only telemetry (Python, same SQLite module): hooks SessionStart/UserPromptSubmit/PostToolUse/Stop/SubagentStop append events; no network ever. Route: delegated.
 - [x] T11 (commits `bfb055e` usage, `2efa69b` telemetry hardening, `bcf5e81` portal API/server, `c475969` UI + node command, `f92ca9e` CSS fix) Control portal (Python `http.server` + static HTML/vanilla JS, no CDN, inline SVG charts, light/dark), bind 127.0.0.1 only, read-only over all sources. Route: delegated.
@@ -194,6 +194,19 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - Docs commits `035877b`, `b2be93a`: passive.
 - 2026-10-14: verified compiled parts of external tools: codegraph npm package ships its own Node 24 ELF + native `codegraph-kernel.node` + 68 wasm grammars; graphify wheel is pure Python but depends on numpy, rapidfuzz and ~28 tree-sitter grammar C extensions; the (non-gentle-lite) `impeccable` skill runs a 16 MB static ELF and its launcher can curl-download binaries. User decision: libraries/dependencies with native extensions are allowed (see Constraints). T15 must decide on impeccable (outside gentle-lite scope; keep as optional external or remove).
 
+- 2026-10-14: T13b and T6 done by one delegated writer. `npm test`: 207 node tests + 174 python tests pass.
+  Deviations (rationale one line each):
+  - T13b: RED observed for every item except three guards that passed immediately (init-failure test, graphify internal keys test, dense-graph dedupe test); the UI-helper RED was shown by running the new test against the old helper in a temp copy.
+  - T13b: the graph walk now has ONE recursive term (`CASE WHEN src = node THEN dst ELSE src END` over `src = node OR dst = node`), rows `(node, depth)` bounded by `LIMIT WALK_ROWS` (20000) inside the CTE and grouped in Python; because that no longer needs SQLite 3.34, the 3.34 gate is kept only as the review asked (older builds use a Python BFS), so it is conservative rather than required. `path` backtracks through min-depth maps instead of storing parents.
+  - T13b: stale codegraph prompt hook is removed only when state says we added it; the MCP entry is still kept (it only costs a failed server start, not an error on every prompt).
+  - T13b: graphify hook lock is a `mkdir` lock at `$(git rev-parse --git-path gentle-lite-graphify.lock)` (not hardcoded `.git/`), stale after 15 min, pending marker `<lock>.pending` triggers one rerun; failures append to `<state>/graphify-hook.log` (truncated above 256 KB).
+  - T6: v3.4.0 assets were taken read-only from the installed gentle-ai 3.4.0 files in `~/.claude` (the scratchpad `v34/` only holds two Go files), de-rendered (model -> `{{CLAUDE_MODEL}}`, installer footers stripped, engram tool variants collapsed) by a one-off script. Commands renamed to `/lite-sdd-*` so they never collide with a gentle-ai install; skills and agents keep the `sdd-*` names (collision handled by sha tracking, user-edited files are kept).
+  - T6: not vendored: `review-ledger-contract*.md`, `sdd-orchestrator-sections.md`. Archive's native `sdd-archive-compose` section and the `sdd-task-result` paragraph are replaced by short manual notes; consent/grant (`sdd-attempt`) does not exist, so a task naming a path outside the workspace blocks apply with exits "edit tasks.md" or "mark (read-only)". Remaining `gentle-ai review ...` prose in `lite-sdd-verify.md` and `sdd-status-contract.md` consent paragraphs is left for T15.
+  - T6: status supports only `openspec`; declared `engram`/`hybrid` => `blocked` + `resolve-blockers`. `later work unit note(future_edit_roots)` is not implemented. Explicit unknown change => exit 1 with stderr (upstream's exact behavior unobserved).
+  - T6: preflight hook accepts any `subagent_type` starting `sdd-` (upstream: the listed phases); malformed/oversized payload that textually contains `"subagent_type": "sdd-` and any unexpected exception for an sdd dispatch => deny (fail closed, rationale: allowing would silently drop the human gate); everything else silent. Stdin read failure is silent because the target cannot be known. Allow reason text says "attached by gentle-lite".
+  - T6: `--with-sdd` is sticky (a plain re-install keeps it); there is no `--without-sdd` (needs pruning of no-longer-rendered files; uninstall removes the module).
+  - Not done: RDD review of these commits (not run per instructions).
+
 ## Next step
 
-T13b fixes + T6 SDD, then T7 e2e, T14 audit, T15 cleanup.
+T7 e2e test and doc pass, T14 audit, T15 cleanup.
