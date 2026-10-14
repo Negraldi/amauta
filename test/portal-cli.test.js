@@ -9,9 +9,9 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
 
 test('builds python3 -P -m gentle_lite.portal with PYTHONPATH and forwarded options', () => {
-  const r = buildPortalSpawn(['--port', '9001', '--repo', '.', '--repo', '/abs/r', '--graphify', '/g', '--engram-db', '/e.db', '--claude-home', '/c/.claude', '--state-dir', '/s'], { PATH: '/bin', PYTHONPATH: '/old' });
+  const r = buildPortalSpawn(['--port', '9001', '--repo', '.', '--repo', '/abs/r', '--engram-db', '/e.db', '--claude-home', '/c/.claude', '--state-dir', '/s'], { PATH: '/bin', PYTHONPATH: '/old' });
   assert.equal(r.command, 'python3');
-  assert.deepEqual(r.args, ['-P', '-m', 'gentle_lite.portal', '--port', '9001', '--claude-home', '/c/.claude', '--engram-db', '/e.db', '--graphify', '/g', '--repo', path.resolve('.'), '--repo', '/abs/r']);
+  assert.deepEqual(r.args, ['-P', '-m', 'gentle_lite.portal', '--port', '9001', '--claude-home', '/c/.claude', '--engram-db', '/e.db', '--repo', path.resolve('.'), '--repo', '/abs/r']);
   assert.equal(r.env.PYTHONPATH, `${path.join(repo, 'python')}${path.delimiter}/old`);
   assert.equal(r.env.GENTLE_LITE_STATE_DIR, '/s');
   assert.equal(r.env.PATH, '/bin');
@@ -64,4 +64,8 @@ test('defaultSpawn maps a SIGTERM-terminated child to 143 and removes its signal
   const p = defaultSpawn(process.execPath, ['-e', 'process.kill(process.pid, "SIGTERM")'], { stdio: 'ignore' }, { stderr: sink() });
   assert.equal(await p, 143);
   assert.equal(process.listenerCount('SIGTERM'), before);
+});
+
+test('the removed --graphify option is rejected (graph memory comes from --repo)', () => {
+  assert.throws(() => buildPortalSpawn(['--graphify', '/g'], {}), /unknown option/i);
 });

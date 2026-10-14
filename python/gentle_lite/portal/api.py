@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from ..graph import query as graph_query
 from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import ingest
@@ -353,21 +354,63 @@ class Portal:
                 return {"id": wanted, "content": data.decode("utf-8", "replace"), "truncated": p.stat().st_size > MAX_TEXT}
         raise NotFound()
 
+    # ---- graph memory (graphify mirror in memory.db) ------------------------------------------
+    def _graph_conn(self):
+        conn = ro_connect(self.cfg.db_path)
+        if conn is not None and not (has_table(conn, "graph_sync") and has_table(conn, "graph_nodes") and has_table(conn, "graph_edges")):
+            conn.close()
+            return None
+        return conn
+
+    def _graph_repo(self, q):
+        """Only repositories given with --repo can be asked about; the value is matched, never used as a path."""
+        wanted = q.get("repo")
+        for repo in self.cfg.repos:
+            if wanted == str(repo.resolve()):
+                return wanted
+        raise BadRequest("repo must be one of the configured --repo paths (see /api/graphify)")
+
     def graphify(self, q):
-        g = self.cfg.graphify
-        if g is None:
-            return {"available": False, "reason": "not configured (use --graphify)"}
-        if g.is_dir():
-            g = g / "graphify-out" / "graph.json" if (g / "graphify-out").is_dir() else g / "graph.json"
+        conn = self._graph_conn()
+        repos = []
         try:
-            if g.stat().st_size > 64_000_000:
-                return {"available": False, "reason": "graph.json too large to summarize"}
-            data = json.loads(g.read_text())
-            nodes = data.get("nodes", [])
-            edges = data.get("links", data.get("edges", []))
-            return {"available": True, "nodes": len(nodes), "edges": len(edges), "path": str(g), "mtime": datetime.fromtimestamp(g.stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-        except (OSError, ValueError, AttributeError, TypeError):
-            return {"available": False, "reason": "graph.json missing or unreadable"}
+            for repo in self.cfg.repos:
+                key = str(repo.resolve())
+                row = conn.execute("SELECT graph_mtime, synced_at, nodes, edges FROM graph_sync WHERE repo = ?", (key,)).fetchone() if conn is not None else None
+                if row is None:
+                    repos.append({"name": repo.name, "path": key, "available": False,
+                                  "reason": "not mirrored yet: run `graphify update .` and `python3 -P -m gentle_lite.graph sync --repo <repo>` (or install the post-commit hook)"})
+                else:
+                    repos.append({"name": repo.name, "path": key, "available": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"],
+                                  "graph_mtime": datetime.fromtimestamp(row["graph_mtime"] or 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+        finally:
+            if conn is not None:
+                conn.close()
+        return {"repos": repos}
+
+    def _graph_call(self, fn):
+        conn = self._graph_conn()
+        if conn is None:
+            return {"available": False}
+        try:
+            return {"available": True, **fn(conn)}
+        except graph_query.QueryError as err:
+            raise BadRequest(str(err)) from None
+        finally:
+            conn.close()
+
+    def graph_nodes(self, q):
+        repo = self._graph_repo(q)
+        limit = _int(q, "limit", 50, 1, 200)
+        return self._graph_call(lambda conn: {"items": graph_query.search_nodes(conn, repo, _str(q, "q", 200) or "", limit)})
+
+    def graph_neighbors(self, q):
+        repo = self._graph_repo(q)
+        node = _str(q, "node", 512)
+        if not node:
+            raise BadRequest("node is required")
+        depth = _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
+        return self._graph_call(lambda conn: graph_query.neighbors(conn, repo, node, depth))
 
     # ---- harness --------------------------------------------------------------------------
     @staticmethod
@@ -460,5 +503,6 @@ _ROUTES = {
     "/api/overview": "overview", "/api/tools": "tools", "/api/sessions": "sessions", "/api/costs": "costs",
     "/api/memories": "memories", "/api/memory": "memory", "/api/memory/history": "memory_history",
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
+    "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/odd": "odd",
 }

@@ -1,4 +1,4 @@
-"""python3 -P -m gentle_lite.portal [--port 8765] [--claude-home] [--engram-db] [--repo PATH]... [--graphify PATH]"""
+"""python3 -P -m gentle_lite.portal [--port 8765] [--claude-home] [--engram-db] [--repo PATH]..."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,7 @@ def build_parser():
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--claude-home")
     p.add_argument("--engram-db")
-    p.add_argument("--repo", action="append", default=[], help="repository whose odd/tasks/*.md to show (repeatable)")
-    p.add_argument("--graphify", help="graphify-out directory or graph.json")
+    p.add_argument("--repo", action="append", default=[], help="repository whose odd/tasks/*.md and mirrored graphify graph to show (repeatable)")
     return p
 
 
@@ -27,7 +26,6 @@ def main(argv=None) -> int:
         claude_home=args.claude_home or paths.claude_home(),
         engram_db=args.engram_db or Path.home() / ".engram" / "engram.db",
         repos=args.repo,
-        graphify=args.graphify,
     )
     try:
         srv = make_server(cfg, port=args.port)

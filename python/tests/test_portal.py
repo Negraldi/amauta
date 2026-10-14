@@ -21,7 +21,7 @@ class ApiBase(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.f = fx.build(self.root)
-        self.cfg = Config(state_dir=self.f["state"], claude_home=self.f["home"], engram_db=self.f["engram"], repos=[self.f["repo"]], graphify=self.f["graph"])
+        self.cfg = Config(state_dir=self.f["state"], claude_home=self.f["home"], engram_db=self.f["engram"], repos=[self.f["repo"]])
         self.portal = api.Portal(self.cfg)
 
     def get(self, path, **q):
@@ -205,15 +205,41 @@ class MemoryViewsTest(ApiBase):
         for bad in ("../../settings.json", "/etc/passwd", "projects/-work-alpha/other.md", ""):
             self.assertEqual(self.portal.get("/api/memory-file", {"id": bad})[0], 404, bad)
 
-    def test_graphify_stats_and_unconfigured(self):
-        g = self.get("/api/graphify")
-        self.assertEqual((g["available"], g["nodes"], g["edges"]), (True, 3, 1))
-        p = api.Portal(Config(state_dir=self.f["state"], claude_home=self.f["home"]))
-        self.assertFalse(p.get("/api/graphify", {})[1]["available"])
-        bad = self.root / "bad.json"
-        bad.write_text("{nope")
-        p = api.Portal(Config(state_dir=self.f["state"], claude_home=self.f["home"], graphify=bad))
-        self.assertEqual(p.get("/api/graphify", {})[0], 200)
+    def test_graphify_stats_per_configured_repo(self):
+        (g,) = self.get("/api/graphify")["repos"]
+        self.assertEqual((g["available"], g["nodes"], g["edges"], g["name"]), (True, 6, 4, "repo"))
+        self.assertEqual(g["path"], str(self.f["repo"].resolve()))
+        unsynced = self.root / "fresh"
+        unsynced.mkdir()
+        p = api.Portal(Config(state_dir=self.f["state"], claude_home=self.f["home"], repos=[unsynced]))
+        (u,) = p.get("/api/graphify", {})[1]["repos"]
+        self.assertFalse(u["available"])
+        self.assertIn("graphify update", u["reason"])
+        self.assertEqual(api.Portal(Config(state_dir=self.f["state"], claude_home=self.f["home"])).get("/api/graphify", {})[1]["repos"], [])
+
+    def test_graph_nodes_search_and_neighbors(self):
+        key = str(self.f["repo"].resolve())
+        everything = self.get("/api/graph/nodes", repo=key)["items"]
+        self.assertEqual(len(everything), 6)
+        self.assertEqual([n["id"] for n in self.get("/api/graph/nodes", repo=key, q="alp")["items"]], ["a"])
+        self.assertIn(fx.XSS, [n["label"] for n in everything])  # raw text; the UI renders it with textContent
+        near = self.get("/api/graph/neighbors", repo=key, node="a", depth=2)
+        self.assertEqual({n["id"] for n in near["nodes"]}, {"a", "b", "e", "c"})
+
+    def test_graph_endpoints_only_accept_configured_repos_and_valid_input(self):
+        for q in ({"repo": "/etc"}, {}, {"repo": str(self.f["repo"].resolve()) + "/.."}):
+            self.assertEqual(self.portal.get("/api/graph/nodes", q)[0], 400, q)
+        key = str(self.f["repo"].resolve())
+        self.assertEqual(self.portal.get("/api/graph/neighbors", {"repo": key, "node": "nope"})[0], 400)
+        self.assertEqual(self.portal.get("/api/graph/neighbors", {"repo": key, "node": "a", "depth": "x"})[0], 400)
+        self.assertEqual(self.portal.get("/api/graph/neighbors", {"repo": key})[0], 400)
+
+    def test_graph_views_are_read_only(self):
+        key = str(self.f["repo"].resolve())
+        before = (self.f["state"] / "memory.db").stat().st_mtime_ns
+        self.get("/api/graphify")
+        self.get("/api/graph/neighbors", repo=key, node="a")
+        self.assertEqual((self.f["state"] / "memory.db").stat().st_mtime_ns, before)
 
 
 class HarnessViewsTest(ApiBase):

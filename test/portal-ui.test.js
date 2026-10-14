@@ -24,7 +24,11 @@ const routes = {
   '/api/memory': { available: true, id: 1, title: XSS, content: XSS, type: 'note', project: 'p', topic_key: null, revision: 1, updated_at: 'u' },
   '/api/memory-files': { items: [{ id: 'a/memory/n.md', name: XSS, project: 'a', size: 3, mtime: 'm' }] },
   '/api/memory-file': { id: 'a/memory/n.md', content: XSS, truncated: false },
-  '/api/graphify': { available: false, reason: XSS },
+  '/api/graphify': { repos: [
+    { name: XSS, path: '/r/one', available: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z', graph_mtime: '2026-10-13T00:00:00Z' },
+    { name: 'two', path: '/r/two', available: false, reason: XSS }] },
+  '/api/graph/nodes': { available: true, items: [{ id: 'a', label: XSS, kind: 'code', file: 'src/a.py' }, { id: 'b', label: 'Beta', kind: 'code', file: 'src/b.py' }] },
+  '/api/graph/neighbors': { available: true, depth: 1, start: ['a'], nodes: [{ id: 'a', label: XSS, kind: 'code', file: 'x', depth: 0 }, { id: 'b', label: 'Beta', kind: 'code', file: 'y', depth: 1 }], edges: [{ src: 'a', dst: 'b', relation: XSS }] },
   '/api/harness': { installed: true, version: '1', hooks: [{ event: 'Stop', kind: 'usage' }], mcp_servers: [{ name: XSS, type: 'stdio', command: 'x' }], components: [XSS], managed_files: 1, telemetry: true, rdd_mode: 'on', persona: 'neutral' },
   '/api/odd': { repos: [{ repo: XSS, documents: [{ name: XSS, done: 1, total: 2, tasks: [{ done: true, title: XSS }, { done: false, title: 'b' }] }] }] },
 };
@@ -174,5 +178,37 @@ test('overview reports invalid prices and an unreadable prices file', async () =
   });
   await withRoutes({ '/api/costs': { enabled: false, models: [], error: 'prices.json is unreadable' } }, '', async (env) => {
     assert.match(env.document.getElementById('view').textContent, /prices\.json is unreadable/);
+  });
+});
+
+test('graph memory: per-repo stats, searchable node list and neighbors view, all as text', async () => {
+  const env = await boot('#memories');
+  const view = env.document.getElementById('view');
+  assert.match(view.textContent, /6 nodes, 4 edges/);
+  assert.match(view.textContent, /not mirrored|graphify update|<img/); // the unavailable repo shows its reason as text
+  assert.ok(view.textContent.includes('src/a.py'), 'initial node list is loaded');
+  env.calls.length = 0;
+  const box = tree(view).find((e) => e.tagName === 'input' && e.attrs['aria-label'] === 'Search graph nodes');
+  assert.ok(box, 'graph search box');
+  box.value = 'alp';
+  tree(view).find((e) => e.tagName === 'button' && e.textContent === 'Search graph').click();
+  await tick();
+  const call = env.calls.find((c) => c.url.startsWith('/api/graph/nodes'));
+  assert.match(call.url, /repo=%2Fr%2Fone/);
+  assert.match(call.url, /q=alp/);
+  tree(view).find((e) => e.tagName === 'button' && e.className === 'row-link' && e.textContent === XSS && e.attrs['data-graph']).click();
+  await tick();
+  const n = env.calls.find((c) => c.url.startsWith('/api/graph/neighbors'));
+  assert.match(n.url, /node=a/);
+  assert.match(view.textContent, /Beta/);
+  assert.equal(tree(view).filter((e) => e.tagName === 'img').length, 0);
+  assert.ok(tree(view).every((e) => Object.values(e.attrs).every((v) => !v.includes('onerror'))));
+});
+
+test('graph memory: API failures are shown inline', async () => {
+  await withRoutes({ '/api/graph/nodes': undefined }, '#memories', async (env, rejections) => {
+    const view = env.document.getElementById('view');
+    assert.match(view.textContent, /not found/);
+    assert.deepEqual(rejections, []);
   });
 });

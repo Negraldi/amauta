@@ -75,7 +75,11 @@ def build(root: Path) -> dict:
     (state / "telemetry.dropped").write_bytes(b"xxx")
     (repo / "odd" / "tasks").mkdir(parents=True)
     (repo / "odd" / "tasks" / "feat.md").write_text("# Feature\n\n- [x] T1 Done thing\n- [ ] T2 Open thing\n  - [x] nested ignored\n- [x] T3 Another\n")
-    graph = root / "graphify-out" / "graph.json"
-    graph.parent.mkdir()
-    graph.write_text(json.dumps({"nodes": [{"id": 1}, {"id": 2}, {"id": 3}], "links": [{"source": 1, "target": 2}]}))
-    return {"state": state, "home": home, "repo": repo, "engram": engram, "claude_json": cj, "graph": graph}
+    from python.gentle_lite.graph import sync
+    from python.tests.test_graph import GRAPH, write_graph
+
+    write_graph(repo, GRAPH)  # graphify-out/graph.json inside the repo, mirrored like the post-commit hook does
+    c = mstore.connect(state / "memory.db")
+    sync.sync_repo(c, repo)
+    c.close()
+    return {"state": state, "home": home, "repo": repo, "engram": engram, "claude_json": cj}

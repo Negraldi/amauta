@@ -12,7 +12,6 @@ const OPTIONS = {
   'claude-home': { type: 'string' },
   'engram-db': { type: 'string' },
   'state-dir': { type: 'string' },
-  graphify: { type: 'string' },
   repo: { type: 'string', multiple: true },
 };
 
@@ -25,7 +24,6 @@ export function buildPortalSpawn(args, env = process.env) {
   if (values.port !== undefined) out.push('--port', values.port);
   if (values['claude-home'] !== undefined) out.push('--claude-home', values['claude-home']);
   if (values['engram-db'] !== undefined) out.push('--engram-db', values['engram-db']);
-  if (values.graphify !== undefined) out.push('--graphify', values.graphify);
   for (const r of values.repo ?? []) out.push('--repo', path.resolve(r));
   const pythonPath = path.join(repoRoot, 'python');
   return {
@@ -67,5 +65,5 @@ export async function runPortal(args, io, { spawn = defaultSpawn } = {}) {
 }
 
 export function registerPortalCommands(commands) {
-  commands.set('portal', { summary: 'Start the read-only control portal on 127.0.0.1 (--port --claude-home --engram-db --state-dir --graphify --repo)', run: (args, io) => runPortal(args, io) });
+  commands.set('portal', { summary: 'Start the read-only control portal on 127.0.0.1 (--port --claude-home --engram-db --state-dir --repo)', run: (args, io) => runPortal(args, io) });
 }

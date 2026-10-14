@@ -56,7 +56,7 @@ function table(id, columns, rows, onRow) {
     onkeydown: (e) => { if (e.key === "Enter") e.target.click(); },
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
   const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
-    c.link && onRow ? h("button", { class: "row-link", type: "button", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : r[c.key] ?? "-"))));
+    c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : r[c.key] ?? "-"))));
   return h("div", { class: "scroll" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
@@ -173,7 +173,6 @@ async function viewMemories() {
   type.addEventListener("change", load);
   await load();
   const files = await api("memory-files");
-  const fileBox = h("div", null);
   const fileDetail = h("pre", { class: "text" }, "");
   fileDetail.hidden = true;
   return [
@@ -181,14 +180,39 @@ async function viewMemories() {
     panel("Search", h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, "Search")), mine),
     detail,
     panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, guarded(async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; }, fileDetail)) : empty("No file memories found."), fileDetail),
-    panel("Graph memory (graphify)", await graphifyBox(fileBox)),
+    await graphifyPanel(),
   ];
 }
 
-async function graphifyBox(box) {
+// One block per --repo: stats, searchable node list, neighbors of the selected node. Data only ever becomes text.
+function graphRepo(r) {
+  if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason || "Not available.")) };
+  const q = h("input", { type: "search", placeholder: "Search nodes", "aria-label": "Search graph nodes" });
+  const depth = h("select", { "aria-label": "Depth" }, [1, 2, 3].map((d) => h("option", { value: String(d) }, `depth ${d}`)));
+  const list = h("div", null);
+  const near = h("div", null);
+  const show = guarded(async (node) => {
+    const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
+    near.replaceChildren(h("h3", null, `Neighbors of ${node.label || node.id}`),
+      table("gn-" + r.path, [{ key: "depth", label: "Depth", num: true }, { key: "label", label: "Label" }, { key: "kind", label: "Kind" }, { key: "file", label: "File" }], g.nodes),
+      g.edges.length ? table("ge-" + r.path, [{ key: "src", label: "From" }, { key: "relation", label: "Relation" }, { key: "dst", label: "To" }], g.edges) : empty("No edges between these nodes."));
+  }, near);
+  const load = guarded(async () => {
+    const g = await api("graph/nodes", { repo: r.path, q: q.value });
+    list.replaceChildren(g.items.length ? table("gnodes-" + r.path, [{ key: "label", label: "Node", link: true, attr: "data-graph" }, { key: "kind", label: "Kind" }, { key: "file", label: "File" }], g.items, show) : empty("No matching nodes."));
+  }, list);
+  q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  const ready = load();
+  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, `${fmt(r.nodes)} nodes, ${fmt(r.edges)} edges (mirrored ${r.synced_at}; graph.json ${r.graph_mtime})`),
+    h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, "Search graph")), list, near) };
+}
+
+async function graphifyPanel() {
   const g = await api("graphify");
-  box.replaceChildren(g.available ? h("p", null, `${fmt(g.nodes)} nodes, ${fmt(g.edges)} edges (updated ${g.mtime})`) : empty(g.reason || "Not available."));
-  return box;
+  if (!g.repos.length) return panel("Graph memory (graphify)", empty("No repositories configured (use --repo)."));
+  const blocks = g.repos.map(graphRepo);
+  await Promise.all(blocks.map((b) => b.ready));
+  return panel("Graph memory (graphify)", ...blocks.map((b) => b.el));
 }
 
 async function viewHarness() {

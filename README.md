@@ -100,14 +100,14 @@ PYTHONPATH=python python3 -P -m gentle_lite.usage backfill [--claude-home ~/.cla
 ## Control portal (read-only)
 
 ```
-PYTHONPATH=python python3 -P -m gentle_lite.portal [--port 8765] [--claude-home DIR] [--engram-db FILE] [--repo DIR]... [--graphify PATH]
+PYTHONPATH=python python3 -P -m gentle_lite.portal [--port 8765] [--claude-home DIR] [--engram-db FILE] [--repo DIR]...
 ```
 
 `gentle-lite portal [--port N] [--repo DIR]...` starts the same thing from the CLI (it sets `PYTHONPATH` and the state dir).
 Views: Overview (tokens per day stacked by input/output/cache read/cache write, model split, cache hit ratio, sessions
 per day, dropped-telemetry counter, optional cost estimate), Usage (skills, tools, MCP servers/tools, subagent types;
 sortable), Sessions (per project/session, project and date filters), Memories (own DB with FTS, engram DB read-only,
-Claude file memories, graphify stats), Harness (state.json, hooks, MCP servers, RDD mode, `odd/tasks` progress).
+Claude file memories, graph memory of each `--repo`: stats, node search, neighbors), Harness (state.json, hooks, MCP servers, RDD mode, `odd/tasks` progress).
 JSON API plus a single-page UI, stdlib only, no CDN. It binds `127.0.0.1` only (there is no host option), checks the
 `Host` header against DNS rebinding, serves a strict CSP (no inline script or style) and opens every database with
 `mode=ro` (never created, never migrated). The only write is the "Refresh usage" button, `POST /api/refresh`, which runs
