@@ -126,13 +126,48 @@ test('codegraph init runs `codegraph init` in the project via execFile, no shell
   await t.cleanup();
 });
 
-test('codegraph init reports a missing codegraph and a failing one', async () => {
+test('codegraph init reports a missing codegraph', async () => {
   const t = await sandbox({ withCodegraph: false });
   const proj = path.join(t.root, 'proj');
   await mkdir(path.join(proj, '.git'), { recursive: true });
   const err = sink();
   assert.equal(await codegraphInit({ cwd: proj, searchPath: t.binDir, ...guards(t) }, { stdout: sink(), stderr: err }), 1);
   assert.match(err.text, /npm i -g @colbymchenry\/codegraph/);
+  await t.cleanup();
+});
+
+test('codegraph init reports a failing codegraph with its exit code', async () => {
+  const t = await sandbox();
+  const proj = path.join(t.root, 'proj');
+  await mkdir(path.join(proj, '.git'), { recursive: true });
+  const err = sink();
+  const prev = process.env.FAKE_CODEGRAPH_RC;
+  process.env.FAKE_CODEGRAPH_RC = '3';
+  try {
+    assert.equal(await codegraphInit({ cwd: proj, searchPath: t.binDir, ...guards(t) }, { stdout: sink(), stderr: err }), 3);
+  } finally {
+    if (prev === undefined) delete process.env.FAKE_CODEGRAPH_RC; else process.env.FAKE_CODEGRAPH_RC = prev;
+  }
+  assert.match(err.text, /codegraph init failed/);
+  await t.cleanup();
+});
+
+test('re-install after codegraph left PATH removes the prompt hook we added, and re-adds it when it returns', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  assert.equal(promptCommands(await t.settings()).length, 1);
+  await install(t.opts({ searchPath: path.join(t.root, 'empty') }));
+  assert.equal(promptCommands(await t.settings()).length, 0, 'no dangling hook that fails on every prompt');
+  assert.equal((await readJson(path.join(t.stateDir, 'state.json'))).codegraph_hook_added, false);
+  await install(t.opts());
+  assert.equal(promptCommands(await t.settings()).length, 1);
+  await t.cleanup();
+});
+
+test('re-install without codegraph keeps a prompt hook the user wrote themselves', async () => {
+  const t = await sandbox({ settings: { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: HOOK }] }] } } });
+  await install(t.opts({ searchPath: path.join(t.root, 'empty') }));
+  assert.equal(promptCommands(await t.settings()).length, 1);
   await t.cleanup();
 });
 

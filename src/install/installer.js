@@ -195,7 +195,10 @@ async function plan(opts) {
   settings = mergeHooks(settings, wantedHooks);
   // codegraph's own prompt hook: only when the tool is installed, never duplicated, and only removed again if we added it.
   const hookWasThere = hasCommand(settingsIn.data, 'UserPromptSubmit', CODEGRAPH_PROMPT_HOOK);
-  const codegraphHookAdded = (prev?.codegraph_hook_added === true && hookWasThere) || (codegraphOnPath && !hookWasThere);
+  const weAddedHook = prev?.codegraph_hook_added === true && hookWasThere;
+  const dropHook = weAddedHook && !codegraphOnPath; // a hook we added must not outlive the tool: it would fail on every prompt
+  const codegraphHookAdded = !dropHook && (weAddedHook || (codegraphOnPath && !hookWasThere));
+  if (dropHook) settings = removeHooksWhere(settings, (c) => c === CODEGRAPH_PROMPT_HOOK);
   if (codegraphOnPath && !hookWasThere) {
     settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK }] }] });
   }
