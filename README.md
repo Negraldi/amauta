@@ -70,7 +70,7 @@ PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/e
 ## Telemetry (local only)
 
 `install` registers `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `SubagentStop`
-hooks that run `env PYTHONPATH=<repo>/python GENTLE_LITE_STATE_DIR=<state> python3 -m gentle_lite.telemetry hook`.
+hooks that run `env PYTHONPATH=<repo>/python GENTLE_LITE_STATE_DIR=<state> python3 -P -m gentle_lite.telemetry hook`.
 Each call appends one row to the `events` table of `memory.db`: time, session id, event, tool name,
 cwd/project, payload size, ok flag. Prompt text and tool inputs/outputs are never stored, the hook
 always exits 0 with empty stdout, and the package has no network code (a test enforces it).
@@ -78,6 +78,18 @@ always exits 0 with empty stdout, and the package has no network code (a test en
 
 ```
 PYTHONPATH=python GENTLE_LITE_STATE_DIR=<state> python3 -m gentle_lite.telemetry report [--days N] [--json]
+```
+
+## Usage ingestion (local only)
+
+With telemetry on, `install` also registers a `Stop` and `SubagentStop` hook (`python3 -P -m gentle_lite.usage hook`)
+that reads the `transcript_path` of the payload and stores, per assistant message id (deduplicated), the model,
+timestamps and token counts (input, output, cache read, cache write 5m/1h, thinking) in `usage_messages`, plus tool
+names in `tool_calls` (Skill names, subagent types and MCP server names only; never prompt text or tool payloads).
+Ingestion is incremental through `ingest_state` (byte offset; a shrunk or rewritten file is rescanned).
+
+```
+PYTHONPATH=python python3 -P -m gentle_lite.usage backfill [--claude-home ~/.claude]
 ```
 
 ## Safety: parameterized targets

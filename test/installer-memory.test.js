@@ -39,6 +39,35 @@ const memoryEntry = (t) => ({
 const telemetryCommands = (settings) =>
   Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /gentle_lite\.telemetry hook/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
 
+const usageCommands = (settings) =>
+  Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /gentle_lite\.usage hook/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
+
+test('usage hook is registered for Stop and SubagentStop only, same form as telemetry, and removed by uninstall', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  const found = usageCommands(await t.settings());
+  assert.deepEqual(found.map((f) => f.event).sort(), ['Stop', 'SubagentStop']);
+  for (const f of found) {
+    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} GENTLE_LITE_STATE_DIR=${t.stateDir} python3 -P -m gentle_lite.usage hook`);
+    assert.equal(f.matcher, '');
+  }
+  assert.ok((await status(t.opts())).ok);
+  await uninstall(t.opts());
+  assert.equal(usageCommands(await t.settings().catch(() => ({}))).length, 0); // settings.json is removed when it ends up empty
+  await t.cleanup();
+});
+
+test('usage hook is skipped with telemetry off and removed on re-install without it', async () => {
+  const t = await sandbox();
+  await install(t.opts({ telemetry: false }));
+  assert.equal(usageCommands(await t.settings()).length, 0);
+  await install(t.opts());
+  assert.equal(usageCommands(await t.settings()).length, 2);
+  await install(t.opts({ telemetry: false }));
+  assert.equal(usageCommands(await t.settings()).length, 0);
+  await t.cleanup();
+});
+
 test('memory MCP server is registered as "engram" when absent', async () => {
   const t = await sandbox();
   await install(t.opts());

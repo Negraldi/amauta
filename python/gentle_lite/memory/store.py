@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _MIGRATIONS = {
     1: """
@@ -49,6 +49,23 @@ _MIGRATIONS = {
         tool_name TEXT, cwd TEXT, project TEXT, duration_ms INTEGER,
         payload_bytes INTEGER NOT NULL DEFAULT 0, ok INTEGER NOT NULL DEFAULT 1);
     CREATE INDEX idx_events_ts ON events(ts);
+    """,
+    3: """
+    CREATE TABLE usage_messages (
+        message_id TEXT PRIMARY KEY, session_id TEXT, project TEXT, model TEXT, ts TEXT,
+        input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0,
+        cache_read INTEGER NOT NULL DEFAULT 0, cache_write_5m INTEGER NOT NULL DEFAULT 0,
+        cache_write_1h INTEGER NOT NULL DEFAULT 0, thinking INTEGER NOT NULL DEFAULT 0,
+        sidechain INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX idx_usage_ts ON usage_messages(ts);
+    CREATE INDEX idx_usage_session ON usage_messages(session_id);
+    CREATE TABLE tool_calls (
+        message_id TEXT NOT NULL, call_id TEXT NOT NULL, session_id TEXT, ts TEXT, tool TEXT NOT NULL,
+        skill TEXT, subagent_type TEXT, mcp_server TEXT,
+        PRIMARY KEY (message_id, call_id));
+    CREATE INDEX idx_tool_calls_ts ON tool_calls(ts);
+    CREATE TABLE ingest_state (
+        path TEXT PRIMARY KEY, size INTEGER NOT NULL, mtime REAL NOT NULL, "offset" INTEGER NOT NULL);
     """,
 }
 

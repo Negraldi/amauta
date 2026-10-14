@@ -117,7 +117,7 @@ test('install keeps pre-existing user content', async () => {
   assert.deepEqual(settings.permissions.allow, ['Bash(ls)']);
   assert.ok(settings.permissions.deny.includes('Bash(custom-deny)'));
   assert.ok(settings.permissions.deny.includes('Read(.env)'));
-  assert.equal(settings.hooks.Stop.length, 3); // mine + review-stop + telemetry
+  assert.equal(settings.hooks.Stop.length, 4); // mine + review-stop + telemetry + usage
   assert.equal(settings.hooks.Stop[0].hooks[0].command, 'my-own-stop-hook');
   assert.deepEqual(settings.enabledPlugins, { 'other@market': true });
 
