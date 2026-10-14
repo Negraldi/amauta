@@ -67,6 +67,25 @@ PYTHONPATH=python python3 -m gentle_lite.memory serve
 PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/engram.db   # read-only, idempotent
 ```
 
+## Code graph tools (external, never vendored)
+
+- **codegraph** (npm `@colbymchenry/codegraph`; the unscoped `codegraph` package is a different project).
+  `install` registers the `codegraph` MCP entry (`codegraph serve --mcp`) and the `codegraph prompt-hook`
+  UserPromptSubmit hook only when `codegraph` is on `PATH` and only if absent; an identical hook or an entry you
+  already have is never duplicated, changed or removed. `gentle-lite status` prints an `[optional]` line with the
+  install hint when it is missing. `gentle-lite codegraph init [--cwd DIR]` runs `codegraph init -y` there, refusing
+  `$HOME`, `/`, temporary directories and directories without a project marker; `codegraph status` shows whether
+  `.codegraph/` exists.
+- **graphify** (PyPI `graphifyy`, Apache-2.0): `graphify-out/graph.json` stays the source of truth.
+  `gentle-lite graphify hook install|uninstall [--cwd DIR] [--state-dir DIR]` manages a marked block in the repo's
+  `post-commit` hook (`# >>> gentle-lite graphify >>>` ... `# <<< gentle-lite graphify <<<`; other content is kept and
+  `core.hooksPath` is honoured). The block runs in a silent background subshell: `graphify update .` (only if `graphify`
+  is on `PATH`, with `GRAPHIFY_QUERY_LOG_DISABLE=1`), then `python3 -P -m gentle_lite.graph sync --repo .`.
+  The sync replaces the repo's rows in `graph_nodes`/`graph_edges`/`graph_sync` (memory.db schema v4) in one short
+  transaction. Query: `python3 -P -m gentle_lite.graph query neighbors <node> [--depth N] --repo DIR` and
+  `query path <a> <b> --repo DIR` (recursive CTEs, depth capped at 5 / 8); the memory MCP server exposes the same as the
+  `graph_query` tool (it already owns the SQLite connection). The portal shows stats, node search and neighbors for each `--repo`.
+
 ## Telemetry (local only)
 
 `install` registers `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `SubagentStop`
