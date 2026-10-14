@@ -7,7 +7,7 @@ import { reviewStop } from '../review/stop.js';
 export const handlers = new Map([
   ['skill-registry', async (payload) => {
     if (typeof payload.cwd !== 'string' || payload.cwd === '') return null;
-    await refreshRegistry({ cwd: payload.cwd, gitignore: false });
+    await refreshRegistry({ cwd: payload.cwd, gitignore: false, optIn: true });
     return null;
   }],
   ['review-stop', (payload) => reviewStop(payload)],

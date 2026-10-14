@@ -9,9 +9,11 @@ import { modeStatus } from './mode.js';
 
 const sha1 = (s) => createHash('sha1').update(s).digest('hex');
 
+/** Returns null when `cwd` is not inside a git repository. A repository without commits has head: null. */
 async function snapshot(cwd) {
+  if ((await gitOrNull(cwd, ['rev-parse', '--git-dir'])) === null) return null;
   const head = (await gitOrNull(cwd, ['rev-parse', '--verify', '-q', 'HEAD']))?.trim() ?? null;
-  const diff = (await gitOrNull(cwd, ['diff', '--no-color', '--no-renames', head ?? '--cached'])) ?? '';
+  const diff = (await gitOrNull(cwd, ['diff', '--no-color', '--no-renames', head ?? '--cached', '--'])) ?? '';
   return { head, diff_hash: sha1(diff) };
 }
 
@@ -37,7 +39,10 @@ export async function reviewStop(payload, env = process.env) {
 
   if (event === 'SessionStart') {
     const snap = await snapshot(cwd);
-    if (snap.head === null && snap.diff_hash === sha1('')) return null;
+    if (!snap) return null; // not a git repository: nothing to review
+    // resume/compact continue the same session: keep its baseline so earlier changes stay reviewable.
+    const rebaseline = payload.source === 'startup' || payload.source === 'clear';
+    if (!rebaseline && (await readBaseline(file))) return null;
     await writeBaseline(file, { ...snap, notified: [] });
     return null;
   }
@@ -46,6 +51,7 @@ export async function reviewStop(payload, env = process.env) {
   const base = await readBaseline(file);
   if (!base) return null;
   const now = await snapshot(cwd);
+  if (!now) return null;
   if (now.head === base.head && now.diff_hash === base.diff_hash) return null;
   if ((await modeStatus({ cwd, stateDir })).effective !== 'on') return null;
 

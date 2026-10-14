@@ -19,3 +19,21 @@ export async function repoRoot(cwd) {
 }
 
 export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+// Conservative whitelist for user-supplied refs: branch/tag names, shas and ~ / ^ suffixes.
+// Rejects option-shaped values (leading "-"), range syntax (".."), whitespace and control characters.
+const SAFE_REF = /^[A-Za-z0-9_@/+^~][A-Za-z0-9_@/+^~.-]*$/;
+
+export function validateRef(ref) {
+  if (typeof ref !== 'string' || ref === '' || ref.length > 256 || !SAFE_REF.test(ref) || ref.includes('..')) {
+    throw new Error(`invalid base ref: ${typeof ref === 'string' ? JSON.stringify(ref.slice(0, 80)) : typeof ref}`);
+  }
+  return ref;
+}
+
+/** Validate `ref` and resolve it to a full commit sha; never lets the value act as a git option. */
+export async function resolveCommit(cwd, ref) {
+  validateRef(ref);
+  const out = await git(cwd, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
+  return out.trim();
+}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, stat, rm, utimes } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, symlink, stat, rm, utimes } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { refreshRegistry, parseFrontmatter, isProjectDir } from '../src/registry/skill-registry.js';
@@ -93,5 +93,41 @@ test('adds .atl/ to .gitignore once unless disabled', async () => {
   await writeFile(path.join(other, 'package.json'), '{}');
   await refreshRegistry({ cwd: other, claudeHome: t.claudeHome, gitignore: false });
   assert.ok(!(await exists(path.join(other, '.gitignore'))));
+  await rm(t.root, { recursive: true });
+});
+
+test('optIn writes only when .atl exists or .gitignore lists it; never creates files otherwise', async () => {
+  const t = await fixture();
+  const none = await refreshRegistry({ cwd: t.project, claudeHome: t.claudeHome, gitignore: false, optIn: true });
+  assert.equal(none.status, 'skipped');
+  assert.ok(!(await exists(path.join(t.project, '.atl'))));
+  await writeFile(path.join(t.project, '.gitignore'), 'node_modules\n.atl/\n');
+  assert.equal((await refreshRegistry({ cwd: t.project, claudeHome: t.claudeHome, gitignore: false, optIn: true })).status, 'refreshed');
+  const t2 = await fixture();
+  await mkdir(path.join(t2.project, '.atl'));
+  assert.equal((await refreshRegistry({ cwd: t2.project, claudeHome: t2.claudeHome, gitignore: false, optIn: true })).status, 'refreshed');
+  await rm(t.root, { recursive: true });
+  await rm(t2.root, { recursive: true });
+});
+
+test('a symlinked .atl is never written through', async () => {
+  const t = await fixture();
+  const elsewhere = path.join(t.root, 'elsewhere');
+  await mkdir(elsewhere);
+  await symlink(elsewhere, path.join(t.project, '.atl'));
+  const r = await refreshRegistry({ cwd: t.project, claudeHome: t.claudeHome, gitignore: false });
+  assert.equal(r.status, 'skipped');
+  assert.deepEqual(await readdir(elsewhere), []);
+  await rm(t.root, { recursive: true });
+});
+
+test('paths under the home directory are rendered as ~/...', async () => {
+  const t = await fixture();
+  await t.skill(path.join(t.claudeHome, 'skills'), 'foo', '---\nname: foo\ndescription: d\n---\n');
+  await refreshRegistry({ cwd: t.project, claudeHome: t.claudeHome, gitignore: false, home: t.root });
+  const md = await readFile(path.join(t.project, '.atl', 'skill-registry.md'), 'utf8');
+  assert.ok(!md.includes(t.root), 'absolute home path leaked');
+  assert.match(md, /`~\/claude\/skills\/foo\/SKILL\.md`/);
+  assert.match(md, /^- ~\/claude\/skills$/m);
   await rm(t.root, { recursive: true });
 });

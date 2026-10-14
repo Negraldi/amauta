@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Minimal MCP server over stdio (newline-delimited JSON-RPC 2.0). Hand-rolled on purpose:
 // four read-mostly tools do not justify a runtime dependency.
+import { realpathSync } from 'node:fs';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { packageVersion } from '../version.js';
@@ -14,7 +15,7 @@ async function callTool(id, params) {
   const tool = toolByName.get(params?.name);
   if (!tool) return fail(id, -32602, `unknown tool: ${params?.name}`);
   try {
-    const args = validateArgs(tool, params.arguments ?? {});
+    const args = validateArgs(tool, params.arguments === undefined ? {} : params.arguments);
     const result = await tool.run(args);
     reply({ id, result: { content: [{ type: 'text', text: JSON.stringify(result) }] } });
   } catch (err) {
@@ -49,22 +50,35 @@ async function handle(msg) {
 }
 
 export function serve(input = process.stdin) {
-  let chain = Promise.resolve(); // requests are answered in arrival order
+  // Every reply, including protocol errors, goes through this chain so they leave in arrival order.
+  let chain = Promise.resolve();
   const rl = readline.createInterface({ input });
   rl.on('line', (line) => {
     if (!line.trim()) return;
-    let msg;
-    try {
-      msg = JSON.parse(line);
-    } catch {
-      return fail(null, -32700, 'parse error');
-    }
-    if (msg === null || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.method !== 'string') {
-      return fail(msg?.id ?? null, -32600, 'invalid request');
-    }
-    chain = chain.then(() => handle(msg)).catch((err) => msg.id !== undefined && fail(msg.id, -32603, err.message));
+    chain = chain
+      .then(() => {
+        let msg;
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          return fail(null, -32700, 'parse error');
+        }
+        if (msg === null || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.method !== 'string') {
+          return fail(msg?.id ?? null, -32600, 'invalid request');
+        }
+        return handle(msg).catch((err) => msg.id !== undefined && fail(msg.id, -32603, err.message));
+      })
+      .catch(() => {});
   });
   return new Promise((resolve) => rl.on('close', () => chain.then(resolve)));
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) await serve();
+// Compare real paths: the module URL is already resolved, argv[1] may go through a symlink.
+const isMain = (() => {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
+if (isMain) await serve();

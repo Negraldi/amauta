@@ -1,4 +1,4 @@
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { gitOrNull } from '../util/git.js';
@@ -44,6 +44,7 @@ export async function setMode(value, { scope = 'global', cwd, stateDir } = {}) {
   } else if (scope === 'global') {
     const dir = stateDir ?? resolveTargets({}).stateDir;
     const state = await readState(dir);
+    await mkdir(dir, { recursive: true });
     state.rdd_mode = value;
     state.rdd_mode_recorded_at = new Date().toISOString();
     await writeFileAtomic(path.join(dir, 'state.json'), `${JSON.stringify(state, null, 2)}\n`);

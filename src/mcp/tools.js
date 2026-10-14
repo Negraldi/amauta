@@ -1,4 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import path from 'node:path';
 import { refreshRegistry } from '../registry/skill-registry.js';
 import { assess } from '../review/assess.js';
@@ -13,7 +14,10 @@ const CHECKBOX = /^\s*[-*]\s+\[([ xX])\]\s+(.*\S)\s*$/;
 
 async function oddTasksStatus({ cwd }) {
   const dir = path.join(cwd, 'odd', 'tasks');
-  const names = (await readdir(dir).catch(() => [])).filter((n) => n.endsWith('.md')).sort();
+  const names = (await readdir(dir).catch((err) => {
+    if (err.code === 'ENOENT') return [];
+    throw err; // EACCES/ENOTDIR/EIO must not look like "no tasks"
+  })).filter((n) => n.endsWith('.md')).sort();
   const files = [];
   for (const name of names) {
     const items = (await readFile(path.join(dir, name), 'utf8')).split('\n').flatMap((line) => {
@@ -63,8 +67,20 @@ export const tools = [
 
 export const toolByName = new Map(tools.map((t) => [t.name, t]));
 
+const TYPES = { string: (v) => typeof v === 'string', boolean: (v) => typeof v === 'boolean' };
+
+/** Validate `args` against the tool's inputSchema (required, primitive types) and the cwd contract. */
 export function validateArgs(tool, args) {
   if (args === null || typeof args !== 'object' || Array.isArray(args)) throw new ToolInputError('arguments must be an object');
-  if (typeof args.cwd !== 'string' || args.cwd === '') throw new ToolInputError('cwd is required (absolute path string)');
+  const { properties = {}, required = [] } = tool.inputSchema;
+  for (const key of required) if (args[key] === undefined) throw new ToolInputError(`${key} is required`);
+  for (const [key, spec] of Object.entries(properties)) {
+    if (args[key] !== undefined && !TYPES[spec.type]?.(args[key])) throw new ToolInputError(`${key} must be a ${spec.type}`);
+  }
+  if (args.cwd === '') throw new ToolInputError('cwd must not be empty');
+  if (!path.isAbsolute(args.cwd)) throw new ToolInputError('cwd must be an absolute path');
+  let st = null;
+  try { st = statSync(args.cwd); } catch { /* reported below */ }
+  if (!st?.isDirectory()) throw new ToolInputError('cwd must be an existing directory');
   return args;
 }

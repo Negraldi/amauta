@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { reviewStop } from '../src/review/stop.js';
@@ -66,4 +67,34 @@ test('Stop without a SessionStart baseline is a no-op', async () => {
   t.repo.commit();
   assert.equal(await t.fire('Stop'), null);
   await t.cleanup();
+});
+
+test('resume and compact keep the baseline; startup and clear rebaseline', async () => {
+  const t = await setup();
+  await t.fire('SessionStart', { source: 'startup' });
+  await t.repo.write('src/auth/login.js', 'x\n');
+  t.repo.commit();
+  await t.fire('SessionStart', { source: 'compact' });
+  await t.fire('SessionStart', { source: 'resume' });
+  assert.equal((await t.fire('Stop')).decision, 'block', 'pre-compact changes still reviewed');
+  await t.fire('SessionStart', { source: 'compact' });
+  assert.equal(await t.fire('Stop'), null, 'notified list survives compact');
+  await t.fire('SessionStart', { source: 'clear' });
+  assert.equal(await t.fire('Stop'), null, 'clear rebaselines to the current state');
+  await t.cleanup();
+});
+
+test('a non-git cwd writes no baseline; a repo with no commits yet does', async () => {
+  const t = await setup();
+  const plain = await mkdtemp(path.join(os.tmpdir(), 'gl-plain-'));
+  const env = { GENTLE_LITE_STATE_DIR: t.stateDir };
+  await reviewStop({ hook_event_name: 'SessionStart', session_id: 'plain', cwd: plain }, env);
+  assert.deepEqual(await readdir(path.join(t.stateDir, 'review-stop')).catch(() => []), []);
+
+  const fresh = await mkdtemp(path.join(os.tmpdir(), 'gl-fresh-'));
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: fresh });
+  await reviewStop({ hook_event_name: 'SessionStart', session_id: 'fresh', cwd: fresh }, env);
+  const base = JSON.parse(await readFile(path.join(t.stateDir, 'review-stop', 'fresh.json'), 'utf8'));
+  assert.equal(base.head, null);
+  await Promise.all([rm(plain, { recursive: true }), rm(fresh, { recursive: true }), t.cleanup()]);
 });

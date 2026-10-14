@@ -38,10 +38,13 @@ Hooks registered in `settings.json` run `node <repo>/bin/gentle-lite.js hook <na
 path, no `PATH` dependency). They read the Claude Code hook JSON on stdin, always exit 0 and
 fail open; an empty stdout is a no-op.
 
-- `skill-registry` (UserPromptSubmit): refreshes `<project>/.atl/skill-registry.md`, skipping
-  `/`, `$HOME` and directories without a project marker.
+- `skill-registry` (UserPromptSubmit): refreshes `<project>/.atl/skill-registry.md` only for
+  projects that opted in (an existing `.atl/` directory or `.atl/` in `.gitignore`; run
+  `gentle-lite skill-registry refresh` once to opt in). Skips `/`, `$HOME`, directories without
+  a project marker and a symlinked `.atl`. Home paths are written as `~/...`.
 - `review-stop` (SessionStart/Stop): when receipt-driven development is on and this session
   produced a candidate that `review assess` marks as due, blocks the stop once per candidate.
+  `--base-ref` / `base_ref` accept only plain refs (no leading `-`, no `..` ranges, no whitespace) and are resolved to a commit sha before any git diff.
   RDD is off by default; clone-local `off` (in `.git/gentle-lite-rdd-mode`) wins over global.
 
 ## Safety: parameterized targets

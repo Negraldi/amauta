@@ -1,4 +1,4 @@
-import { git, gitOrNull, EMPTY_TREE } from '../util/git.js';
+import { git, gitOrNull, resolveCommit, EMPTY_TREE } from '../util/git.js';
 
 const DOC_EXT = new Set(['.md', '.mdx', '.rst', '.adoc']);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.bmp']);
@@ -26,7 +26,8 @@ const sensitiveToken = (p) => p.toLowerCase().split(/[^a-z0-9]+/).find((t) => SE
 
 const RANK = { passive: 0, medium: 1, high: 2 };
 
-async function diffArgs(cwd, { baseRef, committedOnly }) {
+async function diffArgs(cwd, { baseRef: rawRef, committedOnly }) {
+  const baseRef = rawRef === undefined ? undefined : await resolveCommit(cwd, rawRef);
   const hasHead = (await gitOrNull(cwd, ['rev-parse', '--verify', '-q', 'HEAD'])) !== null;
   if (committedOnly) {
     if (!hasHead) return [EMPTY_TREE, EMPTY_TREE];
@@ -44,10 +45,11 @@ async function diffArgs(cwd, { baseRef, committedOnly }) {
 export async function assess({ cwd, baseRef, committedOnly = false } = {}) {
   const range = await diffArgs(cwd, { baseRef, committedOnly });
   const common = ['diff', '--no-renames', '--no-color', ...range];
+  const tail = ['--']; // end of revisions: nothing after this is a ref or option
   const [numstat, summary, patch] = await Promise.all([
-    git(cwd, [...common, '--numstat']),
-    git(cwd, [...common, '--summary']),
-    git(cwd, [...common, '-U0']),
+    git(cwd, [...common, '--numstat', ...tail]),
+    git(cwd, [...common, '--summary', ...tail]),
+    git(cwd, [...common, '-U0', ...tail]),
   ]);
 
   const paths = [];
