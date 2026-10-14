@@ -2,8 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_MODEL_ASSIGNMENTS,
-  parseOddSections,
-  renderOrchestrator,
   renderAgent,
   engramToolPrefix,
   resolveAssignment,
@@ -26,31 +24,6 @@ test('engramToolPrefix depends on the engram plugin', () => {
   assert.equal(engramToolPrefix({}), 'mcp__engram__');
   assert.equal(engramToolPrefix({ enabledPlugins: { 'engram@engram': false } }), 'mcp__engram__');
   assert.equal(engramToolPrefix({ enabledPlugins: { 'engram@engram': true } }), 'mcp__plugin_engram_engram__');
-});
-
-const SECTIONS = [
-  '# header',
-  '<!-- odd-orchestrator-section:A b (X):start -->',
-  'body A',
-  '<!-- odd-orchestrator-section:A b (X):end -->',
-  '',
-  '<!-- odd-orchestrator-section:C:start -->',
-  'line1',
-  'line2',
-  '<!-- odd-orchestrator-section:C:end -->',
-].join('\n');
-
-test('parseOddSections extracts named bodies', () => {
-  const map = parseOddSections(SECTIONS);
-  assert.equal(map.get('A b (X)'), 'body A');
-  assert.equal(map.get('C'), 'line1\nline2');
-});
-
-test('renderOrchestrator replaces every slot and rejects unknown ones', () => {
-  const sections = parseOddSections(SECTIONS);
-  const out = renderOrchestrator('x\n{{GENTLE_AI_ODD_SECTION:A b (X)}}\ny {{GENTLE_AI_ODD_SECTION:C}}', sections);
-  assert.equal(out, 'x\nbody A\ny line1\nline2');
-  assert.throws(() => renderOrchestrator('{{GENTLE_AI_ODD_SECTION:nope}}', sections), /unknown ODD section: nope/);
 });
 
 const AGENT = [
@@ -100,9 +73,4 @@ test('renderAgent leaves empty tools lists alone and is idempotent in its footer
   const out = renderAgent(empty, { assignment: { model: 'sonnet' }, engramPrefix: 'mcp__engram__', footers });
   assert.match(out, /^tools: \[\]$/m);
   assert.equal(out.split('gentle-lite:codegraph-guidance -->').length - 1, 2);
-});
-
-test('renderOrchestrator binds the runtime agent id placeholder to claude-code', () => {
-  const out = renderOrchestrator('run --agent {{GENTLE_AI_RUNTIME_AGENT_ID}} now', new Map());
-  assert.equal(out, 'run --agent claude-code now');
 });

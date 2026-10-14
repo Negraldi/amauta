@@ -29,39 +29,6 @@ export function engramToolPrefix(settings, memoryKey = 'engram') {
   return settings?.enabledPlugins?.['engram@engram'] === true ? 'mcp__plugin_engram_engram__' : `mcp__${memoryKey}__`;
 }
 
-const SECTION_RE = /^<!-- odd-orchestrator-section:(.+):(start|end) -->$/;
-
-/** Parse the shared ODD sections file into Map(name -> body). */
-export function parseOddSections(text) {
-  const map = new Map();
-  let current = null;
-  let lines = [];
-  for (const line of text.split('\n')) {
-    const m = SECTION_RE.exec(line.trim());
-    if (m && m[2] === 'start') {
-      current = m[1];
-      lines = [];
-    } else if (m && m[2] === 'end' && current === m[1]) {
-      map.set(current, lines.join('\n').replace(/^\n+|\n+$/g, ''));
-      current = null;
-    } else if (current !== null) {
-      lines.push(line);
-    }
-  }
-  return map;
-}
-
-export const RUNTIME_AGENT_ID = 'claude-code';
-
-export function renderOrchestrator(template, sections) {
-  return template
-    .replace(/\{\{GENTLE_AI_ODD_SECTION:(.+?)\}\}/g, (_m, name) => {
-      if (!sections.has(name)) throw new Error(`unknown ODD section: ${name}`);
-      return sections.get(name);
-    })
-    .replaceAll('{{GENTLE_AI_RUNTIME_AGENT_ID}}', RUNTIME_AGENT_ID);
-}
-
 const CODEGRAPH_TOOL = 'mcp__codegraph__codegraph_explore';
 
 /**

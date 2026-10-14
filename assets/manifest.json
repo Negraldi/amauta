@@ -23,13 +23,7 @@
     {
       "id": "orchestrator",
       "source": "claude/orchestrator.md",
-      "template": "odd-sections",
-      "note": "slots resolved from claude/odd-orchestrator-sections.md"
-    },
-    {
-      "id": "agent-routing",
-      "source": "claude/agent-routing.md",
-      "note": "ODD protocol; contains the nested remote-authorization section"
+      "note": "ODD protocol, delegation, review, optional modules"
     }
   ],
   "personas": {
@@ -45,7 +39,6 @@
     }
   },
   "outputStyleTarget": "output-styles/gentleman.md",
-  "oddSections": "claude/odd-orchestrator-sections.md",
   "agentFooters": [
     {
       "id": "codegraph-guidance",
@@ -108,9 +101,6 @@
   "skillsDir": "skills",
   "sharedSkillsDir": "skills/_shared",
   "settingsOverlay": "claude/settings-overlay.json",
-  "sourceOnly": [
-    "claude/odd-orchestrator-sections.md"
-  ],
   "sdd": {
     "note": "optional module, installed with --with-sdd; v3.4.0 SDD assets (MIT) renamed to /lite-sdd-*",
     "skills": [

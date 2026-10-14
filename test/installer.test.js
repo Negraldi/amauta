@@ -60,7 +60,7 @@ test('fresh install creates every component', async () => {
 
   const md = await readFile(t.p('CLAUDE.md'), 'utf8');
   const ids = listSections(md).map((s) => s.id);
-  for (const id of ['persona', 'engram-protocol', 'orchestrator', 'agent-routing', 'codegraph-guidance']) {
+  for (const id of ['persona', 'engram-protocol', 'orchestrator', 'codegraph-guidance']) {
     assert.ok(ids.includes(id), `missing section ${id}`);
   }
   assert.ok(!md.includes('{{'), 'unresolved template placeholder in CLAUDE.md');
@@ -320,5 +320,22 @@ test('install replaces legacy PATH-based gentle-lite hooks and keeps user hooks;
   await uninstall(t.opts());
   const left = (await readJson(t.p('settings.json'))).hooks.Stop.flatMap((e) => e.hooks.map((h) => h.command));
   assert.deepEqual(left, ['echo mine']);
+  await t.cleanup();
+});
+
+test('re-install removes CLAUDE.md sections that an earlier version installed and the current one no longer ships', async () => {
+  const t = await sandbox({ claudeMd: USER_MD });
+  await install(t.opts());
+  const md = await readFile(t.p('CLAUDE.md'), 'utf8');
+  await writeFile(t.p('CLAUDE.md'), `${md}\n<!-- gentle-lite:agent-routing -->\nold routing text\n<!-- /gentle-lite:agent-routing -->\n`);
+  const statePath = path.join(t.stateDir, 'state.json');
+  const state = await readJson(statePath);
+  state.claude_md_sections.push('agent-routing');
+  await writeFile(statePath, JSON.stringify(state));
+  await install(t.opts());
+  const after = await readFile(t.p('CLAUDE.md'), 'utf8');
+  assert.ok(!after.includes('agent-routing'));
+  assert.ok(after.startsWith(USER_MD));
+  assert.ok(listSections(after).some((s) => s.id === 'orchestrator'));
   await t.cleanup();
 });

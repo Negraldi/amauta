@@ -11,9 +11,7 @@ import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, rep
 import {
   DEFAULT_MODEL_ASSIGNMENTS,
   engramToolPrefix,
-  parseOddSections,
   renderAgent,
-  renderOrchestrator,
   resolveAssignment,
 } from './templating.js';
 import { desiredHooks, desiredMcpServers, isGentleLiteHook } from './servers.js';
@@ -110,14 +108,10 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
 }
 
 async function renderSections(manifest, persona) {
-  const oddSections = parseOddSections(await readAssetText(manifest.oddSections));
   const out = [];
   for (const s of manifest.claudeMd) {
-    let body;
-    if (s.source.startsWith('persona:')) body = await readAssetText(manifest.personas[persona].residual);
-    else if (s.template === 'odd-sections') body = renderOrchestrator(await readAssetText(s.source), oddSections);
-    else body = await readAssetText(s.source);
-    out.push({ id: s.id, body });
+    const source = s.source.startsWith('persona:') ? manifest.personas[persona].residual : s.source;
+    out.push({ id: s.id, body: await readAssetText(source) });
   }
   return out;
 }
@@ -178,6 +172,9 @@ async function plan(opts) {
   const mdBefore = mdBuf ? mdBuf.toString('utf8') : '';
   let md = mdBefore;
   for (const s of sections) md = injectSection(md, s.id, s.body);
+  // Sections an earlier version installed and this one no longer ships.
+  const wantedIds = new Set(sections.map((s) => s.id));
+  for (const id of prev?.claude_md_sections ?? []) if (!wantedIds.has(id)) md = removeSection(md, id);
   if (!mdBuf || md !== mdBefore) writes.push({ rel: 'CLAUDE.md', path: mdFile, data: Buffer.from(md, 'utf8') });
 
   // settings.json.
