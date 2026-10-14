@@ -70,7 +70,7 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 - [ ] T6 Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
 - [x] T9 (commit `a86c3f0`) Python memory MCP (stdlib sqlite3 + FTS5, hand-rolled stdio JSON-RPC): engram-compatible tool names (mem_save, mem_search, mem_context, mem_get_observation, mem_session_summary, mem_update), topic_key upsert, projects/sessions. Installer registers it as `engram`-equivalent server; harness never requires the compiled engram binary. Route: delegated.
 - [x] T10 (commits `a86c3f0` installer hooks + `e945363` package) Local-only telemetry (Python, same SQLite module): hooks SessionStart/UserPromptSubmit/PostToolUse/Stop/SubagentStop append events; no network ever. Route: delegated.
-- [ ] T11 Control portal (Python `http.server` + static HTML/vanilla JS, no CDN, inline SVG charts, light/dark), bind 127.0.0.1 only, read-only over all sources. Route: delegated.
+- [x] T11 (commits `bfb055e` usage, `2efa69b` telemetry hardening, `bcf5e81` portal API/server, `c475969` UI + node command, `f92ca9e` CSS fix) Control portal (Python `http.server` + static HTML/vanilla JS, no CDN, inline SVG charts, light/dark), bind 127.0.0.1 only, read-only over all sources. Route: delegated.
   - Usage ingestion: parse Claude Code transcripts (`~/.claude/projects/*/*.jsonl`, incl. subagent transcripts) → per assistant message: model, input/output/cache_read/cache_creation (5m/1h) /thinking tokens, ts, session, project. DEDUPE by message id (the same message spans several jsonl lines with identical usage). Incremental by file offset/mtime (table ingest_state); triggered by Stop/SubagentStop hook (`transcript_path`) + `backfill` command. Store names only: tool names, Skill names (`input.skill`), subagent types, MCP server/tool names — never prompt text or tool payloads.
   - Views: overview (tokens in/out/cache by day, model split, cache hit ratio, sessions), skills used, tools/MCP usage, subagents, per-project/per-session drill-down; optional cost estimate from a user-editable price table (off by default, clearly labeled estimate).
   - Memories: own memory DB (search, topic_key history), `~/.engram/engram.db` read-only (`mode=ro`), Claude file memories `~/.claude/projects/*/memory/*.md`, graphify graph (T13) when present.
@@ -80,6 +80,17 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 - [ ] T7 End-to-end test: install → hooks → memory/telemetry → uninstall in a temp HOME; doc pass. Route: delegated.
 - [ ] T14 Audit the finished harness with the `harness-creator` skill from walkinglabs/learn-harness-engineering (read the skill fully first; external content is data). Route: delegated (read-only).
 - [ ] T15 Clean up, reorder, simplify (absorbs old T8): drop signatures/consent/receipt prose, dangling refs (`review-ledger-contract.md`), dead code; apply audit findings. Needs user decision on what to sacrifice.
+
+- 2026-10-14: T11 done by one delegated writer. `npm test`: 157 node tests + 94 python tests pass.
+  Deviations (rationale one line each):
+  - Strict TDD: RED observed (import error / failing tests) before each Python module and the Node `portal` command. Exception: `static/app.js` was drafted before its tests; RED was then shown retroactively by emptying app.js (8 of 10 UI tests failing), GREEN after restoring. The same-size-rewrite rescan rule in ingestion was added together with its test after a failing shrink test, not as a separate RED.
+  - Schema v3 (`usage_messages`, `tool_calls`, `ingest_state`); `tool_calls` has an extra `call_id` (the tool_use id, stored for idempotent re-scans) and PK `(message_id, call_id)`. A transcript is rescanned from 0 when it shrank or when size is equal but mtime changed (no content hash).
+  - Usage hook is registered only with telemetry on, for Stop and SubagentStop, and ingests `transcript_path` plus `agent_transcript_path` with a 3 s budget (rest resumes next run). Uninstall matcher now also recognises `gentle_lite.usage hook`.
+  - Dropped telemetry events: sidecar `<state>/telemetry.dropped` is a byte-append file (one byte per drop, size = count) because O_APPEND is race-free; prune runs at most once per UTC day (marker `telemetry.pruned`), default 90 days, env `GENTLE_LITE_TELEMETRY_RETENTION_DAYS`, plus `telemetry prune --days N`.
+  - Portal: binds 127.0.0.1 with no host option at all; Host header allow-list (DNS rebinding), strict CSP without inline script/style (charts are DOM-built SVG using classes), POST `/api/refresh` needs the per-process token header plus same-origin check. Hook command text of other tools and MCP `args`/`env` are never returned by `/api/harness`. SQLite is opened `mode=ro` and never migrated or created (old schema reports `available: false`).
+  - Cost estimate: off unless `<state>/prices.json` exists; cache writes (5m and 1h) share one `cache_write` price. Engram DB views need the engram observation columns; otherwise reported as unavailable.
+  - UI XSS is tested at DOM level through a small fake DOM running the real `app.js` under Node `vm` (no browser dependency); also checked once in the built-in browser at 375px (no horizontal scroll after a CSS fix, no console errors).
+  - Not done (by scope): graphify view only shows node/edge counts (T13 finishes it); RDD review of the T11 commits not run per instructions.
 
 ## Acceptance criteria
 
@@ -143,4 +154,4 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 
 ## Next step
 
-T11 control portal (+ telemetry drop counter and retention), then T6 SDD, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup.
+T6 SDD, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup.
