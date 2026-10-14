@@ -2,6 +2,7 @@ import { packageVersion } from './version.js';
 import { runHook } from './hooks/index.js';
 import { registerInstallCommands } from './install/cli.js';
 import { registerReviewCommands } from './review/cli.js';
+import { registerPortalCommands } from './portal/cli.js';
 
 /**
  * Subcommand registry. Each entry: { summary, run(args, io) -> exit code | Promise }.
@@ -31,6 +32,7 @@ commands.set('hook', {
 
 registerInstallCommands(commands);
 registerReviewCommands(commands);
+registerPortalCommands(commands);
 
 export async function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const [name, ...rest] = argv;
