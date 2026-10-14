@@ -1,12 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-export function packageVersion() {
-  return JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
-}
+import { packageVersion } from './version.js';
+import { runHook } from './hooks/index.js';
+import { registerInstallCommands } from './install/cli.js';
 
 /**
  * Subcommand registry. Each entry: { summary, run(args, io) -> exit code | Promise }.
@@ -28,6 +22,13 @@ export function helpText() {
     .join('\n');
   return `Usage: gentle-lite <command> [options]\n\nCommands:\n${rows}\n\nRun \`gentle-lite --help\` to show this text.\n`;
 }
+
+commands.set('hook', {
+  summary: 'Hook entrypoint used by Claude Code (skill-registry, review-stop)',
+  run: (args, io) => runHook(args[0], io),
+});
+
+registerInstallCommands(commands);
 
 export async function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const [name, ...rest] = argv;

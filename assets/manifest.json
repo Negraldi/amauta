@@ -1,0 +1,51 @@
+{
+  "schema": "gentle-lite.assets/v1",
+  "upstream": {
+    "repo": "Gentleman-Programming/gentle-ai",
+    "commit": "09e4e4aef14e87199784fcf4edb667017d70b9b3",
+    "license": "MIT"
+  },
+  "claudeMd": [
+    { "id": "codegraph-guidance", "source": "claude/codegraph-guidance.md", "note": "rendered upstream CodeGraph guidance" },
+    { "id": "persona", "source": "persona:{persona}", "note": "persona-gentleman.md or persona-neutral-residual.md" },
+    { "id": "engram-protocol", "source": "engram/protocol-slim.md" },
+    { "id": "orchestrator", "source": "claude/orchestrator.md", "template": "odd-sections", "note": "slots resolved from claude/odd-orchestrator-sections.md" },
+    { "id": "agent-routing", "source": "claude/agent-routing.md", "note": "ODD protocol; contains the nested remote-authorization section" }
+  ],
+  "personas": {
+    "gentleman": { "residual": "claude/persona-gentleman.md", "outputStyle": "claude/output-style-gentleman.md", "styleName": "Gentleman" },
+    "neutral": { "residual": "claude/persona-neutral-residual.md", "outputStyle": "claude/output-style-neutral.md", "styleName": "Neutral" }
+  },
+  "outputStyleTarget": "output-styles/gentleman.md",
+  "oddSections": "claude/odd-orchestrator-sections.md",
+  "agentFooters": [
+    { "id": "codegraph-guidance", "source": "claude/codegraph-guidance.md" },
+    { "id": "agent-language-contract", "source": "generic/agent-language-contract.md" },
+    { "id": "remote-authorization", "source": "generic/remote-authorization-contract.md" }
+  ],
+  "agents": [
+    { "name": "jd-fix-agent", "modelKey": "jd-fix-agent" },
+    { "name": "jd-judge-a", "modelKey": "jd-judge-a" },
+    { "name": "jd-judge-b", "modelKey": "jd-judge-b" },
+    { "name": "review-readability", "modelKey": "default" },
+    { "name": "review-refuter", "modelKey": "default" },
+    { "name": "review-reliability", "modelKey": "default" },
+    { "name": "review-resilience", "modelKey": "default" },
+    { "name": "review-risk", "modelKey": "default" }
+  ],
+  "agentsDir": "claude/agents",
+  "skills": [
+    "chained-pr",
+    "cognitive-doc-design",
+    "go-testing",
+    "judgment-day",
+    "skill-creator",
+    "skill-improver",
+    "skill-registry",
+    "work-unit-commits"
+  ],
+  "skillsDir": "skills",
+  "sharedSkillsDir": "skills/_shared",
+  "settingsOverlay": "claude/settings-overlay.json",
+  "sourceOnly": ["claude/odd-orchestrator-sections.md"]
+}

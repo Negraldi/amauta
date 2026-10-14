@@ -1,0 +1,365 @@
+import { createHash } from 'node:crypto';
+import { readFile, rm, rmdir, stat } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
+import path from 'node:path';
+import { injectSection, removeSection, listSections } from '../core/markers.js';
+import { deepMerge, mergeHooks, removeHooksByCommandPrefix } from '../core/jsonmerge.js';
+import { writeFileAtomic } from '../core/fsatomic.js';
+import { createBackup } from '../core/backup.js';
+import { resolveTargets } from './paths.js';
+import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText } from './assets.js';
+import {
+  DEFAULT_MODEL_ASSIGNMENTS,
+  engramToolPrefix,
+  parseOddSections,
+  renderAgent,
+  renderOrchestrator,
+  resolveAssignment,
+} from './templating.js';
+import { HOOK_PREFIX, desiredHooks, desiredMcpServers } from './servers.js';
+import { packageVersion } from '../version.js';
+
+export const STATE_SCHEMA = 'gentle-lite.state/v1';
+const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
+const STYLE_NAMES = ['Gentleman', 'Neutral'];
+
+const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+const toJson = (obj) => `${JSON.stringify(obj, null, 2)}\n`;
+const statOrNull = (p) => stat(p).then((s) => s, () => null);
+const readOrNull = (p) => readFile(p).then((b) => b, () => null);
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+async function readJsonObject(file, label) {
+  const buf = await readOrNull(file);
+  if (buf === null) return { data: {}, existed: false };
+  let data;
+  try {
+    data = JSON.parse(buf.toString('utf8'));
+  } catch (err) {
+    throw new Error(`cannot parse ${label} (${file}): ${err.message}. Nothing was changed.`);
+  }
+  if (!isObject(data)) throw new Error(`${label} (${file}) is not a JSON object. Nothing was changed.`);
+  return { data, existed: true };
+}
+
+const statePathOf = (stateDir) => path.join(stateDir, 'state.json');
+
+async function readState(stateDir) {
+  const buf = await readOrNull(statePathOf(stateDir));
+  if (!buf) return null;
+  try {
+    const state = JSON.parse(buf.toString('utf8'));
+    return isObject(state) ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
+
+/** Managed files (relative posix path -> Buffer) rendered for this install. */
+async function renderManagedFiles(manifest, { persona, assignments, engramPrefix }) {
+  const files = new Map();
+  files.set(manifest.outputStyleTarget, await readAssetBuffer(manifest.personas[persona].outputStyle));
+
+  for (const skill of manifest.skills) {
+    const dir = `${manifest.skillsDir}/${skill}`;
+    for (const rel of await listFiles(assetPath(dir))) {
+      files.set(`skills/${skill}/${rel.split(path.sep).join('/')}`, await readAssetBuffer(`${dir}/${rel.split(path.sep).join('/')}`));
+    }
+  }
+  for (const rel of await listFiles(assetPath(manifest.sharedSkillsDir))) {
+    const posix = rel.split(path.sep).join('/');
+    files.set(`skills/_shared/${posix}`, await readAssetBuffer(`${manifest.sharedSkillsDir}/${posix}`));
+  }
+
+  const footers = [];
+  for (const f of manifest.agentFooters) footers.push({ id: f.id, body: await readAssetText(f.source) });
+  for (const agent of manifest.agents) {
+    const template = await readAssetText(`${manifest.agentsDir}/${agent.name}.md`);
+    const text = renderAgent(template, {
+      assignment: resolveAssignment(assignments, agent.modelKey),
+      engramPrefix,
+      footers,
+    });
+    files.set(`agents/${agent.name}.md`, Buffer.from(text, 'utf8'));
+  }
+  return files;
+}
+
+async function renderSections(manifest, persona) {
+  const oddSections = parseOddSections(await readAssetText(manifest.oddSections));
+  const out = [];
+  for (const s of manifest.claudeMd) {
+    let body;
+    if (s.source.startsWith('persona:')) body = await readAssetText(manifest.personas[persona].residual);
+    else if (s.template === 'odd-sections') body = renderOrchestrator(await readAssetText(s.source), oddSections);
+    else body = await readAssetText(s.source);
+    out.push({ id: s.id, body });
+  }
+  return out;
+}
+
+const needsWrite = async (file, data, mode) => {
+  const st = await statOrNull(file);
+  if (!st) return true;
+  if (mode !== undefined && (st.mode & 0o777) !== mode) return true;
+  const current = await readOrNull(file);
+  return !current || !current.equals(Buffer.isBuffer(data) ? data : Buffer.from(data));
+};
+
+/** Compute everything install would do, without touching the disk. */
+async function plan(opts) {
+  const t = resolveTargets(opts);
+  const manifest = await loadManifest();
+  const persona = opts.persona ?? 'gentleman';
+  if (!manifest.personas[persona]) throw new Error(`unknown persona: ${persona} (expected gentleman or neutral)`);
+  const prev = await readState(t.stateDir);
+
+  const settingsFile = abs(t.claudeHome, 'settings.json');
+  const mdFile = abs(t.claudeHome, 'CLAUDE.md');
+  const settingsIn = await readJsonObject(settingsFile, 'settings.json');
+  const claudeJsonIn = await readJsonObject(t.claudeJson, '.claude.json');
+  const mdBuf = await readOrNull(mdFile);
+
+  const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
+  const engramPrefix = engramToolPrefix(settingsIn.data);
+  const writes = [];
+  const skipped = [];
+  const managedFiles = {};
+
+  // Managed files (output style, skills, agents).
+  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix });
+  for (const [rel, data] of rendered) {
+    const file = abs(t.claudeHome, rel);
+    const existing = await readOrNull(file);
+    if (existing === null) {
+      writes.push({ rel, path: file, data });
+    } else if (existing.equals(data)) {
+      // already in place: adopt
+    } else if (opts.force || prev?.managed_files?.[rel] === sha256(existing)) {
+      writes.push({ rel, path: file, data });
+    } else {
+      skipped.push(rel);
+      continue;
+    }
+    managedFiles[rel] = sha256(data);
+  }
+
+  // CLAUDE.md sections.
+  const sections = await renderSections(manifest, persona);
+  const mdBefore = mdBuf ? mdBuf.toString('utf8') : '';
+  let md = mdBefore;
+  for (const s of sections) md = injectSection(md, s.id, s.body);
+  if (!mdBuf || md !== mdBefore) writes.push({ rel: 'CLAUDE.md', path: mdFile, data: Buffer.from(md, 'utf8') });
+
+  // settings.json.
+  const overlay = JSON.parse(await readAssetText(manifest.settingsOverlay));
+  const styleName = manifest.personas[persona].styleName;
+  const settingsPrevStyle = prev?.settings_prev ? prev.settings_prev.outputStyle : (settingsIn.data.outputStyle ?? null);
+  const existingDeny = Array.isArray(settingsIn.data.permissions?.deny) ? settingsIn.data.permissions.deny : [];
+  const newDeny = overlay.permissions.deny.filter((d) => !existingDeny.includes(d));
+  const denyAdded = [...new Set([...(prev?.deny_added ?? []), ...newDeny])].filter(
+    (d) => existingDeny.includes(d) || newDeny.includes(d),
+  );
+  let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
+  settings = deepMerge(settings, { permissions: { deny: [...existingDeny, ...newDeny] } });
+  settings = mergeHooks(settings, desiredHooks());
+  if (!settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data)) {
+    writes.push({ rel: 'settings.json', path: settingsFile, data: Buffer.from(toJson(settings), 'utf8') });
+  }
+
+  // .claude.json MCP servers (only when absent; never overwrite a user's entry).
+  const wanted = desiredMcpServers();
+  if (settingsIn.data.enabledPlugins?.['engram@engram'] === true) delete wanted.engram;
+  const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
+  const mcpAdded = {};
+  const servers = { ...currentServers };
+  for (const [name, value] of Object.entries(wanted)) {
+    if (!(name in currentServers)) {
+      servers[name] = value;
+      mcpAdded[name] = value;
+    } else if (prev?.mcp_added?.[name] && isDeepStrictEqual(currentServers[name], prev.mcp_added[name])) {
+      mcpAdded[name] = prev.mcp_added[name];
+    }
+  }
+  const claudeJson = { ...claudeJsonIn.data, mcpServers: servers };
+  if (!claudeJsonIn.existed || !isDeepStrictEqual(claudeJson, claudeJsonIn.data) ||
+      ((await statOrNull(t.claudeJson))?.mode & 0o777) !== 0o600) {
+    writes.push({ rel: '.claude.json', path: t.claudeJson, data: Buffer.from(toJson(claudeJson), 'utf8'), mode: 0o600 });
+  }
+
+  const created = prev?.created_files ?? [
+    ...(mdBuf ? [] : [mdFile]),
+    ...(settingsIn.existed ? [] : [settingsFile]),
+    ...(claudeJsonIn.existed ? [] : [t.claudeJson]),
+  ];
+
+  const makeState = (lastBackup) => ({
+    schema: STATE_SCHEMA,
+    version: packageVersion(),
+    installed_at: prev?.installed_at ?? new Date().toISOString(),
+    claude_home: t.claudeHome,
+    claude_json: t.claudeJson,
+    components: COMPONENTS,
+    persona,
+    model_assignments: assignments,
+    rdd_mode: prev?.rdd_mode ?? 'off',
+    last_backup: lastBackup ?? prev?.last_backup ?? null,
+    managed_files: managedFiles,
+    claude_md_sections: sections.map((s) => s.id),
+    settings_prev: { outputStyle: settingsPrevStyle },
+    deny_added: denyAdded,
+    mcp_added: mcpAdded,
+    created_files: created,
+  });
+
+  const real = [];
+  for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
+  return { t, prev, writes: real, skipped, makeState };
+}
+
+export async function install(opts = {}) {
+  const { t, prev, writes, skipped, makeState } = await plan(opts);
+  const files = writes.map((w) => w.rel);
+  if (opts.dryRun) return { dryRun: true, changed: writes.length > 0, files, skipped, backup: null };
+
+  const statePath = statePathOf(t.stateDir);
+  let backup = null;
+  if (writes.length > 0) {
+    ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), statePath]));
+    for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
+  }
+  const stateText = toJson(makeState(backup));
+  const stateChanged = await needsWrite(statePath, stateText);
+  if (stateChanged) await writeFileAtomic(statePath, stateText);
+  return { dryRun: false, changed: writes.length > 0 || stateChanged || !prev, files, skipped, backup };
+}
+
+async function pruneEmptyDirs(start, stop) {
+  let dir = start;
+  while (dir.startsWith(stop + path.sep) && dir !== stop) {
+    try {
+      await rmdir(dir);
+    } catch {
+      return;
+    }
+    dir = path.dirname(dir);
+  }
+}
+
+export async function uninstall(opts = {}) {
+  const t = resolveTargets(opts);
+  const state = await readState(t.stateDir);
+  const created = new Set(state?.created_files ?? []);
+  const writes = [];
+  const deletes = [];
+  const kept = [];
+
+  // CLAUDE.md
+  const mdFile = abs(t.claudeHome, 'CLAUDE.md');
+  const mdBuf = await readOrNull(mdFile);
+  if (mdBuf) {
+    const before = mdBuf.toString('utf8');
+    let md = before;
+    for (const { id } of listSections(before)) md = removeSection(md, id);
+    if (md !== before) {
+      if (created.has(mdFile) && md.trim() === '') deletes.push(mdFile);
+      else writes.push({ path: mdFile, data: Buffer.from(md, 'utf8') });
+    }
+  }
+
+  // settings.json
+  const settingsFile = abs(t.claudeHome, 'settings.json');
+  const settingsIn = await readJsonObject(settingsFile, 'settings.json');
+  if (settingsIn.existed) {
+    let s = removeHooksByCommandPrefix(settingsIn.data, HOOK_PREFIX);
+    if (state?.settings_prev && STYLE_NAMES.includes(s.outputStyle)) {
+      s = { ...s };
+      if (state.settings_prev.outputStyle === null) delete s.outputStyle;
+      else s.outputStyle = state.settings_prev.outputStyle;
+    }
+    if (state?.deny_added?.length && Array.isArray(s.permissions?.deny)) {
+      s = { ...s, permissions: { ...s.permissions, deny: s.permissions.deny.filter((d) => !state.deny_added.includes(d)) } };
+      if (s.permissions.deny.length === 0) delete s.permissions.deny;
+      if (Object.keys(s.permissions).length === 0) delete s.permissions;
+    }
+    if (!isDeepStrictEqual(s, settingsIn.data)) {
+      if (created.has(settingsFile) && Object.keys(s).length === 0) deletes.push(settingsFile);
+      else writes.push({ path: settingsFile, data: Buffer.from(toJson(s), 'utf8') });
+    }
+  }
+
+  // .claude.json
+  const cjIn = await readJsonObject(t.claudeJson, '.claude.json');
+  if (cjIn.existed && state?.mcp_added && isObject(cjIn.data.mcpServers)) {
+    const servers = { ...cjIn.data.mcpServers };
+    for (const [name, value] of Object.entries(state.mcp_added)) {
+      if (name in servers && isDeepStrictEqual(servers[name], value)) delete servers[name];
+      else if (name in servers) kept.push(`mcp:${name}`);
+    }
+    const next = { ...cjIn.data, mcpServers: servers };
+    if (Object.keys(servers).length === 0) delete next.mcpServers;
+    if (!isDeepStrictEqual(next, cjIn.data)) {
+      if (created.has(t.claudeJson) && Object.keys(next).length === 0) deletes.push(t.claudeJson);
+      else writes.push({ path: t.claudeJson, data: Buffer.from(toJson(next), 'utf8'), mode: 0o600 });
+    }
+  }
+
+  // Managed files, only when byte-identical to what was installed.
+  for (const [rel, hash] of Object.entries(state?.managed_files ?? {})) {
+    const file = abs(t.claudeHome, rel);
+    const buf = await readOrNull(file);
+    if (buf === null) continue;
+    if (sha256(buf) === hash) deletes.push(file);
+    else kept.push(rel);
+  }
+
+  const statePath = statePathOf(t.stateDir);
+  const hadState = (await statOrNull(statePath)) !== null;
+  if (writes.length === 0 && deletes.length === 0 && !hadState) return { changed: false, backup: null, removed: [], kept };
+
+  let backup = null;
+  if (writes.length > 0 || deletes.length > 0) {
+    ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), ...deletes, statePath]));
+  }
+  for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
+  for (const file of deletes) {
+    await rm(file, { force: true });
+    await pruneEmptyDirs(path.dirname(file), t.claudeHome);
+  }
+  if (hadState) await rm(statePath, { force: true });
+  return { changed: true, backup, removed: [...writes.map((w) => w.path), ...deletes], kept };
+}
+
+export async function status(opts = {}) {
+  const t = resolveTargets(opts);
+  const state = await readState(t.stateDir);
+  if (!state) return { installed: false, ok: false, items: [] };
+  const items = [];
+  const add = (name, ok, detail = '') => items.push({ name, ok, detail });
+
+  const md = (await readOrNull(abs(t.claudeHome, 'CLAUDE.md')))?.toString('utf8') ?? '';
+  const present = new Set(listSections(md).map((s) => s.id));
+  for (const id of state.claude_md_sections ?? []) add(`CLAUDE.md section ${id}`, present.has(id), present.has(id) ? '' : 'missing');
+
+  const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
+  const commands = (event) => (settings.hooks?.[event] ?? []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
+  for (const [event, entries] of Object.entries(desiredHooks())) {
+    const cmd = entries[0].hooks[0].command;
+    const ok = commands(event).includes(cmd);
+    add(`hook ${event}`, ok, ok ? cmd : 'missing');
+  }
+  add('outputStyle', STYLE_NAMES.includes(settings.outputStyle), String(settings.outputStyle ?? 'unset'));
+
+  const servers = (await readJsonObject(t.claudeJson, '.claude.json')).data.mcpServers ?? {};
+  for (const name of Object.keys(state.mcp_added ?? {})) add(`mcp ${name}`, name in servers, name in servers ? '' : 'missing');
+
+  for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
+    const buf = await readOrNull(abs(t.claudeHome, rel));
+    if (buf === null) add(`file ${rel}`, false, 'missing');
+    else if (sha256(buf) !== hash) add(`file ${rel}`, false, 'modified');
+    else add(`file ${rel}`, true);
+  }
+  return { installed: true, ok: items.every((i) => i.ok), items, state };
+}

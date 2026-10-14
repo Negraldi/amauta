@@ -27,6 +27,10 @@ gentle-lite uninstall [same options]
 gentle-lite status    [same options]
 ```
 
+Hooks registered in `settings.json` call `gentle-lite hook ...`, so the binary must be on
+`PATH` (for example `npm link` from this directory). The `hook` handlers are placeholders
+until the hooks work unit lands.
+
 ## Safety: parameterized targets
 
 Nothing is hardcoded to the real home. Every target can be redirected, and tests
@@ -38,9 +42,15 @@ only ever use temp directories:
 | `--claude-json` | `GENTLE_LITE_CLAUDE_JSON` | `~/.claude.json` |
 | `--state-dir` | `GENTLE_LITE_STATE_DIR` | `~/.gentle-lite` |
 
+If only `--claude-home` is given, the other two default to paths inside it
+(`<home>/.claude.json`, `<home>/.gentle-lite`), so a sandboxed install never touches the real home.
+
 Every file is backed up under `<state-dir>/backups/<timestamp>/` before it is written.
 Existing user content (CLAUDE.md text, hooks, MCP servers, `permissions.defaultMode`)
-is preserved.
+is preserved. `permissions.defaultMode` is never set or changed (upstream forces
+`bypassPermissions`; gentle-lite deliberately does not), and the deny list is merged, not replaced.
+Files gentle-lite installs are tracked by hash: if you edit one, re-install and uninstall keep your
+version unless you pass `--force`.
 
 ## Tests
 
