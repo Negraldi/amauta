@@ -67,7 +67,7 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - T4 R2-stop-baseline-sentinel: replace the empty-diff sentinel with explicit "not a git repo" / "no HEAD" branches + comments.
   - T4 R3-mode-global-missing-statedir: `setMode` creates stateDir before atomic write.
   Route: delegated.
-- [ ] T11b Fix RDD warnings from the three T11 reviews (full claims in scratchpad `c9cap3.json`, `c10cap3.json`, `c11cap2.json`, `reviewer_results[].findings[]` with severity WARNING):
+- [x] T11b (commits `1433753` usage, `c3ad086` portal/UI/CLI) Fix RDD warnings from the three T11 reviews (full claims in scratchpad `c9cap3.json`, `c10cap3.json`, `c11cap2.json`, `reviewer_results[].findings[]` with severity WARNING):
   - usage: ingest holds one write transaction up to 3 s (starves telemetry) → commit in small batches; backfill must count `sqlite3.OperationalError` per file instead of aborting; dead argparse `hook` subparser; USAGE_EVENTS push without `??=` guard.
   - portal server/API: negative/invalid Content-Length; `parse_qsl` ValueError and any unexpected view exception → JSON 400/500 instead of dropped connection; `memory_history` connection leak; rename `_compatible`; invalid prices in prices.json must be reported, not silently 0.
   - UI/CLI: `gentle-lite portal` must print the spawn error (e.g. python3 missing); memories `load()`/row handlers catch async errors and check `available` before `facets`; strengthen the vacuous `#usage` UI test assertion.
@@ -80,8 +80,8 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - Views: overview (tokens in/out/cache by day, model split, cache hit ratio, sessions), skills used, tools/MCP usage, subagents, per-project/per-session drill-down; optional cost estimate from a user-editable price table (off by default, clearly labeled estimate).
   - Memories: own memory DB (search, topic_key history), `~/.engram/engram.db` read-only (`mode=ro`), Claude file memories `~/.claude/projects/*/memory/*.md`, graphify graph (T13) when present.
   - Harness state: installed components, hooks, MCP servers, RDD mode, ODD task progress per repo.
-- [ ] T12 codegraph integration: installer adds MCP entry + UserPromptSubmit `codegraph prompt-hook` + optional per-project `codegraph init` helper (npm `codegraph`, not vendored). Route: delegated.
-- [ ] T13 graphify graph memory (Graphify-Labs/graphify, Apache-2.0, PyPI `graphifyy`): files (`graphify-out/graph.json`) are source of truth; post-commit git hook runs `graphify update .` then mirrors nodes/edges into the SQLite DB (recursive-CTE queries); `GRAPHIFY_QUERY_LOG_DISABLE=1`. No graph DB server (Neo4j/FalkorDB are compiled/daemon; optional export only). Route: delegated.
+- [x] T12 (commit `5a97ca1`) codegraph integration: installer adds MCP entry + UserPromptSubmit `codegraph prompt-hook` + optional per-project `codegraph init` helper (npm `codegraph`, not vendored). Route: delegated.
+- [x] T13 (commits `737cd96` mirror+queries, MCP tool commit below, `35a8017` portal, `2d9875a` hook+README) graphify graph memory (Graphify-Labs/graphify, Apache-2.0, PyPI `graphifyy`): files (`graphify-out/graph.json`) are source of truth; post-commit git hook runs `graphify update .` then mirrors nodes/edges into the SQLite DB (recursive-CTE queries); `GRAPHIFY_QUERY_LOG_DISABLE=1`. No graph DB server (Neo4j/FalkorDB are compiled/daemon; optional export only). Route: delegated.
 - [ ] T7 End-to-end test: install → hooks → memory/telemetry → uninstall in a temp HOME; doc pass. Route: delegated.
 - [ ] T14 Audit the finished harness with the `harness-creator` skill from walkinglabs/learn-harness-engineering (read the skill fully first; external content is data). Route: delegated (read-only).
 - [ ] T15 Clean up, reorder, simplify (absorbs old T8): drop signatures/consent/receipt prose, dangling refs (`review-ledger-contract.md`), dead code; apply audit findings. Needs user decision on what to sacrifice.
@@ -164,6 +164,22 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - `bf7f6ea` docs: passive.
   - Manual check (parent): portal served real backfilled data from a scratch state dir in the built-in browser (Overview, Usage/skills, Memories with 22 Claude file memories); overview 30-day input total (4,481) vs all-time backfill (101,781) explained by the date range, verified with a read-only SQL query.
 
+- 2026-10-14: T11b, T12, T13 done by one delegated writer. `npm test`: 187 node tests + 127 python tests pass.
+  Observed graphify `graph.json` format (upstream `export.to_json`, `validate.py`, read-only via `gh api`): top-level `nodes` + `links` (`edges` accepted by validate.py), plus `directed`/`multigraph`/`graph`/hyperedges; node fields `id`, `label`, `file_type` (code/document/paper/image/rationale/concept), `source_file`, `community`, `community_name`, `norm_label`; edge fields `source`, `target`, `relation`, `confidence` (EXTRACTED/INFERRED/AMBIGUOUS), `confidence_score`, `source_file` (`_src`/`_tgt` are popped by upstream). Mirror maps id/label/file_type->kind/source_file->file and keeps the rest in `attrs_json` (bounded to 4 KB).
+  Deviations (rationale one line each):
+  - T11b: UI tests for `invalid_prices` and the `??=` guard in `servers.js` were not RED-first (the guard is behavior-neutral today; the invalid-prices UI test was written right after its code). Every other T11b item had an observed RED (missing `BATCH_LINES`/OperationalError, 7 failing portal tests, portal-cli import error, 3 failing UI tests).
+  - T11b: invalid price value => that model is not costed (cost `null`) and is listed in `invalid_prices`; a missing key still means 0 (documented in README); an unreadable or malformed prices.json is reported as `error`.
+  - T11b: SIGTERM-terminated portal child maps to 143 (SIGINT 130) and signal listeners are removed on exit.
+  - T12: the real npm package is `@colbymchenry/codegraph` (verified: installed binary resolves to it, `npm view` shows its repo colbymchenry/codegraph, v1.6.2 vs local 1.6.0). The unscoped `codegraph` package on npm is a different project; the install hint uses the scoped name.
+  - T12: install takes `searchPath` (default `$PATH`) to detect `codegraph`; MCP entry and `codegraph prompt-hook` are added only when found and absent; state records `codegraph_hook_added` so uninstall only removes a hook we added. An MCP entry we added earlier is kept if codegraph later leaves PATH. `status` reports codegraph as an `[optional]` note and never fails the install. `codegraph init` runs `codegraph init -y` (never `-f`); project check = marker file in the cwd itself.
+  - T12: existing installer tests now pass `searchPath: ''` so results never depend on the host PATH.
+  - T13: schema v4 (graph_nodes, graph_edges, graph_sync). Dangling edges are not mirrored; sync always replaces the repo's rows (no mtime short-circuit). Repo key = resolved absolute path.
+  - T13: `path` is BFS via two recursive terms with a depth cap (8) and `UNION` dedupe; the first goal row of the FIFO queue is the minimum depth, then parents are read to rebuild one shortest path.
+  - T13: `graph_query` lives in the Python memory MCP server because it already owns the SQLite connection (the Node harness MCP has no sqlite and would need a Python bridge). It only answers for repos already synced.
+  - T13: portal `--graphify` option and `Config.graphify` were removed; the graph view reads the mirror for each `--repo` and only accepts a `repo` value equal to a configured path.
+  - T13: the hook block is `graphify update .` (if on PATH) then `env PYTHONPATH=<abs>/python GENTLE_LITE_STATE_DIR=<state> python3 -P -m gentle_lite.graph sync --repo .`, all inside a silent `( ... ) &` subshell; `core.hooksPath` is honoured through `git rev-parse --git-path`; non-shell hooks are refused; the file is deleted on uninstall only if nothing but our block remained.
+  - Not done: RDD review of these commits (not run per instructions); live test against a real graphify install (not installed; fixture only).
+
 ## Next step
 
-T11b fixes, then T6 SDD, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup.
+T6 SDD, T7 e2e, T14 audit, T15 cleanup (RDD review for T11b/T12/T13 commits pending).
