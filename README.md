@@ -97,6 +97,19 @@ Ingestion is incremental through `ingest_state` (byte offset; a shrunk or rewrit
 PYTHONPATH=python python3 -P -m gentle_lite.usage backfill [--claude-home ~/.claude]
 ```
 
+## Control portal (read-only)
+
+```
+PYTHONPATH=python python3 -P -m gentle_lite.portal [--port 8765] [--claude-home DIR] [--engram-db FILE] [--repo DIR]... [--graphify PATH]
+```
+
+JSON API plus a single-page UI, stdlib only, no CDN. It binds `127.0.0.1` only (there is no host option), checks the
+`Host` header against DNS rebinding, serves a strict CSP (no inline script or style) and opens every database with
+`mode=ro` (never created, never migrated). The only write is the "Refresh usage" button, `POST /api/refresh`, which runs
+the usage backfill and needs the per-process token embedded in the page plus a same-origin check. Hook command text and
+MCP `args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
+(`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens).
+
 ## Safety: parameterized targets
 
 Nothing is hardcoded to the real home. Every target can be redirected, and tests
