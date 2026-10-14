@@ -62,6 +62,11 @@ export function mergeHooks(settings, additions) {
 
 /** Remove every hook whose command starts with `prefix`; prune emptied containers. */
 export function removeHooksByCommandPrefix(settings, prefix) {
+  return removeHooksWhere(settings, (command) => command.startsWith(prefix));
+}
+
+/** Remove every hook whose command satisfies `predicate`; prune emptied containers. */
+export function removeHooksWhere(settings, predicate) {
   const out = clone(settings);
   if (!isPlainObject(out.hooks)) return out;
   let changed = false;
@@ -73,7 +78,7 @@ export function removeHooksByCommandPrefix(settings, prefix) {
         kept.push(entry);
         continue;
       }
-      const remaining = entry.hooks.filter((h) => !(typeof h?.command === 'string' && h.command.startsWith(prefix)));
+      const remaining = entry.hooks.filter((h) => !(typeof h?.command === 'string' && predicate(h.command)));
       if (remaining.length === entry.hooks.length) kept.push(entry);
       else {
         changed = true;

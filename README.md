@@ -27,9 +27,22 @@ gentle-lite uninstall [same options]
 gentle-lite status    [same options]
 ```
 
-Hooks registered in `settings.json` call `gentle-lite hook ...`, so the binary must be on
-`PATH` (for example `npm link` from this directory). The `hook` handlers are placeholders
-until the hooks work unit lands.
+```
+gentle-lite skill-registry refresh [--cwd DIR] [--quiet] [--no-gitignore] [--force]
+gentle-lite skill-registry list    [--cwd DIR]
+gentle-lite review assess [--cwd DIR] [--base-ref REF] [--committed-only] [--json]
+gentle-lite review mode   enable|disable|status [--scope global|clone] [--cwd DIR]
+```
+
+Hooks registered in `settings.json` run `node <repo>/bin/gentle-lite.js hook <name>` (absolute
+path, no `PATH` dependency). They read the Claude Code hook JSON on stdin, always exit 0 and
+fail open; an empty stdout is a no-op.
+
+- `skill-registry` (UserPromptSubmit): refreshes `<project>/.atl/skill-registry.md`, skipping
+  `/`, `$HOME` and directories without a project marker.
+- `review-stop` (SessionStart/Stop): when receipt-driven development is on and this session
+  produced a candidate that `review assess` marks as due, blocks the stop once per candidate.
+  RDD is off by default; clone-local `off` (in `.git/gentle-lite-rdd-mode`) wins over global.
 
 ## Safety: parameterized targets
 

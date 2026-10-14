@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { loadManifest, assetPath, readAssetText, listFiles } from '../src/install/assets.js';
 import { parseOddSections, renderOrchestrator } from '../src/install/templating.js';
 
@@ -34,4 +35,10 @@ test('listFiles walks a directory recursively with relative sorted paths', async
   assert.ok(files.includes('SKILL.md'));
   assert.ok(files.includes(path.join('references', 'prompts-and-formats.md')));
   assert.deepEqual(files, [...files].sort());
+});
+
+test('codegraph-guidance refers to the upstream codegraph CLI, not gentle-ai', async () => {
+  const text = await readFile(new URL('../assets/claude/codegraph-guidance.md', import.meta.url), 'utf8');
+  assert.ok(!text.includes('gentle-ai'));
+  assert.match(text, /`codegraph init`/);
 });

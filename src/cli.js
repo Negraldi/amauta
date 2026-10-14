@@ -1,6 +1,7 @@
 import { packageVersion } from './version.js';
 import { runHook } from './hooks/index.js';
 import { registerInstallCommands } from './install/cli.js';
+import { registerReviewCommands } from './review/cli.js';
 
 /**
  * Subcommand registry. Each entry: { summary, run(args, io) -> exit code | Promise }.
@@ -18,7 +19,7 @@ commands.set('version', {
 
 export function helpText() {
   const rows = [...commands.entries()]
-    .map(([name, c]) => `  ${name.padEnd(14)}${c.summary}`)
+    .map(([name, c]) => `  ${name.padEnd(16)}${c.summary}`)
     .join('\n');
   return `Usage: gentle-lite <command> [options]\n\nCommands:\n${rows}\n\nRun \`gentle-lite --help\` to show this text.\n`;
 }
@@ -29,6 +30,7 @@ commands.set('hook', {
 });
 
 registerInstallCommands(commands);
+registerReviewCommands(commands);
 
 export async function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const [name, ...rest] = argv;

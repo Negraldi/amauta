@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, mkdir, stat, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { install, uninstall, status } from '../src/install/installer.js';
 import { listSections } from '../src/core/markers.js';
 
@@ -80,9 +81,10 @@ test('fresh install creates every component', async () => {
   assert.ok(!('defaultMode' in settings.permissions), 'must not force a defaultMode');
   assert.equal(settings.permissions.deny.length, 24);
   assert.deepEqual(Object.keys(settings.hooks).sort(), ['SessionStart', 'Stop', 'UserPromptSubmit']);
-  assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, 'gentle-lite hook skill-registry');
+  const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
+  assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, `node ${bin} hook skill-registry`);
   assert.equal(settings.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact');
-  assert.equal(settings.hooks.Stop[0].hooks[0].command, 'gentle-lite hook review-stop');
+  assert.equal(settings.hooks.Stop[0].hooks[0].command, `node ${bin} hook review-stop`);
 
   const cj = await readJson(t.claudeJson);
   assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['codegraph', 'context7', 'engram', 'gentle-lite', 'rea']);
@@ -299,5 +301,24 @@ test('uninstall without state still strips markers and hooks', async () => {
   await uninstall(t.opts());
   assert.equal(await readFile(t.p('CLAUDE.md'), 'utf8'), USER_MD);
   assert.deepEqual((await readJson(t.p('settings.json'))).hooks, USER_SETTINGS.hooks);
+  await t.cleanup();
+});
+
+test('install replaces legacy PATH-based gentle-lite hooks and keeps user hooks; uninstall removes quoted entries', async () => {
+  const legacy = { type: 'command', command: 'gentle-lite hook review-stop' };
+  const mine = { type: 'command', command: 'echo mine' };
+  const t = await sandbox({ settings: { hooks: { Stop: [{ matcher: '', hooks: [legacy, mine] }] } } });
+  await install(t.opts());
+  const cmds = (await readJson(t.p('settings.json'))).hooks.Stop.flatMap((e) => e.hooks.map((h) => h.command));
+  assert.ok(!cmds.includes('gentle-lite hook review-stop'));
+  assert.ok(cmds.includes('echo mine'));
+  assert.ok(cmds.some((c) => /^node \S+gentle-lite\.js hook review-stop$/.test(c)));
+  // A hand-written quoted variant is also recognised on uninstall.
+  const s = await readJson(t.p('settings.json'));
+  s.hooks.Stop.push({ matcher: '', hooks: [{ type: 'command', command: "node '/my dir/bin/gentle-lite.js' hook review-stop" }] });
+  await writeFile(t.p('settings.json'), JSON.stringify(s));
+  await uninstall(t.opts());
+  const left = (await readJson(t.p('settings.json'))).hooks.Stop.flatMap((e) => e.hooks.map((h) => h.command));
+  assert.deepEqual(left, ['echo mine']);
   await t.cleanup();
 });

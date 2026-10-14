@@ -12,15 +12,25 @@ export function desiredMcpServers() {
   };
 }
 
-export const HOOK_PREFIX = 'gentle-lite ';
+const BIN = path.join(repoRoot, 'bin', 'gentle-lite.js');
 
-const hook = (command, timeout) => ({ type: 'command', command, ...(timeout ? { timeout } : {}) });
+/** Quote a path for a POSIX shell only when it contains unsafe characters. */
+export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.replaceAll("'", `'\\''`)}'`);
+
+/** True for any hook command gentle-lite registered (absolute `node .../gentle-lite.js hook X` or legacy `gentle-lite ...`). */
+export const isGentleLiteHook = (command) => /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ');
+
+const hook = (name, timeout) => ({
+  type: 'command',
+  command: `node ${shellQuote(BIN)} hook ${name}`,
+  ...(timeout ? { timeout } : {}),
+});
 
 /** Hook entries registered in settings.json. */
 export function desiredHooks() {
   return {
-    UserPromptSubmit: [{ matcher: '', hooks: [hook('gentle-lite hook skill-registry')] }],
-    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('gentle-lite hook review-stop', 30)] }],
-    Stop: [{ matcher: '', hooks: [hook('gentle-lite hook review-stop', 60)] }],
+    UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry')] }],
+    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30)] }],
+    Stop: [{ matcher: '', hooks: [hook('review-stop', 60)] }],
   };
 }

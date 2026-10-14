@@ -3,7 +3,7 @@ import { readFile, rm, rmdir, stat } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
-import { deepMerge, mergeHooks, removeHooksByCommandPrefix } from '../core/jsonmerge.js';
+import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { createBackup } from '../core/backup.js';
 import { resolveTargets } from './paths.js';
@@ -16,7 +16,7 @@ import {
   renderOrchestrator,
   resolveAssignment,
 } from './templating.js';
-import { HOOK_PREFIX, desiredHooks, desiredMcpServers } from './servers.js';
+import { desiredHooks, desiredMcpServers, isGentleLiteHook } from './servers.js';
 import { packageVersion } from '../version.js';
 
 export const STATE_SCHEMA = 'gentle-lite.state/v1';
@@ -164,7 +164,11 @@ async function plan(opts) {
   );
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
   settings = deepMerge(settings, { permissions: { deny: [...existingDeny, ...newDeny] } });
-  settings = mergeHooks(settings, desiredHooks());
+  const wantedHooks = desiredHooks();
+  const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
+  // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
+  settings = removeHooksWhere(settings, (c) => isGentleLiteHook(c) && !wantedCommands.has(c));
+  settings = mergeHooks(settings, wantedHooks);
   if (!settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data)) {
     writes.push({ rel: 'settings.json', path: settingsFile, data: Buffer.from(toJson(settings), 'utf8') });
   }
@@ -273,7 +277,7 @@ export async function uninstall(opts = {}) {
   const settingsFile = abs(t.claudeHome, 'settings.json');
   const settingsIn = await readJsonObject(settingsFile, 'settings.json');
   if (settingsIn.existed) {
-    let s = removeHooksByCommandPrefix(settingsIn.data, HOOK_PREFIX);
+    let s = removeHooksWhere(settingsIn.data, isGentleLiteHook);
     if (state?.settings_prev && STYLE_NAMES.includes(s.outputStyle)) {
       s = { ...s };
       if (state.settings_prev.outputStyle === null) delete s.outputStyle;
