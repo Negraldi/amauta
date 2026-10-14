@@ -33,7 +33,7 @@ async function sandbox({ settings, claudeJson, stateName = 'state' } = {}) {
 const memoryEntry = (t) => ({
   type: 'stdio',
   command: 'python3',
-  args: ['-m', 'gentle_lite.memory', 'serve'],
+  args: ['-P', '-m', 'gentle_lite.memory', 'serve'],
   env: { PYTHONPATH: path.join(repo, 'python'), GENTLE_LITE_STATE_DIR: t.stateDir },
 });
 const telemetryCommands = (settings) =>
@@ -102,7 +102,7 @@ test('telemetry hooks are registered for five events, marked, and removed by uni
   const found = telemetryCommands(settings);
   assert.deepEqual(found.map((f) => f.event).sort(), [...EVENTS].sort());
   for (const f of found) {
-    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} GENTLE_LITE_STATE_DIR=${t.stateDir} python3 -m gentle_lite.telemetry hook`);
+    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} GENTLE_LITE_STATE_DIR=${t.stateDir} python3 -P -m gentle_lite.telemetry hook`);
     assert.equal(f.matcher, '');
   }
   assert.equal((await t.state()).telemetry, true);
@@ -132,7 +132,7 @@ test('paths with spaces are shell-quoted in the telemetry hook command', async (
   await install(t.opts());
   const [{ command }] = telemetryCommands(await t.settings());
   assert.ok(command.includes(`'GENTLE_LITE_STATE_DIR=${t.stateDir}'`), command);
-  const sh = spawnSync('sh', ['-c', command.replace('python3 -m gentle_lite.telemetry hook', 'printenv GENTLE_LITE_STATE_DIR')], { encoding: 'utf8' });
+  const sh = spawnSync('sh', ['-c', command.replace('python3 -P -m gentle_lite.telemetry hook', 'printenv GENTLE_LITE_STATE_DIR')], { encoding: 'utf8' });
   assert.equal(sh.stdout.trim(), t.stateDir);
   await t.cleanup();
 });
@@ -144,5 +144,20 @@ test('CLI: --no-telemetry installs without telemetry hooks', async () => {
   assert.equal(r.status, 0, r.stderr);
   assert.equal(telemetryCommands(await t.settings()).length, 0);
   assert.equal((await t.state()).telemetry, false);
+  await t.cleanup();
+});
+
+test('installed python commands never import modules from the hook cwd (-P)', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  const evil = await mkdtemp(path.join(os.tmpdir(), 'gl-evil-'));
+  const marker = path.join(evil, 'pwned');
+  await mkdir(path.join(evil, 'gentle_lite', 'memory'), { recursive: true });
+  await writeFile(path.join(evil, 'gentle_lite', '__init__.py'), `open(${JSON.stringify(marker)}, 'w').close()\n`);
+  await writeFile(path.join(evil, 'gentle_lite', 'memory', '__init__.py'), '');
+  const entry = (await t.cj()).mcpServers.engram;
+  spawnSync(entry.command, [...entry.args.slice(0, -1), '--help'], { cwd: evil, env: { ...process.env, ...entry.env }, encoding: 'utf8' });
+  await assert.rejects(readFile(marker), { code: 'ENOENT' });
+  await rm(evil, { recursive: true, force: true });
   await t.cleanup();
 });

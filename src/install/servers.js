@@ -7,7 +7,7 @@ const PYTHON_PATH = path.join(repoRoot, 'python');
 export const memoryServer = (stateDir) => ({
   type: 'stdio',
   command: 'python3',
-  args: ['-m', 'gentle_lite.memory', 'serve'],
+  args: ['-P', '-m', 'gentle_lite.memory', 'serve'],
   env: { PYTHONPATH: PYTHON_PATH, GENTLE_LITE_STATE_DIR: stateDir },
 });
 
@@ -45,7 +45,7 @@ const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'St
 /** Local-only telemetry hook: `env` form works in Claude Code hook command strings (run through a shell). */
 const telemetryHook = (stateDir) => ({
   type: 'command',
-  command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`GENTLE_LITE_STATE_DIR=${stateDir}`), 'python3 -m gentle_lite.telemetry hook'].join(' '),
+  command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`GENTLE_LITE_STATE_DIR=${stateDir}`), 'python3 -P -m gentle_lite.telemetry hook'].join(' '),
 });
 
 /** Hook entries registered in settings.json. */
