@@ -67,6 +67,11 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - T4 R2-stop-baseline-sentinel: replace the empty-diff sentinel with explicit "not a git repo" / "no HEAD" branches + comments.
   - T4 R3-mode-global-missing-statedir: `setMode` creates stateDir before atomic write.
   Route: delegated.
+- [ ] T11b Fix RDD warnings from the three T11 reviews (full claims in scratchpad `c9cap3.json`, `c10cap3.json`, `c11cap2.json`, `reviewer_results[].findings[]` with severity WARNING):
+  - usage: ingest holds one write transaction up to 3 s (starves telemetry) → commit in small batches; backfill must count `sqlite3.OperationalError` per file instead of aborting; dead argparse `hook` subparser; USAGE_EVENTS push without `??=` guard.
+  - portal server/API: negative/invalid Content-Length; `parse_qsl` ValueError and any unexpected view exception → JSON 400/500 instead of dropped connection; `memory_history` connection leak; rename `_compatible`; invalid prices in prices.json must be reported, not silently 0.
+  - UI/CLI: `gentle-lite portal` must print the spawn error (e.g. python3 missing); memories `load()`/row handlers catch async errors and check `available` before `facets`; strengthen the vacuous `#usage` UI test assertion.
+  Route: delegated.
 - [ ] T6 Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
 - [x] T9 (commit `a86c3f0`) Python memory MCP (stdlib sqlite3 + FTS5, hand-rolled stdio JSON-RPC): engram-compatible tool names (mem_save, mem_search, mem_context, mem_get_observation, mem_session_summary, mem_update), topic_key upsert, projects/sessions. Installer registers it as `engram`-equivalent server; harness never requires the compiled engram binary. Route: delegated.
 - [x] T10 (commits `a86c3f0` installer hooks + `e945363` package) Local-only telemetry (Python, same SQLite module): hooks SessionStart/UserPromptSubmit/PostToolUse/Stop/SubagentStop append events; no network ever. Route: delegated.
@@ -152,6 +157,13 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - `e945363` T10: high → granted → 4 lenses → approved, acknowledged (review-2bad28a4eb455bde). Warnings: silent event drop under lock contention, unbounded events growth → T11; README claims (split artifact) → T15.
   - `7f32424` docs: passive.
 
+- 2026-10-14: RDD for T11, grouped per user choice (3 candidates instead of 5):
+  - `09a00fb..2efa69b` usage + telemetry hardening: high, 784 lines → granted → 4 lenses → approved, acknowledged (review-65922b1c2a3a0360). 5 warnings → T11b.
+  - `2efa69b..bcf5e81` portal API/server: high, 1099 lines → granted → 4 lenses → approved, acknowledged (review-0bc563a152cb1c41). 8 warnings (2 are split artifacts: empty UI in that commit) → T11b.
+  - `bcf5e81..f92ca9e` UI + node command: high, 590 lines → granted → 4 lenses → approved, acknowledged (review-42108f6b20982cf5). 8 warnings → T11b.
+  - `bf7f6ea` docs: passive.
+  - Manual check (parent): portal served real backfilled data from a scratch state dir in the built-in browser (Overview, Usage/skills, Memories with 22 Claude file memories); overview 30-day input total (4,481) vs all-time backfill (101,781) explained by the date range, verified with a read-only SQL query.
+
 ## Next step
 
-T6 SDD, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup.
+T11b fixes, then T6 SDD, T12 codegraph, T13 graphify, T7 e2e, T14 audit, T15 cleanup.
