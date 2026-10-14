@@ -22,7 +22,7 @@ async function sandbox({ settings, claudeJson, stateName = 'state' } = {}) {
   await mkdir(t.claudeHome, { recursive: true });
   if (settings) await writeFile(path.join(t.claudeHome, 'settings.json'), JSON.stringify(settings));
   if (claudeJson) await writeFile(t.claudeJson, JSON.stringify(claudeJson));
-  t.opts = (extra = {}) => ({ claudeHome: t.claudeHome, claudeJson: t.claudeJson, stateDir: t.stateDir, ...extra });
+  t.opts = (extra = {}) => ({ claudeHome: t.claudeHome, claudeJson: t.claudeJson, stateDir: t.stateDir, searchPath: '', ...extra });
   t.settings = () => readJson(path.join(t.claudeHome, 'settings.json'));
   t.cj = () => readJson(t.claudeJson);
   t.state = () => readJson(path.join(t.stateDir, 'state.json'));

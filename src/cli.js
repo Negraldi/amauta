@@ -3,6 +3,7 @@ import { runHook } from './hooks/index.js';
 import { registerInstallCommands } from './install/cli.js';
 import { registerReviewCommands } from './review/cli.js';
 import { registerPortalCommands } from './portal/cli.js';
+import { registerCodegraphCommands } from './codegraph/index.js';
 
 /**
  * Subcommand registry. Each entry: { summary, run(args, io) -> exit code | Promise }.
@@ -33,6 +34,7 @@ commands.set('hook', {
 registerInstallCommands(commands);
 registerReviewCommands(commands);
 registerPortalCommands(commands);
+registerCodegraphCommands(commands);
 
 export async function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const [name, ...rest] = argv;

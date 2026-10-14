@@ -18,10 +18,15 @@ import {
 } from './templating.js';
 import { desiredHooks, desiredMcpServers, isGentleLiteHook } from './servers.js';
 import { packageVersion } from '../version.js';
+import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
 
 export const STATE_SCHEMA = 'gentle-lite.state/v1';
 const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
 const STYLE_NAMES = ['Gentleman', 'Neutral'];
+export const CODEGRAPH_PROMPT_HOOK = 'codegraph prompt-hook';
+
+const hasCommand = (settings, event, command) =>
+  (Array.isArray(settings.hooks?.[event]) ? settings.hooks[event] : []).some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h?.command === command));
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 const toJson = (obj) => `${JSON.stringify(obj, null, 2)}\n`;
@@ -139,6 +144,7 @@ async function plan(opts) {
 
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
   const telemetry = opts.telemetry !== false;
+  const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
   const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
   const engramPrefix = engramToolPrefix(settingsIn.data, memoryKey ?? 'engram');
@@ -187,6 +193,12 @@ async function plan(opts) {
   // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
   settings = removeHooksWhere(settings, (c) => isGentleLiteHook(c) && !wantedCommands.has(c));
   settings = mergeHooks(settings, wantedHooks);
+  // codegraph's own prompt hook: only when the tool is installed, never duplicated, and only removed again if we added it.
+  const hookWasThere = hasCommand(settingsIn.data, 'UserPromptSubmit', CODEGRAPH_PROMPT_HOOK);
+  const codegraphHookAdded = (prev?.codegraph_hook_added === true && hookWasThere) || (codegraphOnPath && !hookWasThere);
+  if (codegraphOnPath && !hookWasThere) {
+    settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK }] }] });
+  }
   if (!settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data)) {
     writes.push({ rel: 'settings.json', path: settingsFile, data: Buffer.from(toJson(settings), 'utf8') });
   }
@@ -194,6 +206,7 @@ async function plan(opts) {
   // .claude.json MCP servers (only when absent; never overwrite a user's entry).
   const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir });
   if (memoryKey) wanted[memoryKey] = memory;
+  if (!codegraphOnPath && !isOurs(currentServers, prev, 'codegraph')) delete wanted.codegraph; // external tool: register only when present
   const mcpAdded = {};
   const servers = { ...currentServers };
   for (const [name, value] of Object.entries(wanted)) {
@@ -239,6 +252,7 @@ async function plan(opts) {
     mcp_added: mcpAdded,
     memory_server_key: memoryKey,
     telemetry,
+    codegraph_hook_added: codegraphHookAdded,
     created_files: created,
   });
 
@@ -301,7 +315,7 @@ export async function uninstall(opts = {}) {
   const settingsFile = abs(t.claudeHome, 'settings.json');
   const settingsIn = await readJsonObject(settingsFile, 'settings.json');
   if (settingsIn.existed) {
-    let s = removeHooksWhere(settingsIn.data, isGentleLiteHook);
+    let s = removeHooksWhere(settingsIn.data, (c) => isGentleLiteHook(c) || (state?.codegraph_hook_added === true && c === CODEGRAPH_PROMPT_HOOK));
     if (state?.settings_prev && STYLE_NAMES.includes(s.outputStyle)) {
       s = { ...s };
       if (state.settings_prev.outputStyle === null) delete s.outputStyle;
@@ -365,6 +379,7 @@ export async function status(opts = {}) {
   const state = await readState(t.stateDir);
   if (!state) return { installed: false, ok: false, items: [] };
   const items = [];
+  const notes = [];
   const add = (name, ok, detail = '') => items.push({ name, ok, detail });
 
   const md = (await readOrNull(abs(t.claudeHome, 'CLAUDE.md')))?.toString('utf8') ?? '';
@@ -390,5 +405,8 @@ export async function status(opts = {}) {
     else if (sha256(buf) !== hash) add(`file ${rel}`, false, 'modified');
     else add(`file ${rel}`, true);
   }
-  return { installed: true, ok: items.every((i) => i.ok), items, state };
+  // Optional external tools: reported, but never make the install unhealthy.
+  const cg = await codegraphStatus({ cwd: opts.cwd, searchPath: opts.searchPath });
+  notes.push({ name: 'codegraph', ok: cg.onPath, detail: cg.onPath ? `${cg.path}; index in ${path.resolve(opts.cwd ?? process.cwd())}: ${cg.indexed ? 'present' : 'missing (run: gentle-lite codegraph init)'}` : CODEGRAPH_HINT });
+  return { installed: true, ok: items.every((i) => i.ok), items, notes, state };
 }

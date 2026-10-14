@@ -23,7 +23,7 @@ async function sandbox(seed = {}) {
   if (seed.claudeMd !== undefined) await writeFile(t.p('CLAUDE.md'), seed.claudeMd);
   if (seed.settings) await writeFile(t.p('settings.json'), `${JSON.stringify(seed.settings, null, 2)}\n`);
   if (seed.claudeJson) await writeFile(t.claudeJson, `${JSON.stringify(seed.claudeJson, null, 2)}\n`);
-  t.opts = (extra = {}) => ({ claudeHome: t.claudeHome, claudeJson: t.claudeJson, stateDir: t.stateDir, ...extra });
+  t.opts = (extra = {}) => ({ claudeHome: t.claudeHome, claudeJson: t.claudeJson, stateDir: t.stateDir, searchPath: '', ...extra }); // searchPath '': codegraph (external) is never detected from the host PATH
   t.cleanup = () => rm(root, { recursive: true, force: true });
   return t;
 }
@@ -87,7 +87,7 @@ test('fresh install creates every component', async () => {
   assert.equal(settings.hooks.Stop[0].hooks[0].command, `node ${bin} hook review-stop`);
 
   const cj = await readJson(t.claudeJson);
-  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['codegraph', 'context7', 'engram', 'gentle-lite', 'rea']);
+  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['context7', 'engram', 'gentle-lite', 'rea']);
   assert.equal(cj.mcpServers.context7.args[1], '--package=@upstash/context7-mcp@2.2.5');
   assert.equal(cj.mcpServers['gentle-lite'].command, 'node');
   assert.ok(path.isAbsolute(cj.mcpServers['gentle-lite'].args[0]));
