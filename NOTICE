@@ -16,6 +16,12 @@ Only machine-facing markers and command names (gentle-ai -> gentle-lite) were
 adapted; prose content is kept as upstream wrote it. The upstream license text
 is reproduced below as required by that license.
 
+The optional SDD module (assets/sdd/) comes from the v3.4.0 release of the same
+project (skills, agents, commands and shared contracts, MIT). Differences: commands
+are renamed /gentle-sdd-* -> /lite-sdd-*, calls to the compiled `gentle-ai sdd-*`
+commands point at gentle_lite.sdd, and the native archive composer section is
+replaced by a manual-composition note.
+
 MIT License
 
 Copyright (c) 2025 Gentleman Programming

@@ -6,32 +6,93 @@
     "license": "MIT"
   },
   "claudeMd": [
-    { "id": "codegraph-guidance", "source": "claude/codegraph-guidance.md", "note": "rendered upstream CodeGraph guidance" },
-    { "id": "persona", "source": "persona:{persona}", "note": "persona-gentleman.md or persona-neutral-residual.md" },
-    { "id": "engram-protocol", "source": "engram/protocol-slim.md" },
-    { "id": "orchestrator", "source": "claude/orchestrator.md", "template": "odd-sections", "note": "slots resolved from claude/odd-orchestrator-sections.md" },
-    { "id": "agent-routing", "source": "claude/agent-routing.md", "note": "ODD protocol; contains the nested remote-authorization section" }
+    {
+      "id": "codegraph-guidance",
+      "source": "claude/codegraph-guidance.md",
+      "note": "rendered upstream CodeGraph guidance"
+    },
+    {
+      "id": "persona",
+      "source": "persona:{persona}",
+      "note": "persona-gentleman.md or persona-neutral-residual.md"
+    },
+    {
+      "id": "engram-protocol",
+      "source": "engram/protocol-slim.md"
+    },
+    {
+      "id": "orchestrator",
+      "source": "claude/orchestrator.md",
+      "template": "odd-sections",
+      "note": "slots resolved from claude/odd-orchestrator-sections.md"
+    },
+    {
+      "id": "agent-routing",
+      "source": "claude/agent-routing.md",
+      "note": "ODD protocol; contains the nested remote-authorization section"
+    }
   ],
   "personas": {
-    "gentleman": { "residual": "claude/persona-gentleman.md", "outputStyle": "claude/output-style-gentleman.md", "styleName": "Gentleman" },
-    "neutral": { "residual": "claude/persona-neutral-residual.md", "outputStyle": "claude/output-style-neutral.md", "styleName": "Neutral" }
+    "gentleman": {
+      "residual": "claude/persona-gentleman.md",
+      "outputStyle": "claude/output-style-gentleman.md",
+      "styleName": "Gentleman"
+    },
+    "neutral": {
+      "residual": "claude/persona-neutral-residual.md",
+      "outputStyle": "claude/output-style-neutral.md",
+      "styleName": "Neutral"
+    }
   },
   "outputStyleTarget": "output-styles/gentleman.md",
   "oddSections": "claude/odd-orchestrator-sections.md",
   "agentFooters": [
-    { "id": "codegraph-guidance", "source": "claude/codegraph-guidance.md" },
-    { "id": "agent-language-contract", "source": "generic/agent-language-contract.md" },
-    { "id": "remote-authorization", "source": "generic/remote-authorization-contract.md" }
+    {
+      "id": "codegraph-guidance",
+      "source": "claude/codegraph-guidance.md"
+    },
+    {
+      "id": "agent-language-contract",
+      "source": "generic/agent-language-contract.md"
+    },
+    {
+      "id": "remote-authorization",
+      "source": "generic/remote-authorization-contract.md"
+    }
   ],
   "agents": [
-    { "name": "jd-fix-agent", "modelKey": "jd-fix-agent" },
-    { "name": "jd-judge-a", "modelKey": "jd-judge-a" },
-    { "name": "jd-judge-b", "modelKey": "jd-judge-b" },
-    { "name": "review-readability", "modelKey": "default" },
-    { "name": "review-refuter", "modelKey": "default" },
-    { "name": "review-reliability", "modelKey": "default" },
-    { "name": "review-resilience", "modelKey": "default" },
-    { "name": "review-risk", "modelKey": "default" }
+    {
+      "name": "jd-fix-agent",
+      "modelKey": "jd-fix-agent"
+    },
+    {
+      "name": "jd-judge-a",
+      "modelKey": "jd-judge-a"
+    },
+    {
+      "name": "jd-judge-b",
+      "modelKey": "jd-judge-b"
+    },
+    {
+      "name": "review-readability",
+      "modelKey": "default"
+    },
+    {
+      "name": "review-refuter",
+      "modelKey": "default"
+    },
+    {
+      "name": "review-reliability",
+      "modelKey": "default"
+    },
+    {
+      "name": "review-resilience",
+      "modelKey": "default"
+    },
+    {
+      "name": "review-risk",
+      "modelKey": "default"
+    }
   ],
   "agentsDir": "claude/agents",
   "skills": [
@@ -47,5 +108,73 @@
   "skillsDir": "skills",
   "sharedSkillsDir": "skills/_shared",
   "settingsOverlay": "claude/settings-overlay.json",
-  "sourceOnly": ["claude/odd-orchestrator-sections.md"]
+  "sourceOnly": [
+    "claude/odd-orchestrator-sections.md"
+  ],
+  "sdd": {
+    "note": "optional module, installed with --with-sdd; v3.4.0 SDD assets (MIT) renamed to /lite-sdd-*",
+    "skills": [
+      "sdd-init",
+      "sdd-explore",
+      "sdd-research",
+      "sdd-propose",
+      "sdd-spec",
+      "sdd-design",
+      "sdd-tasks",
+      "sdd-apply",
+      "sdd-verify",
+      "sdd-archive",
+      "sdd-onboard"
+    ],
+    "skillsDir": "sdd/skills",
+    "sharedDir": "sdd/skills/_shared",
+    "agents": [
+      {
+        "name": "sdd-init",
+        "modelKey": "sdd-init"
+      },
+      {
+        "name": "sdd-explore",
+        "modelKey": "sdd-explore"
+      },
+      {
+        "name": "sdd-research",
+        "modelKey": "sdd-research"
+      },
+      {
+        "name": "sdd-propose",
+        "modelKey": "sdd-propose"
+      },
+      {
+        "name": "sdd-spec",
+        "modelKey": "sdd-spec"
+      },
+      {
+        "name": "sdd-design",
+        "modelKey": "sdd-design"
+      },
+      {
+        "name": "sdd-tasks",
+        "modelKey": "sdd-tasks"
+      },
+      {
+        "name": "sdd-apply",
+        "modelKey": "sdd-apply"
+      },
+      {
+        "name": "sdd-verify",
+        "modelKey": "sdd-verify"
+      },
+      {
+        "name": "sdd-archive",
+        "modelKey": "sdd-archive"
+      },
+      {
+        "name": "sdd-onboard",
+        "modelKey": "sdd-onboard"
+      }
+    ],
+    "agentsDir": "sdd/agents",
+    "commandsDir": "sdd/commands"
+  }
 }
