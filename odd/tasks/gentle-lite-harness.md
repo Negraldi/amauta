@@ -213,6 +213,9 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - `c8c5c8f..bd9d469` T6 status + preflight: high, 850 lines → granted → correction_required: 4 CRITICAL (preflight fail-open: 256 KiB stdin cut hides `subagent_type`, unicode-escaped `sdd-` bypasses the raw regex, RecursionError escapes `except ValueError`). Correction `1a7f833` (parent, inline; cherry-picked to branch as `c0394fa`): byte-size limit 4 MiB, any oversized/unreadable payload denied (hook is Agent-only), regex removed, broad parse except, main() denies on error; tests first (RED: 5 failing incl. a shadowed duplicate test class, renamed). Targeted validator → approved, acknowledged (review-bdb69f6c62c8ccc0).
   - `127a75a..2fd4c93` T6 installer: high, 293 lines → granted → approved, acknowledged (review-15a64792a97aa8bb). 5 warnings → T6b.
 
+- 2026-10-14: RDD for T6b + T7 (`3c06c7c..63e923d`, grouped): high, 343 lines → granted → 4 lenses → approved, acknowledged (review-49acd6dfa3a33dfd). 4 warnings → T15: preflight shell guard appends deny after any partial Python stdout; hook `timeout: 30` hang is a second fail-open gap the README omits; shell guard denies every Agent dispatch (not only sdd-*) when Python cannot start; misleading append-test name. Parent spot check: `npm test` node 218 / python 179 pass.
+- 2026-10-14: T14 prep (parent, read-only): `harness-creator` validate-harness.mjs reviewed before running — reads only 7 fixed filenames (AGENTS.md, CLAUDE.md, feature_list.json, feature-list.json, progress.md, session-handoff.md, init.sh), keyword scoring over structured markdown lines, writes only with `--html`, no network/exec. Its score will be structurally low for gentle-lite (ODD state lives in `odd/tasks/*.md`), so the audit's value is the 7 reference-pattern checklists.
+
 ## Next step
 
 T14 audit, T15 cleanup.
