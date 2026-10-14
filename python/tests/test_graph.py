@@ -202,6 +202,17 @@ class WalkBoundsTest(Base):
         self.assertTrue(r["truncated"])
         self.assertEqual(r["nodes"][0]["id"], "hub")  # breadth-first: the seed and nearest nodes survive the cut
 
+    def test_path_reports_truncation_instead_of_a_definitive_no_path(self):
+        links = [edge("hub", f"l{i}") for i in range(100)] + [edge("l99", "far")]
+        write_graph(self.repo, {"nodes": [node("hub"), node("far")] + [node(f"l{i}") for i in range(100)], "links": links})
+        sync.sync_repo(self.conn, self.repo)
+        self.assertFalse(query.path(self.conn, self.key, "hub", "far")["truncated"])
+        self.assertTrue(query.path(self.conn, self.key, "hub", "far")["found"])
+        with mock.patch.object(query, "WALK_ROWS", 30):
+            r = query.path(self.conn, self.key, "hub", "far")
+        self.assertFalse(r["found"])
+        self.assertTrue(r["truncated"])
+
     def test_dense_graph_deduplicates_by_node(self):
         names = [f"n{i}" for i in range(60)]
         data = {"nodes": [node(n) for n in names], "links": [edge(a, b) for i, a in enumerate(names) for b in names[i + 1:]]}

@@ -68,7 +68,7 @@ test('--with-sdd installs skills, agents, commands, shared contracts and the Pre
   assert.equal(hooks.length, 1);
   assert.equal(hooks[0].matcher, 'Agent');
   assert.equal(hooks[0].timeout, 30);
-  assert.ok(hooks[0].command.startsWith(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd preflight-hook || printf `), hooks[0].command);
+  assert.ok(hooks[0].command.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd preflight-hook`), hooks[0].command);
   await t.cleanup();
 });
 
@@ -247,7 +247,7 @@ test('preflight hook fails closed at shell level: python3 shadowed by a failing 
   await t.cleanup();
 });
 
-test('desiredHooks appends the SDD hook to any existing PreToolUse entries', () => {
+test('desiredHooks registers the SDD hook as one PreToolUse(Agent) entry (appending to user entries is covered below)', () => {
   const hooks = desiredHooks({ stateDir: '/s', sdd: true });
   assert.equal(hooks.PreToolUse.length, 1);
   assert.match(hooks.PreToolUse[0].hooks[0].command, /preflight-hook/);
@@ -264,5 +264,48 @@ test('a pre-existing user PreToolUse hook survives install and uninstall with --
   assert.equal((await t.settings()).hooks.PreToolUse.length, 2, 'idempotent');
   await uninstall(t.opts());
   assert.deepEqual((await t.settings()).hooks.PreToolUse, [userHook]);
+  await t.cleanup();
+});
+
+const withFakePython = async (t, body) => {
+  const bin = path.join(t.root, 'fakebin');
+  await mkdir(bin, { recursive: true });
+  await writeFile(path.join(bin, 'python3'), `#!/bin/sh\n${body}\n`);
+  await chmod(path.join(bin, 'python3'), 0o755);
+  return { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+};
+
+test('preflight guard: partial stdout from a failing hook never hides the deny decision', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const [hook] = sddHooks(await t.settings());
+  const env = await withFakePython(t, `printf '{"hookSpecificOutput": {"permissionDecision": "al'\nexit 1`);
+  assertDeny(spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env }));
+  await t.cleanup();
+});
+
+test('preflight guard: a broken launcher denies only sdd-* dispatches and stays silent for other agents', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const [hook] = sddHooks(await t.settings());
+  const env = await withFakePython(t, 'exit 127');
+  const other = { ...AGENT_PAYLOAD, tool_input: { subagent_type: 'general-purpose', prompt: 'x' } };
+  const r = spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(other), encoding: 'utf8', cwd: t.root, env });
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, '');
+  assertDeny(spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env }));
+  await t.cleanup();
+});
+
+test('preflight guard: a hung hook is cut off by the inner timeout and still denies sdd-* (before the 30 s hook timeout kills the shell)', async (ctx) => {
+  if (spawnSync('sh', ['-c', 'command -v timeout']).status !== 0) return ctx.skip('no timeout(1) on this system');
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const [hook] = sddHooks(await t.settings());
+  assert.match(hook.command, /timeout 20/);
+  const env = await withFakePython(t, 'exec sleep 30');
+  const started = Date.now();
+  assertDeny(spawnSync('sh', ['-c', hook.command.replace('timeout 20', 'timeout 1')], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env }));
+  assert.ok(Date.now() - started < 10000);
   await t.cleanup();
 });

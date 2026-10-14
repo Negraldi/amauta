@@ -70,9 +70,11 @@ fail open; an empty stdout is a no-op.
   projects that opted in (an existing `.atl/` directory or `.atl/` in `.gitignore`; run
   `gentle-lite skill-registry refresh` once to opt in). Skips `/`, `$HOME`, directories without
   a project marker and a symlinked `.atl`. Home paths are written as `~/...`.
-- `review-stop` (SessionStart/Stop): when receipt-driven development is on and this session
+- `review-stop` (SessionStart/Stop): when review is switched on and this session
   produced a candidate that `review assess` marks as due, blocks the stop once per candidate.
-  RDD is off by default; clone-local `off` (in `.git/gentle-lite-rdd-mode`) wins over global.
+  The switch is off by default; clone-local `off` (in `.git/gentle-lite-rdd-mode`) wins over global. SessionStart keeps the
+  baseline only for an explicit `resume`/`compact`; `startup`, `clear`, a missing or an unknown `source` start from the
+  current state.
 
 ## Memory (Python, stdlib only)
 
@@ -107,9 +109,11 @@ PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/e
   `post-commit` hook (`# >>> gentle-lite graphify >>>` ... `# <<< gentle-lite graphify <<<`; other content is kept and
   `core.hooksPath` is honoured). The block runs in a silent background subshell: `graphify update .` (only if `graphify`
   is on `PATH`, with `GRAPHIFY_QUERY_LOG_DISABLE=1`), then `python3 -P -m gentle_lite.graph sync --repo .`.
+  A lock is taken over only when it is older than 15 minutes and its owner (pid file) is gone, with at most three attempts;
+  a trigger that finds the lock held leaves a `.pending` marker and re-tries the lock once, so a marker is never orphaned.
   The sync replaces the repo's rows in `graph_nodes`/`graph_edges`/`graph_sync` (memory.db schema v4) in one short
   transaction. Query: `python3 -P -m gentle_lite.graph query neighbors <node> [--depth N] --repo DIR` and
-  `query path <a> <b> --repo DIR` (recursive CTEs, depth capped at 5 / 8); the memory MCP server exposes the same as the
+  `query path <a> <b> --repo DIR` (recursive CTEs, depth capped at 5 / 8; both answers carry `truncated` when the 20,000-row walk bound was hit, so a `found: false` with `truncated: true` is not a definitive "no path"); the memory MCP server exposes the same as the
   `graph_query` tool (it already owns the SQLite connection). The portal shows stats, node search and neighbors for each `--repo`.
 
 ## Telemetry (local only)
@@ -224,8 +228,9 @@ Spec-Driven Development from gentle-ai v3.4.0, installed only on request and rem
 - `python3 -P -m gentle_lite.sdd preflight-hook` is a `PreToolUse` hook for the `Agent` tool: an `sdd-*` subagent is
   dispatched only after the parent asked the three-question `AskUserQuestion` preflight (Interactive|Automatic,
   OpenSpec|Engram|Both, Ask me|Single PR|Auto) and the human answered it in the session transcript; the hook then
-  prefixes the `## SDD Session Preflight` block to the prompt. It always exits 0 and fails closed for `sdd-*`
-  (deny) while staying silent for every other agent. The registered command is wrapped as
-  `<python hook> || printf '<deny json>'`: if `python3` is missing, the module cannot be imported or the hook
-  exits non-zero, the shell itself prints the PreToolUse deny decision and exits 0. Residual gap: if the shell
-  cannot run the command at all (e.g. no `sh`), Claude Code treats it as a non-blocking hook error.
+  prefixes the `## SDD Session Preflight` block to the prompt. The registered command is a small `sh` guard around the Python
+  hook: it runs the hook under `timeout 20` (when `timeout(1)` exists) and prints the hook's output only if it succeeded.
+  If `python3` is missing, the module cannot be imported, the hook crashes, exits non-zero or hangs, the guard discards any
+  partial output and prints a PreToolUse deny decision, but only when the payload is an `sdd-*` dispatch; other agents
+  stay silent (fail open). Residual gaps: no `sh` at all, or a hung hook on a system without `timeout(1)` (Claude Code
+  then kills the shell at the 30 s hook timeout and treats it as a non-blocking hook error).

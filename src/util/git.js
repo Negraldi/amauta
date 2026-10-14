@@ -31,9 +31,12 @@ export function validateRef(ref) {
   return ref;
 }
 
-/** Validate `ref` and resolve it to a full commit sha; never lets the value act as a git option. */
+/**
+ * Validate `ref` and resolve it to a full commit sha. validateRef already rejects anything starting with "-" and the
+ * `^{commit}` suffix keeps the argument from being option-shaped, so `--end-of-options` (git >= 2.24 only) is not needed.
+ */
 export async function resolveCommit(cwd, ref) {
   validateRef(ref);
-  const out = await git(cwd, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
+  const out = await git(cwd, ['rev-parse', '--verify', `${ref}^{commit}`]);
   return out.trim();
 }

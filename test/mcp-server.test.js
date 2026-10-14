@@ -120,3 +120,15 @@ test('odd_tasks_status reports per-file progress and the next unchecked item', a
   assert.deepEqual(payload(empty), { files: [], next: null });
   await rm(root, { recursive: true });
 });
+
+test('validateArgs checks every JSON-schema primitive type and fails loudly on an unsupported one', async () => {
+  const { validateArgs, ToolInputError } = await import('../src/mcp/tools.js');
+  const cwd = os.tmpdir();
+  const tool = (properties) => ({ inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, ...properties }, required: ['cwd'] } });
+  const t = tool({ n: { type: 'integer' }, x: { type: 'number' }, list: { type: 'array' }, o: { type: 'object' } });
+  validateArgs(t, { cwd, n: 3, x: 1.5, list: [1], o: { a: 1 } });
+  for (const bad of [{ n: 1.5 }, { n: '3' }, { x: 'a' }, { list: {} }, { o: [] }, { o: null }]) {
+    assert.throws(() => validateArgs(t, { cwd, ...bad }), ToolInputError, JSON.stringify(bad));
+  }
+  assert.throws(() => validateArgs(tool({ w: { type: 'weird' } }), { cwd, w: 1 }), /unsupported schema type "weird"/);
+});

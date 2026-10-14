@@ -254,3 +254,59 @@ test('failures are appended to <state>/graphify-hook.log instead of being discar
   assert.match(text, /boom-marker/);
   await t.cleanup();
 });
+
+test('a stale lock that is not a directory is taken over (the old rmdir-only takeover spun forever)', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  await writeFile(lock, 'x');
+  const old = new Date(Date.now() - 3600_000);
+  await utimes(lock, old, old);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(t.log), 10000), 'graphify ran after the takeover');
+  await t.cleanup();
+});
+
+test('a stale lock that cannot be removed ends in a pending marker after bounded attempts instead of looping forever', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  await writeFile(path.join(t.bin, 'rm'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  await mkdir(lock);
+  const old = new Date(Date.now() - 3600_000);
+  await utimes(lock, old, old);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(`${lock}.pending`), 10000), 'gave up and left a marker');
+  assert.equal(await exists(t.log), false);
+  await t.cleanup();
+});
+
+test('a lock older than the stale limit whose owner is still alive is never taken over', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const owner = spawn('sleep', ['30'], { stdio: 'ignore' });
+  await mkdir(lock);
+  await writeFile(path.join(lock, 'pid'), `${owner.pid}\n`);
+  const old = new Date(Date.now() - 3600_000);
+  await utimes(lock, old, old);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(`${lock}.pending`)), 'a live run is left alone and the trigger leaves a pending marker');
+  await sleep(300);
+  assert.equal(await exists(t.log), false, 'graphify did not run');
+  assert.equal(await exists(lock), true, 'the live lock stays');
+  owner.kill();
+  await t.cleanup();
+});
+
+test('a trigger that finds the lock held re-tries it after leaving its marker (the holder may have released in between)', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  const realMkdir = spawnSync('sh', ['-c', 'command -v mkdir'], { encoding: 'utf8' }).stdout.trim();
+  const counter = path.join(t.root, 'mkdir.count');
+  // First attempt sees "lock held" (as if a runner held it), the retry succeeds (as if it released meanwhile).
+  await writeFile(path.join(t.bin, 'mkdir'), `#!/bin/sh\nc=$(cat '${counter}' 2>/dev/null || echo 0)\necho $((c + 1)) > '${counter}'\n[ "$c" = 0 ] && exit 1\nexec '${realMkdir}' "$@"\n`, { mode: 0o755 });
+  await installHook(t.opts());
+  runHook(t);
+  assert.ok(await waitFor(() => exists(t.log), 10000), 'the trigger ran itself instead of leaving an unconsumed marker');
+  await t.cleanup();
+});

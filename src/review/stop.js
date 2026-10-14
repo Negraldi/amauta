@@ -40,9 +40,10 @@ export async function reviewStop(payload, env = process.env) {
   if (event === 'SessionStart') {
     const snap = await snapshot(cwd);
     if (!snap) return null; // not a git repository: nothing to review
-    // resume/compact continue the same session: keep its baseline so earlier changes stay reviewable.
-    const rebaseline = payload.source === 'startup' || payload.source === 'clear';
-    if (!rebaseline && (await readBaseline(file))) return null;
+    // Only an explicit resume/compact continues the same session and keeps its baseline (earlier changes stay
+    // reviewable). startup, clear, a missing source or one this version does not know all start from the current state.
+    const continues = payload.source === 'resume' || payload.source === 'compact';
+    if (continues && (await readBaseline(file))) return null;
     await writeBaseline(file, { ...snap, notified: [] });
     return null;
   }

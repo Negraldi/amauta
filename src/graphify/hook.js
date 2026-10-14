@@ -20,7 +20,8 @@ const LOG_MAX_BYTES = 262144;
  * The hook block: everything runs in a background subshell, so a commit never waits or fails because of it.
  * A mkdir lock in the git dir keeps runs single-flight: a trigger that finds the lock held leaves a `.pending`
  * marker and exits, and the running job reruns once when it sees the marker (coalescing a rebase of N commits into
- * at most one extra run). A lock older than STALE_LOCK_MINUTES is taken over. Failures go to <state-dir>/graphify-hook.log.
+ * at most one extra run; a loser re-checks the lock after leaving its marker, so the marker is never orphaned). A lock older
+ * than STALE_LOCK_MINUTES whose owner (pid file) is no longer running is taken over, with at most 3 attempts. Failures go to <state-dir>/graphify-hook.log.
  */
 export function hookBlock({ stateDir }) {
   const pythonPath = path.join(packageRoot, 'python');
@@ -34,12 +35,19 @@ export function hookBlock({ stateDir }) {
     `  LOG=${shellQuote(log)}`,
     '  LOCK="$(git rev-parse --git-path gentle-lite-graphify.lock 2>/dev/null)"; [ -n "$LOCK" ] || exit 0',
     `  note() { mkdir -p "$(dirname "$LOG")" 2>/dev/null; [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt ${LOG_MAX_BYTES} ] && : > "$LOG"; printf '%s %s\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >> "$LOG" 2>/dev/null; }`,
+    '  # A lock is stale only when it is old AND its owner (pid file) is gone; a live long run is never taken over.',
+    `  stale() { [ -n "$(find "$LOCK" -maxdepth 0 -mmin +${STALE_LOCK_MINUTES} 2>/dev/null)" ] || return 1; owner="$(cat "$LOCK/pid" 2>/dev/null)"; [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null && return 1; return 0; }`,
+    '  release() { rm -rf "$LOCK" 2>/dev/null; }',
+    '  tries=0',
     '  while :; do',
     '    if ! mkdir "$LOCK" 2>/dev/null; then',
-    `      if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +${STALE_LOCK_MINUTES} 2>/dev/null)" ]; then rmdir "$LOCK" 2>/dev/null; continue; fi`,
-    '      : > "$LOCK.pending" 2>/dev/null; exit 0',
+    '      if stale && [ "$tries" -lt 3 ]; then tries=$((tries + 1)); stale && release; continue; fi',
+    '      : > "$LOCK.pending" 2>/dev/null',
+    '      # The holder may have released between our failed mkdir and the marker: try once more so the marker is never orphaned.',
+    '      mkdir "$LOCK" 2>/dev/null || exit 0',
     '    fi',
-    `    trap 'rmdir "$LOCK" 2>/dev/null' EXIT`,
+    `    sh -c 'echo $PPID' > "$LOCK/pid" 2>/dev/null`,
+    `    trap release EXIT`,
     '    rm -f "$LOCK.pending"',
     '    if command -v graphify >/dev/null 2>&1; then',
     '      out="$(graphify update . 2>&1)" || note "graphify update failed: $out"',
@@ -47,7 +55,7 @@ export function hookBlock({ stateDir }) {
     '    if [ -f graphify-out/graph.json ]; then',
     `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} GENTLE_LITE_STATE_DIR=${shellQuote(stateDir)} python3 -P -m gentle_lite.graph sync --repo . 2>&1)" || note "graph sync failed: $out"`,
     '    fi',
-    '    rmdir "$LOCK" 2>/dev/null; trap - EXIT',
+    '    release; trap - EXIT',
     '    [ -e "$LOCK.pending" ] || break',
     '  done',
     ') >/dev/null 2>&1 &',

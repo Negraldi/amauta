@@ -34,7 +34,7 @@ export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.
 /** True for any hook command gentle-lite registered (absolute `node .../gentle-lite.js hook X` or legacy `gentle-lite ...`). */
 export const isGentleLiteHook = (command) =>
   /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ') || /gentle_lite\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
-  /gentle_lite\.sdd['"]?\s+preflight-hook(\s|$)/.test(command);
+  /gentle_lite\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
 const hook = (name, timeout) => ({
   type: 'command',
@@ -66,11 +66,19 @@ const PREFLIGHT_DENY = JSON.stringify({
 });
 
 /**
- * Preflight hook command with a shell-level fail-closed guard: when the Python hook cannot start or exits
- * non-zero, the shell prints a PreToolUse deny decision and still exits 0. (Claude Code only blocks on exit 2
- * or an explicit deny, so a bare launcher failure would otherwise fail open.)
+ * Preflight hook command with a shell-level fail-closed guard. Claude Code only blocks on exit 2 or an explicit deny,
+ * so a bare launcher failure would otherwise fail open. The shell reads the payload, runs the Python hook under
+ * `timeout 20` when timeout(1) exists (so a hang is cut off before the 30 s hook timeout kills the whole shell, which
+ * would fail open), and prints the hook's own output only when it succeeded. When it failed (cannot start, crash,
+ * non-zero exit, hang) any partial output is discarded and the deny decision is printed, but only for `sdd-*`
+ * dispatches: other agents stay silent. Residual gaps: no `sh`, or no timeout(1) and a hung hook.
  */
-export const sddPreflightCommand = () => `${sddCommand()} preflight-hook || printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}`;
+export const sddPreflightCommand = () =>
+  [
+    `in=$(cat); T=; command -v timeout >/dev/null 2>&1 && T='timeout 20'`,
+    `out=$(printf '%s' "$in" | $T ${sddCommand()} preflight-hook) && { [ -z "$out" ] || printf '%s\\n' "$out"; }`,
+    `|| { printf '%s' "$in" | grep -q '"subagent_type" *: *"sdd-' && printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}; true; }`,
+  ].join('; ').replace('; ||', ' ||');
 
 /** Hook entries registered in settings.json. */
 export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {

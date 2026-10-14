@@ -98,3 +98,17 @@ test('a non-git cwd writes no baseline; a repo with no commits yet does', async 
   assert.equal(base.head, null);
   await Promise.all([rm(plain, { recursive: true }), rm(fresh, { recursive: true }), t.cleanup()]);
 });
+
+test('SessionStart with a missing or unknown source rebaselines; only resume and compact keep the baseline', async () => {
+  const t = await setup();
+  await t.fire('SessionStart', { source: 'startup' });
+  await t.repo.write('src/auth/login.js', 'x\n');
+  t.repo.commit();
+  await t.fire('SessionStart'); // no source field
+  assert.equal(await t.fire('Stop'), null, 'missing source starts from the current state');
+  await t.repo.write('src/auth/login.js', 'y\n');
+  t.repo.commit();
+  await t.fire('SessionStart', { source: 'something-new' });
+  assert.equal(await t.fire('Stop'), null, 'unknown source starts from the current state');
+  await t.cleanup();
+});

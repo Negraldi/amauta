@@ -67,15 +67,25 @@ export const tools = [
 
 export const toolByName = new Map(tools.map((t) => [t.name, t]));
 
-const TYPES = { string: (v) => typeof v === 'string', boolean: (v) => typeof v === 'boolean' };
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const TYPES = {
+  string: (v) => typeof v === 'string',
+  boolean: (v) => typeof v === 'boolean',
+  number: (v) => typeof v === 'number' && Number.isFinite(v),
+  integer: (v) => Number.isInteger(v),
+  array: (v) => Array.isArray(v),
+  object: isObject,
+};
 
-/** Validate `args` against the tool's inputSchema (required, primitive types) and the cwd contract. */
+/** Validate `args` against the tool's inputSchema (required, JSON-schema primitive types; others fail loudly) and the cwd contract. */
 export function validateArgs(tool, args) {
   if (args === null || typeof args !== 'object' || Array.isArray(args)) throw new ToolInputError('arguments must be an object');
   const { properties = {}, required = [] } = tool.inputSchema;
   for (const key of required) if (args[key] === undefined) throw new ToolInputError(`${key} is required`);
   for (const [key, spec] of Object.entries(properties)) {
-    if (args[key] !== undefined && !TYPES[spec.type]?.(args[key])) throw new ToolInputError(`${key} must be a ${spec.type}`);
+    if (args[key] === undefined) continue;
+    if (!TYPES[spec.type]) throw new Error(`unsupported schema type "${spec.type}" for ${key}`);
+    if (!TYPES[spec.type](args[key])) throw new ToolInputError(`${key} must be a ${spec.type}`);
   }
   if (args.cwd === '') throw new ToolInputError('cwd must not be empty');
   if (!path.isAbsolute(args.cwd)) throw new ToolInputError('cwd must be an absolute path');

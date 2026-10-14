@@ -9,7 +9,9 @@ PATH_MAX_DEPTH = 8
 NODE_LIMIT = 200
 EDGE_LIMIT = 500
 WALK_ROWS = 20_000  # hard bound on rows the walk may produce, applied before any grouping
-MIN_CTE_SQLITE = (3, 34)  # review decision: older SQLite builds use the Python BFS instead of recursive SQL
+# Conservative floor, not a hard requirement: the walk is a single recursive SELECT (older SQLite also supports that, given
+# json_each), but only builds >= 3.34 are tested with the CTE; older ones use the plain Python BFS below.
+MIN_CTE_SQLITE = (3, 34)
 
 
 class QueryError(Exception):
@@ -125,10 +127,10 @@ def neighbors(conn, repo, node, depth=1):
 def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
     cap = _depth(max_depth, PATH_MAX_DEPTH, "max_depth")
     starts, goals = resolve(conn, repo, a), set(resolve(conn, repo, b))
-    reached, _ = _reach(conn, repo, starts, cap)
+    reached, cut = _reach(conn, repo, starts, cap)  # cut: the walk hit WALK_ROWS, so "not found" may be a false negative
     hits = {n: d for n, d in reached.items() if n in goals}
     if not hits:
-        return {"repo": repo, "found": False, "max_depth": cap, "nodes": [], "edges": []}
+        return {"repo": repo, "found": False, "max_depth": cap, "truncated": cut, "nodes": [], "edges": []}
     found = min(hits.values())
     node = min(n for n, d in hits.items() if d == found)
     chain = [node]
@@ -142,7 +144,7 @@ def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
             "SELECT src, dst, relation FROM graph_edges WHERE repo = ? AND ((src = ? AND dst = ?) OR (src = ? AND dst = ?)) ORDER BY relation LIMIT 1", (repo, x, y, y, x)).fetchone()
         edges.append(dict(e))
     by_id = {n["id"]: n for n in _nodes(conn, repo, chain)}
-    return {"repo": repo, "found": True, "depth": found, "max_depth": cap, "nodes": [by_id[i] for i in chain], "edges": edges}
+    return {"repo": repo, "found": True, "depth": found, "max_depth": cap, "truncated": cut, "nodes": [by_id[i] for i in chain], "edges": edges}
 
 
 def search_nodes(conn, repo, text="", limit=50):
