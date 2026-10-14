@@ -55,6 +55,21 @@ async function readState(stateDir) {
   }
 }
 
+const isOurs = (servers, prev, key) =>
+  key in servers && prev?.mcp_added?.[key] !== undefined && isDeepStrictEqual(servers[key], prev.mcp_added[key]);
+
+/**
+ * Key under which our memory server is registered: "engram" when free (vendored prompts use
+ * mcp__engram__*), else "gentle-memory" so a foreign engram entry is never overwritten.
+ * Null when the engram plugin already provides memory tools.
+ */
+function chooseMemoryKey({ settings, currentServers, prev }) {
+  if (settings.enabledPlugins?.['engram@engram'] === true) return null;
+  const last = prev?.memory_server_key;
+  if (last && (isOurs(currentServers, prev, last) || !(last in currentServers))) return last;
+  return 'engram' in currentServers && !isOurs(currentServers, prev, 'engram') ? 'gentle-memory' : 'engram';
+}
+
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
@@ -123,7 +138,10 @@ async function plan(opts) {
   const mdBuf = await readOrNull(mdFile);
 
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
-  const engramPrefix = engramToolPrefix(settingsIn.data);
+  const telemetry = opts.telemetry !== false;
+  const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
+  const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
+  const engramPrefix = engramToolPrefix(settingsIn.data, memoryKey ?? 'engram');
   const writes = [];
   const skipped = [];
   const managedFiles = {};
@@ -164,7 +182,7 @@ async function plan(opts) {
   );
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
   settings = deepMerge(settings, { permissions: { deny: [...existingDeny, ...newDeny] } });
-  const wantedHooks = desiredHooks();
+  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
   // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
   settings = removeHooksWhere(settings, (c) => isGentleLiteHook(c) && !wantedCommands.has(c));
@@ -174,18 +192,22 @@ async function plan(opts) {
   }
 
   // .claude.json MCP servers (only when absent; never overwrite a user's entry).
-  const wanted = desiredMcpServers();
-  if (settingsIn.data.enabledPlugins?.['engram@engram'] === true) delete wanted.engram;
-  const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
+  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir });
+  if (memoryKey) wanted[memoryKey] = memory;
   const mcpAdded = {};
   const servers = { ...currentServers };
   for (const [name, value] of Object.entries(wanted)) {
     if (!(name in currentServers)) {
       servers[name] = value;
       mcpAdded[name] = value;
-    } else if (prev?.mcp_added?.[name] && isDeepStrictEqual(currentServers[name], prev.mcp_added[name])) {
-      mcpAdded[name] = prev.mcp_added[name];
+    } else if (isOurs(currentServers, prev, name)) {
+      servers[name] = value; // ours from an earlier install: refresh it
+      mcpAdded[name] = value;
     }
+  }
+  // Entries we added before that are no longer wanted (e.g. the old compiled engram) go away if untouched.
+  for (const name of Object.keys(prev?.mcp_added ?? {})) {
+    if (!(name in wanted) && isOurs(currentServers, prev, name)) delete servers[name];
   }
   const claudeJson = { ...claudeJsonIn.data, mcpServers: servers };
   if (!claudeJsonIn.existed || !isDeepStrictEqual(claudeJson, claudeJsonIn.data) ||
@@ -215,6 +237,8 @@ async function plan(opts) {
     settings_prev: { outputStyle: settingsPrevStyle },
     deny_added: denyAdded,
     mcp_added: mcpAdded,
+    memory_server_key: memoryKey,
+    telemetry,
     created_files: created,
   });
 
@@ -349,10 +373,11 @@ export async function status(opts = {}) {
 
   const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
   const commands = (event) => (settings.hooks?.[event] ?? []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  for (const [event, entries] of Object.entries(desiredHooks())) {
-    const cmd = entries[0].hooks[0].command;
-    const ok = commands(event).includes(cmd);
-    add(`hook ${event}`, ok, ok ? cmd : 'missing');
+  for (const [event, entries] of Object.entries(desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true }))) {
+    for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
+      const ok = commands(event).includes(cmd);
+      add(`hook ${event}`, ok, ok ? cmd : 'missing');
+    }
   }
   add('outputStyle', STYLE_NAMES.includes(settings.outputStyle), String(settings.outputStyle ?? 'unset'));
 

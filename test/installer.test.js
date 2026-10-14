@@ -80,7 +80,7 @@ test('fresh install creates every component', async () => {
   assert.equal(settings.outputStyle, 'Gentleman');
   assert.ok(!('defaultMode' in settings.permissions), 'must not force a defaultMode');
   assert.equal(settings.permissions.deny.length, 24);
-  assert.deepEqual(Object.keys(settings.hooks).sort(), ['SessionStart', 'Stop', 'UserPromptSubmit']);
+  assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default
   const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
   assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, `node ${bin} hook skill-registry`);
   assert.equal(settings.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact');
@@ -117,7 +117,7 @@ test('install keeps pre-existing user content', async () => {
   assert.deepEqual(settings.permissions.allow, ['Bash(ls)']);
   assert.ok(settings.permissions.deny.includes('Bash(custom-deny)'));
   assert.ok(settings.permissions.deny.includes('Read(.env)'));
-  assert.equal(settings.hooks.Stop.length, 2);
+  assert.equal(settings.hooks.Stop.length, 3); // mine + review-stop + telemetry
   assert.equal(settings.hooks.Stop[0].hooks[0].command, 'my-own-stop-hook');
   assert.deepEqual(settings.enabledPlugins, { 'other@market': true });
 

@@ -8,6 +8,7 @@ const OPTIONS = {
   'dry-run': { type: 'boolean', default: false },
   force: { type: 'boolean', default: false },
   persona: { type: 'string' },
+  'no-telemetry': { type: 'boolean', default: false },
 };
 
 function parse(args) {
@@ -19,6 +20,7 @@ function parse(args) {
     dryRun: values['dry-run'],
     force: values.force,
     persona: values.persona,
+    telemetry: !values['no-telemetry'],
   };
 }
 
@@ -74,7 +76,7 @@ async function runStatus(opts, io) {
 }
 
 export function registerInstallCommands(commands) {
-  commands.set('install', { summary: 'Install gentle-lite into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona)', run: guard(runInstall) });
+  commands.set('install', { summary: 'Install gentle-lite into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry)', run: guard(runInstall) });
   commands.set('uninstall', { summary: 'Remove everything gentle-lite installed, keeping your own content', run: guard(runUninstall) });
   commands.set('status', { summary: 'Show what is installed and what is missing', run: guard(runStatus) });
 }

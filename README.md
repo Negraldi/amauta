@@ -47,6 +47,25 @@ fail open; an empty stdout is a no-op.
   `--base-ref` / `base_ref` accept only plain refs (no leading `-`, no `..` ranges, no whitespace) and are resolved to a commit sha before any git diff.
   RDD is off by default; clone-local `off` (in `.git/gentle-lite-rdd-mode`) wins over global.
 
+## Memory (Python, stdlib only)
+
+`python/gentle_lite/memory/` is a small engram-compatible memory server: SQLite + FTS5 at
+`<state-dir>/memory.db` (`GENTLE_LITE_STATE_DIR`, default `~/.gentle-lite`), WAL mode,
+`PRAGMA user_version` migrations. `install` registers it as MCP server `engram` (so the vendored
+prompts using `mcp__engram__*` work unchanged); if you already have a different `engram` entry it is
+kept and ours is registered as `gentle-memory` (recorded as `memory_server_key` in `state.json`).
+With the engram plugin enabled nothing is registered.
+
+Tools: `mem_save` (same project+scope+`topic_key` updates and bumps the revision), `mem_update`,
+`mem_search`, `mem_context`, `mem_get_observation`, `mem_session_start`, `mem_session_end`,
+`mem_session_summary`, `mem_save_prompt`, `mem_current_project`. Search terms are quoted, so
+FTS5 syntax in a query is plain text. No conflict/judgment machinery (deliberately simpler than engram).
+
+```
+PYTHONPATH=python python3 -m gentle_lite.memory serve
+PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/engram.db   # read-only, idempotent
+```
+
 ## Safety: parameterized targets
 
 Nothing is hardcoded to the real home. Every target can be redirected, and tests

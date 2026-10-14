@@ -25,8 +25,8 @@ export function resolveAssignment(assignments, key) {
   return { model: raw.model ?? 'sonnet', effort: raw.effort };
 }
 
-export function engramToolPrefix(settings) {
-  return settings?.enabledPlugins?.['engram@engram'] === true ? 'mcp__plugin_engram_engram__' : 'mcp__engram__';
+export function engramToolPrefix(settings, memoryKey = 'engram') {
+  return settings?.enabledPlugins?.['engram@engram'] === true ? 'mcp__plugin_engram_engram__' : `mcp__${memoryKey}__`;
 }
 
 const SECTION_RE = /^<!-- odd-orchestrator-section:(.+):(start|end) -->$/;
