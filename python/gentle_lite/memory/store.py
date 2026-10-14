@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _MIGRATIONS = {
     1: """
@@ -66,6 +66,18 @@ _MIGRATIONS = {
     CREATE INDEX idx_tool_calls_ts ON tool_calls(ts);
     CREATE TABLE ingest_state (
         path TEXT PRIMARY KEY, size INTEGER NOT NULL, mtime REAL NOT NULL, "offset" INTEGER NOT NULL);
+    """,
+    4: """
+    CREATE TABLE graph_nodes (
+        repo TEXT NOT NULL, id TEXT NOT NULL, label TEXT, kind TEXT, file TEXT, attrs_json TEXT,
+        PRIMARY KEY (repo, id));
+    CREATE INDEX idx_graph_nodes_label ON graph_nodes(repo, label COLLATE NOCASE);
+    CREATE TABLE graph_edges (
+        repo TEXT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL, relation TEXT, attrs_json TEXT);
+    CREATE INDEX idx_graph_edges_src ON graph_edges(repo, src);
+    CREATE INDEX idx_graph_edges_dst ON graph_edges(repo, dst);
+    CREATE TABLE graph_sync (
+        repo TEXT PRIMARY KEY, graph_mtime REAL, synced_at TEXT NOT NULL, nodes INTEGER NOT NULL, edges INTEGER NOT NULL);
     """,
 }
 
