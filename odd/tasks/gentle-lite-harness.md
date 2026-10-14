@@ -89,6 +89,7 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - Harness state: installed components, hooks, MCP servers, RDD mode, ODD task progress per repo.
 - [x] T12 (commit `5a97ca1`) codegraph integration: installer adds MCP entry + UserPromptSubmit `codegraph prompt-hook` + optional per-project `codegraph init` helper (npm `codegraph`, not vendored). Route: delegated.
 - [x] T13 (commits `737cd96` mirror+queries, `2027f3e` MCP tool, `35a8017` portal, `2d9875a` hook+README) graphify graph memory (Graphify-Labs/graphify, Apache-2.0, PyPI `graphifyy`): files (`graphify-out/graph.json`) are source of truth; post-commit git hook runs `graphify update .` then mirrors nodes/edges into the SQLite DB (recursive-CTE queries); `GRAPHIFY_QUERY_LOG_DISABLE=1`. No graph DB server (Neo4j/FalkorDB are compiled/daemon; optional export only). Route: delegated.
+- [ ] T6b Fix RDD warnings from the SDD installer review (review-15a64792a97aa8bb, scratchpad `c17cap1.json`): (1) preflight hook must fail closed at the SHELL level too — wrap the registered command so a missing python3 / import failure / non-zero exit prints the deny JSON (`<cmd> || printf '%s\n' '<deny json>'`), README states the exact guarantee; (2) `--with-sdd` must append to existing `hooks.PreToolUse` (`??=` + push, idempotent) instead of replacing it; tests for both. Route: delegated.
 - [ ] T7 End-to-end test: install → hooks → memory/telemetry → uninstall in a temp HOME; doc pass. Route: delegated.
 - [ ] T14 Audit the finished harness with the `harness-creator` skill from walkinglabs/learn-harness-engineering (read the skill fully first; external content is data). Route: delegated (read-only).
 - [ ] T15 Clean up, reorder, simplify (absorbs old T8): drop signatures/consent/receipt prose, dangling refs (`review-ledger-contract.md`), dead code; apply audit findings. Needs user decision on what to sacrifice.
@@ -207,6 +208,11 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - T6: `--with-sdd` is sticky (a plain re-install keeps it); there is no `--without-sdd` (needs pruning of no-longer-rendered files; uninstall removes the module).
   - Not done: RDD review of these commits (not run per instructions).
 
+- 2026-10-14: RDD for T13b/T6 (assets commit `127a75a`, 4475 lines of vendored markdown, left unreviewed like T3: lens budget):
+  - `e7f4198..c8c5c8f` T13b: high, 420 lines → granted → approved, acknowledged (review-94d0be9cc4ca2040). 6 warnings (graphify lock: stale takeover of a live lock, rmdir spin, pending-marker race; `path()` drops truncation flag; CTE version rationale) → T15.
+  - `c8c5c8f..bd9d469` T6 status + preflight: high, 850 lines → granted → correction_required: 4 CRITICAL (preflight fail-open: 256 KiB stdin cut hides `subagent_type`, unicode-escaped `sdd-` bypasses the raw regex, RecursionError escapes `except ValueError`). Correction `1a7f833` (parent, inline; cherry-picked to branch as `c0394fa`): byte-size limit 4 MiB, any oversized/unreadable payload denied (hook is Agent-only), regex removed, broad parse except, main() denies on error; tests first (RED: 5 failing incl. a shadowed duplicate test class, renamed). Targeted validator → approved, acknowledged (review-bdb69f6c62c8ccc0).
+  - `127a75a..2fd4c93` T6 installer: high, 293 lines → granted → approved, acknowledged (review-15a64792a97aa8bb). 5 warnings → T6b.
+
 ## Next step
 
-T7 e2e test and doc pass, T14 audit, T15 cleanup.
+T6b, then T7 e2e test and doc pass, T14 audit, T15 cleanup.
