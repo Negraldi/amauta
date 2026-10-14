@@ -143,6 +143,8 @@ async function plan(opts) {
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
   const telemetry = opts.telemetry !== false;
   const sdd = opts.withSdd === true || prev?.sdd === true; // optional module; sticky until uninstall
+  const rea = opts.withRea === true || prev?.rea === true; // opt-in MCP servers, sticky like sdd
+  const context7 = opts.withContext7 === true || prev?.context7 === true;
   const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
   const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
@@ -183,13 +185,20 @@ async function plan(opts) {
   const overlay = JSON.parse(await readAssetText(manifest.settingsOverlay));
   const styleName = manifest.personas[persona].styleName;
   const settingsPrevStyle = prev?.settings_prev ? prev.settings_prev.outputStyle : (settingsIn.data.outputStyle ?? null);
-  const existingDeny = Array.isArray(settingsIn.data.permissions?.deny) ? settingsIn.data.permissions.deny : [];
-  const newDeny = overlay.permissions.deny.filter((d) => !existingDeny.includes(d));
-  const denyAdded = [...new Set([...(prev?.deny_added ?? []), ...newDeny])].filter(
-    (d) => existingDeny.includes(d) || newDeny.includes(d),
-  );
+  // Permissions: only `ask` rules, merged after the user's own. An earlier version also added deny rules (deny_added): drop those.
+  const listOf = (k) => (Array.isArray(settingsIn.data.permissions?.[k]) ? settingsIn.data.permissions[k] : []);
+  const legacyDeny = new Set(prev?.deny_added ?? []);
+  const keptDeny = listOf('deny').filter((d) => !legacyDeny.has(d));
+  const existingAsk = listOf('ask');
+  const newAsk = overlay.permissions.ask.filter((a) => !existingAsk.includes(a));
+  const askAdded = [...new Set([...(prev?.ask_added ?? []), ...newAsk])].filter((a) => existingAsk.includes(a) || newAsk.includes(a));
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
-  settings = deepMerge(settings, { permissions: { deny: [...existingDeny, ...newDeny] } });
+  if (existingAsk.length + newAsk.length > 0) settings = { ...settings, permissions: { ...settings.permissions, ask: [...existingAsk, ...newAsk] } };
+  if (legacyDeny.size > 0) {
+    const permissions = { ...settings.permissions, deny: keptDeny };
+    if (keptDeny.length === 0) delete permissions.deny;
+    settings = { ...settings, permissions };
+  }
   const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry, sdd });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
   // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
@@ -209,7 +218,7 @@ async function plan(opts) {
   }
 
   // .claude.json MCP servers (only when absent; never overwrite a user's entry).
-  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir });
+  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir, rea, context7 });
   if (memoryKey) wanted[memoryKey] = memory;
   if (!codegraphOnPath && !isOurs(currentServers, prev, 'codegraph')) delete wanted.codegraph; // external tool: register only when present
   const mcpAdded = {};
@@ -253,11 +262,13 @@ async function plan(opts) {
     managed_files: managedFiles,
     claude_md_sections: sections.map((s) => s.id),
     settings_prev: { outputStyle: settingsPrevStyle },
-    deny_added: denyAdded,
+    ask_added: askAdded,
     mcp_added: mcpAdded,
     memory_server_key: memoryKey,
     telemetry,
     sdd,
+    rea,
+    context7,
     codegraph_hook_added: codegraphHookAdded,
     created_files: created,
   });
@@ -327,10 +338,12 @@ export async function uninstall(opts = {}) {
       if (state.settings_prev.outputStyle === null) delete s.outputStyle;
       else s.outputStyle = state.settings_prev.outputStyle;
     }
-    if (state?.deny_added?.length && Array.isArray(s.permissions?.deny)) {
-      s = { ...s, permissions: { ...s.permissions, deny: s.permissions.deny.filter((d) => !state.deny_added.includes(d)) } };
-      if (s.permissions.deny.length === 0) delete s.permissions.deny;
-      if (Object.keys(s.permissions).length === 0) delete s.permissions;
+    for (const [key, added] of [['ask', state?.ask_added], ['deny', state?.deny_added]]) {
+      if (added?.length && Array.isArray(s.permissions?.[key])) {
+        s = { ...s, permissions: { ...s.permissions, [key]: s.permissions[key].filter((d) => !added.includes(d)) } };
+        if (s.permissions[key].length === 0) delete s.permissions[key];
+        if (Object.keys(s.permissions).length === 0) delete s.permissions;
+      }
     }
     if (!isDeepStrictEqual(s, settingsIn.data)) {
       if (created.has(settingsFile) && Object.keys(s).length === 0) deletes.push(settingsFile);

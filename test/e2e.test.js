@@ -91,8 +91,8 @@ before(async () => {
 
 after(async () => { if (root) await rm(root, { recursive: true, force: true }); });
 
-test('install --with-sdd writes settings hooks, MCP entries and state', async () => {
-  const r = spawnSync('node', [CLI, 'install', '--with-sdd'], { encoding: 'utf8', env });
+test('install --with-sdd --with-rea --with-context7 writes settings hooks, MCP entries and state', async () => {
+  const r = spawnSync('node', [CLI, 'install', '--with-sdd', '--with-rea', '--with-context7'], { encoding: 'utf8', env });
   assert.equal(r.status, 0, r.stderr);
   settings = await readJson(path.join(claudeHome, 'settings.json'));
   mcp = (await readJson(claudeJson)).mcpServers;

@@ -10,6 +10,8 @@ const OPTIONS = {
   persona: { type: 'string' },
   'no-telemetry': { type: 'boolean', default: false },
   'with-sdd': { type: 'boolean', default: false },
+  'with-rea': { type: 'boolean', default: false },
+  'with-context7': { type: 'boolean', default: false },
 };
 
 function parse(args) {
@@ -23,6 +25,8 @@ function parse(args) {
     persona: values.persona,
     telemetry: !values['no-telemetry'],
     withSdd: values['with-sdd'] ? true : undefined, // absent keeps what a previous install chose
+    withRea: values['with-rea'] ? true : undefined,
+    withContext7: values['with-context7'] ? true : undefined,
   };
 }
 
@@ -82,7 +86,7 @@ async function runStatus(opts, io) {
 }
 
 export function registerInstallCommands(commands) {
-  commands.set('install', { summary: 'Install gentle-lite into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd)', run: guard(runInstall) });
+  commands.set('install', { summary: 'Install gentle-lite into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7)', run: guard(runInstall) });
   commands.set('uninstall', { summary: 'Remove everything gentle-lite installed, keeping your own content', run: guard(runUninstall) });
   commands.set('status', { summary: 'Show what is installed and what is missing', run: guard(runStatus) });
 }

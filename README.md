@@ -8,7 +8,7 @@ programs of our own, no npm dependencies and Python stdlib only for the core.
 
 - Node.js >= 22 and Python >= 3.11 (`python3`; hooks and servers run it as `python3 -P`). Nothing to install.
 - Optional, detected on `PATH` and never vendored: `codegraph` (npm `@colbymchenry/codegraph`) and `graphify`
-  (PyPI `graphifyy`). `npx` is used by the registered `context7` and `rea` MCP entries.
+  (PyPI `graphifyy`). `npx` is used by the opt-in `context7` and `rea` MCP entries.
 
 ## What `install` sets up
 
@@ -16,11 +16,12 @@ Into `~/.claude` / `~/.claude.json` / `~/.gentle-lite` (all redirectable, see Sa
 
 | Piece | Details |
 | --- | --- |
-| `CLAUDE.md` | orchestrator + persona block between `<!-- gentle-lite:ID -->` markers; your text is kept |
+| `CLAUDE.md` | four short blocks (orchestrator, persona, memory protocol, codegraph guidance; under a 20k-char budget that `status` checks) between `<!-- gentle-lite:ID -->` markers; your text is kept |
 | Assets | output style, skills, agents (judgment-day, review lenses), rendered with model assignments |
-| Hooks | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
-| MCP servers | `engram` (our Python memory server; `gentle-memory` if you already have another `engram`), `gentle-lite` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `context7`, `rea`, `codegraph` (if installed) |
-| Optional | `--with-sdd` (SDD module), `--no-telemetry` |
+| Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
+| MCP servers | `engram` (our Python memory server; `gentle-memory` if you already have another `engram`), `gentle-lite` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `codegraph` (if installed) |
+| Permissions | `ask` rules only: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)`. No `defaultMode`, no allow or deny entries (ask wins over a user `allow`) |
+| Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--no-telemetry` |
 
 ## Layout
 
@@ -163,7 +164,7 @@ MCP `args`/`env` of other tools are never exposed. Cost estimates stay off unles
 
 - Hooks fail open (always exit 0, empty stdout = no-op) except the SDD preflight, which fails closed for `sdd-*` agents.
 - Local only: no network code in telemetry/usage/portal; the portal binds `127.0.0.1` and opens databases read-only.
-- User content is preserved (hooks, MCP servers, `permissions.defaultMode`, CLAUDE.md text); files are backed up before
+- User content is preserved (hooks, MCP servers, `permissions`, CLAUDE.md text); files are backed up before
   every write and edited managed files are left alone on uninstall unless `--force`.
 - Deliberately absent (unlike gentle-ai): consent envelopes, review receipts/lineage, network telemetry, self-update.
 
@@ -184,7 +185,7 @@ If only `--claude-home` is given, the other two default to paths inside it
 Every file is backed up under `<state-dir>/backups/<timestamp>/` before it is written.
 Existing user content (CLAUDE.md text, hooks, MCP servers, `permissions.defaultMode`)
 is preserved. `permissions.defaultMode` is never set or changed (upstream forces
-`bypassPermissions`; gentle-lite deliberately does not), and the deny list is merged, not replaced.
+`bypassPermissions`; gentle-lite deliberately does not); only three `ask` rules are merged in, and uninstall removes just those.
 Files gentle-lite installs are tracked by hash: if you edit one, re-install and uninstall keep your
 version unless you pass `--force`.
 

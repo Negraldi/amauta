@@ -79,7 +79,8 @@ test('fresh install creates every component', async () => {
   const settings = await readJson(t.p('settings.json'));
   assert.equal(settings.outputStyle, 'Gentleman');
   assert.ok(!('defaultMode' in settings.permissions), 'must not force a defaultMode');
-  assert.equal(settings.permissions.deny.length, 24);
+  assert.deepEqual(settings.permissions.ask, ['Bash(git push --force*)', 'Bash(git reset --hard*)', 'Bash(rm -rf*)']);
+  assert.ok(!('deny' in settings.permissions), 'no deny rules are added');
   assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default
   const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
   assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, `node ${bin} hook skill-registry`);
@@ -87,8 +88,7 @@ test('fresh install creates every component', async () => {
   assert.equal(settings.hooks.Stop[0].hooks[0].command, `node ${bin} hook review-stop`);
 
   const cj = await readJson(t.claudeJson);
-  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['context7', 'engram', 'gentle-lite', 'rea']);
-  assert.equal(cj.mcpServers.context7.args[1], '--package=@upstash/context7-mcp@2.2.5');
+  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['engram', 'gentle-lite']); // rea and context7 are opt-in
   assert.equal(cj.mcpServers['gentle-lite'].command, 'node');
   assert.ok(path.isAbsolute(cj.mcpServers['gentle-lite'].args[0]));
   assert.match(cj.mcpServers['gentle-lite'].args[0], /src[\\/]mcp[\\/]server\.js$/);
@@ -115,8 +115,8 @@ test('install keeps pre-existing user content', async () => {
   assert.equal(settings.model, 'opus');
   assert.equal(settings.permissions.defaultMode, 'auto');
   assert.deepEqual(settings.permissions.allow, ['Bash(ls)']);
-  assert.ok(settings.permissions.deny.includes('Bash(custom-deny)'));
-  assert.ok(settings.permissions.deny.includes('Read(.env)'));
+  assert.deepEqual(settings.permissions.deny, ['Bash(custom-deny)']);
+  assert.ok(settings.permissions.ask.includes('Bash(rm -rf*)'));
   assert.equal(settings.hooks.Stop.length, 4); // mine + review-stop + telemetry + usage
   assert.equal(settings.hooks.Stop[0].hooks[0].command, 'my-own-stop-hook');
   assert.deepEqual(settings.enabledPlugins, { 'other@market': true });
@@ -125,7 +125,7 @@ test('install keeps pre-existing user content', async () => {
   assert.deepEqual(cj.oauthAccount, { email: 'x@example.com' });
   assert.deepEqual(cj.mcpServers.custom, { command: 'my-server' });
   assert.deepEqual(cj.mcpServers.context7, { command: 'my-own-context7' });
-  assert.ok(cj.mcpServers.rea);
+  assert.ok(!('rea' in cj.mcpServers));
   await t.cleanup();
 });
 
@@ -371,5 +371,48 @@ test('status reports the size of each CLAUDE.md block and warns above the 20k-ch
   const big = await status(t.opts());
   assert.equal(big.sizes.over, true);
   assert.match(big.warnings.join('\n'), /20000/);
+  await t.cleanup();
+});
+
+test('rea and context7 are opt-in, sticky across plain re-installs, never overwrite a user entry, and uninstall removes only ours', async () => {
+  const t = await sandbox({ claudeJson: USER_CLAUDE_JSON });
+  await install(t.opts({ withRea: true, withContext7: true }));
+  let cj = await readJson(t.claudeJson);
+  assert.deepEqual(cj.mcpServers.context7, { command: 'my-own-context7' }); // user's entry wins
+  assert.deepEqual(cj.mcpServers.rea.args, ['-y', 'rea-agents@6.4.0', 'mcp']);
+  await install(t.opts()); // plain re-install keeps the choice
+  assert.ok((await readJson(t.claudeJson)).mcpServers.rea);
+  await uninstall(t.opts());
+  cj = await readJson(t.claudeJson);
+  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['context7', 'custom']);
+
+  const u = await sandbox();
+  await install(u.opts({ withContext7: true }));
+  const entry = (await readJson(u.claudeJson)).mcpServers.context7;
+  assert.equal(entry.args[1], '--package=@upstash/context7-mcp@2.2.5');
+  assert.ok(!('rea' in (await readJson(u.claudeJson)).mcpServers));
+  await t.cleanup();
+  await u.cleanup();
+});
+
+test('permissions: ask rules are merged, user rules kept, old gentle-lite deny entries are dropped, uninstall removes only ours', async () => {
+  const t = await sandbox({ settings: { permissions: { defaultMode: 'plan', ask: ['Bash(mine*)', 'Bash(rm -rf*)'], deny: ['Bash(custom-deny)'] } } });
+  await install(t.opts());
+  // simulate an earlier version that had added deny entries
+  const settings = await readJson(t.p('settings.json'));
+  settings.permissions.deny.push('Read(.env)', 'Read(Library/Keychains/*)');
+  await writeFile(t.p('settings.json'), JSON.stringify(settings));
+  const statePath = path.join(t.stateDir, 'state.json');
+  const state = await readJson(statePath);
+  state.deny_added = ['Read(.env)', 'Read(Library/Keychains/*)'];
+  await writeFile(statePath, JSON.stringify(state));
+  await install(t.opts());
+  let after = await readJson(t.p('settings.json'));
+  assert.equal(after.permissions.defaultMode, 'plan');
+  assert.deepEqual(after.permissions.deny, ['Bash(custom-deny)']);
+  assert.deepEqual(after.permissions.ask, ['Bash(mine*)', 'Bash(rm -rf*)', 'Bash(git push --force*)', 'Bash(git reset --hard*)']);
+  await uninstall(t.opts());
+  after = await readJson(t.p('settings.json'));
+  assert.deepEqual(after.permissions, { defaultMode: 'plan', ask: ['Bash(mine*)', 'Bash(rm -rf*)'], deny: ['Bash(custom-deny)'] });
   await t.cleanup();
 });

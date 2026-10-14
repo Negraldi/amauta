@@ -15,13 +15,14 @@ export const memoryServer = (stateDir) => ({
  * MCP servers registered in .claude.json (added only when absent).
  * The memory server is returned separately (`memory`) because its key depends on what the user already has.
  */
-export function desiredMcpServers({ stateDir } = {}) {
+export function desiredMcpServers({ stateDir, rea = false, context7 = false } = {}) {
   return {
     memory: memoryServer(stateDir),
-    context7: { command: 'npx', args: ['-y', '--package=@upstash/context7-mcp@2.2.5', '--', 'context7-mcp'] },
     codegraph: { type: 'stdio', command: 'codegraph', args: ['serve', '--mcp'] },
-    rea: { command: 'npx', args: ['-y', 'rea-agents@6.4.0', 'mcp'] },
     'gentle-lite': { type: 'stdio', command: 'node', args: [path.join(repoRoot, 'src', 'mcp', 'server.js')] },
+    // Opt-in (--with-context7 / --with-rea): third-party servers that run unsandboxed; rea alone lists ~300 tools.
+    ...(context7 ? { context7: { command: 'npx', args: ['-y', '--package=@upstash/context7-mcp@2.2.5', '--', 'context7-mcp'] } } : {}),
+    ...(rea ? { rea: { command: 'npx', args: ['-y', 'rea-agents@6.4.0', 'mcp'] } } : {}),
   };
 }
 
