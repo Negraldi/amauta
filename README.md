@@ -113,7 +113,7 @@ JSON API plus a single-page UI, stdlib only, no CDN. It binds `127.0.0.1` only (
 `mode=ro` (never created, never migrated). The only write is the "Refresh usage" button, `POST /api/refresh`, which runs
 the usage backfill and needs the per-process token embedded in the page plus a same-origin check. Hook command text and
 MCP `args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
-(`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens).
+(`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens; a missing key counts as 0, a non-numeric or negative value is reported under `invalid_prices` and that model is not costed).
 
 ## Safety: parameterized targets
 

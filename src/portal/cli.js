@@ -35,12 +35,23 @@ export function buildPortalSpawn(args, env = process.env) {
   };
 }
 
-function defaultSpawn(command, args, opts) {
+const SIGNAL_CODES = { SIGINT: 130, SIGTERM: 143 };
+
+export function defaultSpawn(command, args, opts, io = { stderr: process.stderr }) {
   return new Promise((resolve) => {
     const child = nodeSpawn(command, args, opts);
-    child.on('error', () => resolve(1));
-    child.on('exit', (code, signal) => resolve(code ?? (signal ? 130 : 1)));
-    for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
+    const forward = new Map(['SIGINT', 'SIGTERM'].map((sig) => [sig, () => child.kill(sig)]));
+    const cleanup = () => forward.forEach((fn, sig) => process.off(sig, fn));
+    forward.forEach((fn, sig) => process.on(sig, fn));
+    child.on('error', (err) => {
+      cleanup();
+      io.stderr.write(`gentle-lite portal: cannot start ${command}: ${err.code ?? ''} ${err.message}\n`);
+      resolve(1);
+    });
+    child.on('exit', (code, signal) => {
+      cleanup();
+      resolve(code ?? SIGNAL_CODES[signal] ?? 1);
+    });
   });
 }
 
@@ -52,7 +63,7 @@ export async function runPortal(args, io, { spawn = defaultSpawn } = {}) {
     io.stderr.write(`gentle-lite: ${err.message}\n`);
     return 1;
   }
-  return spawn(built.command, built.args, { env: built.env, stdio: 'inherit' });
+  return spawn(built.command, built.args, { env: built.env, stdio: 'inherit' }, io);
 }
 
 export function registerPortalCommands(commands) {

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from python.gentle_lite.portal import api
 from python.gentle_lite.portal.config import Config
@@ -27,6 +28,48 @@ class ApiBase(unittest.TestCase):
         status, body = self.portal.get(path, {k: str(v) for k, v in q.items()})
         self.assertEqual(status, 200, body)
         return body
+
+
+class RobustnessTest(ApiBase):
+    def test_unexpected_view_exception_is_a_500_json_without_details(self):
+        with mock.patch.object(self.portal, "overview", side_effect=RuntimeError("secret /path detail")):
+            status, body = self.portal.get("/api/overview", {})
+        self.assertEqual(status, 500)
+        self.assertEqual(body, {"error": "internal error"})
+
+    def test_memory_history_closes_the_connection_when_topic_is_missing(self):
+        closed = []
+        real = api.ro_connect
+
+        def tracking(path):
+            conn = real(path)
+
+            class Wrap:
+                def __getattr__(self, name):
+                    return getattr(conn, name)
+
+                def close(self):
+                    closed.append(True)
+                    conn.close()
+
+            return Wrap() if conn is not None else None
+
+        with mock.patch.object(api, "ro_connect", tracking):
+            self.get("/api/memory/history", source="own")
+        self.assertEqual(closed, [True])
+
+    def test_invalid_prices_are_reported_not_silently_zero(self):
+        (self.f["state"] / "prices.json").write_text(json.dumps({"models": {"claude-x": {"input": "oops", "output": -1, "cache_read": 0, "cache_write": True}}}))
+        c = self.get("/api/costs", days=3650)
+        self.assertTrue(c["enabled"])
+        self.assertEqual(sorted(c["invalid_prices"]), ["claude-x: cache_write", "claude-x: input", "claude-x: output"])
+        self.assertIsNone({r["model"]: r for r in c["models"]}["claude-x"]["cost"])
+
+    def test_unreadable_prices_file_is_reported(self):
+        (self.f["state"] / "prices.json").write_text("{not json")
+        c = self.get("/api/costs", days=3650)
+        self.assertFalse(c["enabled"])
+        self.assertIn("prices.json", c["error"])
 
 
 class UsageViewsTest(ApiBase):

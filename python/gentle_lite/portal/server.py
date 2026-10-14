@@ -85,7 +85,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, (STATIC / name).read_bytes(), STATIC_FILES[name])
             return self._json(404, {"error": "not found"})
         if url.path.startswith("/api/"):
-            query = dict(parse_qsl(url.query, keep_blank_values=True, max_num_fields=20))
+            try:
+                query = dict(parse_qsl(url.query, keep_blank_values=True, max_num_fields=20))
+            except ValueError:
+                return self._json(400, {"error": "too many or malformed query parameters"})
             status, body = self.server.portal.get(url.path, query)
             return self._json(status, body)
         self._json(404, {"error": "not found"})
@@ -103,7 +106,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
-            length = MAX_BODY + 1
+            return self._json(400, {"error": "invalid Content-Length"})
+        if length < 0:
+            return self._json(400, {"error": "invalid Content-Length"})
         if length > MAX_BODY:
             return self._json(413, {"error": "body too large"})
         if length:

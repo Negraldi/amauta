@@ -77,7 +77,13 @@ for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
   test(`view ${hash} escapes hostile data`, async () => {
     const env = await boot(hash);
     const view = env.document.getElementById('view');
-    assert.ok(view.textContent.includes(XSS) || hash === '#usage' && view.textContent.includes('Tools'), view.textContent.slice(0, 200));
+    if (hash === '#usage') {
+      const tab = tree(view).find((e) => e.tagName === 'button' && e.textContent.startsWith('Tools'));
+      assert.ok(tab, 'Tools tab');
+      tab.click();
+      await tick();
+    }
+    assert.ok(view.textContent.includes(XSS), view.textContent.slice(0, 200));
     assert.equal(tree(view).filter((e) => e.tagName === 'img').length, 0);
     assert.ok(tree(view).every((e) => Object.values(e.attrs).every((v) => !v.includes('onerror'))));
   });
@@ -113,4 +119,60 @@ test('API failures render an error panel instead of throwing', async () => {
   const env = await boot();
   routes['/api/overview'] = saved;
   assert.match(env.document.getElementById('view').textContent, /Error/);
+});
+
+async function withRoutes(overrides, hash, fn) {
+  const saved = {};
+  for (const [k, v] of Object.entries(overrides)) { saved[k] = routes[k]; if (v === undefined) delete routes[k]; else routes[k] = v; }
+  const rejections = [];
+  const onRejection = (r) => rejections.push(r);
+  process.on('unhandledRejection', onRejection);
+  try {
+    const env = await boot(hash);
+    await fn(env, rejections);
+  } finally {
+    process.off('unhandledRejection', onRejection);
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete routes[k]; else routes[k] = v; }
+  }
+}
+
+test('memories: an unavailable database without facets shows the friendly message, not an error panel', async () => {
+  await withRoutes({ '/api/memories': { source: 'own', available: false, items: [] } }, '#memories', async (env) => {
+    const text = env.document.getElementById('view').textContent;
+    assert.match(text, /Memory database not found\./);
+    assert.ok(!/^Error/.test(text));
+  });
+});
+
+test('memories: a failing search, detail or file fetch is shown inline and never becomes an unhandled rejection', async () => {
+  await withRoutes({}, '#memories', async (env, rejections) => {
+    const view = env.document.getElementById('view');
+    delete routes['/api/memories'];
+    const search = tree(view).find((e) => e.tagName === 'button' && e.textContent === 'Search');
+    search.click();
+    await tick();
+    assert.match(view.textContent, /not found/); // the error message from the API is rendered
+    delete routes['/api/memory'];
+    delete routes['/api/memory-file'];
+    routes['/api/memories'] = { source: 'own', available: true, items: [{ id: 1, title: 'T', type: 'note', project: 'p', topic_key: 'k', revision: 1, updated_at: 'u' }], facets: { projects: [], types: [] } };
+    search.click();
+    await tick();
+    tree(view).find((e) => e.tagName === 'button' && e.className === 'row-link' && e.textContent === 'T').click();
+    tree(view).find((e) => e.tagName === 'button' && e.className === 'row-link' && e.textContent === XSS).click();
+    await tick();
+    assert.deepEqual(rejections, []);
+    assert.ok(tree(view).some((e) => e.tagName === 'pre' && /not found/.test(e.textContent)));
+  });
+  routes['/api/memory'] = { available: true, id: 1, title: XSS, content: XSS, type: 'note', project: 'p', topic_key: null, revision: 1, updated_at: 'u' };
+  routes['/api/memory-file'] = { id: 'a/memory/n.md', content: XSS, truncated: false };
+  routes['/api/memories'] = { source: 'own', available: true, items: [{ id: 1, title: XSS, type: 'note', project: 'p', topic_key: 'k', revision: 1, updated_at: 'u', snippet: XSS }], facets: { projects: ['p'], types: ['note'] } };
+});
+
+test('overview reports invalid prices and an unreadable prices file', async () => {
+  await withRoutes({ '/api/costs': { enabled: true, label: 'L', models: [{ model: 'm', cost: null }], total: 0, invalid_prices: ['m: input'], unpriced_models: [] } }, '', async (env) => {
+    assert.match(env.document.getElementById('view').textContent, /Invalid prices.*m: input/);
+  });
+  await withRoutes({ '/api/costs': { enabled: false, models: [], error: 'prices.json is unreadable' } }, '', async (env) => {
+    assert.match(env.document.getElementById('view').textContent, /prices\.json is unreadable/);
+  });
 });

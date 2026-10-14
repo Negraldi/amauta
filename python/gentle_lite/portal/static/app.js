@@ -111,8 +111,10 @@ async function viewOverview() {
     panel("Sessions per day", o.daily.length ? table("sessday", [{ key: "day", label: "Day" }, { key: "sessions", label: "Sessions", num: true }, { key: "messages", label: "Messages", num: true }], o.daily) : empty("No sessions in this range.")),
     panel("Model split", modelBars(o.models)),
   ];
+  if (c.error) out.push(panel("Cost estimate", h("p", { class: "warn" }, c.error)));
   if (c.enabled) {
     out.push(panel("Cost estimate", h("p", { class: "warn" }, c.label),
+      c.invalid_prices && c.invalid_prices.length ? h("p", { class: "warn" }, "Invalid prices (those models are not costed): " + c.invalid_prices.join(", ")) : null,
       table("cost", [{ key: "model", label: "Model" }, { key: "cost", label: "Estimated cost", num: true, render: (v) => (v == null ? "no price" : v.toFixed(2)) }], c.models),
       h("p", null, "Total (priced models): ", h("strong", null, (c.total || 0).toFixed(2)))));
   }
@@ -140,6 +142,13 @@ async function viewSessions() {
   ];
 }
 
+// Event handlers run outside render()'s try/catch: show the failure where the result would have gone.
+function guarded(fn, into) {
+  return async (...args) => {
+    try { await fn(...args); } catch (err) { into.hidden = false; into.replaceChildren(h("p", { class: "warn" }, String(err.message || err))); }
+  };
+}
+
 async function showMemory(source, id, into) {
   const m = await api("memory", { source, id });
   const hist = m.topic_key ? await api("memory/history", { source, topic_key: m.topic_key, project: m.project }) : { items: [] };
@@ -154,12 +163,12 @@ async function viewMemories() {
   const q = h("input", { type: "search", placeholder: "Search memories", "aria-label": "Search memories", value: state.memQuery || "" });
   const type = h("select", { "aria-label": "Type" }, h("option", { value: "" }, "All types"));
   const mine = h("div", null);
-  const load = async () => {
+  const load = guarded(async () => {
     state.memQuery = q.value;
     const r = await api("memories", { source: state.memSource, q: q.value, project: $("project").value, type: type.value });
-    if (!type.dataset.ready) { r.facets.types.forEach((t) => type.append(h("option", { value: t }, t))); type.dataset.ready = "1"; }
-    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: "Title", link: true }, { key: "type", label: "Type" }, { key: "project", label: "Project" }, { key: "topic_key", label: "Topic" }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }], r.items, (row) => showMemory(state.memSource, row.id, detail)) : empty("No matching memories.")) : empty(state.memSource === "engram" ? "Engram database not found or not compatible." : "Memory database not found."));
-  };
+    if (r.available && !type.dataset.ready) { r.facets.types.forEach((t) => type.append(h("option", { value: t }, t))); type.dataset.ready = "1"; }
+    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: "Title", link: true }, { key: "type", label: "Type" }, { key: "project", label: "Project" }, { key: "topic_key", label: "Topic" }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }], r.items, guarded((row) => showMemory(state.memSource, row.id, detail), detail)) : empty("No matching memories.")) : empty(state.memSource === "engram" ? "Engram database not found or not compatible." : "Memory database not found."));
+  }, mine);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   type.addEventListener("change", load);
   await load();
@@ -171,7 +180,7 @@ async function viewMemories() {
     h("div", { class: "tabs" }, [["own", "gentle-lite memory"], ["engram", "Engram (read-only)"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
     panel("Search", h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, "Search")), mine),
     detail,
-    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; }) : empty("No file memories found."), fileDetail),
+    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, guarded(async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; }, fileDetail)) : empty("No file memories found."), fileDetail),
     panel("Graph memory (graphify)", await graphifyBox(fileBox)),
   ];
 }

@@ -88,6 +88,17 @@ class ReadTest(ServerBase):
     def test_bad_query_is_400(self):
         self.assertEqual(self.request("GET", "/api/overview?days=abc")[0], 400)
 
+    def test_too_many_query_fields_is_a_json_400_not_a_dropped_connection(self):
+        status, h, body = self.request("GET", "/api/overview?" + "&".join(f"k{i}=1" for i in range(30)))
+        self.assertEqual(status, 400)
+        self.assertIn("error", json.loads(body))
+
+    def test_unexpected_exception_is_a_json_500(self):
+        from unittest import mock
+        with mock.patch.object(self.srv.portal, "overview", side_effect=RuntimeError("boom")):
+            status, h, body = self.request("GET", "/api/overview")
+        self.assertEqual((status, json.loads(body)), (500, {"error": "internal error"}))
+
 
 class RefreshCsrfTest(ServerBase):
     def setUp(self):
@@ -126,6 +137,19 @@ class RefreshCsrfTest(ServerBase):
 
     def test_oversized_body_rejected(self):
         self.assertEqual(self.post(token=self.token(), body=b"x" * 5000)[0], 413)
+
+    def test_negative_or_garbage_content_length_is_rejected_without_hanging(self):
+        for value in ("-5", "abc"):
+            c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            c.putrequest("POST", "/api/refresh")
+            c.putheader("Host", f"127.0.0.1:{self.port}")
+            c.putheader("X-Portal-Token", self.token())
+            c.putheader("Content-Length", value)
+            c.endheaders()
+            r = c.getresponse()
+            self.assertIn(r.status, (400, 413), value)
+            r.read()
+            c.close()
 
     def test_get_refresh_is_not_a_thing(self):
         self.assertEqual(self.request("GET", "/api/refresh")[0], 404)

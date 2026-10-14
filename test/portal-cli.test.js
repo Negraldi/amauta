@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPortalSpawn, runPortal } from '../src/portal/cli.js';
+import { buildPortalSpawn, runPortal, defaultSpawn } from '../src/portal/cli.js';
 import { main } from '../src/cli.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,4 +50,18 @@ test('portal is listed in the CLI help', async () => {
   const out = sink();
   await main(['--help'], { stdout: out, stderr: sink() });
   assert.match(out.text, /portal/);
+});
+
+test('defaultSpawn reports why the child could not start (python3 missing)', async () => {
+  const err = sink();
+  const code = await defaultSpawn('gentle-lite-definitely-not-a-command', [], { stdio: 'ignore' }, { stderr: err });
+  assert.equal(code, 1);
+  assert.match(err.text, /gentle-lite portal: cannot start gentle-lite-definitely-not-a-command: .*ENOENT/);
+});
+
+test('defaultSpawn maps a SIGTERM-terminated child to 143 and removes its signal listeners', async () => {
+  const before = process.listenerCount('SIGTERM');
+  const p = defaultSpawn(process.execPath, ['-e', 'process.kill(process.pid, "SIGTERM")'], { stdio: 'ignore' }, { stderr: sink() });
+  assert.equal(await p, 143);
+  assert.equal(process.listenerCount('SIGTERM'), before);
 });

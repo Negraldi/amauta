@@ -88,6 +88,8 @@ class Portal:
             return 400, {"error": str(err)}
         except sqlite3.Error as err:
             return 200, {"available": False, "error": f"database unavailable: {type(err).__name__}"}
+        except Exception:  # never leak details or drop the connection because of one broken view
+            return 500, {"error": "internal error"}
 
     # ---- usage ----------------------------------------------------------------------------
     def _usage_conn(self):
@@ -192,28 +194,35 @@ class Portal:
     def costs(self, q):
         label = "Estimate only: tokens x your own prices.json; not a bill."
         prices_file = self.cfg.state_dir / "prices.json"
+        empty = {"enabled": False, "label": label, "models": [], "unpriced_models": [], "invalid_prices": []}
         try:
-            prices = json.loads(prices_file.read_text()).get("models", {})
+            text = prices_file.read_text()
+        except FileNotFoundError:
+            return empty  # costs stay off until the user creates the file
+        except OSError:
+            return {**empty, "error": "prices.json is unreadable"}
+        try:
+            prices = json.loads(text).get("models", {})
             if not isinstance(prices, dict):
                 raise ValueError
-        except (OSError, ValueError, AttributeError):
-            return {"enabled": False, "label": label, "models": [], "unpriced_models": []}
+        except (ValueError, AttributeError):
+            return {**empty, "error": "prices.json is not valid: expected {\"models\": {...}}"}
         usage = self.overview(q)
-        rows, unpriced = [], []
+        rows, unpriced, invalid = [], [], []
         for m in usage["models"]:
             p = prices.get(m["model"])
             if not isinstance(p, dict):
                 unpriced.append(m["model"])
                 rows.append({**m, "cost": None})
                 continue
-
-            def rate(k):
-                v = p.get(k, 0)
-                return v if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else 0
-
-            cost = (m["input"] * rate("input") + m["output"] * rate("output") + m["cache_read"] * rate("cache_read") + m["cache_write"] * rate("cache_write")) / 1_000_000
+            bad = [k for k in _PRICE_KEYS if k in p and not _valid_price(p[k])]  # a missing key means price 0 (README)
+            if bad:
+                invalid.extend(f"{m['model']}: {k}" for k in bad)
+                rows.append({**m, "cost": None})
+                continue
+            cost = sum(m[k] * p.get(k, 0) for k in _PRICE_KEYS) / 1_000_000
             rows.append({**m, "cost": cost})
-        return {"enabled": True, "label": label, "models": rows, "unpriced_models": unpriced,
+        return {"enabled": True, "label": label, "models": rows, "unpriced_models": unpriced, "invalid_prices": invalid,
                 "total": sum(r["cost"] for r in rows if r["cost"] is not None)}
 
     # ---- memories -------------------------------------------------------------------------
@@ -226,12 +235,9 @@ class Portal:
         raise BadRequest("source must be own or engram")
 
     @staticmethod
-    def _compatible(conn):
-        if not has_table(conn, "observations"):
-            return None
+    def _revision_column(conn):
+        """Name of the revision counter column ('revision' or 'revision_count'), or None when the table has neither."""
         cols = columns(conn, "observations")
-        if not _OBS_COLUMNS <= set(cols):
-            return None
         return "revision" if "revision" in cols else ("revision_count" if "revision_count" in cols else None)
 
     def memories(self, q):
@@ -242,7 +248,7 @@ class Portal:
         try:
             if not has_table(conn, "observations") or not _OBS_COLUMNS <= set(columns(conn, "observations")):
                 return out  # not an engram-compatible schema
-            rev = self._compatible(conn)
+            rev = self._revision_column(conn)
             rev_expr = f"o.{rev}" if rev else "1"
             live = "o.deleted_at IS NULL" if "deleted_at" in columns(conn, "observations") else "1=1"
             limit = _int(q, "limit", 50, 1, 200)
@@ -289,7 +295,7 @@ class Portal:
         if conn is None:
             return {"available": False}
         try:
-            rev = self._compatible(conn)
+            rev = self._revision_column(conn)
             row = conn.execute(f"SELECT o.*, {'o.' + rev if rev else '1'} AS revision FROM observations o WHERE o.id = ?", (_int(q, "id", 0, 0, 2**62),)).fetchone() if has_table(conn, "observations") else None
         finally:
             conn.close()
@@ -300,11 +306,13 @@ class Portal:
 
     def memory_history(self, q):
         source, conn = self._memory_conn(q)
-        topic = _str(q, "topic_key")
-        if conn is None or not topic:
-            return {"available": conn is not None, "items": []}
+        if conn is None:
+            return {"available": False, "items": []}
         try:
-            rev = self._compatible(conn)
+            topic = _str(q, "topic_key")
+            if not topic:
+                return {"available": True, "items": []}
+            rev = self._revision_column(conn)
             sql = (f"SELECT o.id, o.title, o.project, o.scope, o.type, o.created_at, o.updated_at, o.deleted_at, {'o.' + rev if rev else '1'} AS revision "
                    f"FROM observations o WHERE o.topic_key = ?")
             args = [topic]
@@ -428,6 +436,13 @@ class Portal:
 
 class NotFound(BadRequest):
     pass
+
+
+_PRICE_KEYS = ("input", "output", "cache_read", "cache_write")
+
+
+def _valid_price(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
 
 
 _OBS_COLUMNS = {"id", "title", "content", "type", "project", "topic_key", "updated_at"}
