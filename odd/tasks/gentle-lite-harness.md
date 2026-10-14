@@ -54,9 +54,9 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 - [x] T1 Scaffold: package.json (bin, scripts), CLI router, NOTICE/LICENSE (MIT + upstream attribution), README, test harness for both runners. Route: delegated (writer, 2+ files). Commit: `5638e3d`.
 - [x] T2 Install core: marker injector, JSON merge, atomic write, backup/restore with manifest. Route: delegated. Commit: `75caf06`.
 - [x] T3 Assets + installer: vendor v4 assets, `install`/`uninstall`/`status`, settings hooks + permissions (preserve defaultMode), MCP entries, state.json. Route: delegated. Commit: `ecd0b7e`.
-- [ ] T2b Fix RDD reliability warnings on core (review-8f9838a7dfe90f22): R3-002 `backup.js` statOrNull must only map ENOENT to null (other errors throw; never record existed:false on EACCES/ELOOP/ENOTDIR); R3-001 `fsatomic.js` unlink temp file on writeFile/sync failure; R3-003 `restoreBackup` pre-validates all entries (snapshot present for existed entries) before mutating, and reports partial failure. Route: delegated.
-- [ ] T4 Hooks + review: skill-registry refresh (fingerprint cache), review assess heuristic (passive/medium/high), review mode on/off, stop reminder hook. Hook commands registered as absolute `node <repo>/bin/gentle-lite.js hook <name>` (no PATH dependency); uninstall matches the `gentle-lite.js hook ` / `gentle-lite ` substrings. codegraph-guidance: replace `gentle-ai codegraph init` with upstream `codegraph init`. Route: delegated.
-- [ ] T5 Node MCP server `gentle-lite` (stdio) exposing registry/assess/status tools. Route: delegated.
+- [x] T2b Fix RDD reliability warnings on core (review-8f9838a7dfe90f22): R3-002 `backup.js` statOrNull must only map ENOENT to null (other errors throw; never record existed:false on EACCES/ELOOP/ENOTDIR); R3-001 `fsatomic.js` unlink temp file on writeFile/sync failure; R3-003 `restoreBackup` pre-validates all entries (snapshot present for existed entries) before mutating, and reports partial failure. Route: delegated. Commit: `b1c88b9`.
+- [x] T4 Hooks + review: skill-registry refresh (fingerprint cache), review assess heuristic (passive/medium/high), review mode on/off, stop reminder hook. Hook commands registered as absolute `node <repo>/bin/gentle-lite.js hook <name>` (no PATH dependency); uninstall matches the `gentle-lite.js hook ` / `gentle-lite ` substrings. codegraph-guidance: replace `gentle-ai codegraph init` with upstream `codegraph init`. Route: delegated. Commit: `2b61f1b`.
+- [x] T5 Node MCP server `gentle-lite` (stdio) exposing registry/assess/status tools. Route: delegated. Commit: see `git log` (feat(mcp)).
 - [ ] T6 Optional SDD module: v3 assets, Python sdd_status/sdd_continue, Python preflight hook, `install --with-sdd`. Route: delegated.
 - [ ] T9 Python memory MCP (stdlib sqlite3 + FTS5, hand-rolled stdio JSON-RPC): engram-compatible tool names (mem_save, mem_search, mem_context, mem_get_observation, mem_session_summary, mem_update), topic_key upsert, projects/sessions. Installer registers it as `engram`-equivalent server; harness never requires the compiled engram binary. Route: delegated.
 - [ ] T10 Local-only telemetry (Python, same SQLite module): hooks SessionStart/UserPromptSubmit/PostToolUse/Stop/SubagentStop append events; no network ever. Route: delegated.
@@ -95,6 +95,15 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - Reviewed boundary for next assess: `75caf06` (ecd0b7e pending/unreviewed).
 - 2026-10-14: scope added by user: memory (Python SQLite), local telemetry, explorer, codegraph, graphify, audit, cleanup. Runtime split: Node = installer/CLI/harness MCP; Python stdlib = memory, telemetry, explorer, SDD. Environment note: reviewer transport needs the `claude` CLI logged in (failed once with expired OAuth, retried after login).
 
+- 2026-10-14: T2b, T4, T5 done by one delegated writer. `npm test`: 115 node tests + 1 python test pass.
+  Deviations (rationale one line each):
+  - T4 implementation was drafted before its tests; RED was then shown retroactively by stashing the new/changed sources (7 failing test files/cases), GREEN after restoring. T2b and T5 were strictly test-first.
+  - MCP server is hand-rolled newline-delimited JSON-RPC (no `@modelcontextprotocol/sdk`): four small tools do not justify a dependency; requests are answered in arrival order.
+  - Hook commands are `node <abs>/bin/gentle-lite.js hook <name>`; install replaces stale PATH-based `gentle-lite hook ...` entries; uninstall matches via regex (`gentle-lite.js['"]? hook ` or leading `gentle-lite `).
+  - `review assess` candidate = tracked changes only (untracked files ignored); passive reason code is `passive_content`; `.gitlab-ci.yml` also counts as CI workflow.
+  - `.gitignore` gets `.atl/` only when the dir has `.git` or an existing `.gitignore`; the hook never touches `.gitignore`.
+  - `review-stop` also no-ops when `stop_hook_active` is set (loop guard).
+
 ## Next step
 
-T2b reliability fixes, then T4 hooks + review.
+T6 optional SDD module (or reorder to T9 per user priority).
