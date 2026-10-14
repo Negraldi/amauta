@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from python.gentle_lite.memory import store as mstore
 from python.gentle_lite.usage import ingest
@@ -199,7 +200,59 @@ class IncrementalTest(Base):
         self.assertEqual(rest["messages"], 40)
 
 
+class BatchTest(Base):
+    def test_write_lock_is_released_between_batches(self):
+        """A concurrent writer (telemetry) must get in while a long ingest is in progress."""
+        write_jsonl(self.transcript, [assistant(f"m{i}") for i in range(30)])
+        c = self.conn()
+        other = sqlite3.connect(self.state / "memory.db", timeout=0.05)
+        self.addCleanup(other.close)
+        outcomes = []
+        real_store = ingest._store
+
+        def spy(conn, raw, path, stats):
+            if stats["lines"] % 10 == 1:  # first line of a batch: nothing of it written yet
+                try:
+                    other.execute("INSERT INTO events (ts, event) VALUES ('t', 'probe')")
+                    other.commit()
+                    outcomes.append(True)
+                except sqlite3.OperationalError:
+                    outcomes.append(False)
+            real_store(conn, raw, path, stats)
+
+        with mock.patch.object(ingest, "BATCH_LINES", 10), mock.patch.object(ingest, "_store", spy):
+            self.assertEqual(ingest.ingest_file(c, self.transcript)["messages"], 30)
+        self.assertEqual(outcomes, [True, True, True])
+
+    def test_offset_is_committed_per_batch(self):
+        write_jsonl(self.transcript, [assistant(f"m{i}") for i in range(25)])
+        c = self.conn()
+        with mock.patch.object(ingest, "BATCH_LINES", 10):
+            ingest.ingest_file(c, self.transcript, max_lines=15)
+        (st,) = rows(self.state, "SELECT * FROM ingest_state")
+        self.assertGreater(st["offset"], 0)
+        self.assertEqual(ingest.ingest_file(c, self.transcript)["messages"], 10)
+
+
 class BackfillTest(Base):
+    def test_sqlite_error_on_one_file_is_counted_and_backfill_continues(self):
+        write_jsonl(self.transcript, [assistant("m1")])
+        write_jsonl(self.home / "projects" / "-other" / "s2.jsonl", [assistant("m3", session="s2")])
+        real = ingest.ingest_file
+
+        def flaky(conn, path, **kw):
+            if Path(path).name == "s1.jsonl":
+                raise sqlite3.OperationalError("database is locked")
+            return real(conn, path, **kw)
+
+        with mock.patch.object(ingest, "ingest_file", flaky):
+            out = ingest.backfill(self.conn(), self.home)
+        self.assertEqual((out["errors"], out["files"], out["messages"]), (1, 1, 1))
+
+    def test_cli_help_lists_only_real_subcommands(self):
+        r = run_cli(self.state, "--help")
+        self.assertIn("{backfill}", r.stdout)
+
     def test_backfill_discovers_nested_subagent_transcripts(self):
         write_jsonl(self.transcript, [assistant("m1")])
         write_jsonl(self.home / "projects" / "-work-proj" / "s1" / "subagents" / "agent-a.jsonl", [assistant("m2", sidechain=True)])

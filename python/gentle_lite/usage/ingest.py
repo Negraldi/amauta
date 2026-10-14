@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import time
 from pathlib import Path
 
 from ..memory import store as mstore
 
 CHUNK = 1 << 20  # bytes read per slice
+BATCH_LINES = 200  # lines per write transaction
 
 
 def _int(value) -> int:
@@ -92,33 +94,43 @@ def ingest_file(conn, path, max_lines: int | None = None, deadline: float | None
     if row and st.st_size == row["size"] and st.st_mtime == row["mtime"] and offset == st.st_size:
         return stats
     consumed = offset
+    pending = b""
+    done = False
+    in_batch = 0
     with open(path, "rb") as f:
         f.seek(offset)
-        pending = b""
-        done = False
-        with conn:
-            while not done:
-                chunk = f.read(CHUNK)
-                if not chunk:
+        while not done:
+            chunk = f.read(CHUNK)
+            if not chunk:
+                break
+            pending += chunk
+            while True:
+                nl = pending.find(b"\n")
+                if nl < 0:
                     break
-                pending += chunk
-                while True:
-                    nl = pending.find(b"\n")
-                    if nl < 0:
-                        break
-                    raw, pending = pending[:nl], pending[nl + 1:]
-                    consumed += nl + 1
-                    stats["lines"] += 1
-                    _store(conn, raw, path, stats)
-                    if (max_lines is not None and stats["lines"] >= max_lines) or (deadline is not None and time.monotonic() > deadline):
-                        done = True
-                        break
-            conn.execute(
-                'INSERT INTO ingest_state (path, size, mtime, "offset") VALUES (?,?,?,?) '
-                'ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, "offset"=excluded."offset"',
-                (str(path), st.st_size, st.st_mtime, consumed),
-            )
+                raw, pending = pending[:nl], pending[nl + 1:]
+                consumed += nl + 1
+                stats["lines"] += 1
+                in_batch += 1
+                _store(conn, raw, path, stats)
+                if in_batch >= BATCH_LINES:  # short transactions: never starve telemetry writers
+                    _save_state(conn, path, st, consumed)
+                    in_batch = 0
+                if (max_lines is not None and stats["lines"] >= max_lines) or (deadline is not None and time.monotonic() > deadline):
+                    done = True
+                    break
+    _save_state(conn, path, st, consumed)
     return stats
+
+
+def _save_state(conn, path: Path, st, consumed: int) -> None:
+    """Commit the rows of the current batch together with the offset they reach."""
+    with conn:
+        conn.execute(
+            'INSERT INTO ingest_state (path, size, mtime, "offset") VALUES (?,?,?,?) '
+            'ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, "offset"=excluded."offset"',
+            (str(path), st.st_size, st.st_mtime, consumed),
+        )
 
 
 def _store(conn, raw: bytes, path: Path, stats: dict) -> None:
@@ -150,7 +162,7 @@ def backfill(conn, claude_home, deadline: float | None = None) -> dict:
     for p in transcript_files(claude_home):
         try:
             s = ingest_file(conn, p, deadline=deadline)
-        except (OSError, ValueError):
+        except (OSError, ValueError, sqlite3.Error):  # e.g. 'database is locked' while hooks write
             total["errors"] += 1
             continue
         total["files"] += 1

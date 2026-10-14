@@ -21,12 +21,13 @@ def main(argv=None) -> int:
     from ..memory import store as mstore
     from . import ingest
 
-    parser = argparse.ArgumentParser(prog="gentle_lite.usage")
+    parser = argparse.ArgumentParser(prog="gentle_lite.usage", epilog="The Claude Code hook entrypoint is `hook` (reads the hook payload on stdin); it is handled before argparse.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     bf = sub.add_parser("backfill", help="ingest every transcript under <claude-home>/projects")
     bf.add_argument("--claude-home")
-    sub.add_parser("hook", help="ingest the transcripts named on stdin")
     args = parser.parse_args(argv)
+    if args.cmd != "backfill":  # unreachable while backfill is the only subcommand; guards future ones
+        parser.error(f"unknown command {args.cmd}")
     home = args.claude_home or paths.claude_home()
     conn = mstore.connect(paths.db_path())
     try:

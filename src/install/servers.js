@@ -60,7 +60,7 @@ export function desiredHooks({ stateDir, telemetry = false } = {}) {
   };
   if (telemetry) {
     for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
-    for (const event of USAGE_EVENTS) hooks[event].push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage')] });
+    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage')] });
   }
   return hooks;
 }
