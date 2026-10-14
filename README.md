@@ -1,8 +1,26 @@
 # gentle-lite
 
-A small Claude Code harness in plain Node.js (>= 22) and Python 3.12, modelled on
+A small Claude Code harness in plain Node.js and Python, modelled on
 [gentle-ai](https://github.com/Gentleman-Programming/gentle-ai) (MIT). No compiled
-programs, no npm dependencies for the core.
+programs of our own, no npm dependencies and Python stdlib only for the core.
+
+## Requirements
+
+- Node.js >= 22 and Python >= 3.11 (`python3`; hooks and servers run it as `python3 -P`). Nothing to install.
+- Optional, detected on `PATH` and never vendored: `codegraph` (npm `@colbymchenry/codegraph`) and `graphify`
+  (PyPI `graphifyy`). `npx` is used by the registered `context7` and `rea` MCP entries.
+
+## What `install` sets up
+
+Into `~/.claude` / `~/.claude.json` / `~/.gentle-lite` (all redirectable, see Safety):
+
+| Piece | Details |
+| --- | --- |
+| `CLAUDE.md` | orchestrator + persona block between `<!-- gentle-lite:ID -->` markers; your text is kept |
+| Assets | output style, skills, agents (judgment-day, review lenses), rendered with model assignments |
+| Hooks | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
+| MCP servers | `engram` (our Python memory server; `gentle-memory` if you already have another `engram`), `gentle-lite` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `context7`, `rea`, `codegraph` (if installed) |
+| Optional | `--with-sdd` (SDD module), `--no-telemetry` |
 
 ## Layout
 
@@ -12,7 +30,8 @@ src/cli.js           command router
 src/core/            marker injector, JSON merge, atomic writes, backups
 src/install/         install / uninstall / status
 assets/              vendored orchestrator, persona, skills, agents (see NOTICE)
-python/              Python helpers and tests (stdlib only)
+python/gentle_lite/  memory (MCP server), telemetry, usage, portal, graph, sdd (stdlib only) + tests
+src/mcp/             Node MCP server (`gentle-lite` entry)
 test/                node:test suites
 odd/tasks/           feature documents
 ```
@@ -25,6 +44,12 @@ gentle-lite version
 gentle-lite install   [--claude-home DIR] [--claude-json FILE] [--state-dir DIR] [--dry-run]
 gentle-lite uninstall [same options]
 gentle-lite status    [same options]
+```
+
+```
+gentle-lite portal    [--port N] [--repo DIR]...      # read-only control portal
+gentle-lite codegraph init|status [--cwd DIR]
+gentle-lite graphify hook install|uninstall [--cwd DIR]
 ```
 
 ```
@@ -134,6 +159,14 @@ the usage backfill and needs the per-process token embedded in the page plus a s
 MCP `args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
 (`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens; a missing key counts as 0, a non-numeric or negative value is reported under `invalid_prices` and that model is not costed).
 
+## Safety model
+
+- Hooks fail open (always exit 0, empty stdout = no-op) except the SDD preflight, which fails closed for `sdd-*` agents.
+- Local only: no network code in telemetry/usage/portal; the portal binds `127.0.0.1` and opens databases read-only.
+- User content is preserved (hooks, MCP servers, `permissions.defaultMode`, CLAUDE.md text); files are backed up before
+  every write and edited managed files are left alone on uninstall unless `--force`.
+- Deliberately absent (unlike gentle-ai): consent envelopes, review receipts/lineage, network telemetry, self-update.
+
 ## Safety: parameterized targets
 
 Nothing is hardcoded to the real home. Every target can be redirected, and tests
@@ -161,7 +194,15 @@ version unless you pass `--force`.
 npm test            # node --test, then python unittest
 npm run test:node
 npm run test:py
+node --test test/e2e.test.js   # end-to-end only
 ```
+
+`test/e2e.test.js` installs (`--with-sdd`, telemetry on) into a fake HOME seeded with user settings, `claude.json` and
+`CLAUDE.md`, runs every registered hook command with `sh -c` and a JSON payload (as Claude Code does), starts the
+`engram` and `gentle-lite` MCP servers from their `claude.json` entries (initialize, `tools/list`, one tool call), checks
+the telemetry/usage rows in `memory.db`, fetches `/api/overview` from the portal on `127.0.0.1`, and finally uninstalls and
+compares the files with their seeds. A fake `codegraph` on `PATH` enables the codegraph hook; nothing touches the real home
+and nothing needs the network.
 
 ## License
 
