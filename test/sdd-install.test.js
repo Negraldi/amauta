@@ -1,0 +1,213 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdtemp, readFile, writeFile, mkdir, rm, readdir } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { install, uninstall, status } from '../src/install/installer.js';
+import { loadManifest, assetPath, readAssetText } from '../src/install/assets.js';
+import { main } from '../src/cli.js';
+
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
+const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
+const PHASES = ['init', 'explore', 'research', 'propose', 'spec', 'design', 'tasks', 'apply', 'verify', 'archive', 'onboard'];
+
+async function sandbox({ settings, claudeJson } = {}) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-sdd-'));
+  const t = { root, claudeHome: path.join(root, 'home', '.claude'), claudeJson: path.join(root, 'home', 'claude.json'), stateDir: path.join(root, 'state') };
+  await mkdir(t.claudeHome, { recursive: true });
+  if (settings) await writeFile(path.join(t.claudeHome, 'settings.json'), JSON.stringify(settings));
+  if (claudeJson) await writeFile(t.claudeJson, JSON.stringify(claudeJson));
+  t.opts = (extra = {}) => ({ claudeHome: t.claudeHome, claudeJson: t.claudeJson, stateDir: t.stateDir, searchPath: '', ...extra });
+  t.settings = () => readJson(path.join(t.claudeHome, 'settings.json'));
+  t.state = () => readJson(path.join(t.stateDir, 'state.json'));
+  t.read = (rel) => readFile(path.join(t.claudeHome, rel), 'utf8');
+  t.cleanup = () => rm(root, { recursive: true, force: true });
+  return t;
+}
+const sddHooks = (settings) =>
+  (settings.hooks?.PreToolUse ?? []).flatMap((e) => (e.hooks ?? []).filter((h) => /gentle_lite\.sdd preflight-hook/.test(h.command)).map((h) => ({ matcher: e.matcher, ...h })));
+const tree = async (dir) => {
+  const out = [];
+  const walk = async (d) => { for (const e of await readdir(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) await walk(p); else out.push(path.relative(dir, p)); } };
+  await walk(dir);
+  return out.sort();
+};
+
+test('without --with-sdd nothing SDD is installed and state says so', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  assert.equal((await t.state()).sdd, false);
+  assert.ok(!existsSync(path.join(t.claudeHome, 'skills', 'sdd-apply')));
+  assert.ok(!existsSync(path.join(t.claudeHome, 'agents', 'sdd-apply.md')));
+  assert.ok(!existsSync(path.join(t.claudeHome, 'commands')));
+  assert.equal(sddHooks(await t.settings()).length, 0);
+  await t.cleanup();
+});
+
+test('--with-sdd installs skills, agents, commands, shared contracts and the PreToolUse(Agent) preflight hook', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  assert.equal((await t.state()).sdd, true);
+  for (const p of PHASES) {
+    assert.ok(existsSync(path.join(t.claudeHome, 'skills', `sdd-${p}`, 'SKILL.md')), `skill sdd-${p}`);
+    assert.ok(existsSync(path.join(t.claudeHome, 'agents', `sdd-${p}.md`)), `agent sdd-${p}`);
+  }
+  for (const c of ['new', 'continue', 'ff', 'status', 'apply', 'verify', 'archive', 'explore', 'init', 'onboard', 'research']) {
+    assert.ok(existsSync(path.join(t.claudeHome, 'commands', `lite-sdd-${c}.md`)), `command lite-sdd-${c}`);
+  }
+  for (const s of ['sdd-orchestrator-workflow', 'sdd-phase-common', 'sdd-status-contract', 'openspec-convention']) {
+    assert.ok(existsSync(path.join(t.claudeHome, 'skills', '_shared', `${s}.md`)), s);
+  }
+  const hooks = sddHooks(await t.settings());
+  assert.equal(hooks.length, 1);
+  assert.equal(hooks[0].matcher, 'Agent');
+  assert.equal(hooks[0].timeout, 30);
+  assert.equal(hooks[0].command, `env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd preflight-hook`);
+  await t.cleanup();
+});
+
+test('no placeholder survives rendering and commands point at our status module', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const files = (await tree(t.claudeHome)).filter((f) => /sdd/.test(f));
+  assert.ok(files.length > 30);
+  for (const f of files) assert.ok(!(await t.read(f)).includes('{{'), `placeholder left in ${f}`);
+  const status_ = await t.read('commands/lite-sdd-status.md');
+  assert.ok(status_.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd status [change] --cwd <repo> --json --instructions`));
+  assert.ok(!(await t.read('skills/_shared/sdd-status-contract.md')).includes('gentle-ai sdd-'));
+  for (const f of files.filter((x) => x.startsWith('commands/'))) assert.ok(!/gentle-sdd-/.test(await t.read(f)), `${f} still names /gentle-sdd-*`);
+  await t.cleanup();
+});
+
+test('agents get the assigned model, the active engram prefix (no duplicates) and the codegraph tool', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const propose = await t.read('agents/sdd-propose.md');
+  const archive = await t.read('agents/sdd-archive.md');
+  assert.match(propose, /^model: opus$/m);
+  assert.match(archive, /^model: haiku$/m);
+  const tools = propose.match(/^tools: (.+)$/m)[1].split(', ');
+  assert.equal(new Set(tools).size, tools.length, 'no duplicate tool entries');
+  assert.ok(tools.includes('mcp__engram__mem_save'));
+  assert.ok(!propose.includes('mcp__plugin_engram_engram__'));
+  assert.ok(tools.includes('mcp__codegraph__codegraph_explore'));
+  assert.match(propose, /<!-- gentle-lite:codegraph-guidance -->/);
+  await t.cleanup();
+
+  const plugin = await sandbox({ settings: { enabledPlugins: { 'engram@engram': true } } });
+  await install(plugin.opts({ withSdd: true }));
+  assert.match(await plugin.read('agents/sdd-apply.md'), /mcp__plugin_engram_engram__mem_save/);
+  await plugin.cleanup();
+
+  const foreign = await sandbox({ claudeJson: { mcpServers: { engram: { command: 'engram', args: ['mcp'] } } } });
+  await install(foreign.opts({ withSdd: true }));
+  assert.match(await foreign.read('agents/sdd-apply.md'), /mcp__gentle-memory__mem_save/);
+  await foreign.cleanup();
+});
+
+test('model assignments recorded in state are honoured, including effort', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const state = await t.state();
+  state.model_assignments['sdd-apply'] = { model: 'opus', effort: 'high' };
+  await writeFile(path.join(t.stateDir, 'state.json'), JSON.stringify(state));
+  await install(t.opts({ withSdd: true, force: true }));
+  const apply = await t.read('agents/sdd-apply.md');
+  assert.match(apply, /^model: opus$/m);
+  assert.match(apply, /^effort: high$/m);
+  await t.cleanup();
+});
+
+test('install is idempotent, sdd is sticky across re-installs, and status is healthy', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  assert.equal((await install(t.opts({ withSdd: true }))).changed, false);
+  assert.equal((await install(t.opts())).changed, false, 'a plain re-install keeps the module');
+  assert.equal((await t.state()).sdd, true);
+  const s = await status(t.opts());
+  assert.ok(s.ok, JSON.stringify(s.items.filter((i) => !i.ok)));
+  assert.ok(s.items.some((i) => i.name === 'hook PreToolUse' && i.ok));
+  assert.ok(s.items.some((i) => i.name === 'sdd module' && i.ok));
+  await t.cleanup();
+});
+
+test('status reports a missing preflight hook and a removed SDD file as problems', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const settings = await t.settings();
+  delete settings.hooks.PreToolUse;
+  await writeFile(path.join(t.claudeHome, 'settings.json'), JSON.stringify(settings));
+  await rm(path.join(t.claudeHome, 'agents', 'sdd-apply.md'));
+  const s = await status(t.opts());
+  assert.equal(s.ok, false);
+  const bad = s.items.filter((i) => !i.ok).map((i) => i.name);
+  assert.ok(bad.includes('hook PreToolUse'));
+  assert.ok(bad.includes('file agents/sdd-apply.md'));
+  await t.cleanup();
+});
+
+test('uninstall removes the whole module and restores the pre-install tree and settings', async () => {
+  const original = { theme: 'dark', hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo mine' }] }] } };
+  const t = await sandbox({ settings: original });
+  await mkdir(path.join(t.claudeHome, 'commands'), { recursive: true });
+  await writeFile(path.join(t.claudeHome, 'commands', 'mine.md'), 'my command');
+  await install(t.opts({ withSdd: true }));
+  assert.ok((await tree(t.claudeHome)).some((f) => f.startsWith('skills/sdd-apply/')));
+  await uninstall(t.opts());
+  assert.deepEqual(await tree(t.claudeHome), ['commands/mine.md', 'settings.json']);
+  assert.deepEqual(await t.settings(), original);
+  await t.cleanup();
+});
+
+test('a user-edited SDD file is kept on uninstall', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  await writeFile(path.join(t.claudeHome, 'commands', 'lite-sdd-new.md'), 'edited by me');
+  const r = await uninstall(t.opts());
+  assert.ok(r.kept.includes('commands/lite-sdd-new.md'));
+  assert.equal(await t.read('commands/lite-sdd-new.md'), 'edited by me');
+  assert.ok(!existsSync(path.join(t.claudeHome, 'agents', 'sdd-apply.md')));
+  await t.cleanup();
+});
+
+test('CLI: --with-sdd is accepted by install and dry-run lists SDD files', async () => {
+  const t = await sandbox();
+  const out = sink();
+  const args = ['--claude-home', t.claudeHome, '--claude-json', t.claudeJson, '--state-dir', t.stateDir];
+  assert.equal(await main(['install', ...args, '--with-sdd', '--dry-run'], { stdout: out, stderr: sink() }), 0);
+  assert.match(out.text, /skills\/sdd-apply\/SKILL\.md/);
+  assert.ok(!existsSync(path.join(t.claudeHome, 'skills')));
+  const real = sink();
+  assert.equal(await main(['install', ...args, '--with-sdd'], { stdout: real, stderr: sink() }), 0);
+  assert.equal((await t.state()).sdd, true);
+  await t.cleanup();
+});
+
+test('the registered hook command really runs: sdd subagent without preflight is denied, others pass silently', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const [hook] = sddHooks(await t.settings());
+  const run = (payload) => spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(payload), encoding: 'utf8', cwd: t.root });
+  const sid = 'abc-123';
+  const base = { session_id: sid, transcript_path: path.join(t.root, `${sid}.jsonl`), hook_event_name: 'PreToolUse', tool_name: 'Agent' };
+  const denied = run({ ...base, tool_input: { subagent_type: 'sdd-apply', prompt: 'x' } });
+  assert.equal(denied.status, 0);
+  assert.equal(JSON.parse(denied.stdout).hookSpecificOutput.permissionDecision, 'deny');
+  const other = run({ ...base, tool_input: { subagent_type: 'general-purpose', prompt: 'x' } });
+  assert.equal(other.status, 0);
+  assert.equal(other.stdout, '');
+  await t.cleanup();
+});
+
+test('manifest lists every SDD asset and nothing in assets/sdd is left unreferenced', async () => {
+  const m = await loadManifest();
+  assert.ok(m.sdd, 'manifest has an sdd block');
+  for (const s of m.sdd.skills) assert.ok(existsSync(assetPath(`${m.sdd.skillsDir}/${s}/SKILL.md`)), s);
+  for (const a of m.sdd.agents) assert.ok(existsSync(assetPath(`${m.sdd.agentsDir}/${a.name}.md`)), a.name);
+  assert.deepEqual(m.sdd.agents.map((a) => a.name).sort(), PHASES.map((p) => `sdd-${p}`).sort());
+  assert.match(await readAssetText('sdd/commands/lite-sdd-new.md'), /lite-sdd|sdd-orchestrator-workflow/);
+});

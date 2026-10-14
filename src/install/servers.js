@@ -32,7 +32,8 @@ export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.
 
 /** True for any hook command gentle-lite registered (absolute `node .../gentle-lite.js hook X` or legacy `gentle-lite ...`). */
 export const isGentleLiteHook = (command) =>
-  /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ') || /gentle_lite\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command);
+  /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ') || /gentle_lite\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
+  /gentle_lite\.sdd['"]?\s+preflight-hook(\s|$)/.test(command);
 
 const hook = (name, timeout) => ({
   type: 'command',
@@ -51,8 +52,11 @@ const telemetryHook = (stateDir) => pythonHook(stateDir, 'gentle_lite.telemetry'
 /** Transcript usage ingestion: only after a turn or subagent ends. */
 const USAGE_EVENTS = ['Stop', 'SubagentStop'];
 
+/** Command prefix the SDD assets use to call our status module (`{{GENTLE_LITE_SDD}}`) and the preflight hook command. */
+export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m gentle_lite.sdd`;
+
 /** Hook entries registered in settings.json. */
-export function desiredHooks({ stateDir, telemetry = false } = {}) {
+export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
   const hooks = {
     UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry')] }],
     SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30)] }],
@@ -62,5 +66,6 @@ export function desiredHooks({ stateDir, telemetry = false } = {}) {
     for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
     for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage')] });
   }
+  if (sdd) hooks.PreToolUse = [{ matcher: 'Agent', hooks: [{ type: 'command', command: `${sddCommand()} preflight-hook`, timeout: 30 }] }];
   return hooks;
 }

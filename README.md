@@ -166,3 +166,21 @@ npm run test:py
 ## License
 
 MIT. Vendored upstream assets are credited in [NOTICE](NOTICE).
+
+## Optional SDD module (`install --with-sdd`)
+
+Spec-Driven Development from gentle-ai v3.4.0, installed only on request and removed by `uninstall`
+(the choice is sticky across plain re-installs).
+
+- Skills `sdd-*`, agents `sdd-*`, shared contracts and commands renamed to `/lite-sdd-*` (so they never
+  collide with a gentle-ai install). Models come from the install state like the other agents.
+- `python3 -P -m gentle_lite.sdd status [change] [--cwd DIR] [--json] [--instructions]` and `continue [change]` are
+  read-only and reproduce the `gentle-ai.sdd-status` v2 projection over `openspec/changes/<change>/`
+  (proposal, specs, design, tasks, apply-progress, verify-report). Only the `openspec` artifact store is supported:
+  a declared `engram`/`hybrid` store is reported as blocked. A task that names a path outside the workspace blocks apply
+  (`blocked(edit_authority_missing)`); mark read-only inputs with `(read-only)`. There is no consent or grant machinery.
+- `python3 -P -m gentle_lite.sdd preflight-hook` is a `PreToolUse` hook for the `Agent` tool: an `sdd-*` subagent is
+  dispatched only after the parent asked the three-question `AskUserQuestion` preflight (Interactive|Automatic,
+  OpenSpec|Engram|Both, Ask me|Single PR|Auto) and the human answered it in the session transcript; the hook then
+  prefixes the `## SDD Session Preflight` block to the prompt. It always exits 0 and fails closed for `sdd-*`
+  (deny) while staying silent for every other agent.

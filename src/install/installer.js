@@ -7,7 +7,7 @@ import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { createBackup } from '../core/backup.js';
 import { resolveTargets } from './paths.js';
-import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText } from './assets.js';
+import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
 import {
   DEFAULT_MODEL_ASSIGNMENTS,
   engramToolPrefix,
@@ -17,6 +17,7 @@ import {
   resolveAssignment,
 } from './templating.js';
 import { desiredHooks, desiredMcpServers, isGentleLiteHook } from './servers.js';
+import { renderSddFiles } from './sdd.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
 
@@ -78,7 +79,7 @@ function chooseMemoryKey({ settings, currentServers, prev }) {
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
-async function renderManagedFiles(manifest, { persona, assignments, engramPrefix }) {
+async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd }) {
   const files = new Map();
   files.set(manifest.outputStyleTarget, await readAssetBuffer(manifest.personas[persona].outputStyle));
 
@@ -104,6 +105,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
     });
     files.set(`agents/${agent.name}.md`, Buffer.from(text, 'utf8'));
   }
+  if (sdd) for (const [rel, data] of await renderSddFiles(manifest, { assignments, engramPrefix, footers })) files.set(rel, data);
   return files;
 }
 
@@ -144,6 +146,7 @@ async function plan(opts) {
 
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
   const telemetry = opts.telemetry !== false;
+  const sdd = opts.withSdd === true || prev?.sdd === true; // optional module; sticky until uninstall
   const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
   const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
@@ -153,7 +156,7 @@ async function plan(opts) {
   const managedFiles = {};
 
   // Managed files (output style, skills, agents).
-  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix });
+  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd });
   for (const [rel, data] of rendered) {
     const file = abs(t.claudeHome, rel);
     const existing = await readOrNull(file);
@@ -188,7 +191,7 @@ async function plan(opts) {
   );
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
   settings = deepMerge(settings, { permissions: { deny: [...existingDeny, ...newDeny] } });
-  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry });
+  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry, sdd });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
   // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
   settings = removeHooksWhere(settings, (c) => isGentleLiteHook(c) && !wantedCommands.has(c));
@@ -255,6 +258,7 @@ async function plan(opts) {
     mcp_added: mcpAdded,
     memory_server_key: memoryKey,
     telemetry,
+    sdd,
     codegraph_hook_added: codegraphHookAdded,
     created_files: created,
   });
@@ -391,11 +395,16 @@ export async function status(opts = {}) {
 
   const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
   const commands = (event) => (settings.hooks?.[event] ?? []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  for (const [event, entries] of Object.entries(desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true }))) {
+  for (const [event, entries] of Object.entries(desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, sdd: state.sdd === true }))) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);
       add(`hook ${event}`, ok, ok ? cmd : 'missing');
     }
+  }
+  if (state.sdd === true) {
+    const entry = path.join(repoRoot, 'python', 'gentle_lite', 'sdd', '__main__.py');
+    const present = (await statOrNull(entry)) !== null;
+    add('sdd module', present, present ? entry : `missing ${entry}`);
   }
   add('outputStyle', STYLE_NAMES.includes(settings.outputStyle), String(settings.outputStyle ?? 'unset'));
 
