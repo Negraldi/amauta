@@ -121,18 +121,19 @@ def _run(store, name, a):
 
 
 def _graph(store, a):
-    from ..graph import query  # lazy: only graph users pay for the import
+    from ..graph import query, sync  # lazy: only graph users pay for the import
 
     action, node = a["action"], a.get("node")
     if action not in ("neighbors", "path", "search") or (action != "search" and not node) or (action == "path" and not a.get("target")):
         raise ToolError("action must be neighbors (needs node), path (needs node and target) or search")
+    repo = sync.repo_key(a["repo"])  # same normalisation as sync: relative, trailing-slash and symlinked spellings all match
     try:
         if action == "neighbors":
-            out = query.neighbors(store.conn, a["repo"], node, a.get("depth") or 1)
+            out = query.neighbors(store.conn, repo, node, a.get("depth") or 1)
         elif action == "path":
-            out = query.path(store.conn, a["repo"], node, a["target"])
+            out = query.path(store.conn, repo, node, a["target"])
         else:
-            out = query.search_nodes(store.conn, a["repo"], node or "")
+            out = query.search_nodes(store.conn, repo, node or "")
     except query.QueryError as e:
         raise ToolError(str(e)) from None
     return json.dumps(out, ensure_ascii=False)

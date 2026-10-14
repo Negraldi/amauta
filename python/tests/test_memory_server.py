@@ -65,6 +65,12 @@ class ServerTest(unittest.TestCase):
         self.assertEqual([n["id"] for n in route["nodes"]], ["a", "b", "c", "d"])
         found = json.loads(ask(action="search", node="alp")["content"][0]["text"])
         self.assertEqual([n["id"] for n in found], ["a"])
+        link = Path(self.tmp.name) / "link"
+        link.symlink_to(repo)
+        for spelled in (str(repo) + "/", str(link), os.path.relpath(repo, os.getcwd())):  # same repo, different spellings
+            got = mserver.handle(self.store, call(2, "graph_query", {"repo": spelled, "action": "search", "node": "alp"}))["result"]
+            self.assertNotIn("isError", got, spelled)
+            self.assertEqual([n["id"] for n in json.loads(got["content"][0]["text"])], ["a"])
         for bad in ({"action": "nope", "node": "a"}, {"action": "path", "node": "a"}, {"action": "neighbors"}, {"action": "neighbors", "node": "zzz"}):
             self.assertTrue(ask(**bad)["isError"], bad)
 

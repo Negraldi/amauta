@@ -13,8 +13,14 @@ from ..memory import store as mstore
 
 MAX_BYTES = 128_000_000
 MAX_ATTRS = 4096  # attrs_json per row; the largest values are dropped first
-NODE_MAPPED = {"id", "label", "file_type", "source_file", "norm_label"}
-EDGE_MAPPED = {"source", "target", "relation", "_src", "_tgt"}
+# Keys kept out of attrs_json. COLUMNS are stored in their own column; DROPPED are graphify-internal or derived
+# (norm_label is the lower-cased label, `_src`/`_tgt` are upstream's private edge endpoints) and are not mirrored at all.
+NODE_COLUMNS = {"id", "label", "file_type", "source_file"}
+NODE_DROPPED = {"norm_label"}
+EDGE_COLUMNS = {"source", "target", "relation"}
+EDGE_DROPPED = {"_src", "_tgt"}
+NODE_MAPPED = NODE_COLUMNS | NODE_DROPPED
+EDGE_MAPPED = EDGE_COLUMNS | EDGE_DROPPED
 
 
 class GraphError(Exception):

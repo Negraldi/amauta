@@ -126,8 +126,8 @@ test('API failures render an error panel instead of throwing', async () => {
 });
 
 async function withRoutes(overrides, hash, fn) {
-  const saved = {};
-  for (const [k, v] of Object.entries(overrides)) { saved[k] = routes[k]; if (v === undefined) delete routes[k]; else routes[k] = v; }
+  const snapshot = { ...routes }; // restored wholesale, so a callback may freely rewrite or delete shared routes
+  for (const [k, v] of Object.entries(overrides)) { if (v === undefined) delete routes[k]; else routes[k] = v; }
   const rejections = [];
   const onRejection = (r) => rejections.push(r);
   process.on('unhandledRejection', onRejection);
@@ -136,7 +136,8 @@ async function withRoutes(overrides, hash, fn) {
     await fn(env, rejections);
   } finally {
     process.off('unhandledRejection', onRejection);
-    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete routes[k]; else routes[k] = v; }
+    for (const k of Object.keys(routes)) delete routes[k];
+    Object.assign(routes, snapshot);
   }
 }
 
@@ -167,9 +168,17 @@ test('memories: a failing search, detail or file fetch is shown inline and never
     assert.deepEqual(rejections, []);
     assert.ok(tree(view).some((e) => e.tagName === 'pre' && /not found/.test(e.textContent)));
   });
-  routes['/api/memory'] = { available: true, id: 1, title: XSS, content: XSS, type: 'note', project: 'p', topic_key: null, revision: 1, updated_at: 'u' };
-  routes['/api/memory-file'] = { id: 'a/memory/n.md', content: XSS, truncated: false };
-  routes['/api/memories'] = { source: 'own', available: true, items: [{ id: 1, title: XSS, type: 'note', project: 'p', topic_key: 'k', revision: 1, updated_at: 'u', snippet: XSS }], facets: { projects: ['p'], types: ['note'] } };
+});
+
+test('withRoutes restores every shared route even when the callback rewrites or deletes them and then fails', async () => {
+  const before = JSON.stringify(routes);
+  await assert.rejects(withRoutes({}, '', async () => {
+    delete routes['/api/overview'];
+    routes['/api/memories'] = { changed: true };
+    routes['/api/brand-new'] = {};
+    throw new Error('assertion failed inside the callback');
+  }), /assertion failed/);
+  assert.equal(JSON.stringify(routes), before);
 });
 
 test('overview reports invalid prices and an unreadable prices file', async () => {

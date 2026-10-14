@@ -191,6 +191,78 @@ class QueryTest(Base):
         self.assertEqual(len(query.search_nodes(self.conn, self.key, "")), 6)
 
 
+class WalkBoundsTest(Base):
+    def test_walk_rows_are_bounded_before_grouping(self):
+        data = {"nodes": [node("hub")] + [node(f"l{i}") for i in range(100)], "links": [edge("hub", f"l{i}") for i in range(100)]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+        with mock.patch.object(query, "WALK_ROWS", 30):
+            r = query.neighbors(self.conn, self.key, "hub", depth=3)
+        self.assertLessEqual(len(r["nodes"]), 30)
+        self.assertTrue(r["truncated"])
+        self.assertEqual(r["nodes"][0]["id"], "hub")  # breadth-first: the seed and nearest nodes survive the cut
+
+    def test_dense_graph_deduplicates_by_node(self):
+        names = [f"n{i}" for i in range(60)]
+        data = {"nodes": [node(n) for n in names], "links": [edge(a, b) for i, a in enumerate(names) for b in names[i + 1:]]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+        seen = []
+        self.conn.set_trace_callback(seen.append)
+        r = query.neighbors(self.conn, self.key, "n0", depth=5)
+        self.conn.set_trace_callback(None)
+        self.assertEqual(len(r["nodes"]), 60)
+        self.assertEqual({n["depth"] for n in r["nodes"]}, {0, 1})
+        self.assertFalse(r["truncated"])
+
+
+class OldSqliteFallbackTest(Base):
+    """SQLite < 3.34 cannot run two recursive terms; below the requirement a plain Python BFS answers instead."""
+
+    def setUp(self):
+        super().setUp()
+        write_graph(self.repo)
+        sync.sync_repo(self.conn, self.repo)
+        self.statements = []
+        self.conn.set_trace_callback(self.statements.append)
+        patcher = mock.patch.object(sqlite3, "sqlite_version_info", (3, 31, 1))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_neighbors_and_path_match_the_cte_results_without_recursive_sql(self):
+        r = query.neighbors(self.conn, self.key, "gamma", depth=2)
+        self.assertEqual({n["id"]: n["depth"] for n in r["nodes"]}, {"c": 0, "b": 1, "d": 1, "a": 2})
+        self.assertEqual({(e["src"], e["dst"]) for e in r["edges"]}, {("a", "b"), ("b", "c"), ("c", "d")})
+        p = query.path(self.conn, self.key, "a", "d")
+        self.assertEqual([n["id"] for n in p["nodes"]], ["a", "b", "c", "d"])
+        self.assertEqual([e["relation"] for e in p["edges"]], ["calls", "imports", "calls"])
+        self.assertFalse(query.path(self.conn, self.key, "a", "d", max_depth=2)["found"])
+        self.assertFalse(query.path(self.conn, self.key, "a", "iso")["found"])
+        self.assertFalse(any("RECURSIVE" in s.upper() for s in self.statements))
+
+    def test_fallback_is_bounded_by_the_node_limit(self):
+        data = {"nodes": [node("hub")] + [node(f"l{i}") for i in range(100)], "links": [edge("hub", f"l{i}") for i in range(100)]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+        with mock.patch.object(query, "NODE_LIMIT", 20):
+            r = query.neighbors(self.conn, self.key, "hub", depth=2)
+        self.assertEqual(len(r["nodes"]), 20)
+        self.assertTrue(r["truncated"])
+
+
+class MirroredKeysTest(Base):
+    def test_graphify_internal_keys_are_dropped_and_the_rest_is_kept(self):
+        data = {"nodes": [node("a", norm_label="alpha", community=3), node("b")], "links": [edge("a", "b", _src="a", _tgt="b", weight=2)]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+        n = json.loads(self.conn.execute("SELECT attrs_json FROM graph_nodes WHERE id='a'").fetchone()[0])
+        e = json.loads(self.conn.execute("SELECT attrs_json FROM graph_edges").fetchone()[0])
+        self.assertEqual(n, {"community": 3})
+        self.assertNotIn("_src", e)
+        self.assertNotIn("_tgt", e)
+        self.assertEqual(e["weight"], 2)
+
+
 class CliTest(Base):
     def test_sync_and_queries_over_the_cli(self):
         write_graph(self.repo)

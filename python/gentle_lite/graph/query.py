@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 MAX_DEPTH = 5
 PATH_MAX_DEPTH = 8
 NODE_LIMIT = 200
 EDGE_LIMIT = 500
+WALK_ROWS = 20_000  # hard bound on rows the walk may produce, applied before any grouping
+MIN_CTE_SQLITE = (3, 34)  # review decision: older SQLite builds use the Python BFS instead of recursive SQL
 
 
 class QueryError(Exception):
@@ -51,13 +54,15 @@ def _nodes(conn, repo, ids, extra=None):
 
 
 _WALK = """
-WITH RECURSIVE walk(node, depth, parent) AS (
-  SELECT value, 0, NULL FROM json_each(:seeds)
+WITH RECURSIVE walk(node, depth) AS (
+  SELECT value, 0 FROM json_each(:seeds)
   UNION
-  SELECT e.dst, w.depth + 1, w.node FROM walk w JOIN graph_edges e ON e.repo = :repo AND e.src = w.node WHERE w.depth < :cap
-  UNION
-  SELECT e.src, w.depth + 1, w.node FROM walk w JOIN graph_edges e ON e.repo = :repo AND e.dst = w.node WHERE w.depth < :cap
+  SELECT CASE WHEN e.src = w.node THEN e.dst ELSE e.src END, w.depth + 1
+  FROM walk w JOIN graph_edges e ON e.repo = :repo AND (e.src = w.node OR e.dst = w.node)
+  WHERE w.depth < :cap
+  LIMIT :rows
 )
+SELECT node, depth FROM walk
 """
 
 
@@ -67,37 +72,68 @@ def _depth(value, cap, name="depth"):
     return min(value, cap)
 
 
+def _cte_ok():
+    """The recursive CTE is only used on SQLite >= MIN_CTE_SQLITE; older builds get the Python breadth-first search."""
+    return sqlite3.sqlite_version_info >= MIN_CTE_SQLITE
+
+
+def _adjacent(conn, repo, node):
+    return [r[0] for r in conn.execute(
+        "SELECT DISTINCT CASE WHEN src = :n THEN dst ELSE src END FROM graph_edges WHERE repo = :repo AND (src = :n OR dst = :n) ORDER BY 1", {"n": node, "repo": repo})]
+
+
+def _reach(conn, repo, seeds, cap):
+    """Breadth-first reach from `seeds`: ({node: min depth} in BFS order, truncated). Edges are walked in both directions.
+
+    The walk is bounded at WALK_ROWS rows *before* any grouping, and the queue is FIFO so the nearest nodes survive a cut.
+    """
+    reached = {}
+    if _cte_ok():
+        rows = conn.execute(_WALK, {"seeds": json.dumps(seeds), "repo": repo, "cap": cap, "rows": WALK_ROWS}).fetchall()
+        for r in rows:
+            reached.setdefault(r["node"], r["depth"])  # first occurrence = minimum depth
+        return reached, len(rows) >= WALK_ROWS
+    reached = {s: 0 for s in seeds}
+    frontier = list(seeds)
+    for depth in range(1, cap + 1):
+        nxt = []
+        for node in frontier:
+            for other in _adjacent(conn, repo, node):
+                if other not in reached:
+                    reached[other] = depth
+                    nxt.append(other)
+                    if len(reached) >= WALK_ROWS:
+                        return reached, True
+        frontier = nxt
+    return reached, False
+
+
 def neighbors(conn, repo, node, depth=1):
     depth = _depth(depth, MAX_DEPTH)
     seeds = resolve(conn, repo, node)
-    reached = {r["node"]: r["depth"] for r in conn.execute(
-        _WALK + "SELECT node, min(depth) AS depth FROM walk GROUP BY node ORDER BY min(depth), node LIMIT :limit",
-        {"seeds": json.dumps(seeds), "repo": repo, "cap": depth, "limit": NODE_LIMIT})}
-    ids = list(reached)
+    reached, walk_cut = _reach(conn, repo, seeds, depth)
+    ordered = sorted(reached.items(), key=lambda kv: (kv[1], kv[0]))
+    kept = dict(ordered[:NODE_LIMIT])
+    ids = list(kept)
     edges = [dict(r) for r in conn.execute(
         "SELECT src, dst, relation FROM graph_edges WHERE repo = ? AND src IN (SELECT value FROM json_each(?)) AND dst IN (SELECT value FROM json_each(?)) "
         "ORDER BY src, dst, relation LIMIT ?", (repo, json.dumps(ids), json.dumps(ids), EDGE_LIMIT))]
-    nodes = sorted(_nodes(conn, repo, ids, reached), key=lambda n: (n["depth"], n["id"]))
-    return {"repo": repo, "start": seeds, "depth": depth, "nodes": nodes, "edges": edges, "truncated": len(ids) >= NODE_LIMIT}
+    nodes = sorted(_nodes(conn, repo, ids, kept), key=lambda n: (n["depth"], n["id"]))
+    return {"repo": repo, "start": seeds, "depth": depth, "nodes": nodes, "edges": edges, "truncated": walk_cut or len(ordered) > NODE_LIMIT}
 
 
 def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
     cap = _depth(max_depth, PATH_MAX_DEPTH, "max_depth")
     starts, goals = resolve(conn, repo, a), set(resolve(conn, repo, b))
-    args = {"seeds": json.dumps(starts), "repo": repo, "cap": cap}
-    # SQLite evaluates the queue first-in-first-out, so the first row that is a goal sits at the minimum depth.
-    first = conn.execute(_WALK + "SELECT depth FROM walk WHERE node IN (SELECT value FROM json_each(:goals)) LIMIT 1", {**args, "goals": json.dumps(sorted(goals))}).fetchone()
-    if first is None:
+    reached, _ = _reach(conn, repo, starts, cap)
+    hits = {n: d for n, d in reached.items() if n in goals}
+    if not hits:
         return {"repo": repo, "found": False, "max_depth": cap, "nodes": [], "edges": []}
-    found = first["depth"]
-    rows = conn.execute(_WALK + "SELECT node, depth, parent FROM walk", {**args, "cap": found}).fetchall()
-    parents = {}
-    for r in rows:
-        parents.setdefault((r["node"], r["depth"]), r["parent"])
-    node = min(n for (n, d) in parents if d == found and n in goals)
+    found = min(hits.values())
+    node = min(n for n, d in hits.items() if d == found)
     chain = [node]
-    for d in range(found, 0, -1):
-        node = parents[(node, d)]
+    for d in range(found - 1, -1, -1):  # step back through any neighbour one level closer to the start
+        node = min(x for x in _adjacent(conn, repo, node) if reached.get(x) == d)
         chain.append(node)
     chain.reverse()
     edges = []
