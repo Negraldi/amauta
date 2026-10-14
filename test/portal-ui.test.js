@@ -51,6 +51,7 @@ test('static files: no innerHTML-style sinks, no external URLs, no inline script
   assert.ok(!/<script[^>]*src="https?:/.test(html));
   assert.match(css, /prefers-color-scheme:\s*dark/);
   assert.match(css, /@media \(max-width:\s*\d+px\)/);
+  assert.match(css, /overflow-wrap:\s*anywhere/); // long titles must not force horizontal scroll at 375px
 });
 
 test('app.js is valid JavaScript', async () => {
