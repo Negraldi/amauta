@@ -28,7 +28,7 @@ In:
 - Hooks: skill-registry refresh (UserPromptSubmit), review stop reminder (SessionStart/Stop).
 - Optional SDD module (`--with-sdd`): v3 sdd-* skills/agents/commands/_shared, Python `sdd_status.py`/`sdd_continue`, Python preflight hook.
 
-Out (dropped from upstream): telemetry, TUI, 18 non-Claude adapters, consent envelopes, lineage/receipts/burn, installer DAG, ownership ledgers, self-update.
+Out (dropped from upstream): network telemetry (local-only telemetry is in scope, T10), TUI, 18 non-Claude adapters, consent envelopes, lineage/receipts/burn, installer DAG, ownership ledgers, self-update.
 
 ## Constraints
 
