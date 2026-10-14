@@ -6,6 +6,7 @@ import re
 import sqlite3
 import threading
 import time
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -90,6 +91,7 @@ class Portal:
         except sqlite3.Error as err:
             return 200, {"available": False, "error": f"database unavailable: {type(err).__name__}"}
         except Exception:  # never leak details or drop the connection because of one broken view
+            traceback.print_exc()  # the diagnostic stays on the server side (stderr), never in the response
             return 500, {"error": "internal error"}
 
     # ---- usage ----------------------------------------------------------------------------

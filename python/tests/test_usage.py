@@ -234,6 +234,31 @@ class BatchTest(Base):
         self.assertEqual(ingest.ingest_file(c, self.transcript)["messages"], 10)
 
 
+class AtomicBatchTest(Base):
+    def test_failure_mid_batch_rolls_back_the_batch_and_never_leaks_into_the_next_file(self):
+        write_jsonl(self.transcript, [assistant(f"m{i}") for i in range(8)])
+        other = self.home / "projects" / "-other" / "s2.jsonl"
+        write_jsonl(other, [assistant("o1", session="s2")])
+        c = self.conn()
+        real_store = ingest._store
+        calls = []
+
+        def failing(conn, raw, path, stats):
+            calls.append(1)
+            if len(calls) == 5:
+                raise sqlite3.OperationalError("database is locked")
+            real_store(conn, raw, path, stats)
+
+        with mock.patch.object(ingest, "BATCH_LINES", 10), mock.patch.object(ingest, "_store", failing):
+            with self.assertRaises(sqlite3.OperationalError):
+                ingest.ingest_file(c, self.transcript)
+        self.assertFalse(c.in_transaction)
+        self.assertEqual(rows(self.state, "SELECT count(*) AS n FROM usage_messages")[0]["n"], 0)
+        ingest.ingest_file(c, other)  # its state save must not commit the failed file's rows
+        self.assertEqual([r["message_id"] for r in rows(self.state, "SELECT message_id FROM usage_messages")], ["o1"])
+        self.assertEqual(ingest.ingest_file(c, self.transcript)["messages"], 8)  # nothing was half-recorded
+
+
 class BackfillTest(Base):
     def test_sqlite_error_on_one_file_is_counted_and_backfill_continues(self):
         write_jsonl(self.transcript, [assistant("m1")])

@@ -32,10 +32,20 @@ class ApiBase(unittest.TestCase):
 
 class RobustnessTest(ApiBase):
     def test_unexpected_view_exception_is_a_500_json_without_details(self):
-        with mock.patch.object(self.portal, "overview", side_effect=RuntimeError("secret /path detail")):
+        with mock.patch.object(self.portal, "overview", side_effect=RuntimeError("secret /path detail")), mock.patch("sys.stderr"):
             status, body = self.portal.get("/api/overview", {})
         self.assertEqual(status, 500)
         self.assertEqual(body, {"error": "internal error"})
+
+    def test_unexpected_view_exception_is_logged_to_stderr(self):
+        import io
+        buf = io.StringIO()
+        with mock.patch.object(self.portal, "overview", side_effect=RuntimeError("boom-marker")), mock.patch("sys.stderr", buf):
+            status, body = self.portal.get("/api/overview", {})
+        self.assertEqual(status, 500)
+        self.assertNotIn("boom-marker", json.dumps(body))
+        self.assertIn("boom-marker", buf.getvalue())
+        self.assertIn("Traceback", buf.getvalue())
 
     def test_memory_history_closes_the_connection_when_topic_is_missing(self):
         closed = []

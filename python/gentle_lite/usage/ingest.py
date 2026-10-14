@@ -95,8 +95,9 @@ def ingest_file(conn, path, max_lines: int | None = None, deadline: float | None
         return stats
     consumed = offset
     pending = b""
+    batch: list[bytes] = []
+    taken = 0
     done = False
-    in_batch = 0
     with open(path, "rb") as f:
         f.seek(offset)
         while not done:
@@ -110,27 +111,34 @@ def ingest_file(conn, path, max_lines: int | None = None, deadline: float | None
                     break
                 raw, pending = pending[:nl], pending[nl + 1:]
                 consumed += nl + 1
-                stats["lines"] += 1
-                in_batch += 1
-                _store(conn, raw, path, stats)
-                if in_batch >= BATCH_LINES:  # short transactions: never starve telemetry writers
-                    _save_state(conn, path, st, consumed)
-                    in_batch = 0
-                if (max_lines is not None and stats["lines"] >= max_lines) or (deadline is not None and time.monotonic() > deadline):
+                taken += 1
+                batch.append(raw)
+                if len(batch) >= BATCH_LINES:  # short transactions: never starve telemetry writers
+                    _commit_batch(conn, batch, path, st, consumed, stats)
+                    batch = []
+                if (max_lines is not None and taken >= max_lines) or (deadline is not None and time.monotonic() > deadline):
                     done = True
                     break
-    _save_state(conn, path, st, consumed)
+    _commit_batch(conn, batch, path, st, consumed, stats)
     return stats
 
 
+def _commit_batch(conn, batch: list, path: Path, st, consumed: int, stats: dict) -> None:
+    """One explicit transaction: the rows of the batch and the offset they reach commit together, or neither does."""
+    with conn:  # commits on success, rolls the whole batch back if any statement raises
+        for raw in batch:
+            stats["lines"] += 1
+            _store(conn, raw, path, stats)
+        _save_state(conn, path, st, consumed)
+
+
 def _save_state(conn, path: Path, st, consumed: int) -> None:
-    """Commit the rows of the current batch together with the offset they reach."""
-    with conn:
-        conn.execute(
-            'INSERT INTO ingest_state (path, size, mtime, "offset") VALUES (?,?,?,?) '
-            'ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, "offset"=excluded."offset"',
-            (str(path), st.st_size, st.st_mtime, consumed),
-        )
+    """Record the offset; always called inside the batch transaction opened by _commit_batch."""
+    conn.execute(
+        'INSERT INTO ingest_state (path, size, mtime, "offset") VALUES (?,?,?,?) '
+        'ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, "offset"=excluded."offset"',
+        (str(path), st.st_size, st.st_mtime, consumed),
+    )
 
 
 def _store(conn, raw: bytes, path: Path, stats: dict) -> None:
