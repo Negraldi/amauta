@@ -1,6 +1,6 @@
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, stat, readdir, writeFile, chmod, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, readdir, writeFile, chmod, rm, open } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { writeFileAtomic } from '../src/core/fsatomic.js';
@@ -59,5 +59,22 @@ test('accepts Buffers', async () => {
   const f = path.join(d, 'bin');
   await writeFileAtomic(f, Buffer.from([1, 2, 3]));
   assert.deepEqual([...(await readFile(f))], [1, 2, 3]);
+  await rm(d, { recursive: true });
+});
+
+test('removes the temp file when the write fails and rethrows', async () => {
+  const d = await tmp();
+  const probe = await open(path.join(d, 'probe'), 'w');
+  const proto = Object.getPrototypeOf(probe);
+  await probe.close();
+  const m = mock.method(proto, 'writeFile', async () => {
+    throw Object.assign(new Error('disk full'), { code: 'ENOSPC' });
+  });
+  try {
+    await assert.rejects(writeFileAtomic(path.join(d, 'x'), 'data'), { code: 'ENOSPC' });
+  } finally {
+    m.mock.restore();
+  }
+  assert.deepEqual((await readdir(d)).sort(), ['probe']);
   await rm(d, { recursive: true });
 });

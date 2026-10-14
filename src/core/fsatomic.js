@@ -30,10 +30,15 @@ export async function writeFileAtomic(file, data, opts = {}) {
   const tmp = path.join(path.dirname(target), `.${path.basename(target)}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`);
   const fh = await open(tmp, 'wx', mode);
   try {
-    await fh.writeFile(buf);
-    await fh.sync();
-  } finally {
-    await fh.close();
+    try {
+      await fh.writeFile(buf);
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+  } catch (err) {
+    await unlink(tmp).catch(() => {});
+    throw err;
   }
   try {
     await chmod(tmp, mode); // umask-proof

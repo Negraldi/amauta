@@ -5,7 +5,16 @@ import { writeFileAtomic } from './fsatomic.js';
 export const BACKUP_SCHEMA = 'gentle-lite.backup/v1';
 
 const stamp = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-const statOrNull = (p) => stat(p).then((s) => s, () => null);
+// Only a missing path counts as "did not exist"; any other failure (EACCES, ENOTDIR, ELOOP...)
+// must surface so a backup never claims a file was absent when it merely could not be read.
+const statOrNull = (p) =>
+  stat(p).then(
+    (s) => s,
+    (err) => {
+      if (err.code === 'ENOENT') return null;
+      throw err;
+    },
+  );
 
 async function uniqueDir(root, name) {
   for (let n = 0; ; n += 1) {
@@ -58,15 +67,39 @@ export async function readManifest(dir) {
   return manifest;
 }
 
-/** Restore files that existed; delete files that did not exist before the backup. */
+/**
+ * Restore files that existed; delete files that did not exist before the backup.
+ * Every entry is validated first so a damaged backup mutates nothing; a failure
+ * midway throws an error listing what was restored and what is still pending.
+ */
 export async function restoreBackup(dir) {
   const manifest = await readManifest(dir);
   for (const e of manifest.entries) {
-    if (e.existed) {
-      await writeFileAtomic(e.original_path, await readFile(path.join(dir, e.snapshot_path)), { mode: e.mode });
-    } else {
-      await rm(e.original_path, { force: true });
+    if (!e.existed) continue;
+    const snapshot = e.snapshot_path ? path.join(dir, e.snapshot_path) : null;
+    const st = snapshot ? await stat(snapshot).catch(() => null) : null;
+    if (!st?.isFile()) throw new Error(`backup snapshot missing or unreadable for ${e.original_path}; nothing was restored`);
+  }
+  const restored = [];
+  for (let i = 0; i < manifest.entries.length; i += 1) {
+    const e = manifest.entries[i];
+    try {
+      if (e.existed) {
+        await writeFileAtomic(e.original_path, await readFile(path.join(dir, e.snapshot_path)), { mode: e.mode });
+      } else {
+        await rm(e.original_path, { force: true });
+      }
+    } catch (cause) {
+      const pending = manifest.entries.slice(i).map((x) => x.original_path);
+      const err = new Error(
+        `restore failed at ${e.original_path}: ${cause.message}\nrestored: ${restored.join(', ') || '(none)'}\npending: ${pending.join(', ')}`,
+        { cause },
+      );
+      err.restored = restored;
+      err.pending = pending;
+      throw err;
     }
+    restored.push(e.original_path);
   }
   return manifest;
 }
