@@ -37,6 +37,8 @@ TOOLS = [
     _tool("mem_session_end", "Mark a session as ended, optionally with a summary.", {"id": _S, "summary": _S}, ["id"]),
     _tool("mem_session_summary", "Save the end-of-session summary.", {"content": _S, "project": _S, "session_id": _S}, ["content"]),
     _tool("mem_save_prompt", "Save a user prompt for later context.", {"content": _S, "project": _S, "session_id": _S}, ["content"]),
+    _tool("graph_query", "Query the graphify code graph mirrored in memory.db (repo must have been synced). action: neighbors (node, depth), path (node -> target), search (node = text).",
+          {"repo": _S, "action": _S, "node": _S, "target": _S, "depth": _I}, ["repo", "action"]),
     _tool("mem_current_project", "Detect the current project name from a directory (default: server cwd).", {"cwd": _S}),
 ]
 _BY_NAME = {t["name"]: t for t in TOOLS}
@@ -113,7 +115,27 @@ def _run(store, name, a):
         return f"Prompt saved (#{r['id']})"
     if name == "mem_current_project":
         return mstore.detect_project(a.get("cwd"))
+    if name == "graph_query":
+        return _graph(store, a)
     raise ToolError(f"unhandled tool {name}")
+
+
+def _graph(store, a):
+    from ..graph import query  # lazy: only graph users pay for the import
+
+    action, node = a["action"], a.get("node")
+    if action not in ("neighbors", "path", "search") or (action != "search" and not node) or (action == "path" and not a.get("target")):
+        raise ToolError("action must be neighbors (needs node), path (needs node and target) or search")
+    try:
+        if action == "neighbors":
+            out = query.neighbors(store.conn, a["repo"], node, a.get("depth") or 1)
+        elif action == "path":
+            out = query.path(store.conn, a["repo"], node, a["target"])
+        else:
+            out = query.search_nodes(store.conn, a["repo"], node or "")
+    except query.QueryError as e:
+        raise ToolError(str(e)) from None
+    return json.dumps(out, ensure_ascii=False)
 
 
 def _result(i, msg):

@@ -12,7 +12,7 @@ from python.gentle_lite.memory import store as mstore
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_TOOLS = {
     "mem_save", "mem_update", "mem_search", "mem_context", "mem_get_observation",
-    "mem_session_start", "mem_session_end", "mem_session_summary", "mem_save_prompt", "mem_current_project",
+    "mem_session_start", "mem_session_end", "mem_session_summary", "mem_save_prompt", "mem_current_project", "graph_query",
 }
 
 
@@ -45,6 +45,28 @@ class ServerTest(unittest.TestCase):
         self.assertEqual({t["name"] for t in tools}, EXPECTED_TOOLS)
         for t in tools:
             self.assertEqual(t["inputSchema"]["type"], "object")
+
+    def test_graph_query_tool_reads_the_mirrored_graph(self):
+        from python.gentle_lite.graph import sync
+        from python.tests.test_graph import GRAPH, write_graph
+        repo = Path(self.tmp.name) / "repo"
+        repo.mkdir()
+        write_graph(repo, GRAPH)
+        key = str(repo.resolve())
+
+        def ask(**args):
+            return mserver.handle(self.store, call(1, "graph_query", {"repo": key, **args}))["result"]
+
+        self.assertTrue(ask(action="neighbors", node="a")["isError"])  # not synced yet
+        sync.sync_repo(self.store.conn, repo)
+        near = json.loads(ask(action="neighbors", node="a", depth=2)["content"][0]["text"])
+        self.assertEqual({n["id"] for n in near["nodes"]}, {"a", "b", "e", "c"})
+        route = json.loads(ask(action="path", node="a", target="d")["content"][0]["text"])
+        self.assertEqual([n["id"] for n in route["nodes"]], ["a", "b", "c", "d"])
+        found = json.loads(ask(action="search", node="alp")["content"][0]["text"])
+        self.assertEqual([n["id"] for n in found], ["a"])
+        for bad in ({"action": "nope", "node": "a"}, {"action": "path", "node": "a"}, {"action": "neighbors"}, {"action": "neighbors", "node": "zzz"}):
+            self.assertTrue(ask(**bad)["isError"], bad)
 
     def test_save_search_get_update_flow(self):
         saved = mserver.handle(self.store, call(1, "mem_save", {"title": "Use WAL", "content": "journal_mode=WAL for readers", "type": "decision", "project": "demo", "topic_key": "decision/wal"}))
