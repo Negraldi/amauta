@@ -55,6 +55,21 @@ const USAGE_EVENTS = ['Stop', 'SubagentStop'];
 /** Command prefix the SDD assets use to call our status module (`{{GENTLE_LITE_SDD}}`) and the preflight hook command. */
 export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m gentle_lite.sdd`;
 
+const PREFLIGHT_DENY = JSON.stringify({
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'SDD preflight hook could not run (python3 missing, import failure or crash); dispatch refused fail-closed. Fix the gentle-lite install (gentle-lite status).',
+  },
+});
+
+/**
+ * Preflight hook command with a shell-level fail-closed guard: when the Python hook cannot start or exits
+ * non-zero, the shell prints a PreToolUse deny decision and still exits 0. (Claude Code only blocks on exit 2
+ * or an explicit deny, so a bare launcher failure would otherwise fail open.)
+ */
+export const sddPreflightCommand = () => `${sddCommand()} preflight-hook || printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}`;
+
 /** Hook entries registered in settings.json. */
 export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
   const hooks = {
@@ -66,6 +81,6 @@ export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) 
     for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
     for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage')] });
   }
-  if (sdd) hooks.PreToolUse = [{ matcher: 'Agent', hooks: [{ type: 'command', command: `${sddCommand()} preflight-hook`, timeout: 30 }] }];
+  if (sdd) (hooks.PreToolUse ??= []).push({ matcher: 'Agent', hooks: [{ type: 'command', command: sddPreflightCommand(), timeout: 30 }] });
   return hooks;
 }

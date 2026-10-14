@@ -183,4 +183,7 @@ Spec-Driven Development from gentle-ai v3.4.0, installed only on request and rem
   dispatched only after the parent asked the three-question `AskUserQuestion` preflight (Interactive|Automatic,
   OpenSpec|Engram|Both, Ask me|Single PR|Auto) and the human answered it in the session transcript; the hook then
   prefixes the `## SDD Session Preflight` block to the prompt. It always exits 0 and fails closed for `sdd-*`
-  (deny) while staying silent for every other agent.
+  (deny) while staying silent for every other agent. The registered command is wrapped as
+  `<python hook> || printf '<deny json>'`: if `python3` is missing, the module cannot be imported or the hook
+  exits non-zero, the shell itself prints the PreToolUse deny decision and exits 0. Residual gap: if the shell
+  cannot run the command at all (e.g. no `sh`), Claude Code treats it as a non-blocking hook error.

@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { install, uninstall, status } from '../src/install/installer.js';
+import { desiredHooks } from '../src/install/servers.js';
+import { chmod } from 'node:fs/promises';
 import { loadManifest, assetPath, readAssetText } from '../src/install/assets.js';
 import { main } from '../src/cli.js';
 
@@ -66,7 +68,7 @@ test('--with-sdd installs skills, agents, commands, shared contracts and the Pre
   assert.equal(hooks.length, 1);
   assert.equal(hooks[0].matcher, 'Agent');
   assert.equal(hooks[0].timeout, 30);
-  assert.equal(hooks[0].command, `env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd preflight-hook`);
+  assert.ok(hooks[0].command.startsWith(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd preflight-hook || printf `), hooks[0].command);
   await t.cleanup();
 });
 
@@ -210,4 +212,57 @@ test('manifest lists every SDD asset and nothing in assets/sdd is left unreferen
   for (const a of m.sdd.agents) assert.ok(existsSync(assetPath(`${m.sdd.agentsDir}/${a.name}.md`)), a.name);
   assert.deepEqual(m.sdd.agents.map((a) => a.name).sort(), PHASES.map((p) => `sdd-${p}`).sort());
   assert.match(await readAssetText('sdd/commands/lite-sdd-new.md'), /lite-sdd|sdd-orchestrator-workflow/);
+});
+
+const AGENT_PAYLOAD = { session_id: 'abc-123', hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'sdd-apply', prompt: 'x' } };
+const assertDeny = (r) => {
+  assert.equal(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.deepEqual(Object.keys(out), ['hookSpecificOutput']);
+  assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
+  assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+  assert.ok(out.hookSpecificOutput.permissionDecisionReason.length > 0);
+};
+
+test('preflight hook fails closed at shell level: broken PYTHONPATH', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const [hook] = sddHooks(await t.settings());
+  const broken = hook.command.replace(/PYTHONPATH=\S+/, 'PYTHONPATH=/nonexistent-gl-dir');
+  assert.notEqual(broken, hook.command);
+  assertDeny(spawnSync('sh', ['-c', broken], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root }));
+  await t.cleanup();
+});
+
+test('preflight hook fails closed at shell level: python3 shadowed by a failing script', async () => {
+  const t = await sandbox();
+  await install(t.opts({ withSdd: true }));
+  const [hook] = sddHooks(await t.settings());
+  const bin = path.join(t.root, 'fakebin');
+  await mkdir(bin);
+  await writeFile(path.join(bin, 'python3'), '#!/bin/sh\nexit 127\n');
+  await chmod(path.join(bin, 'python3'), 0o755);
+  const r = spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assertDeny(r);
+  await t.cleanup();
+});
+
+test('desiredHooks appends the SDD hook to any existing PreToolUse entries', () => {
+  const hooks = desiredHooks({ stateDir: '/s', sdd: true });
+  assert.equal(hooks.PreToolUse.length, 1);
+  assert.match(hooks.PreToolUse[0].hooks[0].command, /preflight-hook/);
+});
+
+test('a pre-existing user PreToolUse hook survives install and uninstall with --with-sdd', async () => {
+  const userHook = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo user-hook' }] };
+  const t = await sandbox({ settings: { hooks: { PreToolUse: [userHook] } } });
+  await install(t.opts({ withSdd: true }));
+  let pre = (await t.settings()).hooks.PreToolUse;
+  assert.deepEqual(pre[0], userHook);
+  assert.equal(pre.length, 2);
+  await install(t.opts({ withSdd: true }));
+  assert.equal((await t.settings()).hooks.PreToolUse.length, 2, 'idempotent');
+  await uninstall(t.opts());
+  assert.deepEqual((await t.settings()).hooks.PreToolUse, [userHook]);
+  await t.cleanup();
 });
