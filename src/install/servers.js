@@ -44,11 +44,12 @@ const hook = (name, timeout) => ({
 const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop', 'SubagentStop'];
 
 /** Local-only telemetry hook: `env` form works in Claude Code hook command strings (run through a shell). */
-const pythonHook = (stateDir, module) => ({
+const pythonHook = (stateDir, module, timeout) => ({
   type: 'command',
+  timeout,
   command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`GENTLE_LITE_STATE_DIR=${stateDir}`), `python3 -P -m ${module} hook`].join(' '),
 });
-const telemetryHook = (stateDir) => pythonHook(stateDir, 'gentle_lite.telemetry');
+const telemetryHook = (stateDir) => pythonHook(stateDir, 'gentle_lite.telemetry', 5);
 /** Transcript usage ingestion: only after a turn or subagent ends. */
 const USAGE_EVENTS = ['Stop', 'SubagentStop'];
 
@@ -73,13 +74,13 @@ export const sddPreflightCommand = () => `${sddCommand()} preflight-hook || prin
 /** Hook entries registered in settings.json. */
 export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
   const hooks = {
-    UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry')] }],
+    UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry', 10)] }],
     SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30)] }],
     Stop: [{ matcher: '', hooks: [hook('review-stop', 60)] }],
   };
   if (telemetry) {
     for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
-    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage')] });
+    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage', 10)] });
   }
   if (sdd) (hooks.PreToolUse ??= []).push({ matcher: 'Agent', hooks: [{ type: 'command', command: sddPreflightCommand(), timeout: 30 }] });
   return hooks;

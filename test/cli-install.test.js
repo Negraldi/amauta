@@ -51,3 +51,12 @@ test('help lists install, uninstall and status', () => {
   const r = run(['--help'], {});
   for (const c of ['install', 'uninstall', 'status']) assert.match(r.stdout, new RegExp(c));
 });
+
+test('status prints the per-block CLAUDE.md size report', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cli3-'));
+  const env = { GENTLE_LITE_CLAUDE_HOME: path.join(root, 'claude'), GENTLE_LITE_CLAUDE_JSON: path.join(root, 'c.json'), GENTLE_LITE_STATE_DIR: path.join(root, 'state') };
+  assert.equal(run(['install'], env).status, 0);
+  const r = run(['status'], env);
+  assert.match(r.stdout, /CLAUDE\.md: \d+ chars \(budget 20000\)/);
+  assert.match(r.stdout, /orchestrator\s+\d+ chars/);
+});

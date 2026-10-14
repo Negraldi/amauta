@@ -74,6 +74,9 @@ async function runStatus(opts, io) {
   io.stdout.write(`gentle-lite ${s.state.version}: ${s.ok ? 'installed' : 'installed with problems'} (${s.items.length - bad.length}/${s.items.length} ok)\n`);
   for (const i of bad) io.stdout.write(`  [problem] ${i.name}: ${i.detail}\n`);
   for (const n of s.notes ?? []) io.stdout.write(`  [optional] ${n.name}: ${n.detail}\n`);
+  io.stdout.write(`  CLAUDE.md: ${s.sizes.total} chars (budget ${s.sizes.budget})\n`);
+  for (const b of s.sizes.blocks) io.stdout.write(`    ${b.id.padEnd(20)}${b.chars} chars, ${b.lines} lines\n`);
+  for (const w of s.warnings) io.stdout.write(`  [warning] ${w}\n`);
   io.stdout.write(`  claude home: ${s.state.claude_home}\n  rdd mode: ${s.state.rdd_mode}\n`);
   return s.ok ? 0 : 1;
 }

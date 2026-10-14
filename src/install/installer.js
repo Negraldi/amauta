@@ -22,6 +22,8 @@ import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.
 export const STATE_SCHEMA = 'gentle-lite.state/v1';
 const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
 const STYLE_NAMES = ['Gentleman', 'Neutral'];
+/** Always-on CLAUDE.md budget (chars across the blocks gentle-lite installed). */
+export const CLAUDE_MD_BUDGET = 20000;
 export const CODEGRAPH_PROMPT_HOOK = 'codegraph prompt-hook';
 
 const hasCommand = (settings, event, command) =>
@@ -200,7 +202,7 @@ async function plan(opts) {
   const codegraphHookAdded = !dropHook && (weAddedHook || (codegraphOnPath && !hookWasThere));
   if (dropHook) settings = removeHooksWhere(settings, (c) => c === CODEGRAPH_PROMPT_HOOK);
   if (codegraphOnPath && !hookWasThere) {
-    settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK }] }] });
+    settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK, timeout: 10 }] }] });
   }
   if (!settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data)) {
     writes.push({ rel: 'settings.json', path: settingsFile, data: Buffer.from(toJson(settings), 'utf8') });
@@ -387,7 +389,8 @@ export async function status(opts = {}) {
   const add = (name, ok, detail = '') => items.push({ name, ok, detail });
 
   const md = (await readOrNull(abs(t.claudeHome, 'CLAUDE.md')))?.toString('utf8') ?? '';
-  const present = new Set(listSections(md).map((s) => s.id));
+  const found = listSections(md);
+  const present = new Set(found.map((s) => s.id));
   for (const id of state.claude_md_sections ?? []) add(`CLAUDE.md section ${id}`, present.has(id), present.has(id) ? '' : 'missing');
 
   const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
@@ -417,5 +420,11 @@ export async function status(opts = {}) {
   // Optional external tools: reported, but never make the install unhealthy.
   const cg = await codegraphStatus({ cwd: opts.cwd, searchPath: opts.searchPath });
   notes.push({ name: 'codegraph', ok: cg.onPath, detail: cg.onPath ? `${cg.path}; index in ${path.resolve(opts.cwd ?? process.cwd())}: ${cg.indexed ? 'present' : 'missing (run: gentle-lite codegraph init)'}` : CODEGRAPH_HINT });
-  return { installed: true, ok: items.every((i) => i.ok), items, notes, state };
+  const blocks = found
+    .filter((s) => (state.claude_md_sections ?? []).includes(s.id))
+    .map((s) => ({ id: s.id, chars: s.body.length, lines: s.body.split('\n').length }));
+  const total = blocks.reduce((n, b) => n + b.chars, 0);
+  const sizes = { blocks, total, budget: CLAUDE_MD_BUDGET, over: total > CLAUDE_MD_BUDGET };
+  const warnings = sizes.over ? [`CLAUDE.md blocks use ${total} chars, over the ${CLAUDE_MD_BUDGET}-char budget; every session pays for them`] : [];
+  return { installed: true, ok: items.every((i) => i.ok), items, notes, sizes, warnings, state };
 }

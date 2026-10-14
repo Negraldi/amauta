@@ -50,4 +50,3 @@ Return target identity, round, confirmed/suspect/contradiction/INFO counts, corr
 ## References
 
 - [references/prompts-and-formats.md](references/prompts-and-formats.md) — compact judge/fix prompts and verdict shape.
-- [../_shared/review-ledger-contract.md](../_shared/review-ledger-contract.md) — optional ordinary negotiated-review context: consult it only when the caller explicitly requests that lifecycle; never required to run judges and never delivery authorization.

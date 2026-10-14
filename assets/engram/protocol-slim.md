@@ -1,39 +1,9 @@
-## Engram Persistent Memory
+## Memory
 
-Engram persistent memory is ACTIVE. The full protocol (save format, lifecycle,
-search flow, after-compaction steps) is delivered every session by the Engram
-MCP server instructions and the SessionStart hook. Always-on rules:
+Persistent memory is the `engram` MCP server (tools `mem_*`); it survives sessions and compaction.
 
-- Before the first `mem_context`, `mem_search`, or `mem_review`, call
-  `mem_current_project` and wait for it (pass the runtime workspace as `cwd`
-  only if the tool schema accepts it). Apply the first matching rule and stop:
-  (1) runtime workspace unknown, returned `cwd` missing or different, or the
-  call fails: skip those initial reads and say Engram must run from the
-  correct workspace; (2) `available_projects` non-empty or `project_source`
-  `ambiguous`: ask the user to choose exactly one value, never pass it as
-  `project`, and re-resolve only via `cwd` with that repository's directory,
-  else skip those reads; (3) empty `project`: skip those reads; (4) otherwise
-  pass the exact returned `project` as `project`. Never invent a name or fall
-  back to all projects unless the user explicitly asks to recall across
-  projects or from a named other project.
-- Call `mem_save` PROACTIVELY after any decision, bugfix, discovery, convention,
-  or config change — do not wait to be asked. Use `capture_prompt: false` for
-  automated artifacts.
-- On any reference to past work: `mem_context` → `mem_search` → `mem_get_observation`.
-- Before saying "done", call `mem_session_summary`.
-- Saving to memory is bookkeeping, never the reply: it NEVER counts as answering.
-  End every turn with the complete user-facing answer as the final message (no
-  tool calls after it), and save memory before composing it — never collapse the
-  answer into a "saved / done" acknowledgement.
-- If a memory call fails or times out, deliver the answer anyway — memory
-  failures never block or replace the reply.
-- If `mem_session_start` fails with `ambiguous_project`: resolve the intended
-  repository root and retry `mem_session_start` with that root as `directory`.
-  The session ID remains unregistered until registration succeeds; never attach
-  an unregistered session ID to writes. Do not pass `project`,
-  `project_choice_reason`, or `recovery_token` to `mem_session_start`.
-- On `ambiguous_project` from write tools (`mem_save`, `mem_save_prompt`,
-  `mem_session_summary`): never guess. Ask the user to choose exactly one value
-  from `available_projects`, then retry the write tool with `project`,
-  `project_choice_reason=user_selected_after_ambiguous_project`, and the
-  returned `recovery_token`.
+- Session start: call `mem_current_project`, then `mem_context` with that project; pass the same `project` to later calls. If the project is unknown, skip reads instead of guessing.
+- Save with `mem_save` right after a decision, bugfix, discovery, convention or config change. Use `type` = `decision` | `bugfix` | `discovery` | `convention` | `config`, a short title, and a stable `topic_key` for anything that evolves (same key updates the entry). Do not save what the repo, git history or code already shows, secrets, or transient chatter.
+- On any reference to past work: `mem_context`, then `mem_search`, then `mem_get_observation` for the full text.
+- Before saying "done", call `mem_session_summary` (goal, outcome, next step).
+- Memory is bookkeeping, never the reply: save first, then end the turn with the complete user-facing answer. If a memory call fails, answer anyway.

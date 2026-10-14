@@ -339,3 +339,37 @@ test('re-install removes CLAUDE.md sections that an earlier version installed an
   assert.ok(listSections(after).some((s) => s.id === 'orchestrator'));
   await t.cleanup();
 });
+
+test('every hook gentle-lite registers, including the codegraph prompt hook, carries a timeout', async () => {
+  const t = await sandbox();
+  const bin = path.join(t.root, 'bin');
+  await mkdir(bin);
+  await writeFile(path.join(bin, 'codegraph'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  await install(t.opts({ searchPath: bin, withSdd: true }));
+  const settings = await readJson(t.p('settings.json'));
+  const hooks = Object.values(settings.hooks).flatMap((es) => es.flatMap((e) => e.hooks));
+  assert.ok(hooks.some((h) => h.command === 'codegraph prompt-hook'));
+  assert.ok(hooks.length >= 8);
+  for (const h of hooks) assert.ok(Number.isInteger(h.timeout) && h.timeout > 0 && h.timeout <= 60, `no sane timeout on: ${h.command}`);
+  await t.cleanup();
+});
+
+test('status reports the size of each CLAUDE.md block and warns above the 20k-char budget', async () => {
+  const t = await sandbox({ claudeMd: USER_MD });
+  await install(t.opts());
+  const ok = await status(t.opts());
+  assert.equal(ok.sizes.budget, 20000);
+  assert.deepEqual(ok.sizes.blocks.map((b) => b.id).sort(), ['codegraph-guidance', 'engram-protocol', 'orchestrator', 'persona']);
+  for (const b of ok.sizes.blocks) assert.ok(b.chars > 0 && b.lines > 0);
+  assert.equal(ok.sizes.total, ok.sizes.blocks.reduce((n, b) => n + b.chars, 0));
+  assert.ok(ok.sizes.total <= ok.sizes.budget, `shipped blocks use ${ok.sizes.total} chars`);
+  assert.equal(ok.sizes.over, false);
+  assert.deepEqual(ok.warnings, []);
+
+  const md = await readFile(t.p('CLAUDE.md'), 'utf8');
+  await writeFile(t.p('CLAUDE.md'), md.replace('<!-- /gentle-lite:orchestrator -->', `${'x'.repeat(21000)}\n<!-- /gentle-lite:orchestrator -->`));
+  const big = await status(t.opts());
+  assert.equal(big.sizes.over, true);
+  assert.match(big.warnings.join('\n'), /20000/);
+  await t.cleanup();
+});
