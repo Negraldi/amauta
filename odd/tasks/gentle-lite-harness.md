@@ -130,6 +130,8 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   **Done** (strict TDD, RED seen per bullet): owner pid from `read ... < /proc/self/stat` (builtin, so the subshell itself; fallback `sh -c 'echo $PPID' > file`), RED via a forking `sh` shim; hook `check-update` + `--semantic-pending`; memory schema v5 (`sql_tables`, `semantic_*` on `graph_sync`) + portal fields/UI; `graphify semantic`; status graphify note + `--deep`. Deviations: (1) pending verdict is stored in `graph_sync` (memory.db), not a state-dir flag file, so the portal reads it; the portal tolerates a v4 mirror (defaults). (2) pending = `check-update` output contains "pending" (it always exits 0); `graphify update` itself never raised the flag for markdown on this graphify version. (3) the `concurrent` test follow-up is a loosening (`^(SE)+$`), no RED possible; the no-`/proc` pid fallback is untested. (4) `--deep` is accepted (ignored) by `install` too, as options are shared. (5) one unidentified `npm test` failure (258/259) seen once, 3 later node runs and 2 npm runs green.
   Route: delegated.
 
+- [ ] T18 Fix RDD warnings from the T17 review (review-eb0cb0188c73f8e9, scratchpad `c22cap3.json`): semantic pass takes the per-repo graphify lock (no concurrent hook/semantic writes); `capture()` gets a timeout and bounded output buffer; semantic-pending verdict must not match negative messages ("no pending ...") — parse check-update precisely or use its exit code/flag file, with tests for both phrasings; `graph_sync` upsert uses named parameters; the vacuous failing-check-update test must prove the second hook ran. Route: delegated.
+
 ## Acceptance criteria
 
 - `npm test` and Python unittest pass.
@@ -255,6 +257,9 @@ T16 done. Open: nothing blocking.
 
 - 2026-10-15: RDD for T16 (`936a491..01d3f84`): high, 452 lines → granted → 4 lenses → approved, acknowledged (review-0b10d876c83be098). Warnings → follow-ups: graphify owner pid now captured inside `$(...)` so `$PPID` names the short-lived command-substitution subshell (lock owner looks dead; only the 15-min age gate protects long runs) — R4-001/R3-001; misleading test title at test/installer.test.js:526 — R2-001. Parent spot check: `npm test` node 245 / python 180 pass.
 
+- 2026-10-15: parent caught the intermittent Node failure: `concurrent triggers never overlap` saw `SESES` — the test read the trace while the coalesced re-run was still running (no real overlap: never `SS`). Fix `ae56cd9`: wait for quiescence (no lock, no `.pending`, trace stable > 1.5 s) before asserting; 0/24 failures under 4x parallel stress; full suite node 259 / python 187.
+- 2026-10-15: RDD for T17 + flake fix (`3ca7e70..ae56cd9`): high, 597 lines → granted → 4 lenses → approved, acknowledged (review-eb0cb0188c73f8e9). 7 warnings → T18.
+
 ## Next session
 
 - Branch `feat/gentle-lite-harness`; `npm test` green (see T17 line below).
@@ -265,3 +270,4 @@ T16 done. Open: nothing blocking.
 - Possible follow-ups: make `go-testing` optional, dedupe the two skill-style-guide copies, trim agent files (77k chars on disk), lint/`npm run check`.
 - T16 follow-ups (owner pid, test title, concurrency test) closed in T17. Open: one unidentified one-off `npm test` failure during T17; the hook's no-`/proc` pid fallback has no test.
 - T17 done: `gentle-lite graphify semantic` (needs ANTHROPIC_API_KEY, default `claude-haiku-5-5`), hook records `check-update` locally, schema v5, portal shows SQL tables / pending / last semantic run, `status --deep`. Last code commit `714c0f0`; `npm test` node 259 / python 187. T16 and T17 commits are unreviewed.
+- Next: T18 (T17 review warnings).
