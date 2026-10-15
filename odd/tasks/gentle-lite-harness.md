@@ -222,6 +222,9 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 
 - 2026-10-14: T14 audit done (delegated, read-only; report `docs/audits/2026-10-14-harness-creator.md`). validate-harness 20/100 (all subsystems 1/5) — mostly structural (scorer reads 7 fixed filenames; ODD state lives in `odd/tasks/*.md`). Measured always-on context after install: CLAUDE.md 62,032 chars / 484 lines (~15.5k tokens; orchestrator 35.6k + agent-routing 17.1k chars) + output style ~1.8k tokens ≈ 17.5-18k tokens, ~5x the reference budget. Defects: stripped dangling links (`..md`, `.-pi.md`), engram protocol mentions tools/flows the Python server lacks (mem_review, recovery_token), telemetry/usage/codegraph hooks without timeout, deny-only permissions with macOS entries. Top-10 recommendations in the report (mostly SIMPLIFY; projected CLAUDE.md -70%).
 
+- 2026-10-14: RDD for T15: `fe4b6c5..bad0c35` T15a medium, 735 lines → granted → reliability lens → approved, acknowledged (review-1ae547bcd0814c95); warning: stale-section migration test uses a one-line fixture while the real `agent-routing` section nested `remote-authorization` markers. `bad0c35..63c773a` T15b-d high, 613 lines → granted → 4 lenses → approved, acknowledged (review-bdc7f168f0dd9465); warnings: R1-001 ask-only overlay dropped secret-read denies (.env, .ssh, .aws/credentials, gh hosts.yml, *.pem, *.key, secrets/), R1-002 re-install actively removes previously added denies, graphify pid-reuse wedge after SIGKILL/reboot, preflight command built by join+patch, codegraph hook timeout not added to pre-existing hook, rea/context7 opt-in not carried over from pre-T15 state.
+- 2026-10-14: parent spot check: `npm test` showed 1 intermittent Node failure once (232/233); 23 further runs incl. 6 under concurrent load were 233/233 — unidentified flaky test, follow-up.
+
 ## Next step
 
 T15 done. Open: nothing blocking.
@@ -229,6 +232,9 @@ T15 done. Open: nothing blocking.
 ## Next session
 
 - Branch `feat/gentle-lite-harness`, last commit `63c773a`; `npm test` green (node 233, python 180).
-- Candidate for RDD when switched on: T15a-d commits (high risk: hooks, installer, shell guard); not yet reviewed.
+- All work-unit commits reviewed (RDD) except vendored-asset commits `ecd0b7e` and `127a75a` (lens budget). T9 escalated (fixed by `b4c4e65`).
+- Pending user decision: restore a minimal secret-read deny set (T15 review R1-001/R1-002).
+- Follow-ups from the last review: nested-marker migration test, graphify pid-reuse wedge, preflight command construction, codegraph timeout on pre-existing hook, rea/context7 carry-over from pre-T15 state, unidentified flaky Node test.
+- Real install on this machine is a separate user decision (it overlaps the installed gentle-ai 3.4.0).
 - Remaining `gentle-ai` strings in assets are SDD machine markers/schema names (`gentle-ai:sdd-session-preflight`, `gentle-ai.sdd-status`) and the manifest attribution; rename only together with the Python preflight/status code.
 - Possible follow-ups: make `go-testing` optional, dedupe the two skill-style-guide copies, trim agent files (77k chars on disk), lint/`npm run check`.
