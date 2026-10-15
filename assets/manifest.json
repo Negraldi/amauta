@@ -55,6 +55,11 @@
   ],
   "agents": [
     {
+      "name": "graphify-extractor",
+      "modelKey": "graphify-extractor",
+      "toolsLocked": true
+    },
+    {
       "name": "jd-fix-agent",
       "modelKey": "jd-fix-agent"
     },

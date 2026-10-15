@@ -15,6 +15,7 @@ export const DEFAULT_MODEL_ASSIGNMENTS = Object.freeze({
   'jd-judge-a': 'sonnet',
   'jd-judge-b': 'sonnet',
   'jd-fix-agent': 'sonnet',
+  'graphify-extractor': 'haiku',
   default: 'sonnet',
 });
 
@@ -33,20 +34,22 @@ const CODEGRAPH_TOOL = 'mcp__codegraph__codegraph_explore';
 
 /**
  * Render one agent file: resolve model/effort placeholders, align Engram tool
- * names with the active MCP naming, grant the CodeGraph tool, append footers.
+ * names with the active MCP naming, grant the CodeGraph tool, append footers. `lockTools` (manifest `toolsLocked`)
+ * keeps the tool allowlist verbatim and skips the footers, which describe tools such an agent does not have.
  */
-export function renderAgent(template, { assignment, engramPrefix, footers = [] }) {
+export function renderAgent(template, { assignment, engramPrefix, footers = [], lockTools = false }) {
   let text = template.replace('{{CLAUDE_MODEL}}', assignment.model);
   text = assignment.effort
     ? text.replace('{{CLAUDE_EFFORT_FRONTMATTER}}', `effort: ${assignment.effort}`)
     : text.replace(/^\{\{CLAUDE_EFFORT_FRONTMATTER\}\}\n/m, '');
   text = text.replaceAll('mcp__plugin_engram_engram__', engramPrefix);
   text = text.replace(/^tools: (.+)$/m, (line, list) => {
+    if (lockTools) return line; // a containment allowlist (e.g. Read only) must reach the installed file untouched
     const trimmed = list.trim();
     if (trimmed === '[]' || trimmed.includes(CODEGRAPH_TOOL)) return line;
     return `tools: ${trimmed}, ${CODEGRAPH_TOOL}`;
   });
   if (!text.endsWith('\n')) text += '\n';
-  for (const f of footers) text = injectSection(text, f.id, f.body);
+  if (!lockTools) for (const f of footers) text = injectSection(text, f.id, f.body);
   return text;
 }

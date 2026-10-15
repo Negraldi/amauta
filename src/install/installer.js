@@ -164,6 +164,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
       assignment: resolveAssignment(assignments, agent.modelKey),
       engramPrefix,
       footers,
+      lockTools: agent.toolsLocked === true,
     });
     files.set(`agents/${agent.name}.md`, Buffer.from(text, 'utf8'));
   }
