@@ -243,6 +243,8 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 
 T16 done. Open: nothing blocking.
 
+- 2026-10-15: RDD for T16 (`936a491..01d3f84`): high, 452 lines → granted → 4 lenses → approved, acknowledged (review-0b10d876c83be098). Warnings → follow-ups: graphify owner pid now captured inside `$(...)` so `$PPID` names the short-lived command-substitution subshell (lock owner looks dead; only the 15-min age gate protects long runs) — R4-001/R3-001; misleading test title at test/installer.test.js:526 — R2-001. Parent spot check: `npm test` node 245 / python 180 pass.
+
 ## Next session
 
 - Branch `feat/gentle-lite-harness`, last code commit `f3437cf`; `npm test` green (node 245, python 180).
@@ -252,3 +254,5 @@ T16 done. Open: nothing blocking.
 - Real install on this machine is a separate user decision (it overlaps the installed gentle-ai 3.4.0).
 - Remaining `gentle-ai` strings in assets are SDD machine markers/schema names (`gentle-ai:sdd-session-preflight`, `gentle-ai.sdd-status`) and the manifest attribution; rename only together with the Python preflight/status code.
 - Possible follow-ups: make `go-testing` optional, dedupe the two skill-style-guide copies, trim agent files (77k chars on disk), lint/`npm run check`.
+- Open follow-ups after T16: graphify owner-pid capture (`$PPID` in `$(...)`), misleading installer test title, timing-sensitive test `concurrent commits never stack runs` (1 unreproduced failure).
+- Planned T17: `gentle-lite graphify semantic` — optional `graphify extract --backend claude --model claude-haiku-5-5` only when ANTHROPIC_API_KEY is set; hook stays local (`update`) and flags pending semantic work via `graphify check-update`; portal shows it. graphify 0.9.90 with `[sql,anthropic]` installed via pipx on this machine.
