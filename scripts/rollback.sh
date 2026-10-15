@@ -75,7 +75,7 @@ STAGE=$ASIDE/stage
 mkdir -p "$STAGE"
 members=("${present[@]}")
 ((has_json)) && members+=(.claude.json)
-tar -xzf "$ARCHIVE" -C "$STAGE" -- "${members[@]}" || die "could not extract the backup. Nothing was changed."
+tar --same-permissions -xzf "$ARCHIVE" -C "$STAGE" -- "${members[@]}" || die "could not extract the backup. Nothing was changed."
 
 # gentle-lite may never have been installed (the migration stopped before phase 5): that is not a reason to stop.
 log "== gentle-lite uninstall"

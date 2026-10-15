@@ -325,7 +325,10 @@ test('rollback verifies the restored files BEFORE re-enabling the plugin', async
     const [name] = await migrationDirs(f);
     const rb = run(ROLLBACK, [path.join(f.home, 'gentle-lite-migration', name), '--assume-yes'], f, { STUB_ENABLE_REWRITES: '1' });
     assert.equal(rb.status, 0, rb.stdout + rb.stderr);
-    assert.ok(rb.stdout.indexOf('verified') < rb.stdout.indexOf('re-enable engram plugin') || rb.stdout.indexOf('verify sha256') < rb.stdout.indexOf('re-enable engram plugin'));
+    const verifiedAt = rb.stdout.indexOf('verified');
+    const enableAt = rb.stdout.indexOf('re-enable engram plugin');
+    assert.ok(verifiedAt >= 0 && enableAt >= 0, rb.stdout);
+    assert.ok(verifiedAt < enableAt, `sha256 verification must come before re-enabling the plugin:\n${rb.stdout}`);
     assert.match(await read(f.log), /^claude plugin enable engram@engram --scope user$/m);
   } finally { await f.cleanup(); }
 });
@@ -340,5 +343,23 @@ test('gentle-ai uninstall runs with the real terminal on stdin and stdout (pseud
     assert.match(await read(f.log), /^gentle-ai uninstall tty: stdin=1 stdout=1 stderr=1$/m);
     const [name] = await migrationDirs(f);
     assert.match(await read(f.home, 'gentle-lite-migration', name, 'migrate.log'), /gentle-ai uninstall/, 'the log keeps a summary line');
+  } finally { await f.cleanup(); }
+});
+
+test('rollback restores the original file modes (not masked by the script umask)', async () => {
+  const f = await fixture();
+  try {
+    const script = path.join(f.claude, 'skills', 'mine', 'run.sh');
+    await writeFile(script, '#!/bin/sh\necho hi\n');
+    await chmod(script, 0o755);
+    await chmod(path.join(f.claude, 'CLAUDE.md'), 0o644);
+    assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
+    await rm(script, { force: true });
+    await chmod(path.join(f.claude, 'CLAUDE.md'), 0o600);
+    const [name] = await migrationDirs(f);
+    const rb = run(ROLLBACK, [path.join(f.home, 'gentle-lite-migration', name), '--assume-yes'], f);
+    assert.equal(rb.status, 0, rb.stdout + rb.stderr);
+    assert.equal((await stat(script)).mode & 0o777, 0o755);
+    assert.equal((await stat(path.join(f.claude, 'CLAUDE.md'))).mode & 0o777, 0o644);
   } finally { await f.cleanup(); }
 });
