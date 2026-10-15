@@ -24,7 +24,7 @@ test('a lock held by Node makes the Python merge fail fast with a clear message'
   const release = await takeLock(lock);
   assert.ok(release, 'node took the lock');
   try {
-    const r = spawnSync('python3', ['-P', '-m', 'gentle_lite.graph.semantic_plan', 'merge', '--repo', repo], { env: { ...process.env, PYTHONPATH }, encoding: 'utf8', timeout: 30000 });
+    const r = spawnSync('python3', ['-P', '-m', 'amauta.graph.semantic_plan', 'merge', '--repo', repo], { env: { ...process.env, PYTHONPATH }, encoding: 'utf8', timeout: 30000 });
     assert.equal(r.status, 75, r.stderr); // EX_TEMPFAIL: lock held, retry later
     assert.match(r.stderr, /already running/);
     assert.ok(await exists(lock), 'the python run did not touch the node-held lock');
@@ -36,7 +36,7 @@ test('a lock held by Node makes the Python merge fail fast with a clear message'
 
 test('a lock held by Python makes the Node takeLock return null, and Node can take it after release', async () => {
   const { root, repo, lock } = await gitRepo();
-  const holder = py('import sys, time\nfrom pathlib import Path\nfrom gentle_lite.graph.lock import graphify_lock\nwith graphify_lock(Path(sys.argv[1])):\n    print("held", flush=True)\n    sys.stdin.readline()\n', [repo], { stdio: ['pipe', 'pipe', 'inherit'] });
+  const holder = py('import sys, time\nfrom pathlib import Path\nfrom amauta.graph.lock import graphify_lock\nwith graphify_lock(Path(sys.argv[1])):\n    print("held", flush=True)\n    sys.stdin.readline()\n', [repo], { stdio: ['pipe', 'pipe', 'inherit'] });
   const child = spawn(holder.cmd, holder.args, holder.opts);
   try {
     await new Promise((resolve, reject) => {
@@ -65,7 +65,7 @@ test('takeLock records `<pid> <start token>` exactly like the Python helper, and
     assert.ok(release);
     const fields = (await readFile(path.join(lock, 'pid'), 'utf8')).trim().split(/\s+/);
     assert.equal(fields[0], String(process.pid));
-    const p = py('import os\nfrom gentle_lite.graph.lock import start_token\nprint(start_token(int(os.environ["PID"])))', [], { env: { ...process.env, PYTHONPATH, PID: String(process.pid) }, encoding: 'utf8' });
+    const p = py('import os\nfrom amauta.graph.lock import start_token\nprint(start_token(int(os.environ["PID"])))', [], { env: { ...process.env, PYTHONPATH, PID: String(process.pid) }, encoding: 'utf8' });
     const expected = spawnSync(p.cmd, p.args, p.opts).stdout.trim();
     assert.equal(fields[1] ?? '', expected, 'same token format as the shell hook and Python');
     await release();
@@ -78,7 +78,7 @@ test('takeLock records `<pid> <start token>` exactly like the Python helper, and
 test('semantic.js has no lock protocol of its own (no stale rule or pid parsing)', async () => {
   const text = await readFile(path.join(repoRoot, 'src', 'graphify', 'semantic.js'), 'utf8');
   assert.doesNotMatch(text, /STALE_LOCK|pidAlive|mkdir\(lock/);
-  assert.match(text, /gentle_lite\.graph\.lock/);
+  assert.match(text, /amauta\.graph\.lock/);
 });
 
 test('the lock helper runs with a minimal environment: no ANTHROPIC_API_KEY or other secrets', async () => {

@@ -479,7 +479,7 @@ export async function status(opts = {}) {
     }
   }
   if (state.sdd === true) {
-    const entry = path.join(repoRoot, 'python', 'gentle_lite', 'sdd', '__main__.py');
+    const entry = path.join(repoRoot, 'python', 'amauta', 'sdd', '__main__.py');
     const present = (await statOrNull(entry)) !== null;
     add('sdd module', present, present ? entry : `missing ${entry}`);
   }

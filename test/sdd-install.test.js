@@ -31,7 +31,7 @@ async function sandbox({ settings, claudeJson } = {}) {
   return t;
 }
 const sddHooks = (settings) =>
-  (settings.hooks?.PreToolUse ?? []).flatMap((e) => (e.hooks ?? []).filter((h) => /gentle_lite\.sdd preflight-hook/.test(h.command)).map((h) => ({ matcher: e.matcher, ...h })));
+  (settings.hooks?.PreToolUse ?? []).flatMap((e) => (e.hooks ?? []).filter((h) => /amauta\.sdd preflight-hook/.test(h.command)).map((h) => ({ matcher: e.matcher, ...h })));
 const tree = async (dir) => {
   const out = [];
   const walk = async (d) => { for (const e of await readdir(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) await walk(p); else out.push(path.relative(dir, p)); } };
@@ -68,7 +68,7 @@ test('--with-sdd installs skills, agents, commands, shared contracts and the Pre
   assert.equal(hooks.length, 1);
   assert.equal(hooks[0].matcher, 'Agent');
   assert.equal(hooks[0].timeout, 30);
-  assert.ok(hooks[0].command.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd preflight-hook`), hooks[0].command);
+  assert.ok(hooks[0].command.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m amauta.sdd preflight-hook`), hooks[0].command);
   await t.cleanup();
 });
 
@@ -79,7 +79,7 @@ test('no placeholder survives rendering and commands point at our status module'
   assert.ok(files.length > 30);
   for (const f of files) assert.ok(!(await t.read(f)).includes('{{'), `placeholder left in ${f}`);
   const status_ = await t.read('commands/lite-sdd-status.md');
-  assert.ok(status_.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m gentle_lite.sdd status [change] --cwd <repo> --json --instructions`));
+  assert.ok(status_.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m amauta.sdd status [change] --cwd <repo> --json --instructions`));
   assert.ok(!(await t.read('skills/_shared/sdd-status-contract.md')).includes('gentle-ai sdd-'));
   for (const f of files.filter((x) => x.startsWith('commands/'))) assert.ok(!/gentle-sdd-/.test(await t.read(f)), `${f} still names /gentle-sdd-*`);
   await t.cleanup();

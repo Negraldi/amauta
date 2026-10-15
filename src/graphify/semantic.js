@@ -110,16 +110,16 @@ function lockHelperEnv(env = process.env) {
   return out;
 }
 
-const LOCK_BUSY = 75; // EX_TEMPFAIL from `gentle_lite.graph.lock acquire`: held by someone else
+const LOCK_BUSY = 75; // EX_TEMPFAIL from `amauta.graph.lock acquire`: held by someone else
 
 /**
- * Take the per-repo graphify lock. There is no protocol here: python/gentle_lite/graph/lock.py is the one implementation
+ * Take the per-repo graphify lock. There is no protocol here: python/amauta/graph/lock.py is the one implementation
  * (stale rule, start token, atomic takeover) shared with the post-commit hook and the Python writers; this asks it to
  * record this process as the owner. Returns a release function, or null when the lock is held (fail fast).
  */
 export async function takeLock(lock) {
   const result = await new Promise((resolve) => {
-    const child = spawn('python3', ['-P', '-m', 'gentle_lite.graph.lock', 'acquire', '--lock', lock, '--pid', String(process.pid)], {
+    const child = spawn('python3', ['-P', '-m', 'amauta.graph.lock', 'acquire', '--lock', lock, '--pid', String(process.pid)], {
       env: lockHelperEnv(), stdio: ['ignore', 'ignore', 'pipe'],
     });
     let err = '';
@@ -199,7 +199,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
       return 1;
     }
     const { [KEY_VAR]: _omit, ...clean } = env;
-    const sync = await capture('python3', ['-P', '-m', 'gentle_lite.graph', 'sync', '--repo', root, '--semantic-model', chosen], {
+    const sync = await capture('python3', ['-P', '-m', 'amauta.graph', 'sync', '--repo', root, '--semantic-model', chosen], {
       cwd: root,
       env: { ...clean, PYTHONPATH: path.join(packageRoot, 'python'), GENTLE_LITE_STATE_DIR: resolveTargets({ stateDir }).stateDir },
       secret: key,

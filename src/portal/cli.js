@@ -20,7 +20,7 @@ export function buildPortalSpawn(args, env = process.env) {
   const { values } = parseArgs({ args, options: OPTIONS, allowPositionals: false, strict: true });
   if (values.port !== undefined && !(/^\d+$/.test(values.port) && Number(values.port) <= 65535)) throw new Error(`invalid port: ${values.port}`);
   const targets = resolveTargets({ claudeHome: values['claude-home'], stateDir: values['state-dir'] }, env);
-  const out = ['-P', '-m', 'gentle_lite.portal'];
+  const out = ['-P', '-m', 'amauta.portal'];
   if (values.port !== undefined) out.push('--port', values.port);
   if (values['claude-home'] !== undefined) out.push('--claude-home', values['claude-home']);
   if (values['engram-db'] !== undefined) out.push('--engram-db', values['engram-db']);

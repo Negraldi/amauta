@@ -69,7 +69,7 @@ test('install creates an executable post-commit hook with only the marked block'
   assert.match(text, /graphify update \./);
   assert.match(text, /gentle-lite-graphify\.lock/);
   assert.ok(text.includes(path.join(t.state, 'graphify-hook.log')), 'failures are logged under the state dir');
-  assert.match(text, new RegExp(`PYTHONPATH='?${path.join(repoRoot, 'python').replaceAll('/', '\\/')}'? .*python3 -P -m gentle_lite\\.graph sync --repo`));
+  assert.match(text, new RegExp(`PYTHONPATH='?${path.join(repoRoot, 'python').replaceAll('/', '\\/')}'? .*python3 -P -m amauta\\.graph sync --repo`));
   assert.ok(text.includes(`GENTLE_LITE_STATE_DIR=${t.state}`));
   assert.match(text, /\) >\/dev\/null 2>&1 &\n/);
   await t.cleanup();
@@ -281,11 +281,11 @@ test('a stale lock that is not a directory is taken over (the old rmdir-only tak
   await t.cleanup();
 });
 
-test('the hook has no lock protocol of its own: it asks the shared helper (python -m gentle_lite.graph.lock) to take the lock', async () => {
+test('the hook has no lock protocol of its own: it asks the shared helper (python -m amauta.graph.lock) to take the lock', async () => {
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
   const text = await readFile(t.hook, 'utf8');
-  assert.match(text, /gentle_lite\.graph\.lock acquire --lock "\$LOCK" --pid/);
+  assert.match(text, /amauta\.graph\.lock acquire --lock "\$LOCK" --pid/);
   assert.doesNotMatch(text, /mkdir "\$LOCK"/, 'no second implementation of the acquire step');
   assert.doesNotMatch(text, /-mmin/, 'no second implementation of the staleness rule');
   await t.cleanup();

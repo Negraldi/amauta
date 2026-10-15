@@ -29,7 +29,7 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   assert.doesNotMatch(text, /subagent_type: "general-purpose"/);
   assert.match(text, /model: "haiku"/);
   assert.match(text, /ONE message/i);
-  assert.match(text, /gentle_lite\.graph\.semantic_plan/);
+  assert.match(text, /amauta\.graph\.semantic_plan/);
   // Subagents never write: the orchestrator saves each reply through the validating helper, and documents are untrusted data.
   assert.match(text, /<prefix> save-chunk <N>/);
   // Replies are untrusted: never route them through a shell (a heredoc terminator in the reply would run as commands).
@@ -81,7 +81,7 @@ test('install renders the helper path, status lists the skill, uninstall removes
     const file = path.join(t.claudeHome, 'skills', 'graphify-semantic', 'SKILL.md');
     const text = await readFile(file, 'utf8');
     assert.ok(!text.includes('{{'), 'unresolved placeholder');
-    assert.ok(text.includes(`PYTHONPATH=${path.join(repoRoot, 'python')} python3 -P -m gentle_lite.graph.semantic_plan`) || text.includes(`'PYTHONPATH=${path.join(repoRoot, 'python')}' python3 -P -m gentle_lite.graph.semantic_plan`), 'absolute helper command');
+    assert.ok(text.includes(`PYTHONPATH=${path.join(repoRoot, 'python')} python3 -P -m amauta.graph.semantic_plan`) || text.includes(`'PYTHONPATH=${path.join(repoRoot, 'python')}' python3 -P -m amauta.graph.semantic_plan`), 'absolute helper command');
     const s = await status(t.opts());
     const item = s.items.find((i) => i.name === 'file skills/graphify-semantic/SKILL.md');
     assert.ok(item?.ok, 'status tracks the managed skill file');

@@ -50,7 +50,7 @@ test('codegraph-guidance refers to the upstream codegraph CLI, not gentle-ai', a
 });
 
 test('engram protocol only names tools the Python memory server exposes and none of the removed flows', async () => {
-  const server = await readFile(new URL('../python/gentle_lite/memory/server.py', import.meta.url), 'utf8');
+  const server = await readFile(new URL('../python/amauta/memory/server.py', import.meta.url), 'utf8');
   const tools = new Set([...server.matchAll(/_tool\("(\w+)"/g)].map((m) => m[1]));
   assert.ok(tools.has('mem_save'));
   const protocol = await readAssetText('engram/protocol-slim.md');

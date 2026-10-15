@@ -19,7 +19,7 @@ Headless alternative with an API key and no session usage: `gentle-lite graphify
 
 ## Flow
 
-Helper prefix (use it verbatim). Quote every path you substitute for `<repo>` and the other `<...>` placeholders with double quotes, exactly as the commands below show: `env {{GENTLE_LITE_PYTHONPATH_ENV}} python3 -P -m gentle_lite.graph.semantic_plan`
+Helper prefix (use it verbatim). Quote every path you substitute for `<repo>` and the other `<...>` placeholders with double quotes, exactly as the commands below show: `env {{GENTLE_LITE_PYTHONPATH_ENV}} python3 -P -m amauta.graph.semantic_plan`
 
 1. `<prefix> plan --repo "<repo>"` (runs `graphify update`, asks graphify's cache what is still uncached, chunks the files by directory: balanced chunks of at most 25 files). Add `--deep` only if asked. `chunks: 0` means nothing to extract: still run step 4 if `cached_files` > 0, else stop.
 2. Dispatch ALL chunk agents in ONE message (parallel Agent calls), one per entry of `prompt_files`, each with `subagent_type: "graphify-extractor"` (Read-only, Haiku) and `model: "haiku"`, and a prompt of only: `Read <prompt_file> and follow it exactly.` Do not paste the prompt or the file list yourself. Do not use `general-purpose`: the documents are untrusted and that agent can run commands and write files.

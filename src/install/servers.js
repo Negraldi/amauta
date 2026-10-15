@@ -7,7 +7,7 @@ const PYTHON_PATH = path.join(repoRoot, 'python');
 export const memoryServer = (stateDir) => ({
   type: 'stdio',
   command: 'python3',
-  args: ['-P', '-m', 'gentle_lite.memory', 'serve'],
+  args: ['-P', '-m', 'amauta.memory', 'serve'],
   env: { PYTHONPATH: PYTHON_PATH, GENTLE_LITE_STATE_DIR: stateDir },
 });
 
@@ -33,8 +33,8 @@ export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.
 
 /** True for any hook command gentle-lite registered (absolute `node .../gentle-lite.js hook X` or legacy `gentle-lite ...`). */
 export const isGentleLiteHook = (command) =>
-  /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ') || /gentle_lite\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
-  /gentle_lite\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
+  /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
+  /amauta\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
 const hook = (name, timeout) => ({
   type: 'command',
@@ -50,12 +50,12 @@ const pythonHook = (stateDir, module, timeout) => ({
   timeout,
   command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`GENTLE_LITE_STATE_DIR=${stateDir}`), `python3 -P -m ${module} hook`].join(' '),
 });
-const telemetryHook = (stateDir) => pythonHook(stateDir, 'gentle_lite.telemetry', 5);
+const telemetryHook = (stateDir) => pythonHook(stateDir, 'amauta.telemetry', 5);
 /** Transcript usage ingestion: only after a turn or subagent ends. */
 const USAGE_EVENTS = ['Stop', 'SubagentStop'];
 
 /** Command prefix the SDD assets use to call our status module (`{{GENTLE_LITE_SDD}}`) and the preflight hook command. */
-export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m gentle_lite.sdd`;
+export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m amauta.sdd`;
 
 const PREFLIGHT_DENY = JSON.stringify({
   hookSpecificOutput: {
@@ -91,7 +91,7 @@ export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) 
   };
   if (telemetry) {
     for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
-    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'gentle_lite.usage', 10)] });
+    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'amauta.usage', 10)] });
   }
   if (sdd) (hooks.PreToolUse ??= []).push({ matcher: 'Agent', hooks: [{ type: 'command', command: sddPreflightCommand(), timeout: 30 }] });
   return hooks;

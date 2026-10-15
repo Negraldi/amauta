@@ -137,7 +137,7 @@ fi
 
 # ---------------------------------------------------------------- Phase 2
 if begin_phase 2 "import engram memory into ~/.gentle-lite (source is opened read-only)"; then
-  log "   would run: python3 -P -m gentle_lite.memory import-engram --from $ENGRAM_DB"
+  log "   would run: python3 -P -m amauta.memory import-engram --from $ENGRAM_DB"
   if gate "Import the engram database now?"; then
     if [[ -f $ENGRAM_DB ]]; then
       python3 -P - "$ENGRAM_DB" <<'PY'
@@ -148,7 +148,7 @@ for t in ("sessions", "observations", "user_prompts", "prompts"):
     if t in have:
         print(f"   source {t}: {c.execute(f'select count(*) from {t}').fetchone()[0]}")
 PY
-      PYTHONPATH=$REPO_DIR/python with_caller_umask python3 -P -m gentle_lite.memory import-engram --from "$ENGRAM_DB" | sed 's/^/   imported /'
+      PYTHONPATH=$REPO_DIR/python with_caller_umask python3 -P -m amauta.memory import-engram --from "$ENGRAM_DB" | sed 's/^/   imported /'
       log "   (a re-run imports 0: rows already imported are skipped)"
     else
       log "   no engram database at $ENGRAM_DB, nothing to import"
@@ -227,8 +227,8 @@ if [[ $EXECUTE == 1 ]]; then
     fi
   fi
   smoke=$(PYTHONPATH=$REPO_DIR/python python3 -P - <<'PY'
-from gentle_lite import paths
-from gentle_lite.memory import store
+from amauta import paths
+from amauta.memory import store
 s = store.Store(paths.db_path())
 n = s.conn.execute("select count(*) from observations").fetchone()[0]
 row = s.conn.execute("select title from observations where deleted_at is null and title is not null limit 1").fetchone()

@@ -21,7 +21,7 @@ const LOG_MAX_BYTES = 262144;
  * A lock directory in the git dir keeps runs single-flight: a trigger that finds the lock held leaves a `.pending`
  * marker and exits, and the running job reruns once when it sees the marker (coalescing a rebase of N commits into
  * at most one extra run; a loser re-checks the lock after leaving its marker, so the marker is never orphaned).
- * The lock itself (stale rule, start token, atomic takeover) is python/gentle_lite/graph/lock.py, shared with Node and Python.
+ * The lock itself (stale rule, start token, atomic takeover) is python/amauta/graph/lock.py, shared with Node and Python.
  * Failures go to <state-dir>/graphify-hook.log.
  */
 export function hookBlock({ stateDir }) {
@@ -37,10 +37,10 @@ export function hookBlock({ stateDir }) {
     '  LOCK="$(git rev-parse --git-path gentle-lite-graphify.lock 2>/dev/null)"; [ -n "$LOCK" ] || exit 0',
     `  note() { mkdir -p "$(dirname "$LOG")" 2>/dev/null; [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt ${LOG_MAX_BYTES} ] && : > "$LOG"; printf '%s %s\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >> "$LOG" 2>/dev/null; }`,
     "  # The lock protocol (mkdir acquire, pid + start token, 15 min AND owner-gone staleness, atomic takeover) lives in ONE place,",
-    "  # python/gentle_lite/graph/lock.py, shared with Node and the Python writers. Exit 0 = acquired, 75 = held, anything else",
+    "  # python/amauta/graph/lock.py, shared with Node and the Python writers. Exit 0 = acquired, 75 = held, anything else",
     "  # (no python3 >= 3.11, broken install) = fail open: nothing ran, nothing to clean up, and the reason goes to the log.",
     "  # The helper gets a minimal environment (PATH, HOME, LANG, PYTHONPATH): never API keys.",
-    `  acquire() { aerr="$(env -i PATH="$PATH" HOME="\${HOME-}" LANG="\${LANG-}" PYTHONPATH=${shellQuote(pythonPath)} python3 -P -m gentle_lite.graph.lock acquire --lock "$LOCK" --pid "$me" 2>&1 >/dev/null)"; }`,
+    `  acquire() { aerr="$(env -i PATH="$PATH" HOME="\${HOME-}" LANG="\${LANG-}" PYTHONPATH=${shellQuote(pythonPath)} python3 -P -m amauta.graph.lock acquire --lock "$LOCK" --pid "$me" 2>&1 >/dev/null)"; }`,
     '  release() { rm -rf "$LOCK" 2>/dev/null; }',
     '  while :; do',
     '    # Owner = this background subshell. `read` is a builtin, so /proc/self is the subshell itself (no helper process,',
@@ -68,7 +68,7 @@ export function hookBlock({ stateDir }) {
     '      else note "graphify update failed: $out"; fi',
     '    fi',
     '    if [ -f graphify-out/graph.json ]; then',
-    `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} GENTLE_LITE_STATE_DIR=${shellQuote(stateDir)} python3 -P -m gentle_lite.graph sync --repo .\${pend:+ --semantic-pending $pend} 2>&1)" || note "graph sync failed: $out"`,
+    `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} GENTLE_LITE_STATE_DIR=${shellQuote(stateDir)} python3 -P -m amauta.graph sync --repo .\${pend:+ --semantic-pending $pend} 2>&1)" || note "graph sync failed: $out"`,
     '    fi',
     '    release; trap - EXIT',
     '    [ -e "$LOCK.pending" ] || break',

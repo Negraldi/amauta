@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeEnv, Element } from './helpers/fakedom.js';
 
-const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'gentle_lite', 'portal', 'static');
+const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const XSS = '<img src=x onerror=alert(1)>';
 const tick = () => new Promise((r) => setTimeout(r, 20));
