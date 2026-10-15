@@ -20,7 +20,7 @@ Into `~/.claude` / `~/.claude.json` / `~/.gentle-lite` (all redirectable, see Sa
 | Assets | output style, skills, agents (judgment-day, review lenses), rendered with model assignments |
 | Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
 | MCP servers | `engram` (our Python memory server; `gentle-memory` if you already have another `engram`), `gentle-lite` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `codegraph` (if installed) |
-| Permissions | `ask` rules only: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)`. No `defaultMode`, no allow or deny entries (ask wins over a user `allow`) |
+| Permissions | `ask`: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)` (prefix matches only, `rm -fr` or `sudo rm -rf` get past them). `deny` for `Read` and `Edit` of `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `*.pem`, `*.key`, `secrets/**`. No `defaultMode`, no allow entries |
 | Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--no-telemetry` |
 
 ## Layout
@@ -189,7 +189,7 @@ If only `--claude-home` is given, the other two default to paths inside it
 Every file is backed up under `<state-dir>/backups/<timestamp>/` before it is written.
 Existing user content (CLAUDE.md text, hooks, MCP servers, `permissions.defaultMode`)
 is preserved. `permissions.defaultMode` is never set or changed (upstream forces
-`bypassPermissions`; gentle-lite deliberately does not); only three `ask` rules are merged in, and uninstall removes just those.
+`bypassPermissions`; gentle-lite deliberately does not); only the `ask` and `deny` rules above are appended (a rule you already list is never recorded as ours), and uninstall removes just the ones gentle-lite added. `deny_added` entries recorded by pre-T15 installs are never stripped on re-install or uninstall; `status` lists them as kept.
 Files gentle-lite installs are tracked by hash: if you edit one, re-install and uninstall keep your
 version unless you pass `--force`.
 

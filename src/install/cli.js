@@ -80,6 +80,10 @@ async function runStatus(opts, io) {
   for (const n of s.notes ?? []) io.stdout.write(`  [optional] ${n.name}: ${n.detail}\n`);
   io.stdout.write(`  CLAUDE.md: ${s.sizes.total} chars (budget ${s.sizes.budget})\n`);
   for (const b of s.sizes.blocks) io.stdout.write(`    ${b.id.padEnd(20)}${b.chars} chars, ${b.lines} lines\n`);
+  const perm = s.permissions;
+  io.stdout.write(`  permissions: ${perm.ask.length} ask, ${perm.deny.length} deny added by gentle-lite\n`);
+  for (const kind of ['ask', 'deny']) for (const r of perm[kind]) io.stdout.write(`    ${kind.padEnd(5)}${r.rule}${r.present ? '' : '  [missing]'}\n`);
+  if (perm.legacy_deny.length > 0) io.stdout.write(`  kept from an older install (not managed): ${perm.legacy_deny.length} deny rule(s): ${perm.legacy_deny.join(', ')}\n`);
   for (const w of s.warnings) io.stdout.write(`  [warning] ${w}\n`);
   io.stdout.write(`  claude home: ${s.state.claude_home}\n  rdd mode: ${s.state.rdd_mode}\n`);
   return s.ok ? 0 : 1;

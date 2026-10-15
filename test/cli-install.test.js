@@ -27,6 +27,9 @@ test('install/status/uninstall via CLI honour the environment variables', async 
 
   r = run(['status'], env);
   assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /CLAUDE\.md: \d+ chars \(budget 20000\)/);
+  assert.match(r.stdout, /permissions: 3 ask, 16 deny/);
+  assert.match(r.stdout, /deny Read\(~\/\.ssh\/\*\*\)/);
 
   r = run(['install', '--dry-run'], env);
   assert.equal(r.status, 0);

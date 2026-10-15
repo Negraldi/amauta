@@ -76,6 +76,40 @@ function chooseMemoryKey({ settings, currentServers, prev }) {
   return 'engram' in currentServers && !isOurs(currentServers, prev, 'engram') ? 'gentle-memory' : 'engram';
 }
 
+const PERMISSION_KINDS = ['ask', 'deny'];
+
+/**
+ * Rules gentle-lite added, per kind. Current schema: `permissions_added: {ask, deny}`. The T15 schema only had
+ * `ask_added`. The pre-T15 `deny_added` is deliberately ignored: it listed a broad deny set the user may rely on.
+ */
+function permissionsAdded(state) {
+  const cur = state?.permissions_added;
+  const list = (v) => (Array.isArray(v) ? v.filter((r) => typeof r === 'string') : []);
+  if (isObject(cur)) return { ask: list(cur.ask), deny: list(cur.deny) };
+  return { ask: list(state?.ask_added), deny: [] };
+}
+
+/** Deny rules a pre-T15 install recorded as added (`deny_added`), carried forward as `legacy_deny` for reporting only. */
+const legacyDenyOf = (state) => [state?.legacy_deny, state?.deny_added].find(Array.isArray)?.filter((r) => typeof r === 'string') ?? [];
+
+/** Append overlay rules the user does not already list; track only what we appended (and still find in place). */
+function mergePermissions(settings, prev, overlay) {
+  const value = { ...(isObject(settings.permissions) ? settings.permissions : {}) };
+  const before = permissionsAdded(prev);
+  const added = {};
+  let changed = false;
+  for (const kind of PERMISSION_KINDS) {
+    const existing = Array.isArray(value[kind]) ? value[kind] : [];
+    const fresh = (overlay.permissions?.[kind] ?? []).filter((r) => !existing.includes(r));
+    added[kind] = [...new Set([...before[kind], ...fresh])].filter((r) => existing.includes(r) || fresh.includes(r));
+    if (fresh.length > 0) {
+      value[kind] = [...existing, ...fresh];
+      changed = true;
+    }
+  }
+  return { value, changed, added };
+}
+
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
@@ -185,20 +219,11 @@ async function plan(opts) {
   const overlay = JSON.parse(await readAssetText(manifest.settingsOverlay));
   const styleName = manifest.personas[persona].styleName;
   const settingsPrevStyle = prev?.settings_prev ? prev.settings_prev.outputStyle : (settingsIn.data.outputStyle ?? null);
-  // Permissions: only `ask` rules, merged after the user's own. An earlier version also added deny rules (deny_added): drop those.
-  const listOf = (k) => (Array.isArray(settingsIn.data.permissions?.[k]) ? settingsIn.data.permissions[k] : []);
-  const legacyDeny = new Set(prev?.deny_added ?? []);
-  const keptDeny = listOf('deny').filter((d) => !legacyDeny.has(d));
-  const existingAsk = listOf('ask');
-  const newAsk = overlay.permissions.ask.filter((a) => !existingAsk.includes(a));
-  const askAdded = [...new Set([...(prev?.ask_added ?? []), ...newAsk])].filter((a) => existingAsk.includes(a) || newAsk.includes(a));
+  // Permissions: the overlay's `ask` and `deny` rules are appended after the user's own. State records only the rules
+  // we appended (`permissions_added`); a rule the user already had is never recorded, so it is never removed.
+  const permissions = mergePermissions(settingsIn.data, prev, overlay);
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
-  if (existingAsk.length + newAsk.length > 0) settings = { ...settings, permissions: { ...settings.permissions, ask: [...existingAsk, ...newAsk] } };
-  if (legacyDeny.size > 0) {
-    const permissions = { ...settings.permissions, deny: keptDeny };
-    if (keptDeny.length === 0) delete permissions.deny;
-    settings = { ...settings, permissions };
-  }
+  if (permissions.changed) settings = { ...settings, permissions: permissions.value };
   const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry, sdd });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
   // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
@@ -262,7 +287,8 @@ async function plan(opts) {
     managed_files: managedFiles,
     claude_md_sections: sections.map((s) => s.id),
     settings_prev: { outputStyle: settingsPrevStyle },
-    ask_added: askAdded,
+    permissions_added: permissions.added,
+    ...(legacyDenyOf(prev).length > 0 ? { legacy_deny: legacyDenyOf(prev) } : {}),
     mcp_added: mcpAdded,
     memory_server_key: memoryKey,
     telemetry,
@@ -338,7 +364,9 @@ export async function uninstall(opts = {}) {
       if (state.settings_prev.outputStyle === null) delete s.outputStyle;
       else s.outputStyle = state.settings_prev.outputStyle;
     }
-    for (const [key, added] of [['ask', state?.ask_added], ['deny', state?.deny_added]]) {
+    const addedRules = permissionsAdded(state);
+    for (const key of PERMISSION_KINDS) {
+      const added = addedRules[key];
       if (added?.length && Array.isArray(s.permissions?.[key])) {
         s = { ...s, permissions: { ...s.permissions, [key]: s.permissions[key].filter((d) => !added.includes(d)) } };
         if (s.permissions[key].length === 0) delete s.permissions[key];
@@ -439,5 +467,12 @@ export async function status(opts = {}) {
   const total = blocks.reduce((n, b) => n + b.chars, 0);
   const sizes = { blocks, total, budget: CLAUDE_MD_BUDGET, over: total > CLAUDE_MD_BUDGET };
   const warnings = sizes.over ? [`CLAUDE.md blocks use ${total} chars, over the ${CLAUDE_MD_BUDGET}-char budget; every session pays for them`] : [];
-  return { installed: true, ok: items.every((i) => i.ok), items, notes, sizes, warnings, state };
+  const rules = (kind) => permissionsAdded(state)[kind].map((rule) => ({ rule, present: (settings.permissions?.[kind] ?? []).includes(rule) }));
+  const permissions = {
+    ask: rules('ask'),
+    deny: rules('deny'),
+    // Pre-T15 installs recorded a broad deny set; it is kept in settings.json untouched and only reported here.
+    legacy_deny: legacyDenyOf(state).filter((r) => (settings.permissions?.deny ?? []).includes(r)),
+  };
+  return { installed: true, ok: items.every((i) => i.ok), items, notes, sizes, warnings, permissions, state };
 }

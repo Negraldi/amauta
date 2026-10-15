@@ -51,6 +51,8 @@ const USER_CLAUDE_JSON = {
   oauthAccount: { email: 'x@example.com' },
   mcpServers: { custom: { command: 'my-server' }, context7: { command: 'my-own-context7' } },
 };
+const SECRET_PATHS = ['**/.env', '**/.env.*', '~/.ssh/**', '~/.aws/credentials', '~/.config/gh/hosts.yml', '**/*.pem', '**/*.key', '**/secrets/**'];
+const SECRET_DENY = SECRET_PATHS.flatMap((p) => [`Read(${p})`, `Edit(${p})`]);
 const USER_MD = '# My notes\n\nSome custom text I wrote.\n';
 
 test('fresh install creates every component', async () => {
@@ -80,7 +82,7 @@ test('fresh install creates every component', async () => {
   assert.equal(settings.outputStyle, 'Gentleman');
   assert.ok(!('defaultMode' in settings.permissions), 'must not force a defaultMode');
   assert.deepEqual(settings.permissions.ask, ['Bash(git push --force*)', 'Bash(git reset --hard*)', 'Bash(rm -rf*)']);
-  assert.ok(!('deny' in settings.permissions), 'no deny rules are added');
+  assert.deepEqual(settings.permissions.deny, SECRET_DENY, 'secret-read deny set is installed');
   assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default
   const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
   assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, `node ${bin} hook skill-registry`);
@@ -115,7 +117,7 @@ test('install keeps pre-existing user content', async () => {
   assert.equal(settings.model, 'opus');
   assert.equal(settings.permissions.defaultMode, 'auto');
   assert.deepEqual(settings.permissions.allow, ['Bash(ls)']);
-  assert.deepEqual(settings.permissions.deny, ['Bash(custom-deny)']);
+  assert.deepEqual(settings.permissions.deny, ['Bash(custom-deny)', ...SECRET_DENY]);
   assert.ok(settings.permissions.ask.includes('Bash(rm -rf*)'));
   assert.equal(settings.hooks.Stop.length, 4); // mine + review-stop + telemetry + usage
   assert.equal(settings.hooks.Stop[0].hooks[0].command, 'my-own-stop-hook');
@@ -395,24 +397,84 @@ test('rea and context7 are opt-in, sticky across plain re-installs, never overwr
   await u.cleanup();
 });
 
-test('permissions: ask rules are merged, user rules kept, old gentle-lite deny entries are dropped, uninstall removes only ours', async () => {
-  const t = await sandbox({ settings: { permissions: { defaultMode: 'plan', ask: ['Bash(mine*)', 'Bash(rm -rf*)'], deny: ['Bash(custom-deny)'] } } });
-  await install(t.opts());
-  // simulate an earlier version that had added deny entries
-  const settings = await readJson(t.p('settings.json'));
-  settings.permissions.deny.push('Read(.env)', 'Read(Library/Keychains/*)');
-  await writeFile(t.p('settings.json'), JSON.stringify(settings));
-  const statePath = path.join(t.stateDir, 'state.json');
-  const state = await readJson(statePath);
-  state.deny_added = ['Read(.env)', 'Read(Library/Keychains/*)'];
-  await writeFile(statePath, JSON.stringify(state));
+test('permissions: ask and deny rules are merged, user rules kept, uninstall removes only the entries we added', async () => {
+  const t = await sandbox({ settings: { permissions: { defaultMode: 'plan', ask: ['Bash(mine*)', 'Bash(rm -rf*)'], deny: ['Bash(custom-deny)', 'Read(**/.env)'] } } });
   await install(t.opts());
   let after = await readJson(t.p('settings.json'));
   assert.equal(after.permissions.defaultMode, 'plan');
-  assert.deepEqual(after.permissions.deny, ['Bash(custom-deny)']);
+  assert.deepEqual(after.permissions.deny, ['Bash(custom-deny)', 'Read(**/.env)', ...SECRET_DENY.filter((d) => d !== 'Read(**/.env)')]);
   assert.deepEqual(after.permissions.ask, ['Bash(mine*)', 'Bash(rm -rf*)', 'Bash(git push --force*)', 'Bash(git reset --hard*)']);
+  await install(t.opts()); // idempotent
+  assert.deepEqual((await readJson(t.p('settings.json'))).permissions, after.permissions);
   await uninstall(t.opts());
   after = await readJson(t.p('settings.json'));
-  assert.deepEqual(after.permissions, { defaultMode: 'plan', ask: ['Bash(mine*)', 'Bash(rm -rf*)'], deny: ['Bash(custom-deny)'] });
+  assert.deepEqual(after.permissions, { defaultMode: 'plan', ask: ['Bash(mine*)', 'Bash(rm -rf*)'], deny: ['Bash(custom-deny)', 'Read(**/.env)'] });
+  await t.cleanup();
+});
+
+test('permissions: re-install never strips deny rules recorded by a pre-T15 state (legacy deny_added); status reports them', async () => {
+  const legacy = ['Read(.env)', 'Read(Library/Keychains/*)'];
+  const t = await sandbox({ settings: { permissions: { deny: ['Bash(custom-deny)', ...legacy] } } });
+  await install(t.opts());
+  const statePath = path.join(t.stateDir, 'state.json');
+  const state = await readJson(statePath);
+  state.deny_added = legacy;
+  await writeFile(statePath, JSON.stringify(state));
+  await install(t.opts());
+  const after = await readJson(t.p('settings.json'));
+  for (const d of legacy) assert.ok(after.permissions.deny.includes(d), `kept ${d}`);
+  const st = await status(t.opts());
+  assert.deepEqual(st.permissions.legacy_deny, legacy);
+  await install(t.opts()); // legacy report survives a further re-install
+  assert.deepEqual((await status(t.opts())).permissions.legacy_deny, legacy);
+  await uninstall(t.opts());
+  const left = (await readJson(t.p('settings.json'))).permissions.deny;
+  assert.deepEqual(left, ['Bash(custom-deny)', ...legacy]); // uninstall removes only schema entries
+  await t.cleanup();
+});
+
+test('permissions: a deny rule the user also lists is never recorded as ours, and an entry the user removed is not forced back as removable', async () => {
+  const t = await sandbox({ settings: { permissions: { deny: ['Read(~/.ssh/**)'] } } });
+  await install(t.opts());
+  const state = await readJson(path.join(t.stateDir, 'state.json'));
+  assert.ok(!state.permissions_added.deny.includes('Read(~/.ssh/**)'));
+  assert.equal(state.permissions_added.deny.length, SECRET_DENY.length - 1);
+  // user deletes one of our entries and keeps editing: re-install re-adds it (it is still part of the overlay)
+  const s = await readJson(t.p('settings.json'));
+  s.permissions.deny = s.permissions.deny.filter((d) => d !== 'Edit(**/*.pem)');
+  await writeFile(t.p('settings.json'), JSON.stringify(s));
+  await install(t.opts());
+  assert.ok((await readJson(t.p('settings.json'))).permissions.deny.includes('Edit(**/*.pem)'));
+  await uninstall(t.opts());
+  assert.deepEqual((await readJson(t.p('settings.json'))).permissions, { deny: ['Read(~/.ssh/**)'] });
+  await t.cleanup();
+});
+
+test('permissions: state from the T15 schema (ask_added only) keeps tracking its ask rules and gains the deny set', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  const statePath = path.join(t.stateDir, 'state.json');
+  const state = await readJson(statePath);
+  state.ask_added = state.permissions_added.ask;
+  delete state.permissions_added;
+  await writeFile(statePath, JSON.stringify(state));
+  const s = await readJson(t.p('settings.json'));
+  delete s.permissions.deny;
+  await writeFile(t.p('settings.json'), JSON.stringify(s));
+  await install(t.opts());
+  const after = await readJson(t.p('settings.json'));
+  assert.deepEqual(after.permissions.deny, SECRET_DENY);
+  await uninstall(t.opts());
+  assert.ok(!(await exists(t.p('settings.json'))) || !('permissions' in (await readJson(t.p('settings.json')))));
+  await t.cleanup();
+});
+
+test('status lists the permission rules (ask and deny) and the CLAUDE.md budget in the CLI output', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  const st = await status(t.opts());
+  assert.deepEqual(st.permissions.ask.map((r) => r.rule), ['Bash(git push --force*)', 'Bash(git reset --hard*)', 'Bash(rm -rf*)']);
+  assert.deepEqual(st.permissions.deny.map((r) => r.rule), SECRET_DENY);
+  assert.ok([...st.permissions.ask, ...st.permissions.deny].every((r) => r.present));
   await t.cleanup();
 });
