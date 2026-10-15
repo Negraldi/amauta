@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { rmSync } from 'node:fs';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { repoRoot as gitRepoRoot, gitOrNull } from '../util/git.js';
@@ -14,7 +14,6 @@ export const DEFAULT_TIMEOUT_SECONDS = 1800;
 const KEY_VAR = 'ANTHROPIC_API_KEY';
 const OPTIONS = { cwd: { type: 'string' }, model: { type: 'string' }, timeout: { type: 'string' }, 'state-dir': { type: 'string' } };
 const KEEP_BYTES = 65536; // of each captured stream: enough to explain a failure, never the whole run
-const STALE_LOCK_MS = 15 * 60 * 1000; // same age gate as the post-commit hook
 
 const HINT_NO_KEY = `${KEY_VAR} is not set, so no semantic pass was run. Nothing is sent anywhere without it: \`graphify update\` and the post-commit hook keep the local code graph (SQL and markdown included) up to date with no LLM.`;
 
@@ -94,29 +93,29 @@ function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut }) {
   });
 }
 
-const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+const LOCK_BUSY = 75; // EX_TEMPFAIL from `gentle_lite.graph.lock acquire`: held by someone else
 
 /**
- * Take the post-commit hook's per-repo lock (same directory, same stale rule: older than 15 minutes AND owner gone), so the
- * hook's `graphify update` and this pass never write graphify-out together. Returns null when it is held (fail fast).
+ * Take the per-repo graphify lock. There is no protocol here: python/gentle_lite/graph/lock.py is the one implementation
+ * (stale rule, start token, atomic takeover) shared with the post-commit hook and the Python writers; this asks it to
+ * record this process as the owner. Returns a release function, or null when the lock is held (fail fast).
  */
 export async function takeLock(lock) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      await mkdir(lock);
-      await writeFile(path.join(lock, 'pid'), `${process.pid}\n`);
-      const release = async () => { await rm(lock, { recursive: true, force: true }); };
-      release.sync = () => rmSync(lock, { recursive: true, force: true });
-      return release;
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
-    }
-    const age = Date.now() - (await stat(lock).then((s) => s.mtimeMs, () => Date.now()));
-    const owner = Number.parseInt(await readFile(path.join(lock, 'pid'), 'utf8').then((t) => t, () => ''), 10);
-    if (age > STALE_LOCK_MS && !(owner > 0 && pidAlive(owner))) await rm(lock, { recursive: true, force: true });
-    else return null;
-  }
-  return null;
+  const result = await new Promise((resolve) => {
+    const child = spawn('python3', ['-P', '-m', 'gentle_lite.graph.lock', 'acquire', '--lock', lock, '--pid', String(process.pid)], {
+      env: { ...process.env, PYTHONPATH: path.join(packageRoot, 'python') }, stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (d) => { err += d; });
+    child.on('error', (e) => resolve({ code: null, err: String(e.message) }));
+    child.on('close', (code) => resolve({ code, err }));
+  });
+  if (result.code === LOCK_BUSY) return null;
+  if (result.code !== 0) throw new Error(`could not take the graphify lock: ${result.err.trim() || `lock helper exited ${result.code}`}`);
+  const release = async () => { await rm(lock, { recursive: true, force: true }); };
+  release.sync = () => rmSync(lock, { recursive: true, force: true });
+  return release;
 }
 
 function parseTimeout(raw, env) {
@@ -153,7 +152,11 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
   }
   const lockRel = (await gitOrNull(root, ['rev-parse', '--git-path', 'gentle-lite-graphify.lock']))?.trim();
   const lock = lockRel ? path.resolve(root, lockRel) : null;
-  const release = lock ? await takeLock(lock) : () => {};
+  let release;
+  try { release = lock ? await takeLock(lock) : async () => {}; } catch (err) {
+    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    return 1;
+  }
   if (!release) {
     io.stderr.write(`gentle-lite: a graphify refresh is already running for this repository (lock ${lock}); wait for it to finish and run this again\n`);
     return 1;

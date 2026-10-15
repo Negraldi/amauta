@@ -14,16 +14,15 @@ export const END = '# <<< gentle-lite graphify <<<';
 const SHEBANG = '#!/bin/sh\n';
 const SHELL_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+)?(?:\S*\/)?(?:ba|z|da|k)?sh(?:\s|$)/;
 
-const STALE_LOCK_MINUTES = 15;
-const TAKEOVER_ATTEMPTS = 3;
 const LOG_MAX_BYTES = 262144;
 
 /**
  * The hook block: everything runs in a background subshell, so a commit never waits or fails because of it.
- * A mkdir lock in the git dir keeps runs single-flight: a trigger that finds the lock held leaves a `.pending`
+ * A lock directory in the git dir keeps runs single-flight: a trigger that finds the lock held leaves a `.pending`
  * marker and exits, and the running job reruns once when it sees the marker (coalescing a rebase of N commits into
- * at most one extra run; a loser re-checks the lock after leaving its marker, so the marker is never orphaned). A lock older
- * than STALE_LOCK_MINUTES whose owner (pid file) is no longer running is taken over, with at most TAKEOVER_ATTEMPTS attempts. A recorded start token (boot id + process start time) also exposes a pid reused after SIGKILL or a reboot. Failures go to <state-dir>/graphify-hook.log.
+ * at most one extra run; a loser re-checks the lock after leaving its marker, so the marker is never orphaned).
+ * The lock itself (stale rule, start token, atomic takeover) is python/gentle_lite/graph/lock.py, shared with Node and Python.
+ * Failures go to <state-dir>/graphify-hook.log.
  */
 export function hookBlock({ stateDir }) {
   const pythonPath = path.join(packageRoot, 'python');
@@ -37,28 +36,24 @@ export function hookBlock({ stateDir }) {
     `  LOG=${shellQuote(log)}`,
     '  LOCK="$(git rev-parse --git-path gentle-lite-graphify.lock 2>/dev/null)"; [ -n "$LOCK" ] || exit 0',
     `  note() { mkdir -p "$(dirname "$LOG")" 2>/dev/null; [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt ${LOG_MAX_BYTES} ] && : > "$LOG"; printf '%s %s\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >> "$LOG" 2>/dev/null; }`,
-    '  # Start token of a process: "<boot_id>:<starttime>" from /proc (Linux); empty when /proc is unavailable.',
-    `  ptok() { [ -r "/proc/$1/stat" ] || return 0; b="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"; s="$(cat "/proc/$1/stat" 2>/dev/null)"; s="\${s##*) }"; set -- $s; [ -n "\${20}" ] && printf '%s:%s' "$b" "\${20}"; return 0; }`,
-    '  # A lock is stale only when it is old AND its owner is gone: no pid file, pid not running, or (when a token was',
-    '  # recorded) pid running with a different start token, i.e. the pid was reused after SIGKILL/OOM/reboot. Without a',
-    '  # token (no /proc, or a pid file from an older hook) only kill -0 decides. A live long run is never taken over.',
-    `  stale() { [ -n "$(find "$LOCK" -maxdepth 0 -mmin +${STALE_LOCK_MINUTES} 2>/dev/null)" ] || return 1; owner=; otok=; read -r owner otok < "$LOCK/pid" 2>/dev/null; [ -n "$owner" ] || return 0; kill -0 "$owner" 2>/dev/null || return 0; [ -n "$otok" ] && [ "$(ptok "$owner")" != "$otok" ] && return 0; return 1; }`,
+    "  # The lock protocol (mkdir acquire, pid + start token, 15 min AND owner-gone staleness, atomic takeover) lives in ONE place,",
+    "  # python/gentle_lite/graph/lock.py, shared with Node and the Python writers. Exit 0 = acquired, 75 = held, anything else",
+    "  # (no python3, broken install) = fail open: nothing ran, nothing to clean up.",
+    `  acquire() { env PYTHONPATH=${shellQuote(pythonPath)} python3 -P -m gentle_lite.graph.lock acquire --lock "$LOCK" --pid "$me" >/dev/null 2>&1; }`,
     '  release() { rm -rf "$LOCK" 2>/dev/null; }',
-    '  tries=0',
     '  while :; do',
-    '    if ! mkdir "$LOCK" 2>/dev/null; then',
-    '      # Re-check right before releasing: the lock may have been replaced by a live run since the first check.',
-    `      if stale && [ "$tries" -lt ${TAKEOVER_ATTEMPTS} ]; then tries=$((tries + 1)); stale && release; continue; fi`,
-    '      : > "$LOCK.pending" 2>/dev/null',
-    '      # The holder may have released between our failed mkdir and the marker: try once more so the marker is never orphaned.',
-    '      mkdir "$LOCK" 2>/dev/null || exit 0',
-    '    fi',
     '    # Owner = this background subshell. `read` is a builtin, so /proc/self is the subshell itself (no helper process,',
     '    # no command substitution whose fork behaviour differs between shells). Without /proc, a direct `sh -c` child reports its parent.',
     '    me=; [ -r /proc/self/stat ] && read -r me _ < /proc/self/stat 2>/dev/null',
-    `    [ -n "$me" ] || { sh -c 'echo $PPID' > "$LOCK/pid" 2>/dev/null; read -r me < "$LOCK/pid" 2>/dev/null; }`,
-    `    printf '%s %s\\n' "$me" "$(ptok "$me")" > "$LOCK/pid" 2>/dev/null`,
-    `    trap release EXIT`,
+    `    [ -n "$me" ] || { sh -c 'echo $PPID' > "$LOCK.owner" 2>/dev/null; read -r me < "$LOCK.owner" 2>/dev/null; rm -f "$LOCK.owner"; }`,
+    '    acquire; rc=$?',
+    '    if [ "$rc" -ne 0 ]; then',
+    '      [ "$rc" -eq 75 ] || { note "lock helper failed (exit $rc), skipped"; exit 0; }',
+    '      : > "$LOCK.pending" 2>/dev/null',
+    '      # The holder may have released between our failed acquire and the marker: try once more so the marker is never orphaned.',
+    '      acquire || exit 0',
+    '    fi',
+    '    trap release EXIT',
     '    rm -f "$LOCK.pending"',
     '    pend=',
     '    if command -v graphify >/dev/null 2>&1; then',

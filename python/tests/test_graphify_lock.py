@@ -1,10 +1,12 @@
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from python.gentle_lite.graph import lock as gl
 
@@ -106,6 +108,60 @@ class LockModuleTest(unittest.TestCase):
         self.held_by(f"{os.getpid()} some-other-boot:1\n", 20)
         with gl.graphify_lock(self.repo):
             pass
+
+    def test_a_takeover_that_lost_the_race_leaves_the_winner_alone(self):
+        # B has already judged the lock stale when A completes its own takeover. B must not remove A's fresh lock.
+        self.held_by(f"{dead_pid()}\n", 20)
+        real, state = gl._stale, {"done": False}
+
+        def stale_then_rival_wins(lock):
+            verdict = real(lock)
+            if verdict and not state["done"]:
+                state["done"] = True
+                self.assertTrue(gl._acquire(lock))  # the rival finishes taking over first
+            return verdict
+
+        with mock.patch.object(gl, "_stale", stale_then_rival_wins):
+            self.assertFalse(gl._acquire(self.lock), "the late taker must not also believe it holds the lock")
+        self.assertTrue(self.lock.is_dir(), "the winner's lock survives")
+        self.assertEqual((self.lock / "pid").read_text().split()[0], str(os.getpid()))
+        self.assertEqual([p.name for p in self.lock.parent.iterdir() if ".stale." in p.name], [], "no tombstones left behind")
+
+    def test_concurrent_takers_of_a_stale_lock_have_exactly_one_winner(self):
+        worker = (
+            "import sys, time\nfrom pathlib import Path\nfrom gentle_lite.graph import lock as gl\n"
+            "go = Path(sys.argv[2])\nwhile not go.exists():\n    time.sleep(0.001)\n"
+            "print('won' if gl._acquire(Path(sys.argv[1])) else 'lost')\n"
+        )
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
+        for round_ in range(6):
+            shutil.rmtree(self.lock, ignore_errors=True)
+            self.held_by(f"{dead_pid()}\n", 20)
+            go = Path(self.tmp.name) / f"go{round_}"
+            procs = [subprocess.Popen([sys.executable, "-P", "-c", worker, str(self.lock), str(go)], stdout=subprocess.PIPE, text=True, env=env) for _ in range(3)]
+            go.touch()
+            results = [p.communicate(timeout=30)[0].strip() for p in procs]
+            self.assertEqual(results.count("won"), 1, f"round {round_}: {results}")
+
+    def test_a_stale_lock_that_cannot_be_moved_gives_up_after_bounded_attempts(self):
+        self.held_by(f"{dead_pid()}\n", 20)
+        with mock.patch.object(gl.os, "rename", side_effect=OSError("read-only")) as rename:
+            self.assertFalse(gl._acquire(self.lock))
+        self.assertLessEqual(rename.call_count, gl.TAKEOVER_ATTEMPTS)
+        self.assertTrue(self.lock.exists())
+
+    def test_cli_acquire_records_the_given_pid_and_leaves_the_lock_for_the_owner(self):
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
+        run = lambda: subprocess.run([sys.executable, "-P", "-m", "gentle_lite.graph.lock", "acquire", "--lock", str(self.lock), "--pid", str(os.getpid())], capture_output=True, text=True, env=env)
+        first = run()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        fields = (self.lock / "pid").read_text().split()
+        self.assertEqual(fields[0], str(os.getpid()))
+        if HAS_PROC:
+            self.assertEqual(fields[1], gl.start_token(os.getpid()))
+        second = run()
+        self.assertEqual(second.returncode, 75, "held by a live owner: EX_TEMPFAIL")
+        self.assertIn("already running", second.stderr)
 
 
 class LockedCommandsTest(Base):

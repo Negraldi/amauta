@@ -281,17 +281,13 @@ test('a stale lock that is not a directory is taken over (the old rmdir-only tak
   await t.cleanup();
 });
 
-test('a stale lock that cannot be removed ends in a pending marker after bounded attempts instead of looping forever', async () => {
+test('the hook has no lock protocol of its own: it asks the shared helper (python -m gentle_lite.graph.lock) to take the lock', async () => {
   const t = await sandbox({ graphify: 'true' });
-  await writeFile(path.join(t.bin, 'rm'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
-  await mkdir(lock);
-  const old = new Date(Date.now() - 3600_000);
-  await utimes(lock, old, old);
-  runHook(t);
-  assert.ok(await waitFor(() => exists(`${lock}.pending`), 10000), 'gave up and left a marker');
-  assert.equal(await exists(t.log), false);
+  const text = await readFile(t.hook, 'utf8');
+  assert.match(text, /gentle_lite\.graph\.lock acquire --lock "\$LOCK" --pid/);
+  assert.doesNotMatch(text, /mkdir "\$LOCK"/, 'no second implementation of the acquire step');
+  assert.doesNotMatch(text, /-mmin/, 'no second implementation of the staleness rule');
   await t.cleanup();
 });
 
@@ -315,13 +311,25 @@ test('a lock older than the stale limit whose owner is still alive is never take
 
 test('a trigger that finds the lock held re-tries it after leaving its marker (the holder may have released in between)', async () => {
   const t = await sandbox({ graphify: 'true' });
-  const realMkdir = spawnSync('sh', ['-c', 'command -v mkdir'], { encoding: 'utf8' }).stdout.trim();
-  const counter = path.join(t.root, 'mkdir.count');
-  // First attempt sees "lock held" (as if a runner held it), the retry succeeds (as if it released meanwhile).
-  await writeFile(path.join(t.bin, 'mkdir'), `#!/bin/sh\nc=$(cat '${counter}' 2>/dev/null || echo 0)\necho $((c + 1)) > '${counter}'\n[ "$c" = 0 ] && exit 1\nexec '${realMkdir}' "$@"\n`, { mode: 0o755 });
+  const realPython = spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).stdout.trim();
+  const counter = path.join(t.root, 'acquire.count');
+  // The first acquire answers "held" (EX_TEMPFAIL, as if a runner held it), the retry is the real helper (as if it released meanwhile).
+  await writeFile(path.join(t.bin, 'python3'), `#!/bin/sh\ncase "$*" in *"graph.lock acquire"*) c=$(cat '${counter}' 2>/dev/null || echo 0); echo $((c + 1)) > '${counter}'; [ "$c" = 0 ] && exit 75;; esac\nexec '${realPython}' "$@"\n`, { mode: 0o755 });
   await installHook(t.opts());
   runHook(t);
   assert.ok(await waitFor(() => exists(t.log), 10000), 'the trigger ran itself instead of leaving an unconsumed marker');
+  await t.cleanup();
+});
+
+test('a helper that cannot run at all (python missing) fails open: no marker, no run, the commit is unaffected', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  await writeFile(path.join(t.bin, 'python3'), '#!/bin/sh\nexit 127\n', { mode: 0o755 });
+  await installHook(t.opts());
+  const c = await t.commit();
+  assert.equal(c.status, 0, c.stderr);
+  await sleep(500);
+  assert.equal(await exists(t.log), false, 'graphify did not run');
+  assert.equal(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock.pending')), false, 'no orphan marker');
   await t.cleanup();
 });
 

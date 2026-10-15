@@ -4,6 +4,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { repoRoot } from '../src/install/assets.js';
 import { takeLock } from '../src/graphify/semantic.js';
 
@@ -56,4 +57,27 @@ test('a lock held by Python makes the Node takeLock return null, and Node can ta
     child.kill('SIGKILL');
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('takeLock records `<pid> <start token>` exactly like the Python helper, and release removes the lock', async () => {
+  const { root, repo, lock } = await gitRepo();
+  try {
+    const release = await takeLock(lock);
+    assert.ok(release);
+    const fields = (await readFile(path.join(lock, 'pid'), 'utf8')).trim().split(/\s+/);
+    assert.equal(fields[0], String(process.pid));
+    const p = py('import os\nfrom gentle_lite.graph.lock import start_token\nprint(start_token(int(os.environ["PID"])))', [], { env: { ...process.env, PYTHONPATH, PID: String(process.pid) }, encoding: 'utf8' });
+    const expected = spawnSync(p.cmd, p.args, p.opts).stdout.trim();
+    assert.equal(fields[1] ?? '', expected, 'same token format as the shell hook and Python');
+    await release();
+    assert.equal(await exists(lock), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('semantic.js has no lock protocol of its own (no stale rule or pid parsing)', async () => {
+  const text = await readFile(path.join(repoRoot, 'src', 'graphify', 'semantic.js'), 'utf8');
+  assert.doesNotMatch(text, /STALE_LOCK|pidAlive|mkdir\(lock/);
+  assert.match(text, /gentle_lite\.graph\.lock/);
 });
