@@ -24,7 +24,10 @@ const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings',
 const STYLE_NAMES = ['Gentleman', 'Neutral'];
 /** Always-on CLAUDE.md budget (chars across the blocks gentle-lite installed). */
 export const CLAUDE_MD_BUDGET = 20000;
+/** CLAUDE.md section ids an earlier version shipped (agent-routing nested remote-authorization). */
+const RETIRED_SECTIONS = ['agent-routing', 'remote-authorization'];
 export const CODEGRAPH_PROMPT_HOOK = 'codegraph prompt-hook';
+const CODEGRAPH_HOOK_TIMEOUT = 10;
 
 const hasCommand = (settings, event, command) =>
   (Array.isArray(settings.hooks?.[event]) ? settings.hooks[event] : []).some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h?.command === command));
@@ -74,6 +77,19 @@ function chooseMemoryKey({ settings, currentServers, prev }) {
   const last = prev?.memory_server_key;
   if (last && (isOurs(currentServers, prev, last) || !(last in currentServers))) return last;
   return 'engram' in currentServers && !isOurs(currentServers, prev, 'engram') ? 'gentle-memory' : 'engram';
+}
+
+/** Set `timeout` on installed hooks that lack one, matched by event and exact command from `owned`. */
+function ensureTimeouts(settings, owned) {
+  let out = settings;
+  for (const [event, entries] of Object.entries(owned)) {
+    const want = new Map(entries.flatMap((e) => e.hooks).filter((h) => h.timeout).map((h) => [h.command, h.timeout]));
+    const current = out.hooks?.[event];
+    if (!Array.isArray(current)) continue;
+    const next = current.map((e) => (!Array.isArray(e?.hooks) ? e : { ...e, hooks: e.hooks.map((h) => (h && want.has(h.command) && h.timeout === undefined ? { ...h, timeout: want.get(h.command) } : h)) }));
+    if (!isDeepStrictEqual(next, current)) out = { ...out, hooks: { ...out.hooks, [event]: next } };
+  }
+  return out;
 }
 
 const PERMISSION_KINDS = ['ask', 'deny'];
@@ -177,10 +193,13 @@ async function plan(opts) {
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
   const telemetry = opts.telemetry !== false;
   const sdd = opts.withSdd === true || prev?.sdd === true; // optional module; sticky until uninstall
-  const rea = opts.withRea === true || prev?.rea === true; // opt-in MCP servers, sticky like sdd
-  const context7 = opts.withContext7 === true || prev?.context7 === true;
   const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
+  // Opt-in MCP servers, sticky like sdd. A state that predates the opt-in (no key at all) registered both servers by
+  // default: keep each one that is still exactly what we wrote (carry-over); an edited entry is the user's.
+  const optIn = (flag, key) => flag === true || prev?.[key] === true || (prev !== null && prev?.[key] === undefined && isOurs(currentServers, prev, key));
+  const rea = optIn(opts.withRea, 'rea');
+  const context7 = optIn(opts.withContext7, 'context7');
   const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
   const engramPrefix = engramToolPrefix(settingsIn.data, memoryKey ?? 'engram');
   const writes = [];
@@ -210,9 +229,10 @@ async function plan(opts) {
   const mdBefore = mdBuf ? mdBuf.toString('utf8') : '';
   let md = mdBefore;
   for (const s of sections) md = injectSection(md, s.id, s.body);
-  // Sections an earlier version installed and this one no longer ships.
+  // Sections an earlier version installed and this one no longer ships: those its state lists, plus the known retired
+  // ids (so a missing or reset state.json still converges). Removing an outer section takes nested markers with it.
   const wantedIds = new Set(sections.map((s) => s.id));
-  for (const id of prev?.claude_md_sections ?? []) if (!wantedIds.has(id)) md = removeSection(md, id);
+  for (const id of new Set([...(prev?.claude_md_sections ?? []), ...RETIRED_SECTIONS])) if (!wantedIds.has(id)) md = removeSection(md, id);
   if (!mdBuf || md !== mdBefore) writes.push({ rel: 'CLAUDE.md', path: mdFile, data: Buffer.from(md, 'utf8') });
 
   // settings.json.
@@ -236,8 +256,12 @@ async function plan(opts) {
   const codegraphHookAdded = !dropHook && (weAddedHook || (codegraphOnPath && !hookWasThere));
   if (dropHook) settings = removeHooksWhere(settings, (c) => c === CODEGRAPH_PROMPT_HOOK);
   if (codegraphOnPath && !hookWasThere) {
-    settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK, timeout: 10 }] }] });
+    settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK, timeout: CODEGRAPH_HOOK_TIMEOUT }] }] });
   }
+  // Hooks we own keep a timeout across upgrades (mergeHooks keeps an older entry as is when its command did not change).
+  const owned = { ...wantedHooks };
+  if (codegraphHookAdded) owned.UserPromptSubmit = [...(owned.UserPromptSubmit ?? []), { hooks: [{ command: CODEGRAPH_PROMPT_HOOK, timeout: CODEGRAPH_HOOK_TIMEOUT }] }];
+  settings = ensureTimeouts(settings, owned);
   if (!settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data)) {
     writes.push({ rel: 'settings.json', path: settingsFile, data: Buffer.from(toJson(settings), 'utf8') });
   }

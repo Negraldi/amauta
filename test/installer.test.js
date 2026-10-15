@@ -325,22 +325,50 @@ test('install replaces legacy PATH-based gentle-lite hooks and keeps user hooks;
   await t.cleanup();
 });
 
-test('re-install removes CLAUDE.md sections that an earlier version installed and the current one no longer ships', async () => {
-  const t = await sandbox({ claudeMd: USER_MD });
+const NESTED_ROUTING = [
+  '<!-- gentle-lite:agent-routing -->',
+  '## Implementation Routing',
+  '',
+  '- Delegate mapping when 4+ files are needed.',
+  '',
+  '<!-- gentle-lite:remote-authorization -->',
+  '## Remote operation authorization',
+  '',
+  'Permission to develop locally does not authorize remote execution.',
+  '- Do not reuse ambient SSH agents.',
+  '<!-- /gentle-lite:remote-authorization -->',
+  '<!-- /gentle-lite:agent-routing -->',
+].join('\n');
+
+async function seedStaleRouting(t, { listInState }) {
   await install(t.opts());
   const md = await readFile(t.p('CLAUDE.md'), 'utf8');
-  await writeFile(t.p('CLAUDE.md'), `${md}\n<!-- gentle-lite:agent-routing -->\nold routing text\n<!-- /gentle-lite:agent-routing -->\n`);
+  await writeFile(t.p('CLAUDE.md'), `${md}\n${NESTED_ROUTING}\n\nMy trailing note.\n`);
   const statePath = path.join(t.stateDir, 'state.json');
   const state = await readJson(statePath);
-  state.claude_md_sections.push('agent-routing');
+  if (listInState) state.claude_md_sections.push(...listInState);
   await writeFile(statePath, JSON.stringify(state));
-  await install(t.opts());
-  const after = await readFile(t.p('CLAUDE.md'), 'utf8');
-  assert.ok(!after.includes('agent-routing'));
-  assert.ok(after.startsWith(USER_MD));
-  assert.ok(listSections(after).some((s) => s.id === 'orchestrator'));
-  await t.cleanup();
-});
+}
+
+for (const [name, listInState] of [['only the outer id is in state', ['agent-routing']], ['both ids are in state, nested one first', ['remote-authorization', 'agent-routing']], ['state does not list it at all (reset or missing state)', null]]) {
+  test(`stale-section removal handles the real nested agent-routing/remote-authorization shape: ${name}`, async () => {
+    const t = await sandbox({ claudeMd: USER_MD });
+    await seedStaleRouting(t, { listInState });
+    await install(t.opts());
+    const after = await readFile(t.p('CLAUDE.md'), 'utf8');
+    assert.ok(!/agent-routing|remote-authorization|Remote operation authorization|Implementation Routing/.test(after), after);
+    assert.ok(after.startsWith(USER_MD));
+    assert.ok(after.includes('My trailing note.'));
+    assert.deepEqual(listSections(after).map((x) => x.id).sort(), ['codegraph-guidance', 'engram-protocol', 'orchestrator', 'persona']);
+    // convergence: state no longer lists the retired ids and a further install writes nothing
+    const state = await readJson(path.join(t.stateDir, 'state.json'));
+    assert.ok(!state.claude_md_sections.includes('agent-routing') && !state.claude_md_sections.includes('remote-authorization'));
+    const again = await install(t.opts());
+    assert.equal(again.changed, false);
+    assert.equal(await readFile(t.p('CLAUDE.md'), 'utf8'), after);
+    await t.cleanup();
+  });
+}
 
 test('every hook gentle-lite registers, including the codegraph prompt hook, carries a timeout', async () => {
   const t = await sandbox();
@@ -354,6 +382,41 @@ test('every hook gentle-lite registers, including the codegraph prompt hook, car
   assert.ok(hooks.length >= 8);
   for (const h of hooks) assert.ok(Number.isInteger(h.timeout) && h.timeout > 0 && h.timeout <= 60, `no sane timeout on: ${h.command}`);
   await t.cleanup();
+});
+
+async function fakeCodegraph(t) {
+  const bin = path.join(t.root, 'bin');
+  await mkdir(bin, { recursive: true });
+  await writeFile(path.join(bin, 'codegraph'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  return bin;
+}
+const stripTimeouts = (settings, only = () => true) => {
+  for (const entries of Object.values(settings.hooks)) for (const e of entries) for (const h of e.hooks) if (only(h)) delete h.timeout;
+};
+const allHooks = (settings) => Object.values(settings.hooks).flatMap((es) => es.flatMap((e) => e.hooks));
+
+test('re-install adds the missing timeout to hooks we own (codegraph prompt hook and our own commands) but never to a user-owned hook', async () => {
+  const t = await sandbox();
+  const bin = await fakeCodegraph(t);
+  await install(t.opts({ searchPath: bin }));
+  const s = await readJson(t.p('settings.json'));
+  stripTimeouts(s);
+  await writeFile(t.p('settings.json'), JSON.stringify(s));
+  await install(t.opts({ searchPath: bin }));
+  const hooks = allHooks(await readJson(t.p('settings.json')));
+  assert.ok(hooks.some((h) => h.command === 'codegraph prompt-hook'));
+  for (const h of hooks) assert.ok(Number.isInteger(h.timeout) && h.timeout > 0, `no timeout after re-install: ${h.command}`);
+
+  // a codegraph prompt hook the user registered themselves is theirs: left exactly as written
+  const u = await sandbox({ settings: { hooks: { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: 'codegraph prompt-hook' }] }] } } });
+  const ubin = await fakeCodegraph(u);
+  await install(u.opts({ searchPath: ubin }));
+  await install(u.opts({ searchPath: ubin }));
+  const mine = allHooks(await readJson(u.p('settings.json'))).filter((h) => h.command === 'codegraph prompt-hook');
+  assert.equal(mine.length, 1);
+  assert.ok(!('timeout' in mine[0]));
+  await t.cleanup();
+  await u.cleanup();
 });
 
 test('status reports the size of each CLAUDE.md block and warns above the 20k-char budget', async () => {
@@ -395,6 +458,33 @@ test('rea and context7 are opt-in, sticky across plain re-installs, never overwr
   assert.ok(!('rea' in (await readJson(u.claudeJson)).mcpServers));
   await t.cleanup();
   await u.cleanup();
+});
+
+test('state that predates the rea/context7 opt-in keeps entries it registered and untouched, carries the choice forward, and uninstall still removes them', async () => {
+  const t = await sandbox({ claudeJson: { mcpServers: { custom: { command: 'my-server' } } } });
+  await install(t.opts({ withRea: true, withContext7: true }));
+  const statePath = path.join(t.stateDir, 'state.json');
+  const state = await readJson(statePath);
+  delete state.rea; // a pre-T15 state has neither key
+  delete state.context7;
+  await writeFile(statePath, JSON.stringify(state));
+  // the user edited rea's entry: it is theirs now and must not be adopted or refreshed
+  const cj = await readJson(t.claudeJson);
+  cj.mcpServers.rea = { ...cj.mcpServers.rea, env: { MINE: '1' } };
+  await writeFile(t.claudeJson, JSON.stringify(cj));
+  await install(t.opts());
+  const after = await readJson(t.claudeJson);
+  assert.ok(after.mcpServers.context7, 'untouched context7 entry is kept');
+  assert.deepEqual(after.mcpServers.rea.env, { MINE: '1' });
+  const next = await readJson(statePath);
+  assert.equal(next.context7, true);
+  assert.equal(next.rea, false);
+  assert.ok('context7' in next.mcp_added && !('rea' in next.mcp_added));
+  await install(t.opts()); // stable
+  assert.equal((await readJson(statePath)).context7, true);
+  await uninstall(t.opts());
+  assert.deepEqual(Object.keys((await readJson(t.claudeJson)).mcpServers).sort(), ['custom', 'rea']);
+  await t.cleanup();
 });
 
 test('permissions: ask and deny rules are merged, user rules kept, uninstall removes only the entries we added', async () => {
