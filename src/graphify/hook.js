@@ -6,6 +6,7 @@ import { writeFileAtomic } from '../core/fsatomic.js';
 import { resolveTargets } from '../install/paths.js';
 import { shellQuote } from '../install/servers.js';
 import { repoRoot as packageRoot } from '../install/assets.js';
+import { semanticCommand } from './semantic.js';
 
 // graphify (https://github.com/Graphify-Labs/graphify, Apache-2.0, PyPI `graphifyy`) is an external tool: detected at run time, never vendored.
 export const BEGIN = '# >>> gentle-lite graphify >>>';
@@ -142,8 +143,9 @@ const OPTIONS = { cwd: { type: 'string' }, 'state-dir': { type: 'string' } };
 
 async function run(args, io) {
   const [group, action, ...rest] = args;
+  if (group === 'semantic') return semanticCommand(args.slice(1), io);
   if (group !== 'hook' || !['install', 'uninstall'].includes(action)) {
-    io.stderr.write('gentle-lite: usage: gentle-lite graphify hook <install|uninstall> [--cwd DIR] [--state-dir DIR]\n');
+    io.stderr.write('gentle-lite: usage: gentle-lite graphify hook <install|uninstall> [--cwd DIR] [--state-dir DIR] | gentle-lite graphify semantic [--cwd DIR] [--model M] [--state-dir DIR]\n');
     return 1;
   }
   try {
@@ -165,5 +167,5 @@ async function run(args, io) {
 }
 
 export function registerGraphifyCommands(commands) {
-  commands.set('graphify', { summary: 'Manage the graphify post-commit hook that mirrors the code graph into memory.db (hook install|uninstall --cwd --state-dir)', run });
+  commands.set('graphify', { summary: 'Manage the graphify post-commit hook that mirrors the code graph into memory.db (hook install|uninstall --cwd --state-dir; semantic --cwd --model: optional LLM pass, needs ANTHROPIC_API_KEY)', run });
 }
