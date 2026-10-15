@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="portal-token" content="__PORTAL_TOKEN__">
+<meta name="color-scheme" content="light dark">
+<title>gentle-lite portal</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>gentle-lite</h1>
+  <nav id="nav" aria-label="Views"></nav>
+</header>
+<section class="filters" aria-label="Filters">
+  <label>Range <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option><option value="3650">All</option></select></label>
+  <label>Project <select id="project"><option value="">All projects</option></select></label>
+  <button id="refresh" type="button">Refresh usage</button>
+  <span id="status" role="status"></span>
+</section>
+<main id="view" tabindex="-1"><p class="muted">Loading...</p></main>
+<script src="/static/app.js"></script>
+</body>
+</html>
