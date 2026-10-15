@@ -100,7 +100,7 @@ const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e)
  * Take the post-commit hook's per-repo lock (same directory, same stale rule: older than 15 minutes AND owner gone), so the
  * hook's `graphify update` and this pass never write graphify-out together. Returns null when it is held (fail fast).
  */
-async function takeLock(lock) {
+export async function takeLock(lock) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       await mkdir(lock);

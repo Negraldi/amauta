@@ -30,6 +30,7 @@ from pathlib import Path
 from .. import paths
 from ..memory import store as mstore
 from . import sync
+from .lock import LockHeld, graphify_lock
 
 DEFAULT_MODEL = "claude-haiku-5-5"
 DEFAULT_CHUNK_SIZE = 25
@@ -437,12 +438,14 @@ def main(argv=None) -> int:
         if args.cmd == "plan":
             if args.chunk_size < 1:
                 raise SemanticError("--chunk-size must be at least 1")
-            result, code = cmd_plan(args), 0
+            with graphify_lock(Path(args.repo).resolve()):
+                result, code = cmd_plan(args), 0
         elif args.cmd == "validate":
             result, code = cmd_validate(args)
         else:
-            result, code = cmd_merge(args)
-    except (SemanticError, sync.GraphError) as err:
+            with graphify_lock(Path(args.repo).resolve()):
+                result, code = cmd_merge(args)
+    except (SemanticError, sync.GraphError, LockHeld) as err:
         sys.stderr.write(f"gentle_lite.graph.semantic_plan: {err}\n")
         return EXIT_ERROR
     sys.stdout.write(json.dumps(result, ensure_ascii=False) + "\n")
