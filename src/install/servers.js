@@ -73,12 +73,14 @@ const PREFLIGHT_DENY = JSON.stringify({
  * non-zero exit, hang) any partial output is discarded and the deny decision is printed, but only for `sdd-*`
  * dispatches: other agents stay silent. Residual gaps: no `sh`, or no timeout(1) and a hung hook.
  */
-export const sddPreflightCommand = () =>
-  [
-    `in=$(cat); T=; command -v timeout >/dev/null 2>&1 && T='timeout 20'`,
-    `out=$(printf '%s' "$in" | $T ${sddCommand()} preflight-hook) && { [ -z "$out" ] || printf '%s\\n' "$out"; }`,
-    `|| { printf '%s' "$in" | grep -q '"subagent_type" *: *"sdd-' && printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}; true; }`,
-  ].join('; ').replace('; ||', ' ||');
+export const sddPreflightCommand = () => {
+  const readPayload = `in=$(cat); T=; command -v timeout >/dev/null 2>&1 && T='timeout 20'`;
+  const onSuccess = `[ -z "$out" ] || printf '%s\\n' "$out"`;
+  const onFailure = `printf '%s' "$in" | grep -q '"subagent_type" *: *"sdd-' && printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}`;
+  const run = `if out=$(printf '%s' "$in" | $T ${sddCommand()} preflight-hook); then ${onSuccess}; else ${onFailure}; fi`;
+  // Trailing `true`: a failing branch (e.g. closed stdout) must still exit 0, a non-blocking hook error rather than exit 2.
+  return [readPayload, run, 'true'].join('; ');
+};
 
 /** Hook entries registered in settings.json. */
 export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {

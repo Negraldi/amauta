@@ -309,3 +309,12 @@ test('preflight guard: a hung hook is cut off by the inner timeout and still den
   assert.ok(Date.now() - started < 10000);
   await t.cleanup();
 });
+
+test('preflight command is an explicit if/then/else (no `A && {..} || {..}` list whose branches can fall through) and is valid sh', async () => {
+  const { sddPreflightCommand } = await import('../src/install/servers.js');
+  const cmd = sddPreflightCommand();
+  assert.match(cmd, /if out=\$\(printf '%s' "\$in" \| \$T .*preflight-hook\); then /);
+  assert.match(cmd, /; else .*; fi; true$/);
+  assert.ok(!/&& \{|\|\| \{/.test(cmd), `no and-or lists around the branches: ${cmd}`);
+  assert.equal(spawnSync('sh', ['-n', '-c', cmd]).status, 0);
+});
