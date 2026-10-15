@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import os from 'node:os';
 import { rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -19,13 +19,24 @@ const HINT_NO_KEY = `${KEY_VAR} is not set, so no semantic pass was run. Nothing
 
 const REDACTED = '[redacted]';
 
+// The vendor prefix of an Anthropic key (`sk-ant-`, optionally `api03-`) is public, not key material.
+const PUBLIC_PREFIX = /^sk-ant-(?:[a-z]+\d+-)?/;
+const MIN_FRAGMENT = 4; // a shorter match with an unknown key shape ("s", "sk") is ordinary text
+
 /**
  * Masks `secret` on a raw text stream. The last secret.length - 1 characters are held back until more text arrives, so a
- * key split across chunks (or never followed by a newline) is still seen whole. `end()` drops a held tail that is a
- * prefix of the secret instead of emitting a fragment of it.
+ * key split across chunks (or never followed by a newline) is still seen whole; that hold-back is the only buffering, so
+ * output keeps streaming however long a line is. `end()` has nothing left to wait for: it drops a held tail only when it
+ * is a prefix of the secret that goes beyond the public vendor prefix (a truncated key), and emits anything else, so
+ * ordinary text that merely ends in "s" or "sk-ant-" survives.
+ *
+ * Inherent limit: masking is exact-match. A fragment of the key printed on its own in the middle of a stream (shorter
+ * than the key, followed by more text) cannot be recognised and is passed through. Only a whole key and a truncated key
+ * at the end of the stream are covered.
  */
-function streamMasker(secret) {
+export function streamMasker(secret) {
   if (!secret) return { push: (text) => text, end: () => '' };
+  const floor = Math.max(PUBLIC_PREFIX.exec(secret)?.[0].length ?? 0, MIN_FRAGMENT - 1);
   let held = '';
   return {
     push(text) {
@@ -38,13 +49,12 @@ function streamMasker(secret) {
     end() {
       const rest = held;
       held = '';
-      for (let n = Math.min(rest.length, secret.length - 1); n > 0; n -= 1) if (secret.startsWith(rest.slice(-n))) return rest.slice(0, -n);
+      for (let n = Math.min(rest.length, secret.length - 1); n > floor; n -= 1) if (secret.startsWith(rest.slice(-n))) return rest.slice(0, -n);
       return rest;
     },
   };
 }
 
-const running = new Set(); // detached children of the active pass, so an interrupt can take their process groups down
 const killGroup = (child) => { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } } };
 
 /**
@@ -52,10 +62,10 @@ const killGroup = (child) => { try { process.kill(-child.pid, 'SIGKILL'); } catc
  * newline cannot expose it) and it is never passed on argv. stdout is streamed to `onOut` as it is masked; both streams
  * keep only their last KEEP_BYTES of already-masked text. After `timeoutMs` the whole process group is killed.
  */
-function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut }) {
+export function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut, children }) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
-    running.add(child);
+    children?.add(child);
     const maskers = { out: streamMasker(secret), err: streamMasker(secret) };
     const tail = { out: '', err: '' };
     const dropped = { out: false, err: false };
@@ -80,7 +90,7 @@ function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut }) {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      running.delete(child);
+      children?.delete(child);
       const rest = maskers.out.end();
       if (rest) { keep('out', rest); onOut?.(rest); }
       keep('err', maskers.err.end());
@@ -114,7 +124,6 @@ export async function takeLock(lock) {
   if (result.code === LOCK_BUSY) return null;
   if (result.code !== 0) throw new Error(`could not take the graphify lock: ${result.err.trim() || `lock helper exited ${result.code}`}`);
   const release = async () => { await rm(lock, { recursive: true, force: true }); };
-  release.sync = () => rmSync(lock, { recursive: true, force: true });
   return release;
 }
 
@@ -130,9 +139,10 @@ function parseTimeout(raw, env) {
  * `graphify extract <repo> --backend claude --model M`, only when ANTHROPIC_API_KEY is set. The key is read from the
  * environment only to decide, is inherited by the one graphify child that needs it, and is never printed, stored or
  * logged (output is masked, the mirror step runs without it). The run holds the hook's per-repo lock and is killed after
- * the timeout (seconds; default 30 minutes).
+ * the timeout (seconds; default 30 minutes). It installs no process-wide handlers: pass an AbortSignal whose reason is a
+ * signal name ('SIGINT'...) to interrupt it; it then kills graphify, releases the lock and returns 128+n.
  */
-export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDir, env = process.env, searchPath } = {}, io) {
+export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDir, env = process.env, searchPath, signal } = {}, io) {
   const key = env[KEY_VAR];
   if (!key) {
     io.stderr.write(`gentle-lite: ${HINT_NO_KEY}\n`);
@@ -161,20 +171,19 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     io.stderr.write(`gentle-lite: a graphify refresh is already running for this repository (lock ${lock}); wait for it to finish and run this again\n`);
     return 1;
   }
-  // An interrupt must not orphan the detached extract (it keeps calling the API) nor leave the lock behind.
-  const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 };
-  const onSignal = (name) => () => {
-    for (const child of running) killGroup(child);
-    try { release.sync?.(); } catch { /* best effort */ }
-    process.exit(128 + SIGNALS[name]);
-  };
-  const handlers = Object.keys(SIGNALS).map((name) => [name, onSignal(name)]);
-  for (const [name, h] of handlers) process.on(name, h);
+  // The caller owns signals (see semanticCommand). On abort every detached child of THIS pass is killed with its process
+  // group, so an interrupt cannot orphan an extract that keeps calling the API, and `finally` releases the lock.
+  const children = new Set();
+  const onAbort = () => { for (const child of children) killGroup(child); };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const interrupted = () => (signal?.aborted ? 128 + (os.constants.signals[signal.reason] ?? os.constants.signals.SIGTERM) : 0);
   try {
+    if (interrupted()) return interrupted();
     io.stdout.write(`gentle-lite: running the semantic pass on ${root} with ${chosen} (this calls the Anthropic API; stops after ${seconds}s)\n`);
     const extract = await capture(exe, ['extract', root, '--backend', 'claude', '--model', chosen], {
-      cwd: root, env: { ...env, GRAPHIFY_QUERY_LOG_DISABLE: '1' }, secret: key, timeoutMs: seconds * 1000, onOut: (text) => io.stdout.write(text),
+      cwd: root, env: { ...env, GRAPHIFY_QUERY_LOG_DISABLE: '1' }, secret: key, timeoutMs: seconds * 1000, onOut: (text) => io.stdout.write(text), children,
     });
+    if (interrupted()) return interrupted();
     if (extract.code !== 0) {
       if (extract.err) io.stderr.write(extract.err.endsWith('\n') ? extract.err : `${extract.err}\n`);
       io.stderr.write(extract.timedOut
@@ -188,7 +197,9 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
       env: { ...clean, PYTHONPATH: path.join(packageRoot, 'python'), GENTLE_LITE_STATE_DIR: resolveTargets({ stateDir }).stateDir },
       secret: key,
       timeoutMs: 120000,
+      children,
     });
+    if (interrupted()) return interrupted();
     if (sync.code !== 0) {
       io.stderr.write(`gentle-lite: the extraction finished but the graph sync failed: ${(sync.err || sync.out).trim()}\n`);
       return 1;
@@ -199,7 +210,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     }
     return 0;
   } finally {
-    for (const [name, h] of handlers) process.off(name, h);
+    signal?.removeEventListener('abort', onAbort);
     await release();
   }
 }
@@ -212,5 +223,13 @@ export async function semanticCommand(args, io) {
     io.stderr.write(`gentle-lite: ${err.message}\n`);
     return 1;
   }
-  return runSemantic({ cwd: values.cwd, model: values.model, timeout: values.timeout, stateDir: values['state-dir'] }, io);
+  // The CLI entrypoint owns signal handling; the library only sees the abort signal.
+  const ac = new AbortController();
+  const handlers = ['SIGINT', 'SIGTERM', 'SIGHUP'].map((name) => [name, () => ac.abort(name)]);
+  for (const [name, h] of handlers) process.on(name, h);
+  try {
+    return await runSemantic({ cwd: values.cwd, model: values.model, timeout: values.timeout, stateDir: values['state-dir'], signal: ac.signal }, io);
+  } finally {
+    for (const [name, h] of handlers) process.off(name, h);
+  }
 }

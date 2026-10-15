@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { capture, runSemantic, streamMasker } from '../src/graphify/semantic.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = path.join(repoRoot, 'bin', 'gentle-lite.js');
@@ -232,13 +233,13 @@ const waitFor = async (fn, what, ms = 15000) => {
 };
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
-for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+const SIGNO = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 };
+for (const signal of Object.keys(SIGNO)) {
   test(`${signal} on the CLI kills graphify's whole process group and releases the lock`, async () => {
     const t = await sandbox('placeholder');
     const pidFile = path.join(t.root, 'fake.pid');
     const gcFile = path.join(t.root, 'grandchild.pid');
     await writeFile(path.join(t.bin, 'graphify'), `#!/bin/sh\nsleep 300 &\necho $! > "${gcFile}.tmp"; mv "${gcFile}.tmp" "${gcFile}"\necho $$ > "${pidFile}.tmp"; mv "${pidFile}.tmp" "${pidFile}"\nwait\n`, { mode: 0o755 });
-    const { spawn } = await import('node:child_process');
     const cli = spawn(process.execPath, [BIN, 'graphify', 'semantic', '--cwd', t.repo, '--state-dir', t.state], {
       env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: t.root, ANTHROPIC_API_KEY: CANARY }, stdio: 'ignore',
     });
@@ -249,9 +250,60 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
     const gc = await readPid(gcFile);
     assert.ok(await stat(lock).then(() => true, () => false), 'lock held while running');
     cli.kill(signal);
-    await exited;
+    const { code } = await exited;
+    assert.equal(code, 128 + SIGNO[signal], 'the CLI itself exits 128+n');
     await waitFor(() => !alive(pid) && !alive(gc), 'graphify and its child to be gone');
     await waitFor(() => stat(lock).then(() => false, () => true), 'the lock to be released');
     await rm(t.root, { recursive: true, force: true });
   });
 }
+
+// --- T22: masker end(), unbounded stdout, signal ownership --------------------------------------------------------------
+
+const feed = (secret, chunks) => {
+  const m = streamMasker(secret);
+  return chunks.map((c) => m.push(c)).join('') + m.end();
+};
+
+test('end() keeps a legitimate tail that only matches the key\'s public prefix, and still drops a real key fragment', () => {
+  assert.equal(feed(CANARY, ['2 errors']), '2 errors', 'a trailing "s" is not key material');
+  assert.equal(feed(CANARY, ['see sk-ant-']), 'see sk-ant-', 'the public vendor prefix is not secret');
+  assert.equal(feed('plain-secret-value', ['status: sk']), 'status: sk', 'a 2-character match is not a fragment worth dropping');
+  const dropped = feed(CANARY, ['see ', CANARY.slice(0, 12)]);
+  assert.equal(dropped, 'see ', 'a held fragment beyond the public prefix is dropped, never emitted');
+  assert.ok(!feed(CANARY, [`x ${CANARY}`, ' y']).includes(CANARY));
+});
+
+test('capture streams newline-free stdout while the child is still running (the partial buffer is bounded by the key length)', async () => {
+  const t = await sandbox(null);
+  const go = path.join(t.root, 'go');
+  const chunks = [];
+  const run = capture('sh', ['-c', `i=0; while [ $i -lt 100 ]; do printf '%01000d' 0; i=$((i+1)); done; while [ ! -f '${go}' ]; do sleep 0.05; done`], {
+    cwd: t.root, env: process.env, secret: CANARY, onOut: (text) => chunks.push(text),
+  });
+  await waitFor(() => chunks.join('').length >= 90000, 'streamed output before the child ended');
+  assert.equal((await stat(go).catch(() => null)), null, 'the child is still running');
+  await writeFile(go, '');
+  const r = await run;
+  assert.equal(r.code, 0);
+  await rm(t.root, { recursive: true, force: true });
+});
+
+const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
+
+test('runSemantic installs no process-wide signal handlers; an abort signal stops the pass, kills graphify and releases the lock', async () => {
+  const t = await sandbox(null);
+  const pidFile = path.join(t.root, 'fake.pid');
+  await writeFile(path.join(t.bin, 'graphify'), `#!/bin/sh\necho $$ > "${pidFile}.tmp"; mv "${pidFile}.tmp" "${pidFile}"\nexec sleep 300\n`, { mode: 0o755 });
+  const before = Object.fromEntries(['SIGINT', 'SIGTERM', 'SIGHUP'].map((n) => [n, process.listenerCount(n)]));
+  const ac = new AbortController();
+  const io = { stdout: sink(), stderr: sink() };
+  const run = runSemantic({ cwd: t.repo, stateDir: t.state, env: { ANTHROPIC_API_KEY: CANARY, PATH: process.env.PATH }, searchPath: t.bin, signal: ac.signal }, io);
+  const pid = await waitFor(() => readFile(pidFile, 'utf8').then((x) => Number.parseInt(x, 10) || 0, () => 0), 'graphify to start');
+  for (const n of Object.keys(before)) assert.equal(process.listenerCount(n), before[n], `${n}: the library must not install handlers`);
+  ac.abort('SIGTERM');
+  assert.equal(await run, 128 + 15);
+  await waitFor(() => !alive(pid), 'graphify to be gone');
+  assert.equal(await pathExists(LOCK(t)), false, 'lock released');
+  await rm(t.root, { recursive: true, force: true });
+});
