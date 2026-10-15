@@ -23,11 +23,16 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   assert.ok(front, 'frontmatter');
   assert.match(front[1], /^name: graphify-semantic$/m);
   assert.match(front[1], /^description: ".*Trigger:.*"$/m);
-  // The dispatch contract the manual flow proved: one message, general-purpose agents, Haiku, a rendered prompt file each.
-  assert.match(text, /subagent_type: "general-purpose"/);
+  // Dispatch contract: one message, the Read-only graphify-extractor agent on Haiku, a rendered prompt file each.
+  assert.match(text, /subagent_type: "graphify-extractor"/);
+  assert.doesNotMatch(text, /subagent_type: "general-purpose"/);
   assert.match(text, /model: "haiku"/);
   assert.match(text, /ONE message/i);
   assert.match(text, /gentle_lite\.graph\.semantic_plan/);
+  // Subagents never write: the orchestrator saves each reply through the validating helper, and documents are untrusted data.
+  assert.match(text, /<prefix> save-chunk <N>/);
+  assert.match(text, /untrusted/i);
+  assert.match(text, /never write/i);
   assert.match(text, /<prefix> plan/);
   assert.match(text, /<prefix> validate/);
   assert.match(text, /<prefix> merge/);
