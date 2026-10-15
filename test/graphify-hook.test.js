@@ -418,8 +418,28 @@ test('the hook runs `graphify check-update .` after update and records a pending
   await t.cleanup();
 });
 
+// Observed with graphify 0.9.90 (see the feature document): `check-update` always exits 0; it prints
+// "[graphify check-update] Pending non-code changes in <path>." plus a hint line when graph-out/needs_update
+// exists, and prints nothing otherwise. Anything else (including negative wording) must not raise the flag.
+for (const [name, say, expected] of [
+  ['the real positive output (even with a path that contains "pending")', 'echo "[graphify check-update] Pending non-code changes in /work/pending-repo."; echo "[graphify check-update] Run \\`/graphify --update\\` to apply semantic re-extraction."', '1'],
+  ['a negative phrasing ("no pending changes")', 'echo "[graphify check-update] No pending changes."', '0'],
+  ['a negative phrasing ("nothing pending")', 'echo "nothing pending"', '0'],
+  ['a path that merely contains "pending" in an unrelated line', 'echo "scanning /work/pending-repo"', '0'],
+]) {
+  test(`check-update output is parsed precisely: ${name} -> pending=${expected}`, async () => {
+    const t = await sandbox({ graphify: `case "$1" in\n  update) ${writeGraph}\n ;;\n  check-update) ${say} ;;\nesac` });
+    await installHook(t.opts());
+    assert.equal((await t.commit('docs')).status, 0);
+    const db = path.join(t.state, 'memory.db');
+    assert.ok(await waitFor(() => dbValue(db, 'select count(*) from graph_sync') === '1'), 'graph mirrored');
+    assert.equal(dbValue(db, 'select semantic_pending from graph_sync'), expected);
+    await t.cleanup();
+  });
+}
+
 test('a clean check-update clears the pending flag, and a failing check-update leaves it as it was', async () => {
-  const t = await sandbox({ graphify: `case "$1" in\n  update) ${writeGraph}\n ;;\n  check-update) [ -e "$(dirname "$0")/../pending" ] && echo "Pending non-code changes"; [ -e "$(dirname "$0")/../broken" ] && exit 3; exit 0 ;;\nesac` });
+  const t = await sandbox({ graphify: `case "$1" in\n  update) ${writeGraph}\n ;;\n  check-update) [ -e "$(dirname "$0")/../pending" ] && echo "[graphify check-update] Pending non-code changes in $2."; [ -e "$(dirname "$0")/../broken" ] && exit 3; exit 0 ;;\nesac` });
   await installHook(t.opts());
   const db = path.join(t.state, 'memory.db');
   const settle = async () => waitFor(async () => !(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock'))) && !(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock.pending'))));
@@ -428,8 +448,11 @@ test('a clean check-update clears the pending flag, and a failing check-update l
   assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '1'));
   await settle();
   await writeFile(path.join(t.root, 'broken'), '');
+  const checks = async () => (await readFile(t.log, 'utf8')).split('\n').filter((l) => l.startsWith('args=check-update')).length;
+  const before = await checks();
   await t.commit('two');
-  await sleep(1500); await settle();
+  assert.ok(await waitFor(async () => (await checks()) > before), 'the hook for commit two ran its (failing) check-update');
+  await settle();
   assert.equal(dbValue(db, 'select semantic_pending from graph_sync'), '1', 'a failing check-update does not change the flag');
   await rm(path.join(t.root, 'broken'));
   await rm(path.join(t.root, 'pending'));
