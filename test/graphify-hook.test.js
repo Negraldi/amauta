@@ -216,9 +216,16 @@ test('concurrent triggers never overlap: every graphify start is followed by its
   const trace = path.join(t.root, 'trace.log');
   for (let i = 0; i < 6; i += 1) runHook(t);
   const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
-  await sleep(300);
-  await waitFor(async () => !(await exists(lock)) && (await lines(trace)).length >= 2);
-  await sleep(600);
+  // Quiescence, not a fixed sleep: a coalesced re-run can grab the lock right after it is released, so wait
+  // until there is no lock, no pending marker and the trace has stopped changing for longer than one run.
+  let last = '';
+  let stableSince = Date.now();
+  const quiet = await waitFor(async () => {
+    const now = (await lines(trace)).join('');
+    if (now !== last) { last = now; stableSince = Date.now(); return false; }
+    return now.length >= 2 && !(await exists(lock)) && !(await exists(`${lock}.pending`)) && Date.now() - stableSince > 1500;
+  }, 20000);
+  assert.ok(quiet, `hook never went quiet: ${last}`);
   const seq = (await lines(trace)).join('');
   assert.match(seq, /^(SE)+$/, `runs must not overlap (each start is followed by its end): ${seq}`);
   assert.equal(await exists(lock), false, 'lock is released');
