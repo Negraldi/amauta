@@ -127,6 +127,31 @@ class LockModuleTest(unittest.TestCase):
         self.assertEqual((self.lock / "pid").read_text().split()[0], str(os.getpid()))
         self.assertEqual([p.name for p in self.lock.parent.iterdir() if ".stale." in p.name], [], "no tombstones left behind")
 
+    def test_a_failed_put_back_of_a_live_lock_is_reported_on_stderr(self):
+        import io
+        from contextlib import redirect_stderr
+        self.held_by(f"{dead_pid()}\n", 20)
+        real_rename = os.rename
+        calls = []
+
+        def rename(src, dst):
+            calls.append(src)
+            if len(calls) == 2:  # the put-back
+                raise OSError("a third writer created the lock")
+            return real_rename(src, dst)
+
+        buf = io.StringIO()
+        with mock.patch.object(gl, "_stale", side_effect=[True, False]), mock.patch.object(gl.os, "rename", rename), redirect_stderr(buf):
+            self.assertFalse(gl._acquire(self.lock))
+        self.assertIn("could not put the live lock back", buf.getvalue())
+        self.assertIn(".stale.", buf.getvalue())
+
+    def test_an_interrupt_between_mkdir_and_the_pid_write_leaves_no_empty_lock(self):
+        with mock.patch.object(Path, "write_text", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                gl._acquire(self.lock)
+        self.assertFalse(self.lock.exists(), "no ownerless lock dir left behind")
+
     def test_concurrent_takers_of_a_stale_lock_have_exactly_one_winner(self):
         worker = (
             "import sys, time\nfrom pathlib import Path\nfrom gentle_lite.graph import lock as gl\n"

@@ -15,7 +15,7 @@ the directory. So all writers are mutually exclusive across languages, with one 
          directory is renamed to a unique `<lock>.stale.*` tombstone, and only the taker whose rename succeeded removes it
          and creates the new lock. A taker whose rename moved a lock that proves not stale (a rival finished its own
          takeover between our verdict and our rename) puts it back and reports held. Residual window: a third writer
-         creating the lock exactly while it is put back.
+         creating the lock exactly while it is put back; the failed put-back is reported on stderr.
 
 A held lock fails fast (LockHeld); nothing waits.
 """
@@ -26,6 +26,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -112,8 +113,11 @@ def _take_over(lock: Path) -> bool:
         return False  # somebody else moved it first (ENOENT) or it cannot be moved: not our takeover
     if not _stale(tomb):
         # We moved a live lock: a rival completed its takeover after our verdict. Put it back untouched.
-        with contextlib.suppress(OSError):
+        try:
             os.rename(tomb, lock)
+        except OSError as exc:
+            # The residual window: the live owner's lock now sits under a tombstone name nobody cleans up. Say so.
+            print(f"gentle-lite: could not put the live lock back ({exc}); it stays at {tomb}", file=sys.stderr)
         return False
     _remove(tomb)
     return True
@@ -130,7 +134,7 @@ def _acquire(lock: Path, pid: int | None = None) -> bool:
             return False
         try:
             (lock / "pid").write_text(f"{pid} {start_token(pid)}".rstrip() + "\n")
-        except OSError:
+        except BaseException:  # incl. KeyboardInterrupt / SystemExit from a signal handler
             shutil.rmtree(lock, ignore_errors=True)  # never leave a lock without an owner record behind
             raise
         return True
@@ -165,7 +169,6 @@ EXIT_LOCKED = 75  # EX_TEMPFAIL
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
-    import sys
 
     parser = argparse.ArgumentParser(prog="gentle_lite.graph.lock", description="Take the per-repo graphify lock for another process.")
     sub = parser.add_subparsers(dest="cmd", required=True)
