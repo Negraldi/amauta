@@ -132,11 +132,14 @@ def sync_repo(conn, repo, semantic_pending=None, semantic_model=None) -> dict:
         _insert_nodes(conn, nodes)
         _insert_edges(conn, edges)
         conn.execute(
-            "INSERT INTO graph_sync (repo, graph_mtime, synced_at, nodes, edges, sql_tables, semantic_pending, semantic_at, semantic_model) VALUES (?,?,?,?,?,?,?,?,?) "
+            "INSERT INTO graph_sync (repo, graph_mtime, synced_at, nodes, edges, sql_tables, semantic_pending, semantic_at, semantic_model) "
+            "VALUES (:repo, :mtime, :now, :nodes, :edges, :tables, COALESCE(:pending, 0), :ran_at, :model) "
             "ON CONFLICT(repo) DO UPDATE SET graph_mtime=excluded.graph_mtime, synced_at=excluded.synced_at, nodes=excluded.nodes, edges=excluded.edges, "
             "sql_tables=excluded.sql_tables, "
-            "semantic_pending=CASE WHEN ? IS NULL THEN semantic_pending ELSE excluded.semantic_pending END, "
-            "semantic_at=COALESCE(?, semantic_at), semantic_model=COALESCE(?, semantic_model)",
-            (key, mtime, mstore.now(), len(nodes), len(edges), tables, pending or 0, ran_at, semantic_model or None, pending, ran_at, semantic_model or None),
+            # None (NULL) means "keep the stored value" for the three semantic columns.
+            "semantic_pending=COALESCE(:pending, semantic_pending), "
+            "semantic_at=COALESCE(:ran_at, semantic_at), semantic_model=COALESCE(:model, semantic_model)",
+            {"repo": key, "mtime": mtime, "now": mstore.now(), "nodes": len(nodes), "edges": len(edges), "tables": tables,
+             "pending": pending, "ran_at": ran_at, "model": semantic_model or None},
         )
     return {"repo": key, "nodes": len(nodes), "edges": len(edges), "sql_tables": tables}
