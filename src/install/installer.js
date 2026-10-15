@@ -18,6 +18,7 @@ import { desiredHooks, desiredMcpServers, isGentleLiteHook } from './servers.js'
 import { renderSddFiles } from './sdd.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
+import { graphifyStatus } from '../graphify/probe.js';
 
 export const STATE_SCHEMA = 'gentle-lite.state/v1';
 const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
@@ -485,6 +486,8 @@ export async function status(opts = {}) {
   // Optional external tools: reported, but never make the install unhealthy.
   const cg = await codegraphStatus({ cwd: opts.cwd, searchPath: opts.searchPath });
   notes.push({ name: 'codegraph', ok: cg.onPath, detail: cg.onPath ? `${cg.path}; index in ${path.resolve(opts.cwd ?? process.cwd())}: ${cg.indexed ? 'present' : 'missing (run: gentle-lite codegraph init)'}` : CODEGRAPH_HINT });
+  const gfy = await graphifyStatus({ searchPath: opts.searchPath, deep: opts.deep === true });
+  notes.push({ name: 'graphify', ok: gfy.onPath, detail: gfy.detail });
   const blocks = found
     .filter((s) => (state.claude_md_sections ?? []).includes(s.id))
     .map((s) => ({ id: s.id, chars: s.body.length, lines: s.body.split('\n').length }));
