@@ -333,6 +333,38 @@ test('a helper that cannot run at all (python missing) fails open: no marker, no
   await t.cleanup();
 });
 
+const hookLog = (t) => readFile(path.join(t.state, 'graphify-hook.log'), 'utf8').then((x) => x, () => '');
+
+test('a lock helper that exits with an unexpected code is logged (python3 >= 3.11 required), not skipped silently', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  // What python 3.10 does with `-P`: usage error, exit 2.
+  await writeFile(path.join(t.bin, 'python3'), '#!/bin/sh\necho "Unknown option: -P" >&2\nexit 2\n', { mode: 0o755 });
+  await installHook(t.opts());
+  const c = await t.commit();
+  assert.equal(c.status, 0, c.stderr);
+  const text = await waitFor(async () => { const x = await hookLog(t); return x.includes('lock helper') ? x : null; }, 10000);
+  assert.ok(text, 'the failure reached the hook log');
+  assert.match(text, /lock helper failed \(exit 2\)/);
+  assert.match(text, /python3 >= 3\.11 required/);
+  assert.match(text, /Unknown option: -P/);
+  await t.cleanup();
+});
+
+test('the hook starts the lock helper with a minimal environment (no API keys)', async () => {
+  const t = await sandbox({ graphify: 'true' });
+  const realPython = spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).stdout.trim();
+  const seen = path.join(t.root, 'helper-env.txt');
+  await writeFile(path.join(t.bin, 'python3'), `#!/bin/sh\ncase "$*" in *"graph.lock acquire"*) env > '${seen}';; esac\nexec '${realPython}' "$@"\n`, { mode: 0o755 });
+  await installHook(t.opts());
+  const child = spawn('sh', [t.hook], { cwd: t.repo, env: { ...process.env, ...t.env, ANTHROPIC_API_KEY: 'sk-ant-CANARY-0123456789abcdef' }, stdio: 'ignore' });
+  child.on('error', () => {});
+  const env = await waitFor(() => readFile(seen, 'utf8').then((x) => x, () => null), 10000);
+  assert.ok(env, 'the helper ran');
+  assert.ok(!env.includes('CANARY') && !env.includes('ANTHROPIC_API_KEY'), 'no key reached the helper');
+  assert.match(env, /^PYTHONPATH=/m);
+  await t.cleanup();
+});
+
 // Start token the hook stores next to the pid: "<boot_id>:<starttime field of /proc/PID/stat>" (Linux only).
 async function procToken(pid) {
   const boot = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();

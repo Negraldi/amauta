@@ -36,3 +36,13 @@ export async function graphifyStatus({ searchPath, deep = false } = {}) {
   const sqlText = sql === null ? 'not probed (use --deep)' : sql ? 'available' : `NOT available (${SQL_HINT})`;
   return { onPath: true, path: exe, version, sql, detail: `${exe}; ${version}; SQL extractor: ${sqlText}` };
 }
+
+/** The last non-empty line of the hook's log (<state>/graphify-hook.log), or null: failures the hook could not show anywhere else. */
+export async function lastHookError(stateDir) {
+  try {
+    const lines = (await readFile(path.join(stateDir, 'graphify-hook.log'), 'utf8')).split('\n').filter((l) => l.trim() !== '');
+    return lines.length ? lines[lines.length - 1].slice(0, 300) : null;
+  } catch {
+    return null;
+  }
+}

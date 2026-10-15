@@ -83,3 +83,15 @@ test('CLI: status --deep prints the graphify line', async () => {
   assert.match(out.text, /\[optional\] graphify: .*graphify 9\.9\.9.*SQL extractor: available/);
   await t.cleanup();
 });
+
+test('status surfaces the last graphify hook error from the state dir log', async () => {
+  const t = await sandbox();
+  assert.equal((await status(t.opts())).notes.find((n) => n.name === 'graphify hook'), undefined, 'nothing to report without a log');
+  await writeFile(path.join(t.stateDir, 'graphify-hook.log'), '2026-10-15T10:00:00Z old problem\n2026-10-15T11:00:00Z lock helper failed (exit 2): Unknown option: -P; python3 >= 3.11 required\n');
+  const n = (await status(t.opts())).notes.find((x) => x.name === 'graphify hook');
+  assert.ok(n, 'a note for the hook log');
+  assert.equal(n.ok, false);
+  assert.match(n.detail, /last error: 2026-10-15T11:00:00Z lock helper failed \(exit 2\)/);
+  assert.ok(!n.detail.includes('old problem'));
+  await t.cleanup();
+});

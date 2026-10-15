@@ -18,7 +18,7 @@ import { desiredHooks, desiredMcpServers, isGentleLiteHook, shellQuote } from '.
 import { renderSddFiles } from './sdd.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
-import { graphifyStatus } from '../graphify/probe.js';
+import { graphifyStatus, lastHookError } from '../graphify/probe.js';
 
 export const STATE_SCHEMA = 'gentle-lite.state/v1';
 const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
@@ -499,6 +499,8 @@ export async function status(opts = {}) {
   notes.push({ name: 'codegraph', ok: cg.onPath, detail: cg.onPath ? `${cg.path}; index in ${path.resolve(opts.cwd ?? process.cwd())}: ${cg.indexed ? 'present' : 'missing (run: gentle-lite codegraph init)'}` : CODEGRAPH_HINT });
   const gfy = await graphifyStatus({ searchPath: opts.searchPath, deep: opts.deep === true });
   notes.push({ name: 'graphify', ok: gfy.onPath, detail: gfy.detail });
+  const hookError = await lastHookError(t.stateDir);
+  if (hookError) notes.push({ name: 'graphify hook', ok: false, detail: `last error: ${hookError} (log: ${path.join(t.stateDir, 'graphify-hook.log')})` });
   const blocks = found
     .filter((s) => (state.claude_md_sections ?? []).includes(s.id))
     .map((s) => ({ id: s.id, chars: s.body.length, lines: s.body.split('\n').length }));
