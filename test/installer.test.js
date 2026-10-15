@@ -523,7 +523,7 @@ test('permissions: re-install never strips deny rules recorded by a pre-T15 stat
   await t.cleanup();
 });
 
-test('permissions: a deny rule the user also lists is never recorded as ours, and an entry the user removed is not forced back as removable', async () => {
+test('permissions: a deny rule the user also lists is never recorded as ours, and an overlay entry the user deleted comes back on re-install and is removed again on uninstall', async () => {
   const t = await sandbox({ settings: { permissions: { deny: ['Read(~/.ssh/**)'] } } });
   await install(t.opts());
   const state = await readJson(path.join(t.stateDir, 'state.json'));

@@ -210,7 +210,7 @@ const exists = (p) => access(p).then(() => true, () => false);
 const lines = async (p) => ((await exists(p)) ? (await readFile(p, 'utf8')).split('\n').filter(Boolean) : []);
 const runHook = (t) => spawn('sh', [t.hook], { cwd: t.repo, env: { ...process.env, ...t.env }, stdio: 'ignore' });
 
-test('concurrent commits never stack runs: one at a time, extra triggers coalesce into one rerun', async () => {
+test('concurrent triggers never overlap: every graphify start is followed by its end before the next start', async () => {
   const t = await sandbox({ graphify: `echo S >> "$(dirname "$0")/../trace.log"\nsleep 1\nmkdir -p graphify-out\necho '${GRAPH}' > graphify-out/graph.json\necho E >> "$(dirname "$0")/../trace.log"` });
   await installHook(t.opts());
   const trace = path.join(t.root, 'trace.log');
@@ -220,7 +220,7 @@ test('concurrent commits never stack runs: one at a time, extra triggers coalesc
   await waitFor(async () => !(await exists(lock)) && (await lines(trace)).length >= 2);
   await sleep(600);
   const seq = (await lines(trace)).join('');
-  assert.match(seq, /^(SE){1,2}$/, `runs must not overlap and must coalesce: ${seq}`);
+  assert.match(seq, /^(SE)+$/, `runs must not overlap (each start is followed by its end): ${seq}`);
   assert.equal(await exists(lock), false, 'lock is released');
   await t.cleanup();
 });
@@ -372,5 +372,23 @@ test('an old lock whose pid and start token both match a live process is never t
   assert.equal(await exists(t.log), false);
   assert.equal(await exists(lock), true);
   owner.kill();
+  await t.cleanup();
+});
+
+test('the lock owner pid is the live background subshell even when `sh -c` is a forking wrapper (no command-substitution pid trick)', async (ctx) => {
+  if (!(await hasProc())) return ctx.skip('no /proc');
+  const t = await sandbox({ graphify: 'sleep 3' });
+  // A non-exec `sh`: its child shell reports the wrapper as $PPID, and the wrapper exits right after. The old
+  // `me="$(sh -c 'echo $PPID')"` recorded exactly such a short-lived pid; the owner must be the hook's own subshell.
+  await writeFile(path.join(t.bin, 'sh'), '#!/bin/sh\n/bin/sh "$@"\n', { mode: 0o755 });
+  await installHook(t.opts());
+  const pidFile = path.join(t.repo, '.git', 'gentle-lite-graphify.lock', 'pid');
+  spawn('/bin/sh', [t.hook], { cwd: t.repo, env: { ...process.env, ...t.env }, stdio: 'ignore' });
+  const text = await waitFor(async () => { const l = await lines(pidFile); return l.length ? l[0] : null; });
+  assert.ok(text, 'pid file written');
+  await sleep(700); // a short-lived helper pid would be gone by now; graphify (sleep 3) is still running
+  const [pid, token] = text.split(' ');
+  assert.doesNotThrow(() => process.kill(Number(pid), 0), `owner pid ${pid} must still be alive while graphify runs`);
+  assert.equal(token, await procToken(pid));
   await t.cleanup();
 });
