@@ -1,10 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
 import { repoRoot } from '../src/install/assets.js';
 import { takeLock } from '../src/graphify/semantic.js';
 
@@ -80,4 +79,31 @@ test('semantic.js has no lock protocol of its own (no stale rule or pid parsing)
   const text = await readFile(path.join(repoRoot, 'src', 'graphify', 'semantic.js'), 'utf8');
   assert.doesNotMatch(text, /STALE_LOCK|pidAlive|mkdir\(lock/);
   assert.match(text, /gentle_lite\.graph\.lock/);
+});
+
+test('the lock helper runs with a minimal environment: no ANTHROPIC_API_KEY or other secrets', async () => {
+  const { root, lock } = await gitRepo();
+  const realPython = spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).stdout.trim();
+  const bin = path.join(root, 'bin');
+  const seen = path.join(root, 'env.txt');
+  await mkdir(bin);
+  await writeFile(path.join(bin, 'python3'), `#!/bin/sh\nenv > '${seen}'\nexec '${realPython}' "$@"\n`);
+  await chmod(path.join(bin, 'python3'), 0o755);
+  const saved = { PATH: process.env.PATH, KEY: process.env.ANTHROPIC_API_KEY, OTHER: process.env.GL_OTHER_SECRET };
+  process.env.PATH = `${bin}${path.delimiter}${saved.PATH}`;
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-CANARY-0123456789abcdef';
+  process.env.GL_OTHER_SECRET = 'other-canary';
+  try {
+    const release = await takeLock(lock);
+    assert.ok(release, 'took the lock');
+    await release();
+    const env = await readFile(seen, 'utf8');
+    assert.ok(!env.includes('CANARY') && !env.includes('ANTHROPIC_API_KEY') && !env.includes('GL_OTHER_SECRET'), 'no secret reached the helper');
+    assert.match(env, /^PYTHONPATH=/m);
+    assert.match(env, /^PATH=/m);
+  } finally {
+    process.env.PATH = saved.PATH;
+    for (const [k, v] of [['ANTHROPIC_API_KEY', saved.KEY], ['GL_OTHER_SECRET', saved.OTHER]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    await rm(root, { recursive: true, force: true });
+  }
 });

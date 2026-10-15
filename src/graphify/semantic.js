@@ -103,6 +103,13 @@ export function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut, childre
   });
 }
 
+// The lock helper needs no secrets: it gets only what python3 needs to start, never ANTHROPIC_API_KEY or anything else.
+function lockHelperEnv(env = process.env) {
+  const out = { PYTHONPATH: path.join(packageRoot, 'python') };
+  for (const name of ['PATH', 'HOME', 'LANG']) if (env[name] !== undefined) out[name] = env[name];
+  return out;
+}
+
 const LOCK_BUSY = 75; // EX_TEMPFAIL from `gentle_lite.graph.lock acquire`: held by someone else
 
 /**
@@ -113,7 +120,7 @@ const LOCK_BUSY = 75; // EX_TEMPFAIL from `gentle_lite.graph.lock acquire`: held
 export async function takeLock(lock) {
   const result = await new Promise((resolve) => {
     const child = spawn('python3', ['-P', '-m', 'gentle_lite.graph.lock', 'acquire', '--lock', lock, '--pid', String(process.pid)], {
-      env: { ...process.env, PYTHONPATH: path.join(packageRoot, 'python') }, stdio: ['ignore', 'ignore', 'pipe'],
+      env: lockHelperEnv(), stdio: ['ignore', 'ignore', 'pipe'],
     });
     let err = '';
     child.stderr.setEncoding('utf8');
