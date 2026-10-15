@@ -294,6 +294,8 @@ T16 done. Open: nothing blocking.
 
 - 2026-10-15: RDD for T22 (`2999208..3b6f40e`): high, 624 lines → granted → 4 lenses → approved, acknowledged (review-1f886e9f4242aa53). Parent spot check by exit code: node 287 / python 282, exit=0. 5 warnings → T22b.
 
+- 2026-10-15: RDD for T22b (`47e1fce..e8f6014`): high, 143 lines → granted → 4 lenses → approved, acknowledged (review-52e18e969eaaa6ad). Parent spot check by exit code: node 291 / python 284, exit=0. Remaining warnings are minor logging edges (put-back failure on exit 75 only on stderr; `status` shows the last hook-log line as an error without age/success check; `lastHookError` name) → documented backlog; fix loop stopped by plan (diminishing returns).
+
 ## Next session
 
 - T22b done (`bbf97f5`, `edef38c`, `7a940af`): lock helper env minimal (Node and hook), unexpected helper exits logged with "python3 >= 3.11 required" and surfaced by status, failed put-back reported on stderr, BaseException cleanup between mkdir and pid write. Not re-reviewed.
@@ -302,3 +304,4 @@ T16 done. Open: nothing blocking.
 - Open from reviews: `save-chunk` stdin decoding errors (R4-003), mtime granularity of the plan/chunk freshness check (R3-004), shared known-ids helper (R2-002), residual takeover window and ownerless `rm -rf` release (documented), sql_tables tuple indices, hook coalescing assertion.
 - Possible follow-ups: make `go-testing` optional, dedupe the two skill-style-guide copies, trim agent files, lint/`npm run check`.
 - Remaining `gentle-ai` strings in assets are SDD machine markers/schema names and the manifest attribution; rename only together with the Python preflight/status code.
+- Backlog (T22b review, minor): log put-back failure on exit 75 in the hook log; `status` should only report a hook error newer than the last successful run; rename `lastHookError`. Not done in T22: save-chunk stdin decoding (R4-003), mtime granularity of the chunk freshness check (R3-004), shared known-ids helper (R2-002).
