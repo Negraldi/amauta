@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -182,3 +182,76 @@ test('output is streamed (masked) and a huge error stream is bounded, not held w
   assert.ok(!r.stderr.includes(CANARY));
   await rm(t.root, { recursive: true, force: true });
 });
+
+// --- T19: masking on the raw stream and interrupt cleanup -------------------------------------------------------------
+
+const fragments = (secret, min = 8) => {
+  const out = [];
+  for (let i = 0; i + min <= secret.length; i += 1) for (let j = i + min; j <= secret.length; j += 1) out.push(secret.slice(i, j));
+  return out;
+};
+async function assertNoFragment(t, r) {
+  const hay = [r.stdout, r.stderr];
+  for (const e of await readdir(t.root, { withFileTypes: true, recursive: true })) {
+    if (e.isFile()) hay.push((await readFile(path.join(e.parentPath ?? e.path, e.name), 'utf8')));
+  }
+  for (const f of fragments(CANARY, 8)) {
+    for (const h of hay) assert.ok(!h.includes(f), `fragment ${JSON.stringify(f)} leaked`);
+  }
+}
+const PAD = 'pad=$(head -c 977 /dev/zero | tr "\\0" x)';
+
+test('the key is never emitted, even unterminated, split across writes, or in a truncated stream', async () => {
+  const K = '"$ANTHROPIC_API_KEY"';
+  const scenarios = {
+    'whole key, no newline': (fd) => `printf "%s" ${K} ${fd}; exit 4`,
+    'key split across writes': (fd) => `printf "%.10s" ${K} ${fd}; sleep 0.3; printf "%s" "\${ANTHROPIC_API_KEY#??????????}" ${fd}; exit 4`,
+    'key at the very end after padding': (fd) => `${PAD}; printf "%s%s" "$pad" ${K} ${fd}; exit 4`,
+    'truncated newline-free stream': (fd) => `${PAD}; i=0; while [ $i -lt 150 ]; do printf "%s%s" "$pad" ${K} ${fd}; i=$((i+1)); done; exit 4`,
+    'truncated stream ending in a key prefix': (fd) => `${PAD}; i=0; while [ $i -lt 90 ]; do printf "%s" "$pad" ${fd}; i=$((i+1)); done; printf "%.12s" ${K} ${fd}; exit 4`,
+  };
+  for (const [name, body] of Object.entries(scenarios)) {
+    for (const fd of ['', '>&2']) {
+      const t = await sandbox(body(fd));
+      const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
+      assert.notEqual(r.status, 0, name);
+      await assertNoFragment(t, r).catch((e) => { e.message = `${name} ${fd}: ${e.message}`; throw e; });
+      await rm(t.root, { recursive: true, force: true });
+    }
+  }
+});
+
+const waitFor = async (fn, what, ms = 15000) => {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+};
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  test(`${signal} on the CLI kills graphify's whole process group and releases the lock`, async () => {
+    const t = await sandbox('placeholder');
+    const pidFile = path.join(t.root, 'fake.pid');
+    const gcFile = path.join(t.root, 'grandchild.pid');
+    await writeFile(path.join(t.bin, 'graphify'), `#!/bin/sh\nsleep 300 &\necho $! > "${gcFile}.tmp"; mv "${gcFile}.tmp" "${gcFile}"\necho $$ > "${pidFile}.tmp"; mv "${pidFile}.tmp" "${pidFile}"\nwait\n`, { mode: 0o755 });
+    const { spawn } = await import('node:child_process');
+    const cli = spawn(process.execPath, [BIN, 'graphify', 'semantic', '--cwd', t.repo, '--state-dir', t.state], {
+      env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: t.root, ANTHROPIC_API_KEY: CANARY }, stdio: 'ignore',
+    });
+    const exited = new Promise((res) => cli.on('close', (code, sig) => res({ code, sig })));
+    const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+    const readPid = async (f) => waitFor(() => readFile(f, 'utf8').then((x) => Number.parseInt(x, 10) || 0, () => 0), f);
+    const pid = await readPid(pidFile);
+    const gc = await readPid(gcFile);
+    assert.ok(await stat(lock).then(() => true, () => false), 'lock held while running');
+    cli.kill(signal);
+    await exited;
+    await waitFor(() => !alive(pid) && !alive(gc), 'graphify and its child to be gone');
+    await waitFor(() => stat(lock).then(() => false, () => true), 'the lock to be released');
+    await rm(t.root, { recursive: true, force: true });
+  });
+}

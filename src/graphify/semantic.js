@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -17,48 +18,78 @@ const STALE_LOCK_MS = 15 * 60 * 1000; // same age gate as the post-commit hook
 
 const HINT_NO_KEY = `${KEY_VAR} is not set, so no semantic pass was run. Nothing is sent anywhere without it: \`graphify update\` and the post-commit hook keep the local code graph (SQL and markdown included) up to date with no LLM.`;
 
+const REDACTED = '[redacted]';
+
 /**
- * Run a command. The secret is masked in everything we hand back (line by line, so a chunk boundary cannot split it);
- * it is never passed on argv. stdout can be streamed to `onOut` as lines complete; both streams keep only their last
- * KEEP_BYTES. After `timeoutMs` the whole process group is killed and the result says so.
+ * Masks `secret` on a raw text stream. The last secret.length - 1 characters are held back until more text arrives, so a
+ * key split across chunks (or never followed by a newline) is still seen whole. `end()` drops a held tail that is a
+ * prefix of the secret instead of emitting a fragment of it.
+ */
+function streamMasker(secret) {
+  if (!secret) return { push: (text) => text, end: () => '' };
+  let held = '';
+  return {
+    push(text) {
+      const parts = (held + text).split(secret);
+      const last = parts.pop();
+      const safe = Math.max(0, last.length - (secret.length - 1));
+      held = last.slice(safe);
+      return parts.map((p) => p + REDACTED).join('') + last.slice(0, safe);
+    },
+    end() {
+      const rest = held;
+      held = '';
+      for (let n = Math.min(rest.length, secret.length - 1); n > 0; n -= 1) if (secret.startsWith(rest.slice(-n))) return rest.slice(0, -n);
+      return rest;
+    },
+  };
+}
+
+const running = new Set(); // detached children of the active pass, so an interrupt can take their process groups down
+const killGroup = (child) => { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } } };
+
+/**
+ * Run a command. The secret is masked in everything we hand back, on the raw stream (a chunk boundary or a missing
+ * newline cannot expose it) and it is never passed on argv. stdout is streamed to `onOut` as it is masked; both streams
+ * keep only their last KEEP_BYTES of already-masked text. After `timeoutMs` the whole process group is killed.
  */
 function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut }) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
-    const mask = (text) => (secret ? text.split(secret).join('[redacted]') : text);
+    running.add(child);
+    const maskers = { out: streamMasker(secret), err: streamMasker(secret) };
     const tail = { out: '', err: '' };
     const dropped = { out: false, err: false };
-    const partial = { out: '' };
     const keep = (name, text) => {
+      if (!text) return;
       tail[name] += text;
       if (tail[name].length > KEEP_BYTES) { tail[name] = tail[name].slice(-KEEP_BYTES); dropped[name] = true; }
     };
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (d) => {
-      partial.out += d;
-      const cut = partial.out.lastIndexOf('\n');
-      if (cut < 0) return;
-      const done = mask(partial.out.slice(0, cut + 1));
-      partial.out = partial.out.slice(cut + 1);
-      keep('out', done);
-      onOut?.(done);
+      const safe = maskers.out.push(d);
+      if (!safe) return;
+      keep('out', safe);
+      onOut?.(safe);
     });
-    child.stderr.on('data', (d) => keep('err', d));
+    child.stderr.on('data', (d) => keep('err', maskers.err.push(d)));
     let timedOut = false;
-    const timer = timeoutMs ? setTimeout(() => {
-      timedOut = true;
-      try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
-    }, timeoutMs) : null;
+    const timer = timeoutMs ? setTimeout(() => { timedOut = true; killGroup(child); }, timeoutMs) : null;
+    let done = false;
     const finish = (r) => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
-      if (partial.out) { const rest = mask(partial.out); partial.out = ''; keep('out', rest); onOut?.(rest); }
-      // A truncated tail may start inside the secret: drop the partial first line so masking stays exact.
-      for (const name of ['out', 'err']) if (dropped[name]) tail[name] = tail[name].slice(tail[name].indexOf('\n') + 1);
+      running.delete(child);
+      const rest = maskers.out.end();
+      if (rest) { keep('out', rest); onOut?.(rest); }
+      keep('err', maskers.err.end());
       const note = (name) => (dropped[name] ? `[gentle-lite: earlier output truncated, last ${KEEP_BYTES} bytes kept]\n` : '');
-      resolve({ timedOut, out: note('out') + mask(tail.out), err: note('err') + mask(tail.err), ...r });
+      const err = r.err === undefined ? note('err') + tail.err : r.err;
+      resolve({ timedOut, out: note('out') + tail.out, ...r, err });
     };
-    child.on('error', (e) => finish({ code: null, missing: e.code === 'ENOENT', err: mask(String(e.message)) }));
+    child.on('error', (e) => finish({ code: null, missing: e.code === 'ENOENT', err: String(e.message).split(secret || '\0').join(REDACTED) }));
     child.on('close', (code) => finish({ code, missing: false }));
   });
 }
@@ -74,7 +105,9 @@ async function takeLock(lock) {
     try {
       await mkdir(lock);
       await writeFile(path.join(lock, 'pid'), `${process.pid}\n`);
-      return async () => { await rm(lock, { recursive: true, force: true }); };
+      const release = async () => { await rm(lock, { recursive: true, force: true }); };
+      release.sync = () => rmSync(lock, { recursive: true, force: true });
+      return release;
     } catch (e) {
       if (e.code !== 'EEXIST') throw e;
     }
@@ -125,6 +158,15 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     io.stderr.write(`gentle-lite: a graphify refresh is already running for this repository (lock ${lock}); wait for it to finish and run this again\n`);
     return 1;
   }
+  // An interrupt must not orphan the detached extract (it keeps calling the API) nor leave the lock behind.
+  const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 };
+  const onSignal = (name) => () => {
+    for (const child of running) killGroup(child);
+    try { release.sync?.(); } catch { /* best effort */ }
+    process.exit(128 + SIGNALS[name]);
+  };
+  const handlers = Object.keys(SIGNALS).map((name) => [name, onSignal(name)]);
+  for (const [name, h] of handlers) process.on(name, h);
   try {
     io.stdout.write(`gentle-lite: running the semantic pass on ${root} with ${chosen} (this calls the Anthropic API; stops after ${seconds}s)\n`);
     const extract = await capture(exe, ['extract', root, '--backend', 'claude', '--model', chosen], {
@@ -154,6 +196,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     }
     return 0;
   } finally {
+    for (const [name, h] of handlers) process.off(name, h);
     await release();
   }
 }
