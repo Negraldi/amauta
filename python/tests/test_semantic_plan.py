@@ -251,7 +251,7 @@ class PlanTest(Base):
         prompt = Path(plan["chunks"][0]["prompt_file"]).read_text()
         self.assertIn(f"{a}\n{b}", prompt)
         self.assertIn("(chunk 1 of 1)", prompt)
-        self.assertTrue(prompt.rstrip().endswith(str(self.repo / "graphify-out" / ".graphify_chunk_01.json")))
+        self.assertTrue(prompt.rstrip().endswith("your final message is saved for you."), "the Write instruction is replaced by a JSON-only reply")
         self.assertIn("exactly as it appears in FILE_LIST", prompt, "prose mentions of FILE_LIST stay verbatim")
         self.assertIn("schema_users", prompt, "known AST ids are offered as link targets")
         self.assertIn("schema_orders", prompt)
@@ -415,7 +415,7 @@ class MergeTest(Base):
         self.chunk_path.write_text(json.dumps(data))
 
     def merge(self, *extra):
-        code, out, err = run_main("merge", "--repo", str(self.repo), *extra)
+        code, out, err = run_main("merge", "--repo", str(self.repo), "--graphify-bin", str(self.fake.exe), *extra)
         return code, (json.loads(out) if out.strip() else {}), err
 
     def graph(self):

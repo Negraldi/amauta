@@ -25,6 +25,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import uuid
 from pathlib import Path
 
 from .. import paths
@@ -38,7 +40,8 @@ SEMANTIC_KINDS = ("document", "paper", "image")  # code is covered by the AST pa
 FILE_TYPES = {"code", "document", "paper", "image", "rationale", "concept"}
 CONFIDENCES = {"EXTRACTED", "INFERRED", "AMBIGUOUS"}
 ID_RE = re.compile(r"^[a-z0-9_]+$")
-SPEC_REL = Path("skills") / "claude" / "references" / "extraction-spec.md"
+MAX_CHUNK_BYTES = 16 * 1024 * 1024
+CHUNK_GLOB, PROMPT_GLOB = ".graphify_chunk_*.json", ".gentle_semantic_prompt_*.md"
 HINT_MAX_IDS = 200
 UPDATE_TIMEOUT = 900
 WORKER_TIMEOUT = 900
@@ -106,7 +109,7 @@ elif op == "merge":
         kw = {"mode": payload["mode"]} if payload.get("mode") else {}
         s = payload["semantic"]
         saved = save_semantic_cache(s["nodes"], s["edges"], s["hyperedges"], root=repo,
-                                    allowed_source_files=payload["allowed"], prompt_file=payload["spec"], **kw)
+                                    allowed_source_files=payload["allowed"], prompt_file=spec, **kw)
     result = {"written": written, "nodes": G.number_of_nodes(), "edges": G.number_of_edges(), "cache_entries": saved}
 else:
     raise SystemExit("unknown op " + op)
@@ -140,6 +143,14 @@ def plan_file(repo: Path) -> Path:
 
 def cached_file(repo: Path) -> Path:
     return out_dir(repo) / ".gentle_semantic_cached.json"
+
+
+def chunk_file(repo: Path, num: int) -> Path:
+    return out_dir(repo) / f".graphify_chunk_{num:02d}.json"
+
+
+def prompt_file_of(repo: Path, num: int) -> Path:
+    return out_dir(repo) / f".gentle_semantic_prompt_{num:02d}.md"
 
 
 def _read_json(path: Path, what: str):
@@ -193,8 +204,14 @@ def prompt_block(spec_text: str) -> str:
     return m.group(1).rstrip("\n")
 
 
-def render_prompt(block: str, files: list[str], num: int, total: int, chunk_path: str, deep: bool, sql_ids: list[str]) -> str:
-    lines = []
+REPLY_ONLY = ("Reply with only the JSON object: no prose before or after it, no Markdown, no code fences. You have no Write tool and "
+              "must not write any file; your final message is saved for you.")
+
+
+def render_prompt(block: str, files: list[str], num: int, total: int, deep: bool, sql_ids: list[str]) -> str:
+    """The spec verbatim except its final instruction: the extractor has only `Read`, so it replies with the JSON instead of
+    writing it (the orchestrator saves the reply with `save-chunk`)."""
+    lines, replied = [], False
     for line in block.split("\n"):
         if line == "FILE_LIST":
             lines.append("\n".join(files))
@@ -202,19 +219,34 @@ def render_prompt(block: str, files: list[str], num: int, total: int, chunk_path
                 lines.append("")
                 lines.append("Known AST node ids (SQL tables and columns; they already exist in the graph): " + ", ".join(sql_ids) + ".")
                 lines.append("When a document refers to one of these entities, point the edge at exactly that id; do not create a duplicate node for it.")
+        elif line.startswith("Then write the JSON to disk"):
+            lines.append(REPLY_ONLY)
+            replied = True
         elif line == "CHUNK_PATH":
-            lines.append(chunk_path)
+            continue
         elif "CHUNK_NUM" in line and "TOTAL_CHUNKS" in line:
             lines.append(line.replace("CHUNK_NUM", str(num)).replace("TOTAL_CHUNKS", str(total)))
         elif deep and line.startswith("DEEP_MODE (if --mode deep was given)"):
             lines.append(line.replace("(if --mode deep was given)", "(--mode deep WAS given: apply it)"))
         else:
             lines.append(line)
+    if not replied:
+        lines += ["", REPLY_ONLY]
     return "\n".join(lines) + "\n"
+
+
+def _remove_leftovers(repo: Path) -> None:
+    """Chunk and prompt files of an earlier run: a subagent that fails this time must not leave a stale result to merge."""
+    out = out_dir(repo)
+    if out.is_dir():
+        for pattern in (CHUNK_GLOB, PROMPT_GLOB):
+            for old in out.glob(pattern):
+                old.unlink(missing_ok=True)
 
 
 def cmd_plan(args) -> dict:
     repo = Path(args.repo).resolve()
+    created_ns = time.time_ns()  # taken before anything is written: a chunk older than this belongs to an earlier run
     exe, python = find_graphify(args.graphify_bin)
     if not args.skip_update:
         try:
@@ -235,19 +267,78 @@ def cmd_plan(args) -> dict:
     groups = chunk_files(found["uncached"], args.chunk_size)
     out = out_dir(repo)
     out.mkdir(parents=True, exist_ok=True)
+    _remove_leftovers(repo)
+    plan_file(repo).unlink(missing_ok=True)
     chunks = []
     for i, files in enumerate(groups, start=1):
-        chunk_path = str(out / f".graphify_chunk_{i:02d}.json")
-        prompt_path = out / f".gentle_semantic_prompt_{i:02d}.md"
-        prompt_path.write_text(render_prompt(block, files, i, len(groups), chunk_path, args.deep, sql_ids), encoding="utf-8")
-        chunks.append({"num": i, "files": files, "chunk_path": chunk_path, "prompt_file": str(prompt_path)})
+        prompt_path = prompt_file_of(repo, i)
+        prompt_path.write_text(render_prompt(block, files, i, len(groups), args.deep, sql_ids), encoding="utf-8")
+        chunks.append({"num": i, "files": files, "chunk_path": str(chunk_file(repo, i)), "prompt_file": str(prompt_path)})
     cached_file(repo).write_text(json.dumps(found["cached"]), encoding="utf-8")
-    plan = {"repo": str(repo), "graphify": exe, "graphify_python": python, "spec": found["spec"], "deep": bool(args.deep), "mode": mode,
-            "all_files": found["files"], "ast_sql_ids": sql_ids, "chunks": chunks, "total_chunks": len(chunks)}
+    plan = {"plan_id": uuid.uuid4().hex, "created_ns": created_ns, "repo": str(repo), "graphify": exe, "graphify_python": python,
+            "spec": found["spec"], "deep": bool(args.deep), "mode": mode, "all_files": found["files"], "ast_sql_ids": sql_ids,
+            "chunks": chunks, "total_chunks": len(chunks)}
     plan_file(repo).write_text(json.dumps(plan, indent=1), encoding="utf-8")
     cached_files = len(found["files"]) - len(found["uncached"])
-    return {"repo": str(repo), "plan": str(plan_file(repo)), "spec": found["spec"], "chunks": len(chunks), "files": len(found["uncached"]),
-            "cached_files": cached_files, "prompt_files": [c["prompt_file"] for c in chunks], "chunk_paths": [c["chunk_path"] for c in chunks]}
+    return {"repo": str(repo), "plan": str(plan_file(repo)), "plan_id": plan["plan_id"], "spec": found["spec"], "chunks": len(chunks),
+            "files": len(found["uncached"]), "cached_files": cached_files, "prompt_files": [c["prompt_file"] for c in chunks],
+            "chunk_paths": [c["chunk_path"] for c in chunks]}
+
+
+# ----------------------------------------------------------------------------------------------- untrusted input
+
+def _str_list(value) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+
+def load_plan(repo: Path) -> dict:
+    """The plan file, type-checked. It lives in a repo-local directory that a hostile repo can pre-populate, so nothing in it
+    is trusted: every field is checked and every path is re-derived from the chunk number and compared."""
+    plan = _read_json(plan_file(repo), "semantic plan (run `plan` first)")
+
+    def bad(field: str, why: str):
+        raise SemanticError(f"semantic plan is not usable: `{field}` {why} (run `plan` again)")
+
+    if not isinstance(plan, dict):
+        bad("plan", "is not an object")
+    if plan.get("repo") != str(repo):
+        raise SemanticError("semantic plan belongs to another repository (run `plan` again)")
+    for field in ("plan_id", "graphify_python"):
+        if not isinstance(plan.get(field), str) or not plan[field]:
+            bad(field, "must be a non-empty string")
+    created = plan.get("created_ns")
+    if not isinstance(created, int) or isinstance(created, bool):
+        bad("created_ns", "must be an integer")
+    if plan.get("mode") not in (None, "deep"):
+        bad("mode", "must be null or \"deep\"")
+    if not _str_list(plan.get("all_files")):
+        bad("all_files", "must be a list of strings")
+    chunks = plan.get("chunks")
+    if not isinstance(chunks, list):
+        bad("chunks", "must be a list")
+    for i, c in enumerate(chunks, start=1):
+        if not isinstance(c, dict) or c.get("num") != i or isinstance(c.get("num"), bool):
+            bad("chunks", f"entry {i} must be an object numbered {i}")
+        if not _str_list(c.get("files")):
+            bad("chunks", f"entry {i} `files` must be a list of strings")
+        if c.get("chunk_path") != str(chunk_file(repo, i)):
+            bad("chunks", f"entry {i} `chunk_path` must be {chunk_file(repo, i)}")
+        if c.get("prompt_file") != str(prompt_file_of(repo, i)):
+            bad("chunks", f"entry {i} `prompt_file` must be {prompt_file_of(repo, i)}")
+    return plan
+
+
+def clean_cached(raw) -> dict:
+    """graphify-out/.gentle_semantic_cached.json is repo-local too: keep only well-formed node/edge/hyperedge objects."""
+    out = {"nodes": [], "edges": [], "hyperedges": []}
+    if not isinstance(raw, dict):
+        return out
+    for key in out:
+        items = raw.get(key)
+        if isinstance(items, list):
+            out[key] = [i for i in items if isinstance(i, dict)]
+    out["nodes"] = [n for n in out["nodes"] if isinstance(n.get("id"), str) and ID_RE.match(n["id"])]
+    return out
 
 
 # ---------------------------------------------------------------------------------------------------- validation
@@ -256,10 +347,22 @@ def _number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def check_chunk(data, known: set) -> list[str]:
+def _node_ids(data) -> set:
+    return {n["id"] for n in data["nodes"] if isinstance(n, dict) and isinstance(n.get("id"), str)}
+
+
+def check_shape(data) -> list[str]:
+    """Everything about a chunk that does not depend on other chunks: types, ids, enums, confidence rules."""
+    if not isinstance(data, dict) or not isinstance(data.get("nodes"), list):
+        return ["not an object with a `nodes` list"]
     errors = []
-    if not isinstance(data, dict) or not isinstance(data.get("nodes"), list) or not isinstance(data.get("edges", []), list):
-        return ["not an object with `nodes` and `edges` lists"]
+    edges, hyper = data.get("edges", []), data.get("hyperedges")
+    if not isinstance(edges, list):
+        errors.append("`edges` must be a list")
+        edges = []
+    if hyper is not None and not isinstance(hyper, list):
+        errors.append("`hyperedges` must be a list")
+        hyper = []
     for i, n in enumerate(data["nodes"]):
         if not isinstance(n, dict):
             errors.append(f"nodes[{i}] is not an object")
@@ -271,13 +374,17 @@ def check_chunk(data, known: set) -> list[str]:
             errors.append(f"nodes[{i}] file_type {n.get('file_type')!r} must be one of {sorted(FILE_TYPES)}")
         if not isinstance(n.get("label"), str) or not n.get("label"):
             errors.append(f"nodes[{i}] needs a label")
-    for i, e in enumerate(data.get("edges", [])):
+        if n.get("source_file") is not None and not isinstance(n.get("source_file"), str):
+            errors.append(f"nodes[{i}] source_file must be a string")
+    for i, e in enumerate(edges):
         if not isinstance(e, dict):
             errors.append(f"edges[{i}] is not an object")
             continue
         for end in ("source", "target"):
-            if e.get(end) not in known:
-                errors.append(f"edges[{i}] {end} {e.get(end)!r} is not a known node id")
+            if not isinstance(e.get(end), str):
+                errors.append(f"edges[{i}] {end} must be a node id string")
+        if e.get("relation") is not None and not isinstance(e.get("relation"), str):
+            errors.append(f"edges[{i}] relation must be a string")
         conf, score = e.get("confidence"), e.get("confidence_score")
         if conf not in CONFIDENCES:
             errors.append(f"edges[{i}] confidence {conf!r} must be one of {sorted(CONFIDENCES)}")
@@ -287,13 +394,28 @@ def check_chunk(data, known: set) -> list[str]:
             errors.append(f"edges[{i}] EXTRACTED edges need confidence_score 1.0, got {score}")
         elif score == 0.5:
             errors.append(f"edges[{i}] confidence_score must never be the 0.5 default")
-    for i, h in enumerate(data.get("hyperedges") or []):
+    for i, h in enumerate(hyper or []):
         members = h.get("nodes") if isinstance(h, dict) else None
-        if not isinstance(members, list) or len(members) < 3:
-            errors.append(f"hyperedges[{i}] needs a `nodes` list of at least 3 ids")
-        else:
-            errors.extend(f"hyperedges[{i}] member {m!r} is not a known node id" for m in members if m not in known)
+        if not isinstance(members, list) or len(members) < 3 or not all(isinstance(m, str) for m in members):
+            errors.append(f"hyperedges[{i}] needs a `nodes` list of at least 3 id strings")
+        if isinstance(h, dict) and h.get("id") is not None and not isinstance(h.get("id"), str):
+            errors.append(f"hyperedges[{i}] id must be a string")
     return errors
+
+
+def check_endpoints(data, known: set) -> list[str]:
+    """Edge and hyperedge endpoints must be known node ids. Only meaningful for a chunk that passed `check_shape`."""
+    errors = []
+    for i, e in enumerate(data.get("edges", [])):
+        errors.extend(f"edges[{i}] {end} {e[end]!r} is not a known node id" for end in ("source", "target") if e[end] not in known)
+    for i, h in enumerate(data.get("hyperedges") or []):
+        errors.extend(f"hyperedges[{i}] member {m!r} is not a known node id" for m in h["nodes"] if m not in known)
+    return errors
+
+
+def check_chunk(data, known: set) -> list[str]:
+    errors = check_shape(data)
+    return errors or check_endpoints(data, known | _node_ids(data))
 
 
 def read_chunks(repo: Path, plan: dict) -> list[dict]:
@@ -303,7 +425,13 @@ def read_chunks(repo: Path, plan: dict) -> list[dict]:
         path = Path(c["chunk_path"])
         entry = {"num": c["num"], "path": str(path), "data": None, "errors": []}
         try:
-            entry["data"] = json.loads(path.read_text(encoding="utf-8"))
+            st = path.stat()
+            if st.st_mtime_ns < plan["created_ns"]:
+                entry["errors"].append(f"chunk file {path} was saved before the plan (a leftover of an earlier run, not this plan's result)")
+            elif st.st_size > MAX_CHUNK_BYTES:
+                entry["errors"].append(f"chunk file {path} is larger than {MAX_CHUNK_BYTES} bytes")
+            else:
+                entry["data"] = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             entry["errors"].append(f"chunk file missing: {path} (the subagent did not write it)")
         except (OSError, ValueError) as err:
@@ -316,25 +444,32 @@ def validate_plan(repo: Path, plan: dict) -> list[dict]:
     existing, _ = load_existing(repo)
     known = {n["id"] for n in existing["nodes"] if isinstance(n, dict) and isinstance(n.get("id"), str)}
     try:
-        known |= {n["id"] for n in _read_json(cached_file(repo), "cached results").get("nodes", []) if isinstance(n, dict) and isinstance(n.get("id"), str)}
+        known |= _node_ids(clean_cached(_read_json(cached_file(repo), "cached results")))
     except SemanticError:
         pass
     reports = read_chunks(repo, plan)
     for r in reports:
-        if isinstance(r["data"], dict) and isinstance(r["data"].get("nodes"), list):
-            known |= {n["id"] for n in r["data"]["nodes"] if isinstance(n, dict) and isinstance(n.get("id"), str)}
-    for r in reports:
         if r["data"] is not None:
-            r["errors"] = check_chunk(r["data"], known)
-        d = r["data"] if isinstance(r["data"], dict) else {}
+            r["errors"] = check_shape(r["data"])
+        d = r["data"] if isinstance(r["data"], dict) and not r["errors"] else {}
         r["counts"] = (len(d.get("nodes") or []), len(d.get("edges") or []), len(d.get("hyperedges") or []))
-        r["valid"] = not r["errors"]
+        r["valid"] = r["data"] is not None and not r["errors"]
+    # Only ids of chunks that stay valid count as known endpoints; dropping a chunk can orphan a neighbour's edges, so repeat.
+    changed = True
+    while changed:
+        changed = False
+        pool = known.union(*(_node_ids(r["data"]) for r in reports if r["valid"]))
+        for r in reports:
+            if r["valid"]:
+                errs = check_endpoints(r["data"], pool)
+                if errs:
+                    r["errors"], r["valid"], changed = errs, False, True
     return reports
 
 
 def cmd_validate(args) -> tuple[dict, int]:
     repo = Path(args.repo).resolve()
-    plan = _read_json(plan_file(repo), "semantic plan (run `plan` first)")
+    plan = load_plan(repo)
     reports = validate_plan(repo, plan)
     chunks = [{"num": r["num"], "path": r["path"], "valid": r["valid"], "errors": r["errors"][:20], "nodes": r["counts"][0],
                "edges": r["counts"][1], "hyperedges": r["counts"][2]} for r in reports]
@@ -368,7 +503,11 @@ def merge_extraction(existing: dict, semantic: dict) -> dict:
 
 def cmd_merge(args) -> tuple[dict, int]:
     repo = Path(args.repo).resolve()
-    plan = _read_json(plan_file(repo), "semantic plan (run `plan` first)")
+    plan = load_plan(repo)
+    # The interpreter that runs graphify's code is never taken from the plan file: it is re-resolved and must match.
+    _, python = find_graphify(args.graphify_bin)
+    if python != plan["graphify_python"]:
+        raise SemanticError(f"the plan was made with a different graphify interpreter ({plan['graphify_python']}) than the one found now ({python}); run `plan` again")
     reports = validate_plan(repo, plan)
     sem_nodes, sem_edges, sem_hyper, merged_nums, skipped = [], [], [], [], []
     for r in reports:
@@ -381,21 +520,20 @@ def cmd_merge(args) -> tuple[dict, int]:
         sem_edges += r["data"].get("edges", [])
         sem_hyper += r["data"].get("hyperedges") or []
     try:
-        cached = _read_json(cached_file(repo), "cached results")
+        cached = clean_cached(_read_json(cached_file(repo), "cached results"))
     except SemanticError:
-        cached = {"nodes": [], "edges": [], "hyperedges": []}
+        cached = clean_cached(None)
     existing, before = load_existing(repo)
     report = {"repo": str(repo), "chunks_merged": merged_nums, "chunks_skipped": skipped, "nodes_before": before,
               "edges_before": len(existing["edges"]), "nodes_after": before, "edges_after": len(existing["edges"]), "written": False, "synced": False}
     if not merged_nums and not cached.get("nodes"):
         return report, EXIT_NO_VALID if skipped else 0
     semantic = {"nodes": _stamp(sem_nodes), "edges": _stamp(sem_edges), "hyperedges": _stamp(sem_hyper)}
-    extra = {"nodes": _stamp(cached.get("nodes", [])), "edges": _stamp(cached.get("edges", [])),
-             "hyperedges": _stamp(cached.get("hyperedges", []))}
+    extra = {"nodes": _stamp(cached["nodes"]), "edges": _stamp(cached["edges"]), "hyperedges": _stamp(cached["hyperedges"])}
     extraction = merge_extraction(merge_extraction(existing, extra), semantic)
-    result = run_worker(plan["graphify_python"], "merge", {
+    result = run_worker(python, "merge", {
         "repo": str(repo), "graph": str(out_dir(repo) / "graph.json"), "extraction": extraction, "semantic": semantic,
-        "allowed": plan["all_files"], "spec": plan["spec"], "mode": plan.get("mode")})
+        "allowed": plan["all_files"], "mode": plan.get("mode")})
     report.update(written=result["written"], nodes_after=result["nodes"] if result["written"] else before,
                   edges_after=result["edges"] if result["written"] else report["edges_before"], cache_entries=result["cache_entries"])
     if not result["written"]:
@@ -427,6 +565,7 @@ def build_parser():
             s.add_argument("--deep", action="store_true", help="aggressive INFERRED edges, separate cache namespace")
             s.add_argument("--skip-update", action="store_true", help="do not run `graphify update` first")
         if name == "merge":
+            s.add_argument("--graphify-bin", help="graphify executable (default: first on PATH); must run the plan's interpreter")
             s.add_argument("--semantic-model", default=DEFAULT_MODEL, help="recorded in the sync (default claude-haiku-5-5)")
             s.add_argument("--no-sync", action="store_true", help="do not mirror into memory.db")
     return p
