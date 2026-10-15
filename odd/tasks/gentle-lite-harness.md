@@ -260,6 +260,8 @@ T16 done. Open: nothing blocking.
 - 2026-10-15: parent caught the intermittent Node failure: `concurrent triggers never overlap` saw `SESES` — the test read the trace while the coalesced re-run was still running (no real overlap: never `SS`). Fix `ae56cd9`: wait for quiescence (no lock, no `.pending`, trace stable > 1.5 s) before asserting; 0/24 failures under 4x parallel stress; full suite node 259 / python 187.
 - 2026-10-15: RDD for T17 + flake fix (`3ca7e70..ae56cd9`): high, 597 lines → granted → 4 lenses → approved, acknowledged (review-eb0cb0188c73f8e9). 7 warnings → T18.
 
+- 2026-10-15: RDD for T18 (`55f1e32..b1d7b3e`): high, 285 lines → granted → 4 lenses → approved, acknowledged (review-490bbb9e74d0c922). Warnings (scratchpad `c23cap3.json`): R1-001 truncated-tail masking can leak a partial ANTHROPIC_API_KEY when the kept tail has no newline; detached `extract` is orphaned on Ctrl-C/SIGHUP (keeps spending API); unbounded stdout partial-line buffer; lock protocol duplicated in semantic.js instead of shared with the hook. Parent spot check: node 269 / python 187.
+
 ## Next session
 
 - Branch `feat/gentle-lite-harness`; `npm test` green (see T17 line below).
