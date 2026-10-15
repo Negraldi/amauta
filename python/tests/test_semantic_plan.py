@@ -15,7 +15,7 @@ from python.gentle_lite.graph import semantic_plan as sp
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).parent / "fixtures" / "graphify_chunk_01.json"
-FIXTURE_PREFIX = "/tmp/claude-1000/-home-negraldi/9cabe2a8-e648-48c6-b7ba-b824eff9b43d/scratchpad/haiku-test"
+FIXTURE_PREFIX = "/REPO_ROOT"  # placeholder root inside the committed chunk fixture; tests rewrite it to the real repo
 
 SPEC = """# graphify reference: extraction subagent prompt
 
@@ -538,13 +538,20 @@ class RealGraphifyTest(unittest.TestCase):
         code, out, err = run_main("plan", "--repo", str(self.repo), "--skip-update")
         self.assertEqual(code, 0, err)
         self.assertEqual(json.loads(out)["chunks"], 0)
-        # Shrink guard: a graph with more nodes than the merge can rebuild is never clobbered.
-        graph["nodes"] += [{"id": f"pad_{i}", "label": "p", "file_type": "concept", "source_file": "pad.md", "_origin": "semantic"} for i in range(5)]
-        (self.repo / "graphify-out" / "graph.json").write_text(json.dumps(graph))
-        padded = len(graph["nodes"])
-        run_main("merge", "--repo", str(self.repo), "--no-sync")
-        after = json.loads((self.repo / "graphify-out" / "graph.json").read_text())
-        self.assertGreaterEqual(len(after["nodes"]), padded)
+        # The shrink refusal itself is not provable against real graphify (merge feeds the existing nodes back in, so it
+        # cannot rebuild fewer); it is covered with the fake guard in test_shrink_guard_is_honoured_and_nothing_else_happens.
+
+
+class FixtureHygieneTest(unittest.TestCase):
+    def test_committed_fixtures_hold_no_machine_specific_paths(self):
+        # The real chunk fixture uses a placeholder root that tests rewrite; no usernames, session ids or scratch dirs.
+        bad = []
+        for f in sorted((Path(__file__).parent / "fixtures").glob("*")):
+            text = f.read_text(encoding="utf-8")
+            for needle in ("/home/", "/tmp/", "/Users/", "claude-"):
+                if needle in text:
+                    bad.append(f"{f.name}: {needle}")
+        self.assertEqual(bad, [])
 
 
 if __name__ == "__main__":
