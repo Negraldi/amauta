@@ -109,7 +109,7 @@ PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/e
   `post-commit` hook (`# >>> gentle-lite graphify >>>` ... `# <<< gentle-lite graphify <<<`; other content is kept and
   `core.hooksPath` is honoured). The block runs in a silent background subshell: `graphify update .` (only if `graphify`
   is on `PATH`, with `GRAPHIFY_QUERY_LOG_DISABLE=1`), then `python3 -P -m gentle_lite.graph sync --repo .`.
-  A lock is taken over only when it is older than 15 minutes and its owner (pid file) is gone, with at most three attempts;
+  A lock is taken over only when it is older than 15 minutes and its owner (pid file) is gone, with at most three attempts. The pid file also holds a start token (boot id and process start time from `/proc`), so a pid reused after SIGKILL or a reboot counts as gone; without `/proc` only `kill -0` decides;
   a trigger that finds the lock held leaves a `.pending` marker and re-tries the lock once, so a marker is never orphaned.
   The sync replaces the repo's rows in `graph_nodes`/`graph_edges`/`graph_sync` (memory.db schema v4) in one short
   transaction. Query: `python3 -P -m gentle_lite.graph query neighbors <node> [--depth N] --repo DIR` and

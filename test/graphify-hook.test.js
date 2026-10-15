@@ -310,3 +310,60 @@ test('a trigger that finds the lock held re-tries it after leaving its marker (t
   assert.ok(await waitFor(() => exists(t.log), 10000), 'the trigger ran itself instead of leaving an unconsumed marker');
   await t.cleanup();
 });
+
+// Start token the hook stores next to the pid: "<boot_id>:<starttime field of /proc/PID/stat>" (Linux only).
+async function procToken(pid) {
+  const boot = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
+  return `${boot}:${stat.slice(stat.lastIndexOf(') ') + 2).split(' ')[19]}`;
+}
+const hasProc = () => exists('/proc/self/stat');
+const ageLock = async (lock) => { const old = new Date(Date.now() - 3600_000); await utimes(lock, old, old); };
+
+test('a running hook records its pid and a start token in the lock', async (ctx) => {
+  if (!(await hasProc())) return ctx.skip('no /proc');
+  const t = await sandbox({ graphify: 'sleep 3' });
+  await installHook(t.opts());
+  const pidFile = path.join(t.repo, '.git', 'gentle-lite-graphify.lock', 'pid');
+  runHook(t);
+  const text = await waitFor(async () => { const l = await lines(pidFile); return l.length ? l[0] : null; });
+  assert.ok(text, 'pid file written');
+  const [pid, token] = text.split(' ');
+  assert.match(pid, /^\d+$/);
+  assert.equal(token, await procToken(pid), 'token identifies this very process instance');
+  await t.cleanup();
+});
+
+test('a lock whose recorded pid was reused by another live process (start token differs) is stale and taken over after the age limit', async (ctx) => {
+  if (!(await hasProc())) return ctx.skip('no /proc');
+  const t = await sandbox({ graphify: 'true' });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const stranger = spawn('sleep', ['30'], { stdio: 'ignore' });
+  await mkdir(lock);
+  await writeFile(path.join(lock, 'pid'), `${stranger.pid} not-the-same-boot:1\n`);
+  await ageLock(lock);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(t.log), 10000), 'graphify ran: the reused pid did not wedge the hook');
+  assert.ok(await waitFor(async () => !(await exists(lock))));
+  stranger.kill();
+  await t.cleanup();
+});
+
+test('an old lock whose pid and start token both match a live process is never taken over', async (ctx) => {
+  if (!(await hasProc())) return ctx.skip('no /proc');
+  const t = await sandbox({ graphify: 'true' });
+  await installHook(t.opts());
+  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const owner = spawn('sleep', ['30'], { stdio: 'ignore' });
+  await mkdir(lock);
+  await writeFile(path.join(lock, 'pid'), `${owner.pid} ${await procToken(owner.pid)}\n`);
+  await ageLock(lock);
+  runHook(t);
+  assert.ok(await waitFor(() => exists(`${lock}.pending`)), 'live owner: the trigger only leaves a marker');
+  await sleep(300);
+  assert.equal(await exists(t.log), false);
+  assert.equal(await exists(lock), true);
+  owner.kill();
+  await t.cleanup();
+});
