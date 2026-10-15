@@ -197,6 +197,17 @@ is preserved. `permissions.defaultMode` is never set or changed (upstream forces
 Files gentle-lite installs are tracked by hash: if you edit one, re-install and uninstall keep your
 version unless you pass `--force`.
 
+## Migrating from gentle-ai
+
+`scripts/migrate.sh` replaces gentle-ai with gentle-lite for Claude Code (they do not coexist). Close Claude Code, then run it from a terminal:
+
+```
+scripts/migrate.sh            # dry run: prints every action, changes nothing
+scripts/migrate.sh --execute  # asks y/N before each phase
+```
+
+Phases: preflight, backup (`~/gentle-lite-migration/<timestamp>/backup.tar.gz` with sha256), engram memory import, `gentle-ai uninstall --agent claude-code` (gentle-ai asks its own confirmation), disable the `engram@engram` plugin, `gentle-lite install --with-sdd --with-rea --with-context7`, verification. Re-running resumes unfinished phases. To undo: `scripts/rollback.sh ~/gentle-lite-migration/<timestamp>` (restores config, only `mcpServers` of `~/.claude.json`, never `~/.claude/projects`; replaced files are moved aside, not deleted). `--assume-yes` exists only for the automated tests.
+
 ## Tests
 
 ```
