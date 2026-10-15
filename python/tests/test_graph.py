@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from python.gentle_lite.graph import query, sync
-from python.gentle_lite.memory import store as mstore
+from python.amauta.graph import query, sync
+from python.amauta.memory import store as mstore
 
 ROOT = Path(__file__).resolve().parents[2]
 XSS = "<img src=x onerror=alert(1)>"
@@ -44,7 +44,7 @@ def write_graph(repo, data=None, key="links"):
 
 def run_cli(state, *args, cwd=None):
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
-    return subprocess.run([sys.executable, "-P", "-m", "gentle_lite.graph", *args], capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
+    return subprocess.run([sys.executable, "-P", "-m", "amauta.graph", *args], capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
 
 
 class Base(unittest.TestCase):
@@ -360,9 +360,9 @@ class CliTest(Base):
 
     def test_does_not_import_code_from_cwd(self):
         evil = self.root / "evil"
-        (evil / "gentle_lite").mkdir(parents=True)
+        (evil / "amauta").mkdir(parents=True)
         marker = self.root / "pwned"
-        (evil / "gentle_lite" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
+        (evil / "amauta" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
         write_graph(self.repo)
         r = run_cli(self.state, "sync", "--repo", str(self.repo), cwd=evil)
         self.assertEqual(r.returncode, 0, r.stderr)

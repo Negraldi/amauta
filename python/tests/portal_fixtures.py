@@ -3,8 +3,8 @@ import json
 import sqlite3
 from pathlib import Path
 
-from python.gentle_lite.memory import store as mstore
-from python.gentle_lite.usage import ingest
+from python.amauta.memory import store as mstore
+from python.amauta.usage import ingest
 from python.tests.test_usage import assistant, tool_use, write_jsonl
 
 XSS = "<img src=x onerror=alert(1)>"
@@ -61,7 +61,7 @@ def build(root: Path) -> dict:
     mem.mkdir(parents=True, exist_ok=True)
     (mem / "note.md").write_text(f"# Hello\n{XSS}\n")
     (home / "settings.json").write_text(json.dumps({"hooks": {
-        "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "env PYTHONPATH=/r python3 -P -m gentle_lite.usage hook"}, {"type": "command", "command": "echo SECRET-USER-HOOK"}]}],
+        "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "env PYTHONPATH=/r python3 -P -m amauta.usage hook"}, {"type": "command", "command": "echo SECRET-USER-HOOK"}]}],
         "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "node /r/bin/gentle-lite.js hook review-stop"}]}],
     }}))
     cj = root / "claude.json"
@@ -75,7 +75,7 @@ def build(root: Path) -> dict:
     (state / "telemetry.dropped").write_bytes(b"xxx")
     (repo / "odd" / "tasks").mkdir(parents=True)
     (repo / "odd" / "tasks" / "feat.md").write_text("# Feature\n\n- [x] T1 Done thing\n- [ ] T2 Open thing\n  - [x] nested ignored\n- [x] T3 Another\n")
-    from python.gentle_lite.graph import sync
+    from python.amauta.graph import sync
     from python.tests.test_graph import GRAPH, write_graph
 
     write_graph(repo, GRAPH)  # graphify-out/graph.json inside the repo, mirrored like the post-commit hook does

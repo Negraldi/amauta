@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from python.gentle_lite.memory import server as mserver
-from python.gentle_lite.memory import store as mstore
+from python.amauta.memory import server as mserver
+from python.amauta.memory import store as mstore
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_TOOLS = {
@@ -47,7 +47,7 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(t["inputSchema"]["type"], "object")
 
     def test_graph_query_tool_reads_the_mirrored_graph(self):
-        from python.gentle_lite.graph import sync
+        from python.amauta.graph import sync
         from python.tests.test_graph import GRAPH, write_graph
         repo = Path(self.tmp.name) / "repo"
         repo.mkdir()
@@ -129,7 +129,7 @@ class StdioTest(unittest.TestCase):
                 call(4, "mem_search", {"query": "roundtrip", "project": "demo"}),
             ]
             payload = "".join((l if isinstance(l, str) else json.dumps(l)) + "\n" for l in lines)
-            r = subprocess.run([sys.executable, "-m", "gentle_lite.memory", "serve"], input=payload, capture_output=True, text=True, env=env, timeout=30)
+            r = subprocess.run([sys.executable, "-m", "amauta.memory", "serve"], input=payload, capture_output=True, text=True, env=env, timeout=30)
             self.assertEqual(r.returncode, 0, r.stderr)
             out = [json.loads(l) for l in r.stdout.splitlines() if l.strip()]
             self.assertEqual([o.get("id") for o in out], [1, 2, 3, None, 4])

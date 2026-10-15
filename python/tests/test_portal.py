@@ -8,9 +8,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from python.gentle_lite.memory import store as mstore
-from python.gentle_lite.portal import api
-from python.gentle_lite.portal.config import Config
+from python.amauta.memory import store as mstore
+from python.amauta.portal import api
+from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -231,7 +231,7 @@ class MemoryViewsTest(ApiBase):
     def test_graphify_reports_sql_tables_and_the_semantic_pass_state(self):
         (g,) = self.get("/api/graphify")["repos"]
         self.assertEqual((g["sql_tables"], g["semantic_pending"], g["semantic_at"], g["semantic_model"]), (0, False, None, None))
-        from python.gentle_lite.graph import sync
+        from python.amauta.graph import sync
         c = mstore.connect(self.f["state"] / "memory.db")
         sync.sync_repo(c, self.f["repo"], semantic_pending=True)
         sync.sync_repo(c, self.f["repo"], semantic_model="claude-haiku-5-5")
@@ -320,7 +320,7 @@ class RefreshTest(ApiBase):
 class CliTest(unittest.TestCase):
     def test_no_host_option_exists(self):
         env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
-        r = subprocess.run([sys.executable, "-P", "-m", "gentle_lite.portal", "--host", "0.0.0.0"], capture_output=True, text=True, env=env, timeout=30)
+        r = subprocess.run([sys.executable, "-P", "-m", "amauta.portal", "--host", "0.0.0.0"], capture_output=True, text=True, env=env, timeout=30)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("unrecognized", r.stderr)
 
@@ -328,7 +328,7 @@ class CliTest(unittest.TestCase):
         import re
 
         pattern = re.compile(r"urllib\.request|http\.client|import requests|create_connection")
-        for f in (ROOT / "python" / "gentle_lite" / "portal").glob("*.py"):
+        for f in (ROOT / "python" / "amauta" / "portal").glob("*.py"):
             self.assertIsNone(pattern.search(f.read_text()), str(f))
 
 

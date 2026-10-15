@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from python.gentle_lite.memory import store as mstore
-from python.gentle_lite.usage import ingest
+from python.amauta.memory import store as mstore
+from python.amauta.usage import ingest
 
 ROOT = Path(__file__).resolve().parents[2]
 SECRET = "TOP-SECRET-TRANSCRIPT-TEXT-98765"
@@ -17,7 +17,7 @@ SECRET = "TOP-SECRET-TRANSCRIPT-TEXT-98765"
 
 def run_cli(state, *args, stdin=""):
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
-    return subprocess.run([sys.executable, "-P", "-m", "gentle_lite.usage", *args], input=stdin, capture_output=True, text=True, env=env, timeout=60)
+    return subprocess.run([sys.executable, "-P", "-m", "amauta.usage", *args], input=stdin, capture_output=True, text=True, env=env, timeout=60)
 
 
 def assistant(msg_id, content=None, usage=None, model="claude-x", session="s1", ts="2026-10-01T10:00:00.000Z", cwd="/work/proj", sidechain=False, request="req1"):
@@ -317,11 +317,11 @@ class HookTest(Base):
 
     def test_hook_does_not_import_code_from_cwd(self):
         evil = self.root / "evil"
-        (evil / "gentle_lite").mkdir(parents=True)
+        (evil / "amauta").mkdir(parents=True)
         marker = self.root / "pwned"
-        (evil / "gentle_lite" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
+        (evil / "amauta" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
         env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(self.state)}
-        subprocess.run([sys.executable, "-P", "-m", "gentle_lite.usage", "hook"], input="{}", capture_output=True, text=True, env=env, cwd=evil, timeout=30)
+        subprocess.run([sys.executable, "-P", "-m", "amauta.usage", "hook"], input="{}", capture_output=True, text=True, env=env, cwd=evil, timeout=30)
         self.assertFalse(marker.exists())
 
 
@@ -329,7 +329,7 @@ class NoNetworkTest(unittest.TestCase):
     def test_usage_sources_have_no_network_imports(self):
         import re
         pattern = re.compile(r"urllib|http\.client|socket|requests")
-        files = list((ROOT / "python" / "gentle_lite" / "usage").glob("*.py"))
+        files = list((ROOT / "python" / "amauta" / "usage").glob("*.py"))
         self.assertTrue(files)
         for f in files:
             self.assertIsNone(pattern.search(f.read_text()), str(f))

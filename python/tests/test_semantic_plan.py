@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from python.gentle_lite.graph import semantic_plan as sp
+from python.amauta.graph import semantic_plan as sp
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).parent / "fixtures" / "graphify_chunk_01.json"

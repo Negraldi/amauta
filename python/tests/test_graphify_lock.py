@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from python.gentle_lite.graph import lock as gl
+from python.amauta.graph import lock as gl
 
 from .test_semantic_plan import Base, run_main
 
@@ -154,7 +154,7 @@ class LockModuleTest(unittest.TestCase):
 
     def test_concurrent_takers_of_a_stale_lock_have_exactly_one_winner(self):
         worker = (
-            "import sys, time\nfrom pathlib import Path\nfrom gentle_lite.graph import lock as gl\n"
+            "import sys, time\nfrom pathlib import Path\nfrom amauta.graph import lock as gl\n"
             "go = Path(sys.argv[2])\nwhile not go.exists():\n    time.sleep(0.001)\n"
             "print('won' if gl._acquire(Path(sys.argv[1])) else 'lost')\n"
         )
@@ -177,7 +177,7 @@ class LockModuleTest(unittest.TestCase):
 
     def test_cli_acquire_records_the_given_pid_and_leaves_the_lock_for_the_owner(self):
         env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
-        run = lambda: subprocess.run([sys.executable, "-P", "-m", "gentle_lite.graph.lock", "acquire", "--lock", str(self.lock), "--pid", str(os.getpid())], capture_output=True, text=True, env=env)
+        run = lambda: subprocess.run([sys.executable, "-P", "-m", "amauta.graph.lock", "acquire", "--lock", str(self.lock), "--pid", str(os.getpid())], capture_output=True, text=True, env=env)
         first = run()
         self.assertEqual(first.returncode, 0, first.stderr)
         fields = (self.lock / "pid").read_text().split()

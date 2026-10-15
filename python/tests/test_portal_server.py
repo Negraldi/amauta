@@ -5,8 +5,8 @@ import threading
 import unittest
 from pathlib import Path
 
-from python.gentle_lite.portal import server
-from python.gentle_lite.portal.config import Config
+from python.amauta.portal import server
+from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 from python.tests.test_usage import assistant, write_jsonl
 

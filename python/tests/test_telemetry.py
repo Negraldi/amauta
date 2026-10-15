@@ -10,10 +10,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-from python.gentle_lite.memory import store as mstore
-from python.gentle_lite.telemetry import hook as thook
-from python.gentle_lite.telemetry import housekeeping
-from python.gentle_lite.telemetry import report as treport
+from python.amauta.memory import store as mstore
+from python.amauta.telemetry import hook as thook
+from python.amauta.telemetry import housekeeping
+from python.amauta.telemetry import report as treport
 
 ROOT = Path(__file__).resolve().parents[2]
 SECRET = "TOP-SECRET-PROMPT-TEXT-12345"
@@ -21,7 +21,7 @@ SECRET = "TOP-SECRET-PROMPT-TEXT-12345"
 
 def run_cli(state, *args, stdin=""):
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
-    return subprocess.run([sys.executable, "-m", "gentle_lite.telemetry", *args], input=stdin, capture_output=True, text=True, env=env, timeout=30)
+    return subprocess.run([sys.executable, "-m", "amauta.telemetry", *args], input=stdin, capture_output=True, text=True, env=env, timeout=30)
 
 
 def events(state):
@@ -212,7 +212,7 @@ class NoNetworkTest(unittest.TestCase):
     def test_telemetry_and_memory_sources_have_no_network_imports(self):
         pattern = re.compile(r"urllib|http\.client|socket|requests")
         for pkg in ("telemetry", "memory"):
-            files = list((ROOT / "python" / "gentle_lite" / pkg).glob("*.py"))
+            files = list((ROOT / "python" / "amauta" / pkg).glob("*.py"))
             self.assertTrue(files, pkg)
             for f in files:
                 hit = pattern.search(f.read_text())

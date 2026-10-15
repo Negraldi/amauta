@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from python.gentle_lite.memory import importer
-from python.gentle_lite.memory import store as mstore
+from python.amauta.memory import importer
+from python.amauta.memory import store as mstore
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -74,10 +74,10 @@ class ImportTest(unittest.TestCase):
     def test_cli(self):
         state = Path(self.tmp.name) / "state"
         env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
-        r = subprocess.run([sys.executable, "-m", "gentle_lite.memory", "import-engram", "--from", str(self.src)], capture_output=True, text=True, env=env, timeout=30)
+        r = subprocess.run([sys.executable, "-m", "amauta.memory", "import-engram", "--from", str(self.src)], capture_output=True, text=True, env=env, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("observations: 3", r.stdout)
-        missing = subprocess.run([sys.executable, "-m", "gentle_lite.memory", "import-engram", "--from", "/nonexistent.db"], capture_output=True, text=True, env=env, timeout=30)
+        missing = subprocess.run([sys.executable, "-m", "amauta.memory", "import-engram", "--from", "/nonexistent.db"], capture_output=True, text=True, env=env, timeout=30)
         self.assertNotEqual(missing.returncode, 0)
 
 

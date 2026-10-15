@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from python.gentle_lite.sdd import status as sdd_status
+from python.amauta.sdd import status as sdd_status
 
 ROOT = Path(__file__).resolve().parents[2]
 TASKS = "# Tasks\n\n- [x] 1.1 first\n- [ ] 1.2 second\n- [ ] 1.3 third\n"
@@ -14,7 +14,7 @@ TASKS = "# Tasks\n\n- [x] 1.1 first\n- [ ] 1.2 second\n- [ ] 1.3 third\n"
 
 def run_cli(*args, cwd=None):
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
-    return subprocess.run([sys.executable, "-P", "-m", "gentle_lite.sdd", *args], capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
+    return subprocess.run([sys.executable, "-P", "-m", "amauta.sdd", *args], capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
 
 
 class Base(unittest.TestCase):
@@ -213,9 +213,9 @@ class CliTest(Base):
 
     def test_does_not_import_code_from_cwd(self):
         evil = Path(self.tmp.name) / "evil"
-        (evil / "gentle_lite").mkdir(parents=True)
+        (evil / "amauta").mkdir(parents=True)
         marker = Path(self.tmp.name) / "pwned"
-        (evil / "gentle_lite" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
+        (evil / "amauta" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
         r = run_cli("status", "--cwd", str(self.repo), cwd=evil)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(marker.exists())

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from python.gentle_lite.sdd import preflight
+from python.amauta.sdd import preflight
 
 ROOT = Path(__file__).resolve().parents[2]
 SID = "11111111-2222-3333-4444-555555555555"
@@ -172,7 +172,7 @@ class FailClosedTest(Base):
 class CliTest(Base):
     def run_hook(self, stdin, cwd=None):
         env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
-        return subprocess.run([sys.executable, "-P", "-m", "gentle_lite.sdd", "preflight-hook"], input=stdin, capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
+        return subprocess.run([sys.executable, "-P", "-m", "amauta.sdd", "preflight-hook"], input=stdin, capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
 
     def test_allow_deny_and_non_sdd_over_the_cli_always_exit_zero(self):
         self.write([ask_line(), answer_line(["Automatic", "OpenSpec", "Single PR"])])
@@ -189,9 +189,9 @@ class CliTest(Base):
 
     def test_does_not_import_code_from_cwd(self):
         evil = self.dir / "evil"
-        (evil / "gentle_lite").mkdir(parents=True)
+        (evil / "amauta").mkdir(parents=True)
         marker = self.dir / "pwned"
-        (evil / "gentle_lite" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
+        (evil / "amauta" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
         r = self.run_hook(json.dumps(payload(self.transcript, subagent="general-purpose")), cwd=evil)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(marker.exists())

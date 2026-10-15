@@ -5,7 +5,7 @@ import time
 import unittest
 from pathlib import Path
 
-from python.gentle_lite.graph import semantic_plan as sp
+from python.amauta.graph import semantic_plan as sp
 
 from .test_semantic_plan import Base, good_chunk, node, run_main, write_graph
 
@@ -283,13 +283,13 @@ class WriteInstructionAnchorTest(unittest.TestCase):
 
 
 class TestImportConventionTest(unittest.TestCase):
-    def test_python_tests_import_the_package_as_python_dot_gentle_lite(self):
-        # One import root: `python.gentle_lite...` (the repo root on sys.path, as `npm test` runs). A bare `gentle_lite`
+    def test_python_tests_import_the_package_as_python_dot_amauta(self):
+        # One import root: `python.amauta...` (the repo root on sys.path, as `npm test` runs). A bare `amauta`
         # import would load a second copy of the module next to it. Subprocess tests set PYTHONPATH instead and never import.
         bad = []
         for f in sorted(Path(__file__).parent.glob("test_*.py")):
             for n, line in enumerate(f.read_text().splitlines(), 1):
                 stripped = line.strip()
-                if stripped.startswith(("from gentle_lite", "import gentle_lite")):
+                if stripped.startswith(("from amauta", "import amauta")):
                     bad.append(f"{f.name}:{n}")
         self.assertEqual(bad, [])

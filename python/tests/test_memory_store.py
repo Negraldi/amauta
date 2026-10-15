@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from python.gentle_lite import paths
-from python.gentle_lite.memory import store as mstore
+from python.amauta import paths
+from python.amauta.memory import store as mstore
 
 
 class StoreTest(unittest.TestCase):
