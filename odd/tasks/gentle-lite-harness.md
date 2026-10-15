@@ -120,12 +120,14 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - graphify lock: pid file also stores a start token (e.g. boot id + process start time from /proc when available) so a reused pid after SIGKILL/reboot is detected as stale; fallback to mtime-based staleness only when /proc is unavailable.
   Route: delegated.
 
-- [ ] T17 Optional graphify semantic pass + last follow-ups (user decision 2026-10-15: SQL on, semantic pass optional with Haiku 5.5).
+- [x] T17 (`4b91d36`, `2a5853c`, `d9f03a7`, `714c0f0`) Optional graphify semantic pass + last follow-ups (user decision 2026-10-15: SQL on, semantic pass optional with Haiku 5.5).
   - `gentle-lite graphify semantic [--cwd] [--model claude-haiku-5-5]`: runs `graphify extract <repo> --backend claude --model <model>` with `GRAPHIFY_QUERY_LOG_DISABLE=1` ONLY when `ANTHROPIC_API_KEY` is present in the environment (never read, print, store or log the key); otherwise exits non-zero with a clear message. Then runs the gentle-lite graph sync. Default model `claude-haiku-5-5`, overridable via `--model` or `GENTLE_LITE_GRAPHIFY_MODEL`.
   - Post-commit hook stays local: after `graphify update`, run `graphify check-update .` (if available) and record "semantic pass pending" in `<state-dir>` (no network); never call an LLM from the hook.
   - Portal graph view shows: last sync, node/edge counts, SQL tables count (file_type/source_file *.sql), semantic pass pending yes/no, last semantic run time + model.
   - status: shows graphify version + whether the `[sql]` extractor is available (`graphify` import of tree_sitter_sql via the graphify interpreter is NOT required — detect by running a tiny `.sql` fixture through `graphify update` in a temp dir only when `--deep` is passed).
   - Follow-ups: graphify owner pid captured correctly (no `$PPID` inside `$(...)`; write the background subshell pid directly) + test; fix misleading test title at test/installer.test.js:526; make `concurrent commits never stack runs` assert only non-overlap (deterministic) as recorded.
+  Route: delegated.
+  **Done** (strict TDD, RED seen per bullet): owner pid from `read ... < /proc/self/stat` (builtin, so the subshell itself; fallback `sh -c 'echo $PPID' > file`), RED via a forking `sh` shim; hook `check-update` + `--semantic-pending`; memory schema v5 (`sql_tables`, `semantic_*` on `graph_sync`) + portal fields/UI; `graphify semantic`; status graphify note + `--deep`. Deviations: (1) pending verdict is stored in `graph_sync` (memory.db), not a state-dir flag file, so the portal reads it; the portal tolerates a v4 mirror (defaults). (2) pending = `check-update` output contains "pending" (it always exits 0); `graphify update` itself never raised the flag for markdown on this graphify version. (3) the `concurrent` test follow-up is a loosening (`^(SE)+$`), no RED possible; the no-`/proc` pid fallback is untested. (4) `--deep` is accepted (ignored) by `install` too, as options are shared. (5) one unidentified `npm test` failure (258/259) seen once, 3 later node runs and 2 npm runs green.
   Route: delegated.
 
 ## Acceptance criteria
@@ -255,12 +257,11 @@ T16 done. Open: nothing blocking.
 
 ## Next session
 
-- Branch `feat/gentle-lite-harness`, last code commit `f3437cf`; `npm test` green (node 245, python 180).
+- Branch `feat/gentle-lite-harness`; `npm test` green (see T17 line below).
 - All work-unit commits reviewed (RDD) up to T15; T16 commits are unreviewed. Vendored-asset commits `ecd0b7e` and `127a75a` stay unreviewed (lens budget). T9 escalated (fixed by `b4c4e65`).
 - Done in T16: secret-read deny set, nested-section migration, hook timeouts on upgrade, rea/context7 carry-over, explicit preflight composition, graphify lock start token.
-- Open: `concurrent commits never stack runs` (test/graphify-hook.test.js) failed once under load, timing-sensitive; consider making it assert on non-overlap only.
 - Real install on this machine is a separate user decision (it overlaps the installed gentle-ai 3.4.0).
 - Remaining `gentle-ai` strings in assets are SDD machine markers/schema names (`gentle-ai:sdd-session-preflight`, `gentle-ai.sdd-status`) and the manifest attribution; rename only together with the Python preflight/status code.
 - Possible follow-ups: make `go-testing` optional, dedupe the two skill-style-guide copies, trim agent files (77k chars on disk), lint/`npm run check`.
-- Open follow-ups after T16: graphify owner-pid capture (`$PPID` in `$(...)`), misleading installer test title, timing-sensitive test `concurrent commits never stack runs` (1 unreproduced failure).
-- Planned T17: `gentle-lite graphify semantic` — optional `graphify extract --backend claude --model claude-haiku-5-5` only when ANTHROPIC_API_KEY is set; hook stays local (`update`) and flags pending semantic work via `graphify check-update`; portal shows it. graphify 0.9.90 with `[sql,anthropic]` installed via pipx on this machine.
+- T16 follow-ups (owner pid, test title, concurrency test) closed in T17. Open: one unidentified one-off `npm test` failure during T17; the hook's no-`/proc` pid fallback has no test.
+- T17 done: `gentle-lite graphify semantic` (needs ANTHROPIC_API_KEY, default `claude-haiku-5-5`), hook records `check-update` locally, schema v5, portal shows SQL tables / pending / last semantic run, `status --deep`. Last code commit `714c0f0`; `npm test` node 259 / python 187. T16 and T17 commits are unreviewed.
