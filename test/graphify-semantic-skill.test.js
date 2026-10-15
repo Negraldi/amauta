@@ -4,7 +4,8 @@ import { mkdtemp, readFile, stat, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { loadManifest, readAssetText, repoRoot } from '../src/install/assets.js';
-import { install, uninstall, status } from '../src/install/installer.js';
+import { spawnSync } from 'node:child_process';
+import { install, uninstall, status, renderSkillFile } from '../src/install/installer.js';
 
 const exists = (p) => stat(p).then(() => true, () => false);
 
@@ -34,8 +35,20 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   // Replies are untrusted: never route them through a shell (a heredoc terminator in the reply would run as commands).
   assert.doesNotMatch(text, /heredoc|<<|GRAPHIFY_JSON_REPLY|stdin/i);
   assert.match(text, /Write tool/);
-  assert.match(text, /save-chunk <N> --repo <repo> --input/);
+  assert.match(text, /save-chunk <N> --repo "<repo>" --input/);
   assert.match(text, /exit code 75/);
+  // Retry contract: capped (3 attempts, growing waits), then stop and report; plan and merge are retryable too.
+  assert.match(text, /3 attempts/);
+  assert.match(text, /5 s.*15 s.*45 s/);
+  assert.match(text, /stop and report/i);
+  assert.match(text, /plan[^.]*merge[^.]*75|75[^.]*plan[^.]*merge/i);
+  // Reply file naming is explicit: <NN> is the two-digit zero-padded chunk number.
+  assert.match(text, /<NN>[^.]*two-digit|two-digit[^.]*<NN>/i);
+  // Every path argument is quoted for the shell.
+  assert.doesNotMatch(text, /--repo <repo>/);
+  assert.doesNotMatch(text, /--input <that file>/);
+  assert.match(text, /--repo "<repo>"/);
+  assert.match(text, /--input "<reply file>"/);
   assert.match(text, /untrusted/i);
   assert.match(text, /never write/i);
   assert.match(text, /<prefix> plan/);
@@ -53,6 +66,14 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   assert.ok(text.length < 6000, `skill is ${text.length} chars; keep it concise`);
 });
 
+test('the rendered helper command survives a checkout path with spaces and quotes (it is shell-quoted)', () => {
+  const dir = "/tmp/a b/it's/python";
+  const out = renderSkillFile('graphify-semantic/SKILL.md', Buffer.from('Prefix: `env {{GENTLE_LITE_PYTHONPATH_ENV}} python3 -P -m x`'), dir).toString('utf8');
+  const frag = out.match(/`env (.*) python3/)[1];
+  const r = spawnSync('sh', ['-c', `set -- ${frag}; printf '%s' "$1"`], { encoding: 'utf8' });
+  assert.equal(r.stdout, `PYTHONPATH=${dir}`);
+});
+
 test('install renders the helper path, status lists the skill, uninstall removes it', async () => {
   const t = await sandbox();
   try {
@@ -60,7 +81,7 @@ test('install renders the helper path, status lists the skill, uninstall removes
     const file = path.join(t.claudeHome, 'skills', 'graphify-semantic', 'SKILL.md');
     const text = await readFile(file, 'utf8');
     assert.ok(!text.includes('{{'), 'unresolved placeholder');
-    assert.ok(text.includes(`PYTHONPATH=${path.join(repoRoot, 'python')} python3 -P -m gentle_lite.graph.semantic_plan`), 'absolute helper command');
+    assert.ok(text.includes(`PYTHONPATH=${path.join(repoRoot, 'python')} python3 -P -m gentle_lite.graph.semantic_plan`) || text.includes(`'PYTHONPATH=${path.join(repoRoot, 'python')}' python3 -P -m gentle_lite.graph.semantic_plan`), 'absolute helper command');
     const s = await status(t.opts());
     const item = s.items.find((i) => i.name === 'file skills/graphify-semantic/SKILL.md');
     assert.ok(item?.ok, 'status tracks the managed skill file');

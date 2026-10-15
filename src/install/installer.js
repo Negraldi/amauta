@@ -14,7 +14,7 @@ import {
   renderAgent,
   resolveAssignment,
 } from './templating.js';
-import { desiredHooks, desiredMcpServers, isGentleLiteHook } from './servers.js';
+import { desiredHooks, desiredMcpServers, isGentleLiteHook, shellQuote } from './servers.js';
 import { renderSddFiles } from './sdd.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
@@ -129,14 +129,13 @@ function mergePermissions(settings, prev, overlay) {
 
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 
-const SKILL_PLACEHOLDERS = { '{{GENTLE_LITE_PYTHONPATH}}': path.join(repoRoot, 'python') };
-
-/** Markdown skill files may name helper code of this checkout; resolve those placeholders to absolute paths. */
-function renderSkillFile(rel, buf) {
+/** Markdown skill files may name helper code of this checkout; resolve those placeholders to shell-safe absolute values. */
+export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'python')) {
   if (!rel.endsWith('.md')) return buf;
   let text = buf.toString('utf8');
   if (!text.includes('{{GENTLE_LITE_')) return buf;
-  for (const [key, value] of Object.entries(SKILL_PLACEHOLDERS)) text = text.replaceAll(key, value);
+  // The whole `NAME=value` assignment is quoted, so a checkout path with spaces or quotes still forms one `env` argument.
+  text = text.replaceAll('{{GENTLE_LITE_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
   return Buffer.from(text, 'utf8');
 }
 

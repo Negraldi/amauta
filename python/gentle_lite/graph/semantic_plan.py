@@ -42,7 +42,7 @@ FILE_TYPES = {"code", "document", "paper", "image", "rationale", "concept"}
 CONFIDENCES = {"EXTRACTED", "INFERRED", "AMBIGUOUS"}
 ID_RE = re.compile(r"^[a-z0-9_]+$")
 MAX_CHUNK_BYTES = 16 * 1024 * 1024
-CHUNK_GLOB, PROMPT_GLOB = ".graphify_chunk_*.json", ".gentle_semantic_prompt_*.md"
+CHUNK_GLOB, PROMPT_GLOB, REPLY_GLOB = ".graphify_chunk_*.json", ".gentle_semantic_prompt_*.md", ".gentle_semantic_reply_*.json"
 HINT_MAX_IDS = 200
 UPDATE_TIMEOUT = 900
 WORKER_TIMEOUT = 900
@@ -210,38 +210,51 @@ REPLY_ONLY = ("Reply with only the JSON object: no prose before or after it, no 
               "must not write any file; your final message is saved for you.")
 
 
+# graphify's spec ends with a paragraph telling the subagent to WRITE its JSON to a file, then a bare `CHUNK_PATH` line
+# (the placeholder for that file). Our extractor has only `Read`, so that paragraph must be replaced, and we find it by
+# its structure rather than by its wording: it is the last non-blank line before the standalone CHUNK_PATH line. If the
+# spec no longer has that shape we refuse (a silent fallback would leave two contradicting instructions in the prompt).
+# test_semantic_untrusted.WriteInstructionAnchorTest checks the installed graphify's real spec.
+_WRITE_WORDS = re.compile(r"\b(write|save)\b", re.IGNORECASE)
+
+
 def render_prompt(block: str, files: list[str], num: int, total: int, deep: bool, sql_ids: list[str]) -> str:
     """The spec verbatim except its final instruction: the extractor has only `Read`, so it replies with the JSON instead of
     writing it (the orchestrator saves the reply with `save-chunk`)."""
-    lines, replied = [], False
-    for line in block.split("\n"):
-        if line == "FILE_LIST":
+    src = block.split("\n")
+    try:
+        path_at = src.index("CHUNK_PATH")
+    except ValueError:
+        raise SemanticError("graphify's extraction spec has no standalone CHUNK_PATH line, so its write-the-file instruction cannot be located (graphify layout changed?)") from None
+    instr_at = next((i for i in range(path_at - 1, -1, -1) if src[i].strip()), None)
+    if instr_at is None or not _WRITE_WORDS.search(src[instr_at]):
+        raise SemanticError("the line before CHUNK_PATH in graphify's extraction spec is not a write/save instruction (graphify layout changed?)")
+    lines = []
+    for i, line in enumerate(src):
+        if i == instr_at:
+            lines.append(REPLY_ONLY)
+        elif i == path_at:
+            continue
+        elif line == "FILE_LIST":
             lines.append("\n".join(files))
             if sql_ids:
                 lines.append("")
                 lines.append("Known AST node ids (SQL tables and columns; they already exist in the graph): " + ", ".join(sql_ids) + ".")
                 lines.append("When a document refers to one of these entities, point the edge at exactly that id; do not create a duplicate node for it.")
-        elif line.startswith("Then write the JSON to disk"):
-            lines.append(REPLY_ONLY)
-            replied = True
-        elif line == "CHUNK_PATH":
-            continue
         elif "CHUNK_NUM" in line and "TOTAL_CHUNKS" in line:
             lines.append(line.replace("CHUNK_NUM", str(num)).replace("TOTAL_CHUNKS", str(total)))
         elif deep and line.startswith("DEEP_MODE (if --mode deep was given)"):
             lines.append(line.replace("(if --mode deep was given)", "(--mode deep WAS given: apply it)"))
         else:
             lines.append(line)
-    if not replied:
-        lines += ["", REPLY_ONLY]
     return "\n".join(lines) + "\n"
 
 
 def _remove_leftovers(repo: Path) -> None:
-    """Chunk and prompt files of an earlier run: a subagent that fails this time must not leave a stale result to merge."""
+    """Chunk, prompt and reply files of an earlier run: a subagent that fails this time must not leave a stale result to merge."""
     out = out_dir(repo)
     if out.is_dir():
-        for pattern in (CHUNK_GLOB, PROMPT_GLOB):
+        for pattern in (CHUNK_GLOB, PROMPT_GLOB, REPLY_GLOB):
             for old in out.glob(pattern):
                 old.unlink(missing_ok=True)
 

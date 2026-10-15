@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -9,7 +10,7 @@ from unittest import mock
 
 from python.gentle_lite.graph import lock as gl
 
-from .test_semantic_plan import good_chunk
+from .test_semantic_plan import good_chunk, run_main
 from .test_semantic_untrusted import Env, chunk_of, cnode, edge
 
 
@@ -114,7 +115,23 @@ class SaveChunkTest(Env):
         self.assertIn("already running", err)
         self.assertFalse(self.target.exists())
 
-    def test_saved_chunk_survives_a_second_plan_only_as_a_leftover_to_remove(self):
+    def test_a_save_refused_by_the_lock_keeps_the_reply_file_so_the_retry_can_use_it(self):
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        lock = gl.lock_path(self.repo)
+        lock.mkdir()
+        (lock / "pid").write_text(f"{os.getpid()}\n")
+        reply = self.out / ".gentle_semantic_reply_01.json"
+        reply.write_text(json.dumps(good_chunk()))
+        before = reply.read_bytes()
+        code, _, _ = run_main("save-chunk", "1", "--repo", str(self.repo), "--input", str(reply))
+        self.assertEqual(code, 75)
+        self.assertEqual(reply.read_bytes(), before, "the reply is untouched")
+        shutil.rmtree(lock)
+        code, _, err = run_main("save-chunk", "1", "--repo", str(self.repo), "--input", str(reply))
+        self.assertEqual(code, 0, err)
+        self.assertTrue(self.target.exists(), "the retry saved it")
+
+    def test_a_second_plan_removes_a_saved_chunk(self):
         self.save(json.dumps(good_chunk()))
         self.plan()
         self.assertFalse(self.target.exists())

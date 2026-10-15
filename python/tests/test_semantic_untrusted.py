@@ -1,6 +1,8 @@
 import json
 import os
+import shutil
 import time
+import unittest
 from pathlib import Path
 
 from python.gentle_lite.graph import semantic_plan as sp
@@ -218,6 +220,14 @@ class CleanupTest(Env):
     def test_the_dead_spec_constant_is_gone(self):
         self.assertFalse(hasattr(sp, "SPEC_REL"))
 
+    def test_plan_also_removes_leftover_reply_files(self):
+        self.doc("docs/a.md")
+        self.plan()
+        reply = Path(self.repo / "graphify-out" / ".gentle_semantic_reply_01.json")
+        reply.write_text("{}")
+        self.plan()
+        self.assertFalse(reply.exists())
+
     def test_prompt_asks_for_a_json_only_reply_and_never_for_a_file_write(self):
         self.doc("docs/a.md")
         _, plan = self.plan()
@@ -227,3 +237,59 @@ class CleanupTest(Env):
         self.assertIn("Reply with only the JSON object", prompt)
         self.assertIn("no code fences", prompt)
         self.assertIn("You are a graphify extraction subagent.", prompt, "the rest of the spec stays verbatim")
+
+
+PROMPT_HEAD = "You are a graphify extraction subagent.\n\nFiles (chunk CHUNK_NUM of TOTAL_CHUNKS):\nFILE_LIST\n\n"
+
+
+class WriteInstructionAnchorTest(unittest.TestCase):
+    """The prompt's final "write the JSON to CHUNK_PATH" paragraph is graphify's text. We find it by its structure (the
+    paragraph right before the bare CHUNK_PATH line) and fail loudly when that structure changes."""
+
+    def render(self, tail):
+        return sp.render_prompt(PROMPT_HEAD + tail, ["a.md"], 1, 1, False, [])
+
+    def test_the_paragraph_before_a_bare_chunk_path_line_is_replaced_whatever_its_wording(self):
+        for wording in ("Then write the JSON to disk using the Write tool at this exact absolute path:",
+                        "Finally, save the result as JSON with your file tool at:"):
+            out = self.render(f"Some rule.\n\n{wording}\nCHUNK_PATH")
+            self.assertEqual(out.count(sp.REPLY_ONLY), 1, wording)
+            self.assertNotIn(wording, out)
+            self.assertNotIn("CHUNK_PATH", out)
+            self.assertIn("Some rule.", out)
+
+    def test_a_spec_without_the_chunk_path_line_is_refused_not_patched_silently(self):
+        with self.assertRaises(sp.SemanticError) as ctx:
+            self.render("Some rule.\n\nThen write the JSON to disk somewhere.")
+        self.assertIn("CHUNK_PATH", str(ctx.exception))
+
+    def test_a_chunk_path_line_not_preceded_by_a_write_instruction_is_refused(self):
+        with self.assertRaises(sp.SemanticError) as ctx:
+            self.render("Some rule.\n\nThe chunk lives at:\nCHUNK_PATH")
+        self.assertIn("write", str(ctx.exception).lower())
+
+    @unittest.skipUnless(shutil.which("graphify"), "graphify is not installed")
+    def test_the_installed_graphify_spec_still_has_the_anchor(self):
+        # Fails loudly the day graphify rewords or moves its final write instruction.
+        import subprocess
+
+        exe, python = sp.find_graphify(None)
+        spec = subprocess.run([python, "-I", "-c", "import graphify, pathlib; print(pathlib.Path(graphify.__file__).parent / 'skills' / 'claude' / 'references' / 'extraction-spec.md')"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+        out = sp.render_prompt(sp.prompt_block(Path(spec).read_text(encoding="utf-8")), ["x.md"], 1, 1, False, [])
+        self.assertEqual(out.count(sp.REPLY_ONLY), 1)
+        self.assertNotIn("CHUNK_PATH", out)
+        self.assertNotIn("using the Write tool", out)
+
+
+class TestImportConventionTest(unittest.TestCase):
+    def test_python_tests_import_the_package_as_python_dot_gentle_lite(self):
+        # One import root: `python.gentle_lite...` (the repo root on sys.path, as `npm test` runs). A bare `gentle_lite`
+        # import would load a second copy of the module next to it. Subprocess tests set PYTHONPATH instead and never import.
+        bad = []
+        for f in sorted(Path(__file__).parent.glob("test_*.py")):
+            for n, line in enumerate(f.read_text().splitlines(), 1):
+                stripped = line.strip()
+                if stripped.startswith(("from gentle_lite", "import gentle_lite")):
+                    bad.append(f"{f.name}:{n}")
+        self.assertEqual(bad, [])
