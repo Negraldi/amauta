@@ -110,7 +110,7 @@ class SaveChunkTest(Env):
         lock.mkdir()
         (lock / "pid").write_text(f"{os.getpid()}\n")
         code, _, err = self.save(json.dumps(good_chunk()))
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 75)  # EXIT_LOCKED
         self.assertIn("already running", err)
         self.assertFalse(self.target.exists())
 

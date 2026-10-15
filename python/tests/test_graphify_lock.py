@@ -118,13 +118,13 @@ class LockedCommandsTest(Base):
 
     def test_merge_fails_fast_while_the_lock_is_held(self):
         code, out, err = run_main("merge", "--repo", str(self.repo))
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 75)  # EXIT_LOCKED
         self.assertIn("already running", err)
         self.assertEqual(out, "")
 
     def test_plan_fails_fast_while_the_lock_is_held(self):
         code, _, err = run_main("plan", "--repo", str(self.repo), "--graphify-bin", str(self.fake.exe), "--skip-update")
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 75)  # EXIT_LOCKED
         self.assertIn("already running", err)
         self.assertFalse((self.repo / "graphify-out").exists(), "nothing written while the lock is held")
 
