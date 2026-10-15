@@ -120,6 +120,14 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - graphify lock: pid file also stores a start token (e.g. boot id + process start time from /proc when available) so a reused pid after SIGKILL/reboot is detected as stale; fallback to mtime-based staleness only when /proc is unavailable.
   Route: delegated.
 
+- [ ] T17 Optional graphify semantic pass + last follow-ups (user decision 2026-10-15: SQL on, semantic pass optional with Haiku 5.5).
+  - `gentle-lite graphify semantic [--cwd] [--model claude-haiku-5-5]`: runs `graphify extract <repo> --backend claude --model <model>` with `GRAPHIFY_QUERY_LOG_DISABLE=1` ONLY when `ANTHROPIC_API_KEY` is present in the environment (never read, print, store or log the key); otherwise exits non-zero with a clear message. Then runs the gentle-lite graph sync. Default model `claude-haiku-5-5`, overridable via `--model` or `GENTLE_LITE_GRAPHIFY_MODEL`.
+  - Post-commit hook stays local: after `graphify update`, run `graphify check-update .` (if available) and record "semantic pass pending" in `<state-dir>` (no network); never call an LLM from the hook.
+  - Portal graph view shows: last sync, node/edge counts, SQL tables count (file_type/source_file *.sql), semantic pass pending yes/no, last semantic run time + model.
+  - status: shows graphify version + whether the `[sql]` extractor is available (`graphify` import of tree_sitter_sql via the graphify interpreter is NOT required — detect by running a tiny `.sql` fixture through `graphify update` in a temp dir only when `--deep` is passed).
+  - Follow-ups: graphify owner pid captured correctly (no `$PPID` inside `$(...)`; write the background subshell pid directly) + test; fix misleading test title at test/installer.test.js:526; make `concurrent commits never stack runs` assert only non-overlap (deterministic) as recorded.
+  Route: delegated.
+
 ## Acceptance criteria
 
 - `npm test` and Python unittest pass.
