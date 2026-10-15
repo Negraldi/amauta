@@ -38,7 +38,14 @@ async function sandbox({ graphify = null } = {}) {
     return { ms: Date.now() - started, status: r.status, stderr: r.stderr };
   };
   t.opts = (extra = {}) => ({ cwd: t.repo, stateDir: t.state, ...extra });
-  t.cleanup = () => rm(root, { recursive: true, force: true });
+  // The post-commit hook keeps running in the background: let it release its lock first, and retry on ENOTEMPTY,
+  // otherwise it can create files in .git while the directory is being removed (an intermittent cleanup failure).
+  t.cleanup = async () => {
+    const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+    const end = Date.now() + 5000;
+    while (Date.now() < end && ((await access(lock).then(() => true, () => false)) || (await access(`${lock}.pending`).then(() => true, () => false)))) await sleep(50);
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  };
   return t;
 }
 const executable = async (p) => ((await stat(p)).mode & 0o111) !== 0;
