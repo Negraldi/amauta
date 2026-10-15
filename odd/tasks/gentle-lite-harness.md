@@ -109,6 +109,16 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - UI XSS is tested at DOM level through a small fake DOM running the real `app.js` under Node `vm` (no browser dependency); also checked once in the built-in browser at 375px (no horizontal scroll after a CSS fix, no console errors).
   - Not done (by scope): graphify view only shows node/edge counts (T13 finishes it); RDD review of the T11 commits not run per instructions.
 
+- [ ] T16 Secret protection + last review follow-ups (user decision 2026-10-14: restore a minimal secret-read deny set). Scratchpad findings: `c20cap3.json`, `c19cap0.json`.
+  - Overlay keeps the 3 `ask` rules and adds home-aware `deny` for Read/Edit of: `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `**/*.pem`, `**/*.key`, `**/secrets/**` (no macOS-only paths). Record which entries we added; uninstall removes only those.
+  - R1-002: re-install must never remove deny entries it did not add in THIS schema, nor any entry the user also lists; legacy `deny_added` from pre-T15 state is NOT used to strip rules (keep them, report them in `status`).
+  - Migration: stale-section removal handles nested markers (real `agent-routing` with nested `remote-authorization`) — realistic fixture test.
+  - codegraph hook: add `timeout` to a pre-existing hook we own on re-install.
+  - rea/context7: when state predates T15 (no `rea`/`context7` keys) and our entries exist in claude.json unchanged, keep them (carry over) instead of silently dropping; document.
+  - Preflight command: build the shell guard with explicit composition (no join+patch), tests unchanged in behavior.
+  - graphify lock: pid file also stores a start token (e.g. boot id + process start time from /proc when available) so a reused pid after SIGKILL/reboot is detected as stale; fallback to mtime-based staleness only when /proc is unavailable.
+  Route: delegated.
+
 ## Acceptance criteria
 
 - `npm test` and Python unittest pass.
