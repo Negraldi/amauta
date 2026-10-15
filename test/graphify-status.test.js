@@ -65,7 +65,7 @@ test('without graphify on PATH status shows the install hint and stays healthy',
   const t = await sandbox({ graph: null });
   const s = await status(t.opts({ deep: true }));
   assert.equal(s.ok, true);
-  assert.match(s.notes.find((n) => n.name === 'graphify').detail, /pipx install "graphifyy\[sql,anthropic\]"/);
+  assert.match(s.notes.find((n) => n.name === 'graphify').detail, /pipx install "graphifyy\[sql,anthropic,pdf,office\]"/);
   await t.cleanup();
 });
 
