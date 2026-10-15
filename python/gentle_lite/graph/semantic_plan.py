@@ -6,6 +6,7 @@ dispatching one Haiku subagent per chunk. Everything around it lives here:
   plan      `graphify update` (local AST), list the documents/papers/images still needing extraction (graphify's own
             cache decides), split them into chunks and render one ready-to-use prompt file per chunk from graphify's
             bundled extraction-spec.md.
+  save-chunk  validate one subagent reply (the JSON object it returned) and write chunk N atomically; subagents never write files.
   validate  check every chunk file a subagent wrote (schema, ids, confidence rules, known edge endpoints).
   merge     fold the valid chunks (+ cached results) into graph.json through graphify's own build/cluster/to_json
             (its shrink guard is never bypassed), save graphify's semantic cache, then mirror into memory.db.
@@ -477,6 +478,67 @@ def cmd_validate(args) -> tuple[dict, int]:
     return {"repo": str(repo), "chunks": chunks, "valid": sum(c["valid"] for c in chunks), "invalid": sum(not c["valid"] for c in chunks)}, code
 
 
+# ------------------------------------------------------------------------------------------------------ save-chunk
+
+def parse_single_object(text: str):
+    """The one JSON object in a subagent's reply. Surrounding whitespace is fine; fences, prose, a second value or a non-object are not."""
+    stripped = text.strip()
+    if stripped.startswith("\ufeff"):
+        stripped = stripped[1:].strip()
+    try:
+        value, end = json.JSONDecoder().raw_decode(stripped)
+    except ValueError:
+        value, end = None, -1
+    if end != len(stripped) or not isinstance(value, dict):
+        raise SemanticError("the reply is not a single JSON object (no prose, no Markdown fences, no second value); nothing was saved")
+    return value
+
+
+def _read_reply(path: str | None) -> str:
+    limit = MAX_CHUNK_BYTES
+    try:
+        raw = Path(path).read_bytes()[: limit + 1] if path else sys.stdin.read(limit + 1).encode("utf-8")
+    except OSError as err:
+        raise SemanticError(f"cannot read {path}: {err}") from None
+    if len(raw) > limit:
+        raise SemanticError(f"the reply is larger than {limit} bytes; nothing was saved")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise SemanticError("the reply is not UTF-8 text; nothing was saved") from None
+
+
+def cmd_save_chunk(args) -> dict:
+    """Validate one subagent reply and write its chunk file atomically. Subagents never write files themselves."""
+    repo = Path(args.repo).resolve()
+    plan = load_plan(repo)
+    if not 1 <= args.num <= len(plan["chunks"]):
+        raise SemanticError(f"no chunk {args.num} in this plan (it has {len(plan['chunks'])})")
+    data = parse_single_object(_read_reply(args.input))
+    errors = check_shape(data)
+    if errors:
+        raise SemanticError(f"chunk {args.num} is invalid, nothing was saved: " + "; ".join(errors[:10]))
+    existing, _ = load_existing(repo)
+    known = {n["id"] for n in existing["nodes"] if isinstance(n, dict) and isinstance(n.get("id"), str)}
+    try:
+        known |= _node_ids(clean_cached(_read_json(cached_file(repo), "cached results")))
+    except SemanticError:
+        pass
+    # Another chunk may own an endpoint that is not saved yet, so this is a warning here; validate/merge decide for good.
+    warnings = check_endpoints(data, known | _node_ids(data))
+    target = Path(plan["chunks"][args.num - 1]["chunk_path"])
+    fd, tmp = tempfile.mkstemp(prefix=".gentle_semantic_tmp_", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        os.replace(tmp, target)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return {"repo": str(repo), "num": args.num, "path": str(target), "nodes": len(data["nodes"]), "edges": len(data.get("edges", [])),
+            "hyperedges": len(data.get("hyperedges") or []), "warnings": warnings[:20]}
+
+
 # ---------------------------------------------------------------------------------------------------------- merge
 
 def _stamp(items) -> list[dict]:
@@ -553,8 +615,12 @@ def cmd_merge(args) -> tuple[dict, int]:
 # ------------------------------------------------------------------------------------------------------------ CLI
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="gentle_lite.graph.semantic_plan", description="Plan, validate and merge an in-session semantic pass.")
+    p = argparse.ArgumentParser(prog="gentle_lite.graph.semantic_plan", description="Plan, save, validate and merge an in-session semantic pass.")
     sub = p.add_subparsers(dest="cmd", required=True)
+    sv = sub.add_parser("save-chunk", help="validate a subagent's JSON reply (stdin or --input) and save it as chunk N")
+    sv.add_argument("num", type=int, help="chunk number from the plan")
+    sv.add_argument("--repo", default=".")
+    sv.add_argument("--input", help="file holding the reply (default: stdin)")
     for name, text in (("plan", "run graphify update, chunk the documents still needing extraction, render prompt files"),
                        ("validate", "check the chunk files the subagents wrote"), ("merge", "merge valid chunks into graph.json and sync")):
         s = sub.add_parser(name, help=text)
@@ -579,6 +645,9 @@ def main(argv=None) -> int:
                 raise SemanticError("--chunk-size must be at least 1")
             with graphify_lock(Path(args.repo).resolve()):
                 result, code = cmd_plan(args), 0
+        elif args.cmd == "save-chunk":
+            with graphify_lock(Path(args.repo).resolve()):
+                result, code = cmd_save_chunk(args), 0
         elif args.cmd == "validate":
             result, code = cmd_validate(args)
         else:
