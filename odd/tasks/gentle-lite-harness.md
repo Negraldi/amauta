@@ -268,6 +268,8 @@ T16 done. Open: nothing blocking.
 
 - 2026-10-15: RDD for T19 (`2a7bb02..a50028e`): high, 167 lines → granted → 4 lenses → approved, acknowledged (review-a41fa4426f1ea7bf). Warnings → backlog: masker cannot redact a key fragment printed on its own mid-stream (exact-match limit); `end()` over-masks a held tail that matches a key prefix (Anthropic keys share a fixed prefix); exported `runSemantic` installs process-wide signal handlers that call `process.exit`. Parent spot check: node 273 / python 187; T19 writer looped on duplicate hand-offs and was stopped (repo untouched).
 
+- 2026-10-15: RDD for T20 (`ec97121..10b20c3`): high, 1120 lines → granted → 4 lenses → approved, acknowledged (review-94fc0931a65969c2). 9 warnings (scratchpad `c25cap3.json`): R1-001 prompt injection — untrusted docs are fed to `general-purpose` subagents with Bash/Write/Edit (same as upstream graphify skill); stale `.graphify_chunk_NN.json` from earlier runs are reused when a subagent fails to write; `merge` skips the per-repo graphify lock; plan/chunk files trusted without type validation (non-hashable fields crash validation; ids from invalid chunks count as known); unused SPEC_REL duplicates the spec path.
+
 ## Next session
 
 - T20 done (`3b577ad` helper `python/gentle_lite/graph/semantic_plan.py` plan/validate/merge, `aec4349` skill `graphify-semantic`): real dry run 9->21 nodes, 6->20 edges from the parent's chunk fixture; not yet exercised live with Haiku agents through the skill. `npm test` node 275 / python 219. T20 commits are unreviewed.
