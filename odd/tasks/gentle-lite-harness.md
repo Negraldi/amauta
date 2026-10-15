@@ -264,6 +264,8 @@ T16 done. Open: nothing blocking.
 
 - 2026-10-15: RDD for T18 (`55f1e32..b1d7b3e`): high, 285 lines → granted → 4 lenses → approved, acknowledged (review-490bbb9e74d0c922). Warnings (scratchpad `c23cap3.json`): R1-001 truncated-tail masking can leak a partial ANTHROPIC_API_KEY when the kept tail has no newline; detached `extract` is orphaned on Ctrl-C/SIGHUP (keeps spending API); unbounded stdout partial-line buffer; lock protocol duplicated in semantic.js instead of shared with the hook. Parent spot check: node 269 / python 187.
 
+- 2026-10-15: RDD for T19 (`2a7bb02..a50028e`): high, 167 lines → granted → 4 lenses → approved, acknowledged (review-a41fa4426f1ea7bf). Warnings → backlog: masker cannot redact a key fragment printed on its own mid-stream (exact-match limit); `end()` over-masks a held tail that matches a key prefix (Anthropic keys share a fixed prefix); exported `runSemantic` installs process-wide signal handlers that call `process.exit`. Parent spot check: node 273 / python 187; T19 writer looped on duplicate hand-offs and was stopped (repo untouched).
+
 ## Next session
 
 - Branch `feat/gentle-lite-harness`; `npm test` green (see T17 line below).
@@ -277,3 +279,4 @@ T16 done. Open: nothing blocking.
 - T18 done (`cec544d`, `5bbb736`, `898d8b3`): T17 review warnings fixed; `npm test` node 269 / python 187, 3 runs green; stress 12x4 parallel 0 failures. T16-T18 commits are unreviewed.
 - Open suggestions: sql_tables uses tuple indices and duplicates probe.js's rule; the hook coalescing (extra triggers -> one rerun) is no longer asserted.
 - T19 done (`59dc8f9`): key masking on the raw stream and interrupt cleanup (kills the extract process group, releases the lock). The gentle-lite harness feature is complete. Documented backlog: unbounded stdout partial buffer in the child, lock protocol duplicated between semantic.js and the hook, sql_tables tuple indices, hook coalescing assertion, remaining T18 suggestions. T16-T19 commits are unreviewed.
+- Backlog (T19 review): partial-key fragments mid-stream, tail over-masking, process-wide signal handlers in runSemantic.
