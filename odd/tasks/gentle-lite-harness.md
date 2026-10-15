@@ -109,7 +109,8 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - UI XSS is tested at DOM level through a small fake DOM running the real `app.js` under Node `vm` (no browser dependency); also checked once in the built-in browser at 375px (no horizontal scroll after a CSS fix, no console errors).
   - Not done (by scope): graphify view only shows node/edge counts (T13 finishes it); RDD review of the T11 commits not run per instructions.
 
-- [ ] T16 Secret protection + last review follow-ups (user decision 2026-10-14: restore a minimal secret-read deny set). Scratchpad findings: `c20cap3.json`, `c19cap0.json`.
+- [x] T16 (a `06b7331` permissions, b `61eca00` migration/codegraph/rea, c `078356d` preflight, d `a5a6e55` graphify lock, e `f3437cf` test-cleanup fix) Secret protection + last review follow-ups (user decision 2026-10-14: restore a minimal secret-read deny set). Scratchpad findings: `c20cap3.json`, `c19cap0.json`.
+  **Done**: deviations: state keeps `permissions_added: {ask, deny}` (T15 `ask_added` still read, pre-T15 `deny_added` carried as `legacy_deny`, reported by `status`, never stripped, also not removed by uninstall); retired section ids `agent-routing`/`remote-authorization` are removed even without state; hook timeouts are re-applied to all hooks we own (not only codegraph); rea/context7 carry-over only for entries still byte-equal to what state recorded; graphify lock keeps the 15 min age gate and adds the start-token check; the intermittent Node failure was a test cleanup race (see Progress).
   - Overlay keeps the 3 `ask` rules and adds home-aware `deny` for Read/Edit of: `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `**/*.pem`, `**/*.key`, `**/secrets/**` (no macOS-only paths). Record which entries we added; uninstall removes only those.
   - R1-002: re-install must never remove deny entries it did not add in THIS schema, nor any entry the user also lists; legacy `deny_added` from pre-T15 state is NOT used to strip rules (keep them, report them in `status`).
   - Migration: stale-section removal handles nested markers (real `agent-routing` with nested `remote-authorization`) — realistic fixture test.
@@ -235,16 +236,19 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
 - 2026-10-14: RDD for T15: `fe4b6c5..bad0c35` T15a medium, 735 lines → granted → reliability lens → approved, acknowledged (review-1ae547bcd0814c95); warning: stale-section migration test uses a one-line fixture while the real `agent-routing` section nested `remote-authorization` markers. `bad0c35..63c773a` T15b-d high, 613 lines → granted → 4 lenses → approved, acknowledged (review-bdc7f168f0dd9465); warnings: R1-001 ask-only overlay dropped secret-read denies (.env, .ssh, .aws/credentials, gh hosts.yml, *.pem, *.key, secrets/), R1-002 re-install actively removes previously added denies, graphify pid-reuse wedge after SIGKILL/reboot, preflight command built by join+patch, codegraph hook timeout not added to pre-existing hook, rea/context7 opt-in not carried over from pre-T15 state.
 - 2026-10-14: parent spot check: `npm test` showed 1 intermittent Node failure once (232/233); 23 further runs incl. 6 under concurrent load were 233/233 — unidentified flaky test, follow-up.
 
+- 2026-10-14: T16 done by one delegated writer. Strict TDD: RED observed for permissions (6 failing), unconditional retired-section removal (1), codegraph timeout (1), rea/context7 carry-over (1), preflight structure (1), graphify token record + live-token guard (2). Guards that passed immediately: nested-marker migration with state listing the ids (2 of 3 variants), reused-pid takeover (passed by parse accident before the token logic, passes for real after).
+  Flaky Node test identified: under 6 parallel full runs 2 failed with `ENOTEMPTY rmdir .git` in `a failing graphify never breaks the commit` (sandbox cleanup raced the backgrounded post-commit hook creating files in `.git`); `concurrent commits never stack runs` also failed once in a sequential `npm test` (not reproduced in 24 isolated + 24 parallel runs; probable cause: triggers spread past the 1 s graphify stub under load, so a third run occurs). Fix: sandbox cleanup waits for the lock and retries rm; after it 8 parallel full runs were green. The `concurrent` test is still timing-sensitive and not changed.
+
 ## Next step
 
-T15 done. Open: nothing blocking.
+T16 done. Open: nothing blocking.
 
 ## Next session
 
-- Branch `feat/gentle-lite-harness`, last commit `63c773a`; `npm test` green (node 233, python 180).
-- All work-unit commits reviewed (RDD) except vendored-asset commits `ecd0b7e` and `127a75a` (lens budget). T9 escalated (fixed by `b4c4e65`).
-- Pending user decision: restore a minimal secret-read deny set (T15 review R1-001/R1-002).
-- Follow-ups from the last review: nested-marker migration test, graphify pid-reuse wedge, preflight command construction, codegraph timeout on pre-existing hook, rea/context7 carry-over from pre-T15 state, unidentified flaky Node test.
+- Branch `feat/gentle-lite-harness`, last code commit `f3437cf`; `npm test` green (node 245, python 180).
+- All work-unit commits reviewed (RDD) up to T15; T16 commits are unreviewed. Vendored-asset commits `ecd0b7e` and `127a75a` stay unreviewed (lens budget). T9 escalated (fixed by `b4c4e65`).
+- Done in T16: secret-read deny set, nested-section migration, hook timeouts on upgrade, rea/context7 carry-over, explicit preflight composition, graphify lock start token.
+- Open: `concurrent commits never stack runs` (test/graphify-hook.test.js) failed once under load, timing-sensitive; consider making it assert on non-overlap only.
 - Real install on this machine is a separate user decision (it overlaps the installed gentle-ai 3.4.0).
 - Remaining `gentle-ai` strings in assets are SDD machine markers/schema names (`gentle-ai:sdd-session-preflight`, `gentle-ai.sdd-status`) and the manifest attribution; rename only together with the Python preflight/status code.
 - Possible follow-ups: make `go-testing` optional, dedupe the two skill-style-guide copies, trim agent files (77k chars on disk), lint/`npm run check`.
