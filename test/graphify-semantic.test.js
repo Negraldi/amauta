@@ -109,3 +109,76 @@ test('a missing graphify binary is reported with an install hint', async () => {
   assert.match(r.stderr, /graphify not found on PATH/);
   await rm(t.root, { recursive: true, force: true });
 });
+
+const LOCK = (t) => path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+const pathExists = (p) => readFile(p).then(() => true, (e) => (e.code === 'EISDIR' ? true : false));
+
+test('it holds the hook\'s per-repo lock while graphify extract runs and releases it afterwards', async () => {
+  const t = await sandbox(`if [ -d .git/gentle-lite-graphify.lock ]; then echo LOCK_HELD_DURING_EXTRACT >> "$(dirname "$0")/../seen"; fi\n${WRITE_GRAPH}`);
+  const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(await readFile(path.join(t.root, 'seen'), 'utf8'), /LOCK_HELD_DURING_EXTRACT/);
+  assert.equal(await pathExists(LOCK(t)), false, 'lock released after success');
+  const bad = await sandbox('exit 4');
+  bad.run([], { ANTHROPIC_API_KEY: CANARY });
+  assert.equal(await pathExists(LOCK(bad)), false, 'lock released after a failure');
+  await rm(t.root, { recursive: true, force: true });
+  await rm(bad.root, { recursive: true, force: true });
+});
+
+test('while a hook (or another pass) holds the lock it fails fast, never calls graphify and keeps the lock', async () => {
+  const t = await sandbox(WRITE_GRAPH);
+  await mkdir(LOCK(t));
+  const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /already running|in progress/i);
+  assert.deepEqual(await calls(t), []);
+  assert.equal(await pathExists(LOCK(t)), true, 'someone else\'s lock is left alone');
+  await rm(t.root, { recursive: true, force: true });
+});
+
+test('a hook trigger that arrived during the pass is reported, not silently dropped', async () => {
+  const t = await sandbox(`: > .git/gentle-lite-graphify.lock.pending\n${WRITE_GRAPH}`);
+  const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout + r.stderr, /commit|hook/i);
+  assert.match(r.stdout + r.stderr, /graphify update/);
+  await rm(t.root, { recursive: true, force: true });
+});
+
+test('a stuck extraction is killed after the timeout: non-zero exit, lock released, nothing mirrored', async () => {
+  const t = await sandbox('exec sleep 60');
+  const started = Date.now();
+  const r = t.run(['--timeout', '1'], { ANTHROPIC_API_KEY: CANARY });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /timed out after 1s/);
+  assert.ok(Date.now() - started < 30000, 'did not wait for the 60s sleep');
+  assert.equal(await pathExists(LOCK(t)), false);
+  assert.equal(t.db('select count(*) from graph_sync'), null);
+  await rm(t.root, { recursive: true, force: true });
+});
+
+test('the timeout comes from GENTLE_LITE_GRAPHIFY_TIMEOUT too and a bad value is rejected before anything runs', async () => {
+  const t = await sandbox(WRITE_GRAPH);
+  for (const [args, env] of [[['--timeout', 'soon'], {}], [['--timeout', '0'], {}], [[], { GENTLE_LITE_GRAPHIFY_TIMEOUT: '-5' }]]) {
+    const r = t.run(args, { ANTHROPIC_API_KEY: CANARY, ...env });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /invalid timeout/i);
+  }
+  assert.deepEqual(await calls(t), []);
+  const slow = await sandbox('exec sleep 60');
+  const r = slow.run([], { ANTHROPIC_API_KEY: CANARY, GENTLE_LITE_GRAPHIFY_TIMEOUT: '1' });
+  assert.match(r.stderr, /timed out after 1s/);
+  await rm(slow.root, { recursive: true, force: true });
+  await rm(t.root, { recursive: true, force: true });
+});
+
+test('output is streamed (masked) and a huge error stream is bounded, not held whole', async () => {
+  const t = await sandbox('i=0; while [ $i -lt 40000 ]; do echo "noise noise noise noise noise noise noise noise noise noise noise noise $ANTHROPIC_API_KEY" >&2; i=$((i+1)); done\nexit 4');
+  const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
+  assert.notEqual(r.status, 0);
+  assert.ok(r.stderr.length < 200000, `stderr bounded (${r.stderr.length})`);
+  assert.match(r.stderr, /truncated/);
+  assert.ok(!r.stderr.includes(CANARY));
+  await rm(t.root, { recursive: true, force: true });
+});

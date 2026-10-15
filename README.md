@@ -51,7 +51,7 @@ gentle-lite status    [same options]
 gentle-lite portal    [--port N] [--repo DIR]...      # read-only control portal
 gentle-lite codegraph init|status [--cwd DIR]
 gentle-lite graphify hook install|uninstall [--cwd DIR]
-gentle-lite graphify semantic [--cwd DIR] [--model M]    # optional LLM pass, needs ANTHROPIC_API_KEY
+gentle-lite graphify semantic [--cwd DIR] [--model M] [--timeout SECONDS]    # optional LLM pass, needs ANTHROPIC_API_KEY
 ```
 
 ```
@@ -117,7 +117,7 @@ PYTHONPATH=python python3 -m gentle_lite.memory import-engram --from ~/.engram/e
   `query path <a> <b> --repo DIR` (recursive CTEs, depth capped at 5 / 8; both answers carry `truncated` when the 20,000-row walk bound was hit, so a `found: false` with `truncated: true` is not a definitive "no path"); the memory MCP server exposes the same as the
   `graph_query` tool (it already owns the SQLite connection). The portal shows stats, node search and neighbors for each `--repo`, plus the SQL table count (non-file nodes of `*.sql` sources), whether a semantic pass is pending and the last semantic run (time and model).
   The hook never calls an LLM: after `graphify update .` it runs `graphify check-update .` (local, reads `graphify-out/needs_update`) and records the verdict; a failing check leaves the stored flag alone.
-  `gentle-lite graphify semantic [--cwd DIR] [--model M]` is the optional semantic pass: it runs `graphify extract <repo> --backend claude --model M` (default `claude-haiku-5-5`, or `GENTLE_LITE_GRAPHIFY_MODEL`; `GRAPHIFY_QUERY_LOG_DISABLE=1`) only when `ANTHROPIC_API_KEY` is set, otherwise it exits non-zero and says so. The key is inherited by that one graphify process only and is never printed, stored or logged; afterwards the graph is mirrored and the run recorded. `gentle-lite status` shows the graphify version, and `status --deep` also runs a one-table `.sql` fixture through `graphify update` in a temp dir to confirm the `[sql]` extractor.
+  `gentle-lite graphify semantic [--cwd DIR] [--model M] [--timeout SECONDS]` is the optional semantic pass: it runs `graphify extract <repo> --backend claude --model M` (default `claude-haiku-5-5`, or `GENTLE_LITE_GRAPHIFY_MODEL`; `GRAPHIFY_QUERY_LOG_DISABLE=1`) only when `ANTHROPIC_API_KEY` is set, otherwise it exits non-zero and says so. The key is inherited by that one graphify process only and is never printed, stored or logged; afterwards the graph is mirrored and the run recorded. It takes the same per-repo lock as the post-commit hook (and fails fast if a refresh is running), streams graphify's output, and kills graphify after the timeout (`--timeout` or `GENTLE_LITE_GRAPHIFY_TIMEOUT`, default 1800 s). The hook's pending verdict is the exact `[graphify check-update] Pending non-code changes` line of `graphify check-update`. `gentle-lite status` shows the graphify version, and `status --deep` also runs a one-table `.sql` fixture through `graphify update` in a temp dir to confirm the `[sql]` extractor.
 
 ## Telemetry (local only)
 
