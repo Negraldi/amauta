@@ -4,7 +4,7 @@
 #   scripts/rollback.sh ~/gentle-lite-migration/<timestamp>
 #
 # Restores the Claude Code config paths, only the mcpServers key of ~/.claude.json, ~/.gentle-ai and ~/.engram,
-# and re-enables engram@engram. ~/.claude/projects (your conversations) is never touched. Everything it replaces is
+# and re-enables engram@engram. The backup directory is kept and marked rolled-back. ~/.claude/projects (your conversations) is never touched. Everything it replaces is
 # moved aside under ~/gentle-lite-migration/rollbacks/<timestamp>/, never deleted. Run with Claude Code closed.
 # --assume-yes answers yes to every prompt and exists ONLY for the automated tests.
 set -euo pipefail
@@ -19,7 +19,7 @@ while (($#)); do
   case $1 in
     --assume-yes) ASSUME_YES=1 ;; # test-only
     -h | --help)
-      sed -n '2,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,/^set -/{/^set -/!p}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     -*) die "unknown argument: $1 (try --help)" ;;
@@ -58,8 +58,8 @@ log "Plan:"
 log "   1. gentle-lite uninstall"
 log "   2. restore from backup: ${present[*]:-nothing}"
 ((has_json)) && log "   3. restore only the mcpServers key of ~/.claude.json"
-log "   4. claude plugin enable engram@engram --scope user"
-log "   5. verify sha256 of the restored files"
+log "   4. verify sha256 of the restored files"
+log "   5. claude plugin enable engram@engram --scope user"
 log "   Replaced files are moved to $ASIDE (not deleted). ~/.claude/projects is not touched."
 confirm "Roll back now?" || {
   log "Nothing was changed."
@@ -67,21 +67,24 @@ confirm "Roll back now?" || {
 }
 
 mkdir -p "$ASIDE"
+chmod 700 "$HOME/gentle-lite-migration" "$HOME/gentle-lite-migration/rollbacks" "$ASIDE"
 exec > >(tee -a "$ASIDE/rollback.log") 2>&1
 
-log "== gentle-lite uninstall"
-node "$REPO_DIR/bin/gentle-lite.js" uninstall || die "gentle-lite uninstall failed; nothing was restored"
-
+# Extract first: if the archive cannot be read, nothing has been uninstalled yet.
 STAGE=$ASIDE/stage
 mkdir -p "$STAGE"
 members=("${present[@]}")
 ((has_json)) && members+=(.claude.json)
-tar -xzf "$ARCHIVE" -C "$STAGE" -- "${members[@]}" || die "could not extract the backup"
+tar -xzf "$ARCHIVE" -C "$STAGE" -- "${members[@]}" || die "could not extract the backup. Nothing was changed."
+
+# gentle-lite may never have been installed (the migration stopped before phase 5): that is not a reason to stop.
+log "== gentle-lite uninstall"
+with_caller_umask node "$REPO_DIR/bin/gentle-lite.js" uninstall || warn "gentle-lite uninstall failed or had nothing to remove; continuing with the restore"
 
 log "== restore"
 for item in "${present[@]}"; do
   mv_aside "$HOME/$item" "$ASIDE/replaced"
-  mkdir -p "$(dirname "$HOME/$item")"
+  with_caller_umask mkdir -p "$(dirname "$HOME/$item")"
   cp -a "$STAGE/$item" "$HOME/$item"
   log "   restored $item"
 done
@@ -115,16 +118,18 @@ print("   restored mcpServers in ~/.claude.json (other keys untouched)")
 PY
 fi
 
-log "== re-enable engram plugin"
-claude plugin enable engram@engram --scope user || warn "could not enable engram@engram; run: claude plugin enable engram@engram --scope user"
-
 log "== verify sha256 of restored files"
 (cd "$STAGE" && find "${present[@]}" -type f -print0 | sort -z | xargs -0 -r sha256sum >"$ASIDE/restored.sha256")
 count=$(wc -l <"$ASIDE/restored.sha256")
 (cd "$HOME" && sha256sum -c --quiet "$ASIDE/restored.sha256") || die "sha256 mismatch after restore. See $ASIDE; nothing else was removed."
 log "   ok   sha256 verified for $count file(s)"
 
-# The migration is no longer in effect: forget its completion markers so migrate.sh can run again.
-for m in "$BACKUP_DIR"/phase*.done "$BACKUP_DIR"/finished; do [[ -e $m ]] && rm -f "$m"; done
+# Verified first: "plugin enable" rewrites user-scope plugin state under ~/.claude and would trip the check above.
+log "== re-enable engram plugin"
+with_caller_umask claude plugin enable engram@engram --scope user || warn "could not enable engram@engram; run: claude plugin enable engram@engram --scope user"
+
+# The migration is no longer in effect. Its backup and markers stay as they were (it is the only pre-migration copy);
+# the marker tells migrate.sh to start a NEW run directory next time instead of reusing this one.
+: >"$BACKUP_DIR/rolled-back"
 log ""
 log "Rollback complete. Start Claude Code again. Replaced files are in $ASIDE."

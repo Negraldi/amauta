@@ -17,6 +17,8 @@ const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 const GENTLE_AI_STUB = `#!/usr/bin/env bash
 echo "gentle-ai $*" >> "$STUB_LOG"
 if [ "$1" = "uninstall" ]; then
+  t0=0; t1=0; t2=0; [ -t 0 ] && t0=1; [ -t 1 ] && t1=1; [ -t 2 ] && t2=1
+  echo "gentle-ai uninstall tty: stdin=$t0 stdout=$t1 stderr=$t2" >> "$STUB_LOG"
   if [ -n "\${STUB_UNINSTALL_FAIL:-}" ]; then echo "Error: flag provided but not defined: -agent" >&2; exit 1; fi
   python3 - "$HOME/.claude" <<'PY'
 import json, re, sys
@@ -36,7 +38,12 @@ exit 0
 `;
 const CLAUDE_STUB = `#!/usr/bin/env bash
 echo "claude $*" >> "$STUB_LOG"
+# a real "plugin enable" rewrites user-scope settings; simulate that to prove rollback checks sha256 first
+if [ "$2" = "enable" ] && [ -n "\${STUB_ENABLE_REWRITES:-}" ]; then echo '{"rewritten":true}' > "$HOME/.claude/settings.json"; fi
 exit 0
+`;
+const PGREP_STUB = `#!/usr/bin/env bash
+exit 1
 `;
 
 async function fixture() {
@@ -55,6 +62,8 @@ async function fixture() {
   await writeFile(path.join(bin, 'claude'), CLAUDE_STUB);
   await chmod(path.join(bin, 'gentle-ai'), 0o755);
   await chmod(path.join(bin, 'claude'), 0o755);
+  await writeFile(path.join(bin, 'pgrep'), PGREP_STUB); // a real Claude Code process on this machine must not trigger a prompt
+  await chmod(path.join(bin, 'pgrep'), 0o755);
   const sections = ['orchestrator', 'persona', 'skills', 'engram'].map((id) => `<!-- gentle-ai:${id} -->\ntext of ${id}\n<!-- /gentle-ai:${id} -->\n`).join('\n');
   await writeFile(path.join(claude, 'CLAUDE.md'), `# My rules\n\nmine\n\n${sections}`);
   await writeFile(path.join(claude, 'settings.json'), JSON.stringify({
@@ -98,7 +107,10 @@ async function fixture() {
   return { root, home, claude, bin, log, env, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 
-const run = (script, args, f, extraEnv = {}) => spawnSync('bash', [script, ...args], { encoding: 'utf8', env: { ...f.env, ...extraEnv }, input: '', timeout: 180000 });
+// umask 022 makes private modes a property of the scripts, not of the caller's umask.
+const run = (script, args, f, extraEnv = {}, input = '') => spawnSync('bash', ['-c', 'umask 022; exec bash "$@"', 'bash', script, ...args], { encoding: 'utf8', env: { ...f.env, ...extraEnv }, input, timeout: 180000 });
+const mode = async (p) => ((await stat(p)).mode & 0o777).toString(8);
+const migrationDirs = async (f) => (await readdir(path.join(f.home, 'gentle-lite-migration'))).filter((n) => /^\d/.test(n)).sort();
 
 /** path -> sha256 for every regular file under dir (relative paths), plus directory entries. */
 async function tree(dir, base = dir, out = {}) {
@@ -191,7 +203,8 @@ test('migrate.sh stops when gentle-ai uninstall rejects --agent, and never reach
   try {
     const r = run(MIGRATE, ['--execute', '--assume-yes'], f, { STUB_UNINSTALL_FAIL: '1' });
     assert.notEqual(r.status, 0);
-    assert.match(r.stdout + r.stderr, /does not support 'uninstall --agent'/);
+    assert.match(r.stdout + r.stderr, /uninstall did not complete/);
+    assert.match(r.stdout + r.stderr, /does not support 'uninstall --agent'/, 'the error tells how to recognise an old gentle-ai');
     assert.doesNotMatch(await read(f.log), /plugin disable/);
     assert.doesNotMatch(await read(f.claude, 'CLAUDE.md'), /gentle-lite:/);
     assert.ok((await stat(path.join(f.home, 'gentle-lite-migration'))).isDirectory(), 'the backup of phase 1 exists');
@@ -208,5 +221,124 @@ test('rollback.sh refuses a backup whose checksum does not match and changes not
     const r = run(ROLLBACK, [dir, '--assume-yes'], f);
     assert.notEqual(r.status, 0);
     assert.deepEqual(await tree(f.claude), before);
+  } finally { await f.cleanup(); }
+});
+
+test('the backup directory is private (0700) and every file in it is 0600, whatever the caller umask', async () => {
+  const f = await fixture();
+  try {
+    assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
+    const [name] = await migrationDirs(f);
+    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    assert.equal(await mode(dir), '700');
+    assert.equal(await mode(path.join(f.home, 'gentle-lite-migration')), '700');
+    const files = (await readdir(dir)).filter((n) => !n.endsWith('.done'));
+    for (const want of ['backup.tar.gz', 'backup.tar.gz.sha256', 'backup.list', 'pre.sha256', 'migrate.log']) assert.ok(files.includes(want), want);
+    for (const n of files) assert.equal(await mode(path.join(dir, n)), '600', n);
+    // gentle-lite's own files keep the normal umask: the private umask is not leaked into children
+    assert.equal(await mode(path.join(f.home, '.gentle-lite', 'memory.db')), '644');
+    const rb = run(ROLLBACK, [dir, '--assume-yes'], f);
+    assert.equal(rb.status, 0, rb.stdout + rb.stderr);
+    const aside = path.join(f.home, 'gentle-lite-migration', 'rollbacks');
+    const [ts] = await readdir(aside);
+    assert.equal(await mode(path.join(aside, ts)), '700');
+    assert.equal(await mode(path.join(aside, ts, 'rollback.log')), '600');
+  } finally { await f.cleanup(); }
+});
+
+test('declining at phase 3 exits 3, and rollback then works although gentle-lite was never installed', async () => {
+  const f = await fixture();
+  try {
+    const pre = await tree(f.claude);
+    const r = run(MIGRATE, ['--execute'], f, {}, 'y\ny\nn\n');
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    const [name] = await migrationDirs(f);
+    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    assert.ok((await readdir(dir)).includes('phase2.done'));
+    assert.ok(!(await readdir(dir)).includes('phase3.done'));
+    assert.doesNotMatch(await read(f.log).catch(() => ''), /uninstall/);
+    const rb = run(ROLLBACK, [dir, '--assume-yes'], f);
+    assert.equal(rb.status, 0, rb.stdout + rb.stderr);
+    assert.deepEqual(await tree(f.claude), pre);
+  } finally { await f.cleanup(); }
+});
+
+test('resuming after a declined prompt skips the finished phases and runs the rest', async () => {
+  const f = await fixture();
+  try {
+    assert.equal(run(MIGRATE, ['--execute'], f, {}, 'y\ny\nn\n').status, 3);
+    const [name] = await migrationDirs(f);
+    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    const backupSha = sha(await readFile(path.join(dir, 'backup.tar.gz')));
+    const r = run(MIGRATE, ['--execute'], f, {}, 'y\ny\ny\ny\n');
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal((r.stdout.match(/already done, skipping/g) ?? []).length, 2, 'phases 1 and 2 are skipped');
+    assert.deepEqual(await migrationDirs(f), [name], 'same run directory');
+    assert.equal(sha(await readFile(path.join(dir, 'backup.tar.gz'))), backupSha);
+    assert.match(await read(f.log), /^gentle-ai uninstall --agent claude-code$/m);
+    assert.ok((await readdir(dir)).includes('finished'));
+  } finally { await f.cleanup(); }
+});
+
+test('a migration after a rollback gets a NEW run directory and never touches the first backup', async () => {
+  const f = await fixture();
+  try {
+    assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
+    const [first] = await migrationDirs(f);
+    const dir = path.join(f.home, 'gentle-lite-migration', first);
+    const before = await tree(dir);
+    assert.equal(run(ROLLBACK, [dir, '--assume-yes'], f).status, 0);
+    assert.ok((await readdir(dir)).includes('rolled-back'), 'rollback marks the run instead of deleting its markers');
+    assert.ok((await readdir(dir)).includes('phase1.done'));
+    const dry = run(MIGRATE, [], f);
+    assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+    assert.doesNotMatch(dry.stdout, /already completed/);
+    const again = run(MIGRATE, ['--execute', '--assume-yes'], f);
+    assert.equal(again.status, 0, again.stdout + again.stderr);
+    const dirs = await migrationDirs(f);
+    assert.equal(dirs.length, 2);
+    const after = await tree(dir);
+    for (const k of ['backup.tar.gz', 'backup.tar.gz.sha256', 'backup.list', 'pre.sha256']) assert.equal(after[k], before[k], k);
+  } finally { await f.cleanup(); }
+});
+
+test('phase 1 refuses to write over an existing backup archive', async () => {
+  const f = await fixture();
+  try {
+    assert.equal(run(MIGRATE, ['--execute'], f, {}, 'y\nn\n').status, 3);
+    const [name] = await migrationDirs(f);
+    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    const archive = path.join(dir, 'backup.tar.gz');
+    await rm(path.join(dir, 'phase1.done')); // e.g. a crash between the archive move and the marker
+    const sum = sha(await readFile(archive));
+    const r = run(MIGRATE, ['--execute', '--assume-yes'], f);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stdout + r.stderr, /refusing to overwrite/);
+    assert.equal(sha(await readFile(archive)), sum);
+  } finally { await f.cleanup(); }
+});
+
+test('rollback verifies the restored files BEFORE re-enabling the plugin', async () => {
+  const f = await fixture();
+  try {
+    assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
+    const [name] = await migrationDirs(f);
+    const rb = run(ROLLBACK, [path.join(f.home, 'gentle-lite-migration', name), '--assume-yes'], f, { STUB_ENABLE_REWRITES: '1' });
+    assert.equal(rb.status, 0, rb.stdout + rb.stderr);
+    assert.ok(rb.stdout.indexOf('verified') < rb.stdout.indexOf('re-enable engram plugin') || rb.stdout.indexOf('verify sha256') < rb.stdout.indexOf('re-enable engram plugin'));
+    assert.match(await read(f.log), /^claude plugin enable engram@engram --scope user$/m);
+  } finally { await f.cleanup(); }
+});
+
+test('gentle-ai uninstall runs with the real terminal on stdin and stdout (pseudo-tty via script)', async (t) => {
+  if (spawnSync('script', ['--version'], { encoding: 'utf8' }).status !== 0) return t.skip('util-linux script is not available');
+  const f = await fixture();
+  try {
+    const cmd = `umask 022; ${JSON.stringify(MIGRATE)} --execute --assume-yes`;
+    const r = spawnSync('script', ['-qec', cmd, '/dev/null'], { encoding: 'utf8', env: f.env, input: '', timeout: 180000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(await read(f.log), /^gentle-ai uninstall tty: stdin=1 stdout=1 stderr=1$/m);
+    const [name] = await migrationDirs(f);
+    assert.match(await read(f.home, 'gentle-lite-migration', name, 'migrate.log'), /gentle-ai uninstall/, 'the log keeps a summary line');
   } finally { await f.cleanup(); }
 });

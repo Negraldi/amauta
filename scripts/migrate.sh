@@ -20,7 +20,7 @@ while (($#)); do
     --execute) EXECUTE=1 ;;
     --assume-yes) ASSUME_YES=1 ;; # test-only
     -h | --help)
-      sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,/^set -/{/^set -/!p}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) die "unknown argument: $1 (try --help)" ;;
@@ -34,20 +34,38 @@ CLAUDE_JSON=$HOME/.claude.json
 MIG_ROOT=$HOME/gentle-lite-migration
 GL=(node "$REPO_DIR/bin/gentle-lite.js")
 ENGRAM_DB=$HOME/.engram/engram.db
-KEY_FILES=(.claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude.json .engram/engram.db)
+BASELINE_FILES=(.claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude.json) # hashed before, compared after
+KEY_FILES=("${BASELINE_FILES[@]}" .engram/engram.db)                                                 # must be inside the archive
+AI_MD_MARK='<!-- gentle-ai:'  # gentle-ai's CLAUDE.md section markers
+AI_HOOK_MARK='gentle-ai '     # gentle-ai's hook commands in settings.json
+# file_has FILE TEXT: true when FILE exists and contains TEXT.
+file_has() { [[ -f $1 && $(<"$1") == *"$2"* ]]; }
 BACKUP_PATHS=(.claude .claude.json .gentle-ai .engram)
 
-# ---- pick the run directory: resume an unfinished one, stop if the last one finished
+# Keep the real terminal for programs that prompt (gentle-ai's "Type 'yes'"); everything else is logged through tee.
+exec 3>&1 4>&2
+
+# ---- pick the run directory: resume an unfinished one, stop if the last one finished.
+# A rolled-back run is over: the next --execute starts a new directory and never reuses that backup.
 RUN_DIR=""
 latest=""
 for d in "$MIG_ROOT"/[0-9]*/; do [[ -d $d ]] && latest=${d%/}; done
+[[ -n $latest && -e $latest/rolled-back ]] && latest=""
 if [[ -n $latest && -e $latest/finished ]]; then
   log "Migration already completed ($latest). Nothing to do. To undo: scripts/rollback.sh $latest"
   exit 0
 fi
 if [[ $EXECUTE == 1 ]]; then
-  RUN_DIR=${latest:-$MIG_ROOT/$(date +%Y%m%d-%H%M%S)}
+  if [[ -z $latest ]]; then
+    stamp=$(date +%Y%m%d-%H%M%S)
+    RUN_DIR=$MIG_ROOT/$stamp
+    for n in 2 3 4 5 6 7 8 9; do [[ -e $RUN_DIR ]] || break; RUN_DIR=$MIG_ROOT/$stamp-$n; done
+    [[ ! -e $RUN_DIR ]] || die "could not find a free run directory under $MIG_ROOT"
+  else
+    RUN_DIR=$latest
+  fi
   mkdir -p "$RUN_DIR"
+  chmod 700 "$MIG_ROOT" "$RUN_DIR"
   exec > >(tee -a "$RUN_DIR/migrate.log") 2>&1
   log "Run directory: $RUN_DIR"
 else
@@ -99,6 +117,7 @@ if begin_phase 1 "backup ~/.claude (incl. projects), ~/.claude.json, ~/.gentle-a
   log "   would archive: ${present[*]:-nothing} -> $RUN_DIR/backup.tar.gz (+ .sha256, tar -t verification)"
   if gate "Create the backup now?"; then
     ((${#present[@]})) || die "nothing to back up under $HOME"
+    [[ ! -e $RUN_DIR/backup.tar.gz ]] || die "refusing to overwrite $RUN_DIR/backup.tar.gz (it may be the only pre-migration copy). Move that directory aside and re-run to start a new run."
     if ! tar -C "$HOME" -czf "$RUN_DIR/backup.tar.gz.partial" "${present[@]}"; then
       rm -f "$RUN_DIR/backup.tar.gz.partial"
       die "backup failed, nothing was modified"
@@ -110,7 +129,7 @@ if begin_phase 1 "backup ~/.claude (incl. projects), ~/.claude.json, ~/.gentle-a
       [[ -e $HOME/$k ]] || continue
       grep -Fxq -- "$k" "$RUN_DIR/backup.list" || die "backup verification failed: $k is not in the archive"
     done
-    (cd "$HOME" && for k in .claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude.json; do [[ -f $k ]] && sha256sum "$k"; done) >"$RUN_DIR/pre.sha256" || true
+    (cd "$HOME" && for k in "${BASELINE_FILES[@]}"; do [[ -f $k ]] && sha256sum "$k"; done) >"$RUN_DIR/pre.sha256" || true
     log "   backup ok: $(cut -c1-16 "$RUN_DIR/backup.tar.gz.sha256")... verified with tar -t"
     mark_phase 1
   fi
@@ -129,7 +148,7 @@ for t in ("sessions", "observations", "user_prompts", "prompts"):
     if t in have:
         print(f"   source {t}: {c.execute(f'select count(*) from {t}').fetchone()[0]}")
 PY
-      PYTHONPATH=$REPO_DIR/python python3 -P -m gentle_lite.memory import-engram --from "$ENGRAM_DB" | sed 's/^/   imported /'
+      PYTHONPATH=$REPO_DIR/python with_caller_umask python3 -P -m gentle_lite.memory import-engram --from "$ENGRAM_DB" | sed 's/^/   imported /'
       log "   (a re-run imports 0: rows already imported are skipped)"
     else
       log "   no engram database at $ENGRAM_DB, nothing to import"
@@ -144,20 +163,18 @@ if begin_phase 3 "remove gentle-ai from Claude Code"; then
   log "   would run: gentle-ai uninstall --agent claude-code   (gentle-ai asks for its own confirmation; type yes there)"
   log "   then verify no gentle-ai markers/hooks remain and list leftovers"
   if gate "Disable gentle-ai telemetry and uninstall gentle-ai from Claude Code now?"; then
-    gentle-ai telemetry disable || warn "gentle-ai telemetry disable failed (continuing)"
-    set +e
-    gentle-ai uninstall --agent claude-code 2>&1 | tee "$RUN_DIR/uninstall.out"
-    rc=${PIPESTATUS[0]}
-    set -e
+    with_caller_umask gentle-ai telemetry disable || warn "gentle-ai telemetry disable failed (continuing)"
+    # Straight to the real terminal (fds 3/4, stdin untouched): its prompt must see a TTY. Only a summary reaches the log.
+    rc=0
+    with_caller_umask gentle-ai uninstall --agent claude-code >&3 2>&4 || rc=$?
+    log "   gentle-ai uninstall exited $rc (its interactive output is not logged)"
     if ((rc != 0)); then
-      if grep -Eq 'not defined|unknown (flag|command)' "$RUN_DIR/uninstall.out"; then
-        die "this gentle-ai ($(gentle-ai --version 2>&1 | head -1)) does not support 'uninstall --agent'. Update gentle-ai or remove it by hand, then re-run. Nothing after phase 3 was changed."
-      fi
-      die "gentle-ai uninstall did not complete (exit $rc). Nothing after phase 3 was changed; re-run to retry."
+      die "gentle-ai uninstall did not complete (exit $rc; see its message above). If it says the flag is not defined, this gentle-ai ($(gentle-ai --version 2>&1 | head -1)) does not support 'uninstall --agent': update gentle-ai or remove it by hand, then re-run. Nothing after phase 3 was changed; re-run to retry."
     fi
     bad=0
-    if [[ -f $CLAUDE_HOME/CLAUDE.md && $(<"$CLAUDE_HOME/CLAUDE.md") == *'<!-- gentle-ai:'* ]]; then log "   FAIL gentle-ai sections remain in ~/.claude/CLAUDE.md"; bad=1; fi
-    if [[ -f $CLAUDE_HOME/settings.json && $(<"$CLAUDE_HOME/settings.json") == *'gentle-ai '* ]]; then log "   FAIL gentle-ai hooks remain in ~/.claude/settings.json"; bad=1; fi
+    if file_has "$CLAUDE_HOME/CLAUDE.md" "$AI_MD_MARK"; then log "   FAIL gentle-ai sections remain in ~/.claude/CLAUDE.md"; bad=1; fi
+    if file_has "$CLAUDE_HOME/settings.json" "$AI_HOOK_MARK"; then log "   FAIL gentle-ai hooks remain in ~/.claude/settings.json"; bad=1; fi
+    # Names gentle-ai 3.x installs (SDD phases, judgment-day, review actors). gentle-ai's uninstall may leave some behind.
     for dir in agents skills commands; do
       for f in "$CLAUDE_HOME/$dir"/*gentle-ai* "$CLAUDE_HOME/$dir"/gentle-sdd* "$CLAUDE_HOME/$dir"/sdd-* "$CLAUDE_HOME/$dir"/jd-* "$CLAUDE_HOME/$dir"/judgment-day* "$CLAUDE_HOME/$dir"/review-*; do
         [[ -e $f ]] && log "   leftover (gentle-lite will skip a same-name file you own): ${f#"$HOME"/}"
@@ -172,7 +189,7 @@ fi
 if begin_phase 4 "disable the engram@engram Claude Code plugin (gentle-lite registers its own memory server)"; then
   log "   would run: claude plugin disable engram@engram --scope user"
   if gate "Disable the engram@engram plugin now?"; then
-    claude plugin disable engram@engram --scope user || warn "could not disable engram@engram (already disabled?). Check '/plugin' later: two memory servers would conflict."
+    with_caller_umask claude plugin disable engram@engram --scope user || warn "could not disable engram@engram (already disabled?). Check '/plugin' later: two memory servers would conflict."
     mark_phase 4
   fi
 fi
@@ -181,12 +198,12 @@ fi
 if begin_phase 5 "install gentle-lite"; then
   log "   would run: gentle-lite install --dry-run, then gentle-lite install --with-sdd --with-rea --with-context7"
   if gate "Show the install plan and install gentle-lite now?"; then
-    "${GL[@]}" install --dry-run
+    with_caller_umask "${GL[@]}" install --dry-run
     confirm "Install exactly that?" || {
       log "Stopped at your request. Re-run to resume."
       exit 3
     }
-    "${GL[@]}" install --with-sdd --with-rea --with-context7
+    with_caller_umask "${GL[@]}" install --with-sdd --with-rea --with-context7
     mark_phase 5
   fi
 fi
@@ -197,10 +214,12 @@ log "== Phase 6: verify"
 if [[ $EXECUTE == 1 ]]; then
   problems=0
   "${GL[@]}" status || { log "   FAIL gentle-lite status reports problems"; problems=1; }
-  if [[ $(<"$CLAUDE_HOME/CLAUDE.md") == *'<!-- gentle-ai:'* ]]; then log "   FAIL gentle-ai sections in CLAUDE.md"; problems=1; else log "   ok   no gentle-ai sections in CLAUDE.md"; fi
-  if [[ $(<"$CLAUDE_HOME/settings.json") == *'gentle-ai '* ]]; then log "   FAIL gentle-ai hooks in settings.json"; problems=1; else log "   ok   no gentle-ai hooks in settings.json"; fi
+  if file_has "$CLAUDE_HOME/CLAUDE.md" "$AI_MD_MARK"; then log "   FAIL gentle-ai sections in CLAUDE.md"; problems=1; else log "   ok   no gentle-ai sections in CLAUDE.md"; fi
+  if file_has "$CLAUDE_HOME/settings.json" "$AI_HOOK_MARK"; then log "   FAIL gentle-ai hooks in settings.json"; problems=1; else log "   ok   no gentle-ai hooks in settings.json"; fi
   if [[ -f $RUN_DIR/pre.sha256 ]]; then
-    if (cd "$HOME" && grep -F -- ' .claude/settings.local.json' "$RUN_DIR/pre.sha256" | sha256sum -c --quiet - 2>/dev/null) || ! grep -Fq ' .claude/settings.local.json' "$RUN_DIR/pre.sha256"; then
+    if ! grep -Fq ' .claude/settings.local.json' "$RUN_DIR/pre.sha256"; then
+      log "   ok   settings.local.json did not exist before the migration (no baseline to compare)"
+    elif (cd "$HOME" && grep -F -- ' .claude/settings.local.json' "$RUN_DIR/pre.sha256" | sha256sum -c --quiet - 2>/dev/null); then
       log "   ok   settings.local.json unchanged"
     else
       log "   FAIL settings.local.json changed"

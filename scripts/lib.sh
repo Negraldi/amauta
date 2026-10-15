@@ -3,6 +3,21 @@
 
 ASSUME_YES=0 # test-only: answer yes to every prompt. Never use it on a real run.
 
+# Everything these scripts create (backups, logs, checksums) holds credentials and conversations: private by default.
+# Child programs (gentle-ai, claude, gentle-lite, python) get the caller's umask back, see with_caller_umask.
+CALLER_UMASK=$(umask)
+umask 077
+
+# with_caller_umask cmd...: run a command that writes the user's real config under the caller's original umask.
+with_caller_umask() {
+  local rc=0 mine
+  mine=$(umask)
+  umask "$CALLER_UMASK"
+  "$@" || rc=$?
+  umask "$mine"
+  return "$rc"
+}
+
 log() { printf '%s\n' "$*"; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
 die() {
