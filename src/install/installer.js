@@ -129,6 +129,17 @@ function mergePermissions(settings, prev, overlay) {
 
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 
+const SKILL_PLACEHOLDERS = { '{{GENTLE_LITE_PYTHONPATH}}': path.join(repoRoot, 'python') };
+
+/** Markdown skill files may name helper code of this checkout; resolve those placeholders to absolute paths. */
+function renderSkillFile(rel, buf) {
+  if (!rel.endsWith('.md')) return buf;
+  let text = buf.toString('utf8');
+  if (!text.includes('{{GENTLE_LITE_')) return buf;
+  for (const [key, value] of Object.entries(SKILL_PLACEHOLDERS)) text = text.replaceAll(key, value);
+  return Buffer.from(text, 'utf8');
+}
+
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
 async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd }) {
   const files = new Map();
@@ -137,7 +148,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
   for (const skill of manifest.skills) {
     const dir = `${manifest.skillsDir}/${skill}`;
     for (const rel of await listFiles(assetPath(dir))) {
-      files.set(`skills/${skill}/${rel.split(path.sep).join('/')}`, await readAssetBuffer(`${dir}/${rel.split(path.sep).join('/')}`));
+      files.set(`skills/${skill}/${rel.split(path.sep).join('/')}`, renderSkillFile(rel, await readAssetBuffer(`${dir}/${rel.split(path.sep).join('/')}`)));
     }
   }
   for (const rel of await listFiles(assetPath(manifest.sharedSkillsDir))) {
