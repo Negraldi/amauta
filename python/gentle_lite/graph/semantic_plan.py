@@ -48,6 +48,7 @@ UPDATE_TIMEOUT = 900
 WORKER_TIMEOUT = 900
 
 EXIT_ERROR, EXIT_NO_VALID, EXIT_REFUSED = 2, 3, 4
+EXIT_LOCKED = 75  # EX_TEMPFAIL: another graphify job holds the repo lock; retry later
 
 
 class SemanticError(Exception):
@@ -653,7 +654,10 @@ def main(argv=None) -> int:
         else:
             with graphify_lock(Path(args.repo).resolve()):
                 result, code = cmd_merge(args)
-    except (SemanticError, sync.GraphError, LockHeld) as err:
+    except LockHeld as err:
+        sys.stderr.write(f"gentle_lite.graph.semantic_plan: {err}\n")
+        return EXIT_LOCKED
+    except (SemanticError, sync.GraphError) as err:
         sys.stderr.write(f"gentle_lite.graph.semantic_plan: {err}\n")
         return EXIT_ERROR
     sys.stdout.write(json.dumps(result, ensure_ascii=False) + "\n")

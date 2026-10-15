@@ -3,6 +3,7 @@ import io
 import json
 import os
 import subprocess
+import unittest
 from pathlib import Path
 from unittest import mock
 
@@ -117,3 +118,10 @@ class SaveChunkTest(Env):
         self.save(json.dumps(good_chunk()))
         self.plan()
         self.assertFalse(self.target.exists())
+
+
+class LockHeldExitCodeTest(unittest.TestCase):
+    def test_lock_held_maps_to_tempfail_exit_code(self):
+        from python.gentle_lite.graph import semantic_plan
+        self.assertEqual(semantic_plan.EXIT_LOCKED, 75)
+        self.assertNotIn(semantic_plan.EXIT_LOCKED, (semantic_plan.EXIT_ERROR, semantic_plan.EXIT_NO_VALID, semantic_plan.EXIT_REFUSED))

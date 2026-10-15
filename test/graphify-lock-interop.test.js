@@ -25,7 +25,7 @@ test('a lock held by Node makes the Python merge fail fast with a clear message'
   assert.ok(release, 'node took the lock');
   try {
     const r = spawnSync('python3', ['-P', '-m', 'gentle_lite.graph.semantic_plan', 'merge', '--repo', repo], { env: { ...process.env, PYTHONPATH }, encoding: 'utf8', timeout: 30000 });
-    assert.equal(r.status, 2, r.stderr);
+    assert.equal(r.status, 75, r.stderr); // EX_TEMPFAIL: lock held, retry later
     assert.match(r.stderr, /already running/);
     assert.ok(await exists(lock), 'the python run did not touch the node-held lock');
   } finally {

@@ -31,6 +31,11 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   assert.match(text, /gentle_lite\.graph\.semantic_plan/);
   // Subagents never write: the orchestrator saves each reply through the validating helper, and documents are untrusted data.
   assert.match(text, /<prefix> save-chunk <N>/);
+  // Replies are untrusted: never route them through a shell (a heredoc terminator in the reply would run as commands).
+  assert.doesNotMatch(text, /heredoc|<<|GRAPHIFY_JSON_REPLY|stdin/i);
+  assert.match(text, /Write tool/);
+  assert.match(text, /save-chunk <N> --repo <repo> --input/);
+  assert.match(text, /exit code 75/);
   assert.match(text, /untrusted/i);
   assert.match(text, /never write/i);
   assert.match(text, /<prefix> plan/);
