@@ -161,6 +161,8 @@ Out (dropped from upstream): network telemetry (local-only telemetry is in scope
   - Both: `set -euo pipefail`, no `rm -rf` on user paths without a moved-aside copy, never print secrets, idempotent re-runs (detect completed phases). Tests (node --test) run both scripts against a fake HOME with stub `gentle-ai`/`claude` on PATH and a non-interactive `--assume-yes` used ONLY by tests (documented as test-only).
   Route: delegated.
 
+- [ ] T23b Fix the T23 review warnings BEFORE any real run (review-b0693f90fad79947, scratchpad `c30cap3.json`): (1) backup dir 0700 and every archive/log/checksum file 0600 (umask 077 for the whole script), test asserts modes; (2) rollback must work when gentle-lite was never installed or its uninstall fails: skip/continue with a warning instead of dying, test a rollback after a migration that stopped at phase 3; (3) every `migrate.sh --execute` after a rollback (or a finished run) creates a NEW run directory and never overwrites an existing backup archive (refuse to write over an existing backup.tar.gz); rollback marks the run as rolled-back instead of deleting markers; (4) gentle-ai's interactive uninstall runs with the real TTY (stdin/stdout not piped through tee; log only a summary line); (5) rollback verifies sha256 of restored files BEFORE re-enabling the plugin; (6) a real resume test: decline at phase 3 (exit 3), re-run, phases 1-2 are skipped and 3+ run. Route: delegated.
+
 ## Acceptance criteria
 
 - `npm test` and Python unittest pass.
@@ -301,6 +303,8 @@ T16 done. Open: nothing blocking.
 - 2026-10-15: RDD for T22 (`2999208..3b6f40e`): high, 624 lines → granted → 4 lenses → approved, acknowledged (review-1f886e9f4242aa53). Parent spot check by exit code: node 287 / python 282, exit=0. 5 warnings → T22b.
 
 - 2026-10-15: RDD for T22b (`47e1fce..e8f6014`): high, 143 lines → granted → 4 lenses → approved, acknowledged (review-52e18e969eaaa6ad). Parent spot check by exit code: node 291 / python 284, exit=0. Remaining warnings are minor logging edges (put-back failure on exit 75 only on stderr; `status` shows the last hook-log line as an error without age/success check; `lastHookError` name) → documented backlog; fix loop stopped by plan (diminishing returns).
+
+- 2026-10-15: RDD for T23 (`51a87ea..2ce29d6`): high, 637 lines → granted → 4 lenses → approved, acknowledged (review-b0693f90fad79947). Parent spot check by exit code: node 295 / python 284, exit=0; confirmed no real ~/gentle-lite-migration exists. 8 warnings, several blocking a real run → T23b.
 
 ## Next session
 
