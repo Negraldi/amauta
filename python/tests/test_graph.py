@@ -63,9 +63,75 @@ class Base(unittest.TestCase):
         return [dict(r) for r in self.conn.execute(sql, args)]
 
 
+SQL_GRAPH = {
+    "nodes": [{"id": "schema", "label": "schema.sql", "file_type": "code", "source_file": "schema.sql", "source_location": None},
+              {"id": "schema_users", "label": "users", "file_type": "code", "source_file": "schema.sql", "source_location": "L1"},
+              {"id": "schema_posts", "label": "posts", "file_type": "code", "source_file": "db/Schema.SQL", "source_location": "L2"},
+              node("a", "Alpha")],
+    "links": [{"source": "schema_posts", "target": "schema_users", "relation": "references"}],
+}
+
+
+class SemanticStatsTest(Base):
+    def stat(self):
+        return self.rows("SELECT sql_tables, semantic_pending, semantic_at, semantic_model FROM graph_sync WHERE repo = ?", self.key)[0]
+
+    def test_sql_tables_counts_non_file_nodes_of_sql_sources(self):
+        write_graph(self.repo, SQL_GRAPH)
+        self.assertEqual(sync.sync_repo(self.conn, self.repo)["sql_tables"], 2)  # the schema.sql file node is not a table
+        self.assertEqual(self.stat(), {"sql_tables": 2, "semantic_pending": 0, "semantic_at": None, "semantic_model": None})
+
+    def test_pending_flag_is_stored_and_kept_when_a_later_sync_does_not_say(self):
+        write_graph(self.repo)
+        sync.sync_repo(self.conn, self.repo, semantic_pending=True)
+        self.assertEqual(self.stat()["semantic_pending"], 1)
+        sync.sync_repo(self.conn, self.repo)
+        self.assertEqual(self.stat()["semantic_pending"], 1)
+        sync.sync_repo(self.conn, self.repo, semantic_pending=False)
+        self.assertEqual(self.stat()["semantic_pending"], 0)
+
+    def test_semantic_run_records_model_and_time_and_clears_pending(self):
+        write_graph(self.repo)
+        sync.sync_repo(self.conn, self.repo, semantic_pending=True)
+        sync.sync_repo(self.conn, self.repo, semantic_model="claude-haiku-5-5")
+        row = self.stat()
+        self.assertEqual((row["semantic_pending"], row["semantic_model"]), (0, "claude-haiku-5-5"))
+        self.assertRegex(row["semantic_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        sync.sync_repo(self.conn, self.repo, semantic_pending=True)  # a later local update keeps the last run
+        self.assertEqual(self.stat()["semantic_model"], "claude-haiku-5-5")
+
+    def test_version_4_database_is_migrated_keeping_its_rows(self):
+        old = self.root / "v4"
+        old.mkdir()
+        c = sqlite3.connect(old / "memory.db")
+        c.executescript(";".join(mstore._MIGRATIONS[i] for i in (1, 2, 3, 4)))
+        c.execute("PRAGMA user_version = 4")
+        c.execute("INSERT INTO graph_sync VALUES ('r', 1.0, 'then', 3, 2)")
+        c.commit()
+        c.close()
+        c = mstore.connect(old / "memory.db")
+        row = dict(c.execute("SELECT * FROM graph_sync").fetchone())
+        c.close()
+        self.assertEqual((row["nodes"], row["sql_tables"], row["semantic_pending"], row["semantic_model"]), (3, 0, 0, None))
+
+    def test_cli_sync_flags(self):
+        write_graph(self.repo, SQL_GRAPH)
+        r = run_cli(self.state, "sync", "--repo", str(self.repo), "--semantic-pending", "1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.stat()["semantic_pending"], 1)
+        r = run_cli(self.state, "sync", "--repo", str(self.repo), "--semantic-model", "claude-haiku-5-5")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.stat()["semantic_pending"], self.stat()["semantic_model"]), (0, "claude-haiku-5-5"))
+        self.assertEqual(json.loads(r.stdout)["sql_tables"], 2)
+        bad = run_cli(self.state, "sync", "--repo", str(self.repo), "--semantic-pending", "maybe")
+        self.assertNotEqual(bad.returncode, 0)
+
+
 class SyncTest(Base):
-    def test_schema_is_version_4_with_graph_tables(self):
-        self.assertEqual(mstore.SCHEMA_VERSION, 4)
+    def test_schema_is_version_5_with_graph_tables_and_semantic_columns(self):
+        self.assertEqual(mstore.SCHEMA_VERSION, 5)
+        cols = {r["name"] for r in self.rows("PRAGMA table_info(graph_sync)")}
+        self.assertTrue({"sql_tables", "semantic_pending", "semantic_at", "semantic_model"} <= cols)
         names = {r["name"] for r in self.rows("SELECT name FROM sqlite_master WHERE type='table'")}
         self.assertTrue({"graph_nodes", "graph_edges", "graph_sync"} <= names)
 

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from python.gentle_lite.memory import store as mstore
 from python.gentle_lite.portal import api
 from python.gentle_lite.portal.config import Config
 from python.tests import portal_fixtures as fx
@@ -226,6 +227,33 @@ class MemoryViewsTest(ApiBase):
         self.assertFalse(u["available"])
         self.assertIn("graphify update", u["reason"])
         self.assertEqual(api.Portal(Config(state_dir=self.f["state"], claude_home=self.f["home"])).get("/api/graphify", {})[1]["repos"], [])
+
+    def test_graphify_reports_sql_tables_and_the_semantic_pass_state(self):
+        (g,) = self.get("/api/graphify")["repos"]
+        self.assertEqual((g["sql_tables"], g["semantic_pending"], g["semantic_at"], g["semantic_model"]), (0, False, None, None))
+        from python.gentle_lite.graph import sync
+        c = mstore.connect(self.f["state"] / "memory.db")
+        sync.sync_repo(c, self.f["repo"], semantic_pending=True)
+        sync.sync_repo(c, self.f["repo"], semantic_model="claude-haiku-5-5")
+        sync.sync_repo(c, self.f["repo"], semantic_pending=True)
+        c.close()
+        (g,) = self.get("/api/graphify")["repos"]
+        self.assertTrue(g["semantic_pending"])
+        self.assertEqual(g["semantic_model"], "claude-haiku-5-5")
+        self.assertRegex(g["semantic_at"], r"^\d{4}-\d\d-\d\dT")
+
+    def test_graphify_tolerates_a_version_4_mirror_without_semantic_columns(self):
+        old = self.root / "v4"
+        old.mkdir()
+        c = sqlite3.connect(old / "memory.db")
+        c.executescript(";".join(mstore._MIGRATIONS[i] for i in (1, 2, 3, 4)))
+        c.execute("INSERT INTO graph_sync VALUES (?, 1.0, '2026-10-01T00:00:00Z', 5, 4)", (str(self.f["repo"].resolve()),))
+        c.execute("PRAGMA user_version = 4")
+        c.commit()
+        c.close()
+        p = api.Portal(Config(state_dir=old, claude_home=self.f["home"], repos=[self.f["repo"]]))
+        (g,) = p.get("/api/graphify", {})[1]["repos"]
+        self.assertEqual((g["available"], g["nodes"], g["sql_tables"], g["semantic_pending"], g["semantic_model"]), (True, 5, 0, False, None))
 
     def test_graph_nodes_search_and_neighbors(self):
         key = str(self.f["repo"].resolve())

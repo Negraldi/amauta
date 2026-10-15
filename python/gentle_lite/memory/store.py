@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _MIGRATIONS = {
     1: """
@@ -78,6 +78,12 @@ _MIGRATIONS = {
     CREATE INDEX idx_graph_edges_dst ON graph_edges(repo, dst);
     CREATE TABLE graph_sync (
         repo TEXT PRIMARY KEY, graph_mtime REAL, synced_at TEXT NOT NULL, nodes INTEGER NOT NULL, edges INTEGER NOT NULL);
+    """,
+    5: """
+    ALTER TABLE graph_sync ADD COLUMN sql_tables INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE graph_sync ADD COLUMN semantic_pending INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE graph_sync ADD COLUMN semantic_at TEXT;
+    ALTER TABLE graph_sync ADD COLUMN semantic_model TEXT;
     """,
 }
 

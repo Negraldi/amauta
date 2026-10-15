@@ -378,13 +378,20 @@ class Portal:
         try:
             for repo in self.cfg.repos:
                 key = str(repo.resolve())
-                row = conn.execute("SELECT graph_mtime, synced_at, nodes, edges FROM graph_sync WHERE repo = ?", (key,)).fetchone() if conn is not None else None
+                # A version-4 mirror has no semantic columns (the portal never migrates): select what exists, default the rest.
+                have = set(columns(conn, "graph_sync")) if conn is not None else set()
+                extra = [c for c in ("sql_tables", "semantic_pending", "semantic_at", "semantic_model") if c in have]
+                row = conn.execute(f"SELECT graph_mtime, synced_at, nodes, edges{''.join(', ' + c for c in extra)} FROM graph_sync WHERE repo = ?", (key,)).fetchone() if conn is not None else None
                 if row is None:
                     repos.append({"name": repo.name, "path": key, "available": False,
                                   "reason": "not mirrored yet: run `graphify update .` and `python3 -P -m gentle_lite.graph sync --repo <repo>` (or install the post-commit hook)"})
                 else:
                     repos.append({"name": repo.name, "path": key, "available": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"],
-                                  "graph_mtime": datetime.fromtimestamp(row["graph_mtime"] or 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+                                  "graph_mtime": datetime.fromtimestamp(row["graph_mtime"] or 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                  "sql_tables": row["sql_tables"] if "sql_tables" in extra else 0,
+                                  "semantic_pending": bool(row["semantic_pending"]) if "semantic_pending" in extra else False,
+                                  "semantic_at": row["semantic_at"] if "semantic_at" in extra else None,
+                                  "semantic_model": row["semantic_model"] if "semantic_model" in extra else None})
         finally:
             if conn is not None:
                 conn.close()

@@ -16,6 +16,8 @@ def build_parser():
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("sync", help="mirror <repo>/graphify-out/graph.json into memory.db")
     s.add_argument("--repo", default=".")
+    s.add_argument("--semantic-pending", choices=("0", "1"), help="graphify check-update verdict: 1 when a semantic re-extraction is pending")
+    s.add_argument("--semantic-model", help="a semantic pass just finished with this model (records model and time, clears pending)")
     q = sub.add_parser("query", help="query the mirrored graph")
     qs = q.add_subparsers(dest="kind", required=True)
     n = qs.add_parser("neighbors", help="nodes within --depth hops of a node (id or label)")
@@ -36,7 +38,7 @@ def main(argv=None) -> int:
     conn = mstore.connect(paths.db_path())
     try:
         if args.cmd == "sync":
-            result = sync.sync_repo(conn, repo)
+            result = sync.sync_repo(conn, repo, None if args.semantic_pending is None else args.semantic_pending == "1", args.semantic_model)
         elif args.kind == "neighbors":
             result = query.neighbors(conn, repo, args.node, args.depth)
         else:

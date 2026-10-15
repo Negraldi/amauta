@@ -94,6 +94,16 @@ def load(repo):
     return list(nodes.values()), edges, st.st_mtime
 
 
+def sql_tables(nodes) -> int:
+    """Tables extracted from .sql sources: every node of a *.sql file except the file node itself (label = file name)."""
+    count = 0
+    for row in nodes:
+        label, source = row[2], row[4]
+        if source and source.lower().endswith(".sql") and label != Path(source).name:
+            count += 1
+    return count
+
+
 def _insert_nodes(conn, rows):
     conn.executemany("INSERT OR REPLACE INTO graph_nodes (repo, id, label, kind, file, attrs_json) VALUES (?,?,?,?,?,?)", rows)
 
@@ -102,10 +112,19 @@ def _insert_edges(conn, rows):
     conn.executemany("INSERT INTO graph_edges (repo, src, dst, relation, attrs_json) VALUES (?,?,?,?,?)", rows)
 
 
-def sync_repo(conn, repo) -> dict:
-    """Replace this repo's mirrored rows with the current graph.json in one short transaction. Idempotent."""
+def sync_repo(conn, repo, semantic_pending=None, semantic_model=None) -> dict:
+    """Replace this repo's mirrored rows with the current graph.json in one short transaction. Idempotent.
+
+    semantic_pending (bool|None): a graphify check-update verdict; None keeps the stored value.
+    semantic_model (str|None): a semantic pass just finished with this model: records model and time, clears pending.
+    """
     nodes, edges, mtime = load(repo)  # parse first: a bad file never touches the database
     key = repo_key(repo)
+    tables = sql_tables(nodes)
+    pending = None if semantic_pending is None else int(bool(semantic_pending))
+    ran_at = mstore.now() if semantic_model else None
+    if semantic_model:
+        pending = 0
     with conn:
         conn.execute("BEGIN IMMEDIATE")
         conn.execute("DELETE FROM graph_edges WHERE repo = ?", (key,))
@@ -113,8 +132,11 @@ def sync_repo(conn, repo) -> dict:
         _insert_nodes(conn, nodes)
         _insert_edges(conn, edges)
         conn.execute(
-            "INSERT INTO graph_sync (repo, graph_mtime, synced_at, nodes, edges) VALUES (?,?,?,?,?) "
-            "ON CONFLICT(repo) DO UPDATE SET graph_mtime=excluded.graph_mtime, synced_at=excluded.synced_at, nodes=excluded.nodes, edges=excluded.edges",
-            (key, mtime, mstore.now(), len(nodes), len(edges)),
+            "INSERT INTO graph_sync (repo, graph_mtime, synced_at, nodes, edges, sql_tables, semantic_pending, semantic_at, semantic_model) VALUES (?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(repo) DO UPDATE SET graph_mtime=excluded.graph_mtime, synced_at=excluded.synced_at, nodes=excluded.nodes, edges=excluded.edges, "
+            "sql_tables=excluded.sql_tables, "
+            "semantic_pending=CASE WHEN ? IS NULL THEN semantic_pending ELSE excluded.semantic_pending END, "
+            "semantic_at=COALESCE(?, semantic_at), semantic_model=COALESCE(?, semantic_model)",
+            (key, mtime, mstore.now(), len(nodes), len(edges), tables, pending or 0, ran_at, semantic_model or None, pending, ran_at, semantic_model or None),
         )
-    return {"repo": key, "nodes": len(nodes), "edges": len(edges)}
+    return {"repo": key, "nodes": len(nodes), "edges": len(edges), "sql_tables": tables}

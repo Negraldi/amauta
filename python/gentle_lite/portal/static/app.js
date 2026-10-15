@@ -203,7 +203,8 @@ function graphRepo(r) {
   }, list);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
-  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, `${fmt(r.nodes)} nodes, ${fmt(r.edges)} edges (mirrored ${r.synced_at}; graph.json ${r.graph_mtime})`),
+  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, `${fmt(r.nodes)} nodes, ${fmt(r.edges)} edges (mirrored ${r.synced_at}; graph.json ${r.graph_mtime}), ${fmt(r.sql_tables || 0)} SQL tables`),
+    h("p", { class: "muted" }, `Semantic pass pending: ${r.semantic_pending ? "yes" : "no"}. Last semantic run: ${r.semantic_at ? `${r.semantic_at} (${r.semantic_model || "unknown model"})` : "never"}`),
     h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, "Search graph")), list, near) };
 }
 

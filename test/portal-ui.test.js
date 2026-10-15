@@ -25,7 +25,7 @@ const routes = {
   '/api/memory-files': { items: [{ id: 'a/memory/n.md', name: XSS, project: 'a', size: 3, mtime: 'm' }] },
   '/api/memory-file': { id: 'a/memory/n.md', content: XSS, truncated: false },
   '/api/graphify': { repos: [
-    { name: XSS, path: '/r/one', available: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z', graph_mtime: '2026-10-13T00:00:00Z' },
+    { name: XSS, path: '/r/one', available: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z', graph_mtime: '2026-10-13T00:00:00Z', sql_tables: 2, semantic_pending: true, semantic_at: '2026-10-12T08:00:00Z', semantic_model: 'claude-haiku-5-5' },
     { name: 'two', path: '/r/two', available: false, reason: XSS }] },
   '/api/graph/nodes': { available: true, items: [{ id: 'a', label: XSS, kind: 'code', file: 'src/a.py' }, { id: 'b', label: 'Beta', kind: 'code', file: 'src/b.py' }] },
   '/api/graph/neighbors': { available: true, depth: 1, start: ['a'], nodes: [{ id: 'a', label: XSS, kind: 'code', file: 'x', depth: 0 }, { id: 'b', label: 'Beta', kind: 'code', file: 'y', depth: 1 }], edges: [{ src: 'a', dst: 'b', relation: XSS }] },
@@ -194,6 +194,9 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
   const env = await boot('#memories');
   const view = env.document.getElementById('view');
   assert.match(view.textContent, /6 nodes, 4 edges/);
+  assert.match(view.textContent, /2 SQL tables/);
+  assert.match(view.textContent, /Semantic pass pending: yes/);
+  assert.match(view.textContent, /Last semantic run: 2026-10-12T08:00:00Z \(claude-haiku-5-5\)/);
   assert.match(view.textContent, /not mirrored|graphify update|<img/); // the unavailable repo shows its reason as text
   assert.ok(view.textContent.includes('src/a.py'), 'initial node list is loaded');
   env.calls.length = 0;

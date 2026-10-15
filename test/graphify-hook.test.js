@@ -392,3 +392,41 @@ test('the lock owner pid is the live background subshell even when `sh -c` is a 
   assert.equal(token, await procToken(pid));
   await t.cleanup();
 });
+
+const dbValue = (db, sql) => {
+  const r = spawnSync('python3', ['-P', '-c', `import sqlite3\nprint(sqlite3.connect(${JSON.stringify(db)}).execute(${JSON.stringify(sql)}).fetchone()[0])`], { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : null;
+};
+const writeGraph = 'mkdir -p graphify-out\ncat > graphify-out/graph.json <<\'JSON\'\n' + GRAPH + '\nJSON';
+
+test('the hook runs `graphify check-update .` after update and records a pending semantic pass (never an LLM call)', async () => {
+  const t = await sandbox({ graphify: `case "$1" in\n  update) ${writeGraph}\n ;;\n  check-update) echo "[graphify check-update] Pending non-code changes in $2." ;;\nesac` });
+  await installHook(t.opts());
+  assert.equal((await t.commit('docs')).status, 0);
+  const db = path.join(t.state, 'memory.db');
+  assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '1'), 'pending recorded');
+  const calls = (await readFile(t.log, 'utf8')).split('\n').filter(Boolean).map((l) => l.replace(/ log_disable=.*/, ''));
+  assert.deepEqual(calls.slice(0, 2), ['args=update .', 'args=check-update .']);
+  assert.ok(!calls.some((c) => /extract/.test(c)), 'the hook never runs the semantic extraction');
+  await t.cleanup();
+});
+
+test('a clean check-update clears the pending flag, and a failing check-update leaves it as it was', async () => {
+  const t = await sandbox({ graphify: `case "$1" in\n  update) ${writeGraph}\n ;;\n  check-update) [ -e "$(dirname "$0")/../pending" ] && echo "Pending non-code changes"; [ -e "$(dirname "$0")/../broken" ] && exit 3; exit 0 ;;\nesac` });
+  await installHook(t.opts());
+  const db = path.join(t.state, 'memory.db');
+  const settle = async () => waitFor(async () => !(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock'))) && !(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock.pending'))));
+  await writeFile(path.join(t.root, 'pending'), '');
+  await t.commit('one');
+  assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '1'));
+  await settle();
+  await writeFile(path.join(t.root, 'broken'), '');
+  await t.commit('two');
+  await sleep(1500); await settle();
+  assert.equal(dbValue(db, 'select semantic_pending from graph_sync'), '1', 'a failing check-update does not change the flag');
+  await rm(path.join(t.root, 'broken'));
+  await rm(path.join(t.root, 'pending'));
+  await t.commit('three');
+  assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '0'), 'nothing pending any more');
+  await t.cleanup();
+});
