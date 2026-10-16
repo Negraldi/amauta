@@ -15,11 +15,11 @@ Commands that select, continue, apply, verify, or archive an SDD change MUST fir
 
 ## Native Engine
 
-> gentle-lite: the module reproduces this contract for the `openspec` store only. `engram` and `hybrid` stores are reported as blocked, no `consent` block is ever produced, and `allowedEditRoots` is always the workspace root. A task that targets a path outside it blocks apply: edit tasks.md or mark a read-only input with `(read-only)`.
+> amauta: the module reproduces this contract for the `openspec` store only. `engram` and `hybrid` stores are reported as blocked, no `consent` block is ever produced, and `allowedEditRoots` is always the workspace root. A task that targets a path outside it blocks apply: edit tasks.md or mark a read-only input with `(read-only)`.
 
 Native `gentle-ai.sdd-status/v2` is the sole status contract.  Research is optional and does not add a proposal-admission gate. Ask about real unresolved product decisions; pause only dependent work.
 
-- When the gentle-lite SDD module is available, prefer `{{GENTLE_LITE_SDD}} status [change] --cwd <repo> --json --instructions` for read-only status and `{{GENTLE_LITE_SDD}} continue [change] --cwd <repo>` only for explicit authorized continuation. This holds for every artifact store: the dispatcher resolves the declared store itself.
+- When the amauta SDD module is available, prefer `{{AMAUTA_SDD}} status [change] --cwd <repo> --json --instructions` for read-only status and `{{AMAUTA_SDD}} continue [change] --cwd <repo>` only for explicit authorized continuation. This holds for every artifact store: the dispatcher resolves the declared store itself.
 - The native dispatcher resolves the artifact store the workspace DECLARES in `openspec/config.yaml` and reports it in `artifactStore`. A declared store is authoritative in both directions: it selects the resolver, and an empty declared store reports as empty rather than silently serving the other store's artifacts. Never re-resolve artifact status yourself, and never branch on the store: read the locators the dispatcher returned in `artifactPaths`.
 - For every store, treat native status JSON as authoritative over prompt inference or manually reconstructed state.
 - When `blockedReasons` is non-empty, do not proceed to terminal, archive, or apply work. Return or report `blockedReasons` and stop. Explicit read-only verification may still diagnose accessible work without granting edit authority. When `nextRecommended` is `resolve-blockers`, always report `blockedReasons` and stop. When `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), launch the corresponding planning phase — missing planning artifacts are the expected output of those phases, not genuine blockers.

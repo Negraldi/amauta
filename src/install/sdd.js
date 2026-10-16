@@ -6,7 +6,7 @@ import { sddCommand } from './servers.js';
 const posix = (rel) => rel.split(path.sep).join('/');
 
 /** Fill the placeholders of an SDD markdown asset. */
-export const renderSddText = (text) => text.replaceAll('{{GENTLE_LITE_SDD}}', sddCommand());
+export const renderSddText = (text) => text.replaceAll('{{GENTLE_LITE_SDD}}', sddCommand()).replaceAll('{{AMAUTA_SDD}}', sddCommand());
 
 /** Managed files (relative posix path -> Buffer) of the optional SDD module. */
 export async function renderSddFiles(manifest, { assignments, engramPrefix, footers }) {

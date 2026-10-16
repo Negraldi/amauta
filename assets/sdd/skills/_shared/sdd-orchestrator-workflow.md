@@ -13,27 +13,27 @@ SDD is the structured planning layer for substantial changes. This file is the l
 
 Skills and slash commands:
 
-- `/lite-sdd-init` → initialize SDD context; detects stack and testing capabilities.
-- `/lite-sdd-explore <topic>` → investigate an idea; no implementation.
-- `/lite-sdd-status [change]` → read-only structured status.
-- `/lite-sdd-apply [change]` → implement pending tasks in batches.
-- `/lite-sdd-verify [change]` → validate implementation against specs/tasks.
-- `/lite-sdd-archive [change]` → close a completed change.
-- `/lite-sdd-onboard` → guided end-to-end walkthrough.
+- `/amauta-sdd-init` → initialize SDD context; detects stack and testing capabilities.
+- `/amauta-sdd-explore <topic>` → investigate an idea; no implementation.
+- `/amauta-sdd-status [change]` → read-only structured status.
+- `/amauta-sdd-apply [change]` → implement pending tasks in batches.
+- `/amauta-sdd-verify [change]` → validate implementation against specs/tasks.
+- `/amauta-sdd-archive [change]` → close a completed change.
+- `/amauta-sdd-onboard` → guided end-to-end walkthrough.
 
 Meta-commands are handled by the orchestrator directly and do not appear in autocomplete:
 
-- `/lite-sdd-new <change>` → run exploration then proposal.
-- `/lite-sdd-continue [change]` → run the next dependency-ready phase.
-- `/lite-sdd-ff <name>` → fast-forward proposal → specs → design → tasks.
+- `/amauta-sdd-new <change>` → run exploration then proposal.
+- `/amauta-sdd-continue [change]` → run the next dependency-ready phase.
+- `/amauta-sdd-ff <name>` → fast-forward proposal → specs → design → tasks.
 
 ### Native SDD Dispatcher Guard
 
-For inspection and before routing an SDD change, invoke the native dispatcher using only `{{GENTLE_LITE_SDD}} status [change] --cwd <repo> --json --instructions`. Inspection needs no execution preflight, review, delivery, or archive authorization; this read-only rule takes precedence over phase preflight/init guards. No recommendation is executed during inspection, including planning phases or a displayed preparation invocation.
+For inspection and before routing an SDD change, invoke the native dispatcher using only `{{AMAUTA_SDD}} status [change] --cwd <repo> --json --instructions`. Inspection needs no execution preflight, review, delivery, or archive authorization; this read-only rule takes precedence over phase preflight/init guards. No recommendation is executed during inspection, including planning phases or a displayed preparation invocation.
 
 Use native v2 for every declared artifact store, including Engram. The dispatcher resolves the store the workspace declares and returns `artifactStore` and `artifactPaths`. Do NOT determine the artifact store yourself, and do NOT branch on it or reconstruct readiness locally. Native JSON is authoritative over prompt inference. If status resolution fails or is invalid, report it and stop without a local dispatch fallback.
 
-Only explicit authorized continuation may call `{{GENTLE_LITE_SDD}} continue [change] --cwd <repo>`. First inspect with status and confirm the current human scope covers the selected change-directory marker. Read-only or excluded-marker scope forbids this mutating call; native allowed roots do not grant human consent. Preparation grants no source roots or attempts. Carry native `actionContext` intersected with the current narrower human scope into any executor.
+Only explicit authorized continuation may call `{{AMAUTA_SDD}} continue [change] --cwd <repo>`. First inspect with status and confirm the current human scope covers the selected change-directory marker. Read-only or excluded-marker scope forbids this mutating call; native allowed roots do not grant human consent. Preparation grants no source roots or attempts. Carry native `actionContext` intersected with the current narrower human scope into any executor.
 
 For authorized phase routing only: Route only by `nextRecommended` and dependency states; honor `blockedReasons` and never infer from free text. If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if `nextRecommended` is `resolve-blockers`, report `blockedReasons` and stop; if `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), launch the corresponding planning phase only within the authorized scope.
 
@@ -69,7 +69,7 @@ Canonical mappings:
 <!-- /gentle-ai:sdd-session-preflight -->
 ### SDD Entry Routing (MANDATORY)
 
-For a new product/code change request that says to use SDD, start at preflight -> init guard -> explore/proposal (`/lite-sdd-new` equivalent). Never launch `sdd-apply` just because the user asked to implement a feature.
+For a new product/code change request that says to use SDD, start at preflight -> init guard -> explore/proposal (`/amauta-sdd-new` equivalent). Never launch `sdd-apply` just because the user asked to implement a feature.
 
 Only launch `sdd-apply` when all are true:
 
@@ -77,7 +77,7 @@ Only launch `sdd-apply` when all are true:
 2. The active change has existing spec, design, and tasks artifacts.
 3. The user explicitly asked to apply/continue implementation, or the prior SDD planning phase completed and the orchestrator has passed the review workload guard.
 
-If any dependency is missing, STOP and propose `/lite-sdd-new` or `/lite-sdd-ff`; do not implement.
+If any dependency is missing, STOP and propose `/amauta-sdd-new` or `/amauta-sdd-ff`; do not implement.
 
 ### SDD Init Guard (MANDATORY)
 

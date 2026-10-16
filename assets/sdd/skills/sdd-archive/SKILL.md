@@ -110,7 +110,7 @@ Inspect available delta specs; preserve edit permissions and the mechanical safe
 
 #### If Main Spec Exists (`openspec/specs/{domain}/spec.md`)
 
-**Manual composition (gentle-lite has no native composer).** Compose the main spec carefully by requirement name (e.g. `### Requirement: Session Expiration`): apply RENAMED before MODIFIED before REMOVED before ADDED, preserve every unrelated requirement byte for byte, write the result to a `.compose-tmp` file, re-read it to confirm every delta entry is applied exactly once, and only then `mv` it over the main spec. If any entry cannot be applied (unknown requirement name, missing `(Reason: ...)` note, duplicate ADDED name, malformed RENAMED heading), STOP and report `blocked` with that exact problem; do not archive the change.
+**Manual composition (amauta has no native composer).** Compose the main spec carefully by requirement name (e.g. `### Requirement: Session Expiration`): apply RENAMED before MODIFIED before REMOVED before ADDED, preserve every unrelated requirement byte for byte, write the result to a `.compose-tmp` file, re-read it to confirm every delta entry is applied exactly once, and only then `mv` it over the main spec. If any entry cannot be applied (unknown requirement name, missing `(Reason: ...)` note, duplicate ADDED name, malformed RENAMED heading), STOP and report `blocked` with that exact problem; do not archive the change.
 
 #### If Main Spec Does NOT Exist
 

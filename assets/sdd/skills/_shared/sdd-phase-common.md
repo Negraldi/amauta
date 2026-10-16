@@ -20,7 +20,7 @@ NOTE: the preferred path is (1) — exact skill paths selected by the orchestrat
 
 **`sdd-research` collector exception:** this output-only collector does not read local artifacts, repository state, or Engram state, and does not use artifact locators. It returns its evidence envelope to the orchestrator, which validates and persists it through the selected store route. Sections B and C do not apply to `sdd-research`; every other phase follows them unchanged.
 
-The orchestrator injects the artifact store and the locators native status already resolved (`artifactStore` and `artifactPaths` from `{{GENTLE_LITE_SDD}} status --json --instructions`). Read what you are given.
+The orchestrator injects the artifact store and the locators native status already resolved (`artifactStore` and `artifactPaths` from `{{AMAUTA_SDD}} status --json --instructions`). Read what you are given.
 
 **Do NOT detect the artifact store, and do NOT branch on it.** The dispatcher resolved it from the store the workspace DECLARES. An agent that re-derives the store disagrees with the authority that launched it, which is exactly how a phase ends up reading a store the workspace never declared — or reading nothing at all and returning an empty result.
 
@@ -88,7 +88,7 @@ Every phase MUST return a structured envelope to the orchestrator:
 - `risks`: risks discovered, or "None"
 - `skill_resolution`: how skills were loaded — `paths-injected` (received exact skill paths from orchestrator), `fallback-registry` (self-loaded paths from registry), `fallback-path` (loaded via SKILL: Load path), or `none` (no skills loaded)
 
-**Validating a delegated phase result.** gentle-lite ships no task-result validator: Claude Code validates the child result itself. Treat an empty or malformed child result as a failed phase: do not retry automatically or launch another phase; report it to the user and wait for an explicit decision.
+**Validating a delegated phase result.** amauta ships no task-result validator: Claude Code validates the child result itself. Treat an empty or malformed child result as a failed phase: do not retry automatically or launch another phase; report it to the user and wait for an explicit decision.
 
 OpenCode `background: true` launch acknowledgements and progress signals are nonterminal. They must not produce either transport failure or a session latch; wait for the child to complete, then use the normal artifact/status route.
 
