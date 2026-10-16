@@ -48,7 +48,8 @@ async function boot(over = {}) {
     '/api/settings': async () => SETTINGS,
     '/api/settings/preview': respond('preview', () => PLAN),
     '/api/settings/apply': respond('apply', () => ({ ok: true, backup: '20261016T101500Z', changed: true, files: ['settings.json'], removed: [], skipped: [], state_changes: {}, undo_available: true })),
-    '/api/settings/undo': respond('undo', () => ({ ok: true, backup: '20261016T101500Z', restored: ['/a', '/b'] })),
+    '/api/settings/undo/preview': respond('undo-preview', () => ({ changes: [{ key: 'persona', from: 'neutral', to: 'gentleman' }], repair: false, plan: { changed: true, files: ['settings.json'], removed: [], skipped: [], state_changes: {} }, apply_token: 'UNDO-1', expires_in: 300 })),
+    '/api/settings/undo': respond('undo', () => ({ ok: true, backup: '20261016T103000Z', changed: true, files: ['settings.json', 'output-styles/gentleman.md'], removed: [], skipped: [], state_changes: {}, undo_available: false })),
     '/api/wiki/recent': { items: [] }, '/api/overview': { available: false },
     ...over,
   };
@@ -129,17 +130,25 @@ test('Apply needs a second, explicit confirmation, then posts the one-time token
   assert.ok(button(env, 'Undo this change'));
 });
 
-test('Undo asks for confirmation, posts confirm:true and reports what was restored', async () => {
+test('Undo previews what reverting changes, asks for confirmation, then posts the undo token', async () => {
   const { env, posts } = await boot();
   choose(env, 'set-persona', 'neutral');
   button(env, 'Preview changes').click(); await tick();
   button(env, 'Apply changes').click(); await tick();
   button(env, 'Yes, apply now').click(); await tick();
   button(env, 'Undo this change').click(); await tick();
-  assert.equal(posts.filter((p) => p.path === 'undo').length, 0);
+  assert.equal(posts.filter((p) => p.path === 'undo-preview').length, 1);
+  assert.deepEqual(posts.find((p) => p.path === 'undo-preview').body, {});
+  assert.equal(posts.filter((p) => p.path === 'undo').length, 0, 'a preview alone changes nothing');
+  assert.match(view(env).textContent, /Persona: neutral → gentleman/);
+  assert.match(view(env).textContent, /re-runs the installer/);
+  button(env, 'Revert these changes').click(); await tick();
+  assert.equal(posts.filter((p) => p.path === 'undo').length, 0, 'the first click only asks');
   button(env, 'Yes, undo').click(); await tick();
-  assert.deepEqual(posts.find((p) => p.path === 'undo').body, { confirm: true });
-  assert.match(view(env).textContent, /Restored 2 file\(s\) from backup 20261016T101500Z/);
+  assert.deepEqual(posts.find((p) => p.path === 'undo').body, { apply_token: 'UNDO-1', confirm: true });
+  assert.match(view(env).textContent, /Undone\./);
+  assert.match(view(env).textContent, /Backup: 20261016T103000Z/);
+  assert.doesNotMatch(view(env).textContent, /Restored \d+ file/);
 });
 
 test('Cancel on the confirmation sends nothing', async () => {

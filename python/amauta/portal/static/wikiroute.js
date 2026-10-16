@@ -115,6 +115,7 @@
   function settingsAdvice(status) {
     if (status === 403) return { text: "The portal refused the request. Reload this page (it gets a new session token) and try again.", again: false };
     if (status === 409) return { text: "Something changed since you previewed, or another change is running. Preview again to see the current plan.", again: true };
+    if (status === 429) return { text: "Too many previews are running at once. Wait a moment and preview again.", again: true };
     if (status === 400) return { text: "The preview is no longer valid (used or older than 5 minutes). Preview again.", again: true };
     if (status === 413 || status === 415) return { text: "The portal could not accept that request. Reload the page and try again.", again: false };
     if (status === 502 || status === 503 || status === 504) return { text: "The installer did not finish. Nothing was reported as changed; run amauta status in a terminal, then try again or run amauta install there.", again: false };

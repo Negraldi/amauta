@@ -610,21 +610,39 @@ async function viewSettings() {
     if (!res.ok) return fail(res, () => runPreview(false));
     const d = res.data;
     const undo = d.undo_available ? h("button", { type: "button" }, "Undo this change") : null;
-    const undoBox = h("div", null);
-    if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); undoBox.replaceChildren(askConfirm(`Restore the files from backup ${d.backup}? Anything changed since then in those files is lost.`, "Yes, undo", runUndo, () => { setDisabled(undo, false); undoBox.replaceChildren(); })); });
+    if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); runUndoPreview(); });
     out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Applied."),
       h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`), d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
       d.skipped.length ? h("p", { class: "muted" }, `${d.skipped.length} file(s) you edited were kept.`) : null,
       d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, `▲ The impeccable engine was not installed: ${d.impeccable.detail || "npm failed"}. Run Reinstall / repair to retry.`) : null,
-      h("div", { class: "actions" }, undo), undoBox));
+      h("div", { class: "actions" }, undo)));
     await reload();
   }
-  async function runUndo() {
-    busy("Restoring the backup.");
+  async function runUndoPreview() {
+    busy("Checking what undoing would change.");
     let res;
-    try { res = await postJson("/api/settings/undo", { confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
-    if (!res.ok) return fail(res, () => runPreview(false));
-    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Undone."), h("p", null, `✓ Restored ${res.data.restored.length} file(s) from backup ${res.data.backup}.`),
+    try { res = await postJson("/api/settings/undo/preview", {}); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runUndoPreview());
+    const plan = res.data, confirmBox = h("div", null);
+    const revert = h("button", { type: "button", class: "primary" }, "Revert these changes");
+    revert.addEventListener("click", () => {
+      setDisabled(revert, true);
+      confirmBox.replaceChildren(askConfirm("Undo re-runs the installer with the previous values and makes a fresh backup. Files you changed by hand since are not overwritten wholesale.", "Yes, undo", () => runUndo(plan), () => { setDisabled(revert, false); confirmBox.replaceChildren(); }));
+    });
+    const cancel = h("button", { type: "button" }, "Discard preview");
+    cancel.addEventListener("click", () => out.replaceChildren());
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, "Preview: what undoing would change"), planBlock(plan),
+      h("p", { class: "muted" }, `Undo re-runs the installer with the settings from before your change. This preview is valid for ${Math.round((plan.expires_in || 300) / 60)} minutes.`),
+      h("div", { class: "actions" }, revert, cancel), confirmBox));
+  }
+  async function runUndo(plan) {
+    busy("Undoing the change.");
+    let res;
+    try { res = await postJson("/api/settings/undo", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runUndoPreview());
+    const d = res.data;
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Undone."), h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`),
+      d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
       h("p", { class: "muted" }, "If the change had downloaded an npm engine, run Reinstall / repair to bring it back.")));
     await reload();
   }
@@ -634,7 +652,7 @@ async function viewSettings() {
 
   buildForm();
   root.append(h("h1", null, "Settings"),
-    h("p", { class: "muted" }, "A short, closed list of harness options. Every change is previewed first, needs your confirmation, makes a backup and can be undone. Nothing else about Claude Code is editable here."),
+    h("p", { class: "muted" }, "A short, closed list of harness options. Every change is previewed first, needs your confirmation, makes a backup and can be undone (also previewed first). Nothing else about Claude Code is editable here."),
     formBox, out);
   return [root];
 }

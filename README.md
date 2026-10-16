@@ -215,7 +215,7 @@ goes through `amauta install`.
 1. **Preview** runs `amauta install --dry-run --json` and shows the files that would be written, removed or kept (edited files are kept).
 2. **Apply** needs the one-time token from that preview (valid 5 minutes, bound to the chosen options and the `state.json` hash, one apply
    at a time) plus an explicit confirmation. The installer backs up first and reports the backup id.
-3. **Undo** restores the newest backup that this portal applied (`amauta restore --backup <id>`); it is refused when `state.json` changed since.
+3. **Undo** previews and re-runs the same install with the settings that were in place before the newest portal change (its own token, lock and fresh backup); it never restores file snapshots, so edits made since to `~/.claude.json`, `settings.json` or `CLAUDE.md` survive, and it is refused when the settings changed since. `amauta restore --backup <id>` stays a CLI-only expert tool.
 
 Guards: POST only, JSON only (4 KB cap), per-process token header, `Host` and `Origin` checks, closed schema (unknown keys and values are
 rejected), options reach the installer as argv entries (no shell). Limit: undoing a change that turned `impeccable` off does not bring its
