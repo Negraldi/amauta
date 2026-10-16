@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { install, uninstall, status, restore } from './installer.js';
+import { runUpgrade } from './upgrade.js';
 
 const OPTIONS = {
   'claude-home': { type: 'string' },
@@ -137,6 +138,7 @@ async function runStatus(opts, io) {
 export function registerInstallCommands(commands) {
   commands.set('install', { summary: 'Install amauta into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
   commands.set('restore', { summary: 'Restore an installer backup by id (--backup <id> --claude-home --claude-json --state-dir --json)', run: guard(runRestore) });
+  commands.set('upgrade', { summary: 'Update this install to the latest release tag (--to <tag> for another, --dry-run, --yes, --claude-home --claude-json --state-dir)', run: (args, io) => runUpgrade(args, io) });
   commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content', run: guard(runUninstall) });
   commands.set('status', { summary: 'Show what is installed and what is missing (--deep also probes the graphify SQL extractor)', run: guard(runStatus) });
 }
