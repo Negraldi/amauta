@@ -47,6 +47,16 @@ distributed under the MIT License:
   SHA-256:  581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8
   License:  MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist
 
+The portal serves the Source Serif 4 typeface (Latin subset, woff2: regular, italic, semibold) from
+python/amauta/portal/static/fonts/, distributed under the SIL Open Font License 1.1 (OFL.txt in that folder):
+
+  Project:  Source Serif 4 (adobe-fonts/source-serif), packaged by Fontsource; copyright notice in OFL.txt
+  Package:  @fontsource/source-serif-4@5.3.1 from npm, files/source-serif-4-latin-{400-normal,400-italic,600-normal}.woff2
+  SHA-256:  02194deb92d3975dd30e11a3824a1f1db32b48c93654e60560cb81ce8e7b5f95  source-serif-4-latin-400-normal.woff2
+            882b7c150c29f29d4f8daae6b8dcae8662aac7f28ca34b34615305154136ecfd  source-serif-4-latin-400-italic.woff2
+            f2b7e1cf1d277b7608231868135648f8ad8e2b58d8e97ca088bee15dc357bee7  source-serif-4-latin-600-normal.woff2
+  License:  OFL-1.1, files unmodified
+
 The skills cpp-testing, python-testing, node-testing, r-testing, tabular-data and
 doc-formats are original to amauta (MIT, see LICENSE), not vendored.
 

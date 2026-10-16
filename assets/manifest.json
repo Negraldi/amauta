@@ -203,6 +203,28 @@
       "source": "npm pack mermaid@11.17.2, file package/dist/mermaid.min.js",
       "sha256": "581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8",
       "license": "MIT"
+    },
+    "source-serif-4": {
+      "note": "reading serif for the portal wiki; served by the static whitelist",
+      "package": "@fontsource/source-serif-4",
+      "version": "5.3.1",
+      "source": "npm pack @fontsource/source-serif-4@5.3.1, files/source-serif-4-latin-{400-normal,400-italic,600-normal}.woff2 (tarball sha256 54b7898afa20cf4b2d807bbf2b5a2f865e28a83db8a5fcc563dafce5ecb5e7c8)",
+      "files": [
+        {
+          "path": "python/amauta/portal/static/fonts/source-serif-4-latin-400-normal.woff2",
+          "sha256": "02194deb92d3975dd30e11a3824a1f1db32b48c93654e60560cb81ce8e7b5f95"
+        },
+        {
+          "path": "python/amauta/portal/static/fonts/source-serif-4-latin-400-italic.woff2",
+          "sha256": "882b7c150c29f29d4f8daae6b8dcae8662aac7f28ca34b34615305154136ecfd"
+        },
+        {
+          "path": "python/amauta/portal/static/fonts/source-serif-4-latin-600-normal.woff2",
+          "sha256": "f2b7e1cf1d277b7608231868135648f8ad8e2b58d8e97ca088bee15dc357bee7"
+        }
+      ],
+      "licenseFile": "python/amauta/portal/static/fonts/OFL.txt",
+      "license": "OFL-1.1"
     }
   }
 }
