@@ -18,7 +18,7 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety)
 | --- | --- |
 | `CLAUDE.md` | four short blocks (orchestrator, persona, memory protocol, codegraph guidance; under a 20k-char budget that `status` checks) between `<!-- amauta:ID -->` markers; your text is kept |
 | Assets | output style, skills, agents (judgment-day, review lenses), rendered with model assignments |
-| Stack skills (original to amauta) | `cpp-testing`, `python-testing`, `node-testing`, `r-testing` (testing patterns for C++, Python, Node.js, R), `tabular-data` (Excel, Parquet, CSV, TXT), `doc-formats` (md, Rmd, html, pdf, docx, pptx) |
+| Stack skills (original to amauta) | `cpp-testing`, `python-testing`, `node-testing`, `r-testing` (testing patterns for C++, Python, Node.js, R), `tabular-data` (Excel, Parquet, CSV, TXT), `doc-formats` (md, Rmd, html, pdf, docx, pptx), `mermaid-diagrams` (when and how to draw Mermaid in documentation) |
 | Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
 | MCP servers | `engram` (our Python memory server; `amauta-memory` if you already have another `engram`), `amauta` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `codegraph` (if installed) |
 | Permissions | `ask`: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)` (prefix matches only, `rm -fr` or `sudo rm -rf` get past them). `deny` for `Read` and `Edit` of `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `*.pem`, `*.key`, `secrets/**`. No `defaultMode`, no allow entries |
@@ -56,6 +56,7 @@ amauta graphify semantic [--cwd DIR] [--model M] [--timeout SECONDS]    # option
 ```
 
 ```
+amauta mermaid check FILE.md...               # validate ```mermaid fences (syntax only, no browser); exit 1 on errors
 amauta skill-registry refresh [--cwd DIR] [--quiet] [--no-gitignore] [--force]
 amauta skill-registry list    [--cwd DIR]
 amauta review assess [--cwd DIR] [--base-ref REF] [--committed-only] [--json]
@@ -165,13 +166,41 @@ PYTHONPATH=python python3 -P -m amauta.portal [--port 8765] [--claude-home DIR] 
 Views: Overview (tokens per day stacked by input/output/cache read/cache write, model split, cache hit ratio, sessions
 per day, dropped-telemetry counter, optional cost estimate), Usage (skills, tools, MCP servers/tools, subagent types;
 sortable), Sessions (per project/session, project and date filters), Memories (own DB with FTS, engram DB read-only,
-Claude file memories, graph memory of each `--repo`: stats, node search, neighbors), Harness (state.json, hooks, MCP servers, RDD mode, `odd/tasks` progress).
+Claude file memories, graph memory of each `--repo`: stats, node search, neighbors), Harness (state.json, hooks, MCP servers, RDD mode, `odd/tasks` progress), Diagrams (see below).
 JSON API plus a single-page UI, stdlib only, no CDN. It binds `127.0.0.1` only (there is no host option), checks the
-`Host` header against DNS rebinding, serves a strict CSP (no inline script or style) and opens every database with
+`Host` header against DNS rebinding, serves a strict CSP (scripts from this origin only, no eval, nothing loaded from or sent to another origin; inline styles are allowed because Mermaid writes them into its SVG) and opens every database with
 `mode=ro` (never created, never migrated). The only write is the "Refresh usage" button, `POST /api/refresh`, which runs
 the usage backfill and needs the per-process token embedded in the page plus a same-origin check. Hook command text and
 MCP `args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
 (`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens; a missing key counts as 0, a non-numeric or negative value is reported under `invalid_prices` and that model is not costed).
+
+### Diagrams (Mermaid)
+
+The portal ships a vendored, unmodified Mermaid build (`python/amauta/portal/static/mermaid.min.js`, MIT, version and sha256 in `NOTICE` and
+`assets/manifest.json`; no CDN) that is loaded only when a diagram is first drawn. It runs with `securityLevel: 'strict'` and
+`startOnLoad: false`, and the returned SVG is adopted as DOM nodes, never as an HTML string. Mermaid source is generated server-side
+(`python/amauta/portal/diagrams.py`): node ids are generated, and every label that comes from a repo, a graph or the install state is quoted and
+entity-escaped (quotes, brackets, backticks, `<`, `>`, newlines, `#`, `;`) and truncated, so a hostile label cannot add nodes or `click` directives. Where it shows:
+
+- Diagrams view: the install architecture (hooks per event, MCP servers, skill and agent counts, state dir; `GET /api/diagrams`) and one task-progress
+  flowchart per `odd/tasks/*.md` (green done, orange pending, capped at 40 tasks).
+- Memories, graph memory: selecting a node also draws its neighborhood (nearest 30 nodes and up to 30 edges; `GET /api/graph/diagram`).
+- Memories: the portal shows markdown as plain text, and now also draws the first five ```` ```mermaid ```` fences of the selected file or memory below it.
+
+The Content-Security-Policy had to loosen one directive for this: `style-src 'self' 'unsafe-inline'` (verified in Chromium: Mermaid applies inline `<style>`
+and `style=` attributes while drawing; with `style-src 'self'` the diagrams render unstyled). `script-src` stays `'self'`.
+
+### Writing and validating diagrams in documentation
+
+The `mermaid-diagrams` skill (installed with the other skills) tells the agent when a diagram earns its place, which type to use (flowchart, sequence,
+ER, state, class, gantt), the syntax traps (quoting labels, the reserved word `end`, node ids) and to keep diagrams small; GitHub renders
+```` ```mermaid ```` fences natively.
+
+`amauta mermaid check FILE.md...` validates every fence and exits 1 with `file:line` on a syntax error. Feasibility finding: `mermaid.parse()` runs under
+plain Node in a bare `node:vm` context with no DOM, jsdom or browser, once the bundled DOMPurify (which is a bare stub without a DOM) is given
+no-op `addHook`/`sanitize` stand-ins on that throwaway context; this covers flowchart, sequence, ER, state, class and gantt. It checks syntax only: layout
+and rendering still need a browser (the portal or GitHub). The stand-ins are tied to the pinned Mermaid version; a test parses real diagrams of every type, so an upgrade
+that breaks them fails the suite.
 
 ## Safety model
 
