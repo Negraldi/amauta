@@ -94,7 +94,7 @@ export function capture(cmd, args, { cwd, env, secret, timeoutMs, onOut, childre
       const rest = maskers.out.end();
       if (rest) { keep('out', rest); onOut?.(rest); }
       keep('err', maskers.err.end());
-      const note = (name) => (dropped[name] ? `[gentle-lite: earlier output truncated, last ${KEEP_BYTES} bytes kept]\n` : '');
+      const note = (name) => (dropped[name] ? `[amauta: earlier output truncated, last ${KEEP_BYTES} bytes kept]\n` : '');
       const err = r.err === undefined ? note('err') + tail.err : r.err;
       resolve({ timedOut, out: note('out') + tail.out, ...r, err });
     };
@@ -152,30 +152,30 @@ function parseTimeout(raw, env) {
 export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDir, env = process.env, searchPath, signal } = {}, io) {
   const key = env[KEY_VAR];
   if (!key) {
-    io.stderr.write(`gentle-lite: ${HINT_NO_KEY}\n`);
+    io.stderr.write(`amauta: ${HINT_NO_KEY}\n`);
     return 1;
   }
   let seconds;
   try { seconds = parseTimeout(timeout, env); } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
   const chosen = model || env.AMAUTA_GRAPHIFY_MODEL || DEFAULT_MODEL;
   const root = (await gitRepoRoot(path.resolve(cwd))) ?? path.resolve(cwd);
   const exe = await findOnPath('graphify', searchPath ?? env.PATH ?? '');
   if (!exe) {
-    io.stderr.write(`gentle-lite: ${GRAPHIFY_HINT}\n`);
+    io.stderr.write(`amauta: ${GRAPHIFY_HINT}\n`);
     return 1;
   }
-  const lockRel = (await gitOrNull(root, ['rev-parse', '--git-path', 'gentle-lite-graphify.lock']))?.trim();
+  const lockRel = (await gitOrNull(root, ['rev-parse', '--git-path', 'amauta-graphify.lock']))?.trim();
   const lock = lockRel ? path.resolve(root, lockRel) : null;
   let release;
   try { release = lock ? await takeLock(lock) : async () => {}; } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
   if (!release) {
-    io.stderr.write(`gentle-lite: a graphify refresh is already running for this repository (lock ${lock}); wait for it to finish and run this again\n`);
+    io.stderr.write(`amauta: a graphify refresh is already running for this repository (lock ${lock}); wait for it to finish and run this again\n`);
     return 1;
   }
   // The caller owns signals (see semanticCommand). On abort every detached child of THIS pass is killed with its process
@@ -186,7 +186,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
   const interrupted = () => (signal?.aborted ? 128 + (os.constants.signals[signal.reason] ?? os.constants.signals.SIGTERM) : 0);
   try {
     if (interrupted()) return interrupted();
-    io.stdout.write(`gentle-lite: running the semantic pass on ${root} with ${chosen} (this calls the Anthropic API; stops after ${seconds}s)\n`);
+    io.stdout.write(`amauta: running the semantic pass on ${root} with ${chosen} (this calls the Anthropic API; stops after ${seconds}s)\n`);
     const extract = await capture(exe, ['extract', root, '--backend', 'claude', '--model', chosen], {
       cwd: root, env: { ...env, GRAPHIFY_QUERY_LOG_DISABLE: '1' }, secret: key, timeoutMs: seconds * 1000, onOut: (text) => io.stdout.write(text), children,
     });
@@ -194,8 +194,8 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     if (extract.code !== 0) {
       if (extract.err) io.stderr.write(extract.err.endsWith('\n') ? extract.err : `${extract.err}\n`);
       io.stderr.write(extract.timedOut
-        ? `gentle-lite: graphify extract timed out after ${seconds}s and was stopped; the graph mirror was not updated (raise --timeout or AMAUTA_GRAPHIFY_TIMEOUT)\n`
-        : `gentle-lite: graphify extract failed (exit ${extract.code ?? 'not started'}); the graph mirror was not updated\n`);
+        ? `amauta: graphify extract timed out after ${seconds}s and was stopped; the graph mirror was not updated (raise --timeout or AMAUTA_GRAPHIFY_TIMEOUT)\n`
+        : `amauta: graphify extract failed (exit ${extract.code ?? 'not started'}); the graph mirror was not updated\n`);
       return 1;
     }
     const { [KEY_VAR]: _omit, ...clean } = env;
@@ -208,12 +208,12 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     });
     if (interrupted()) return interrupted();
     if (sync.code !== 0) {
-      io.stderr.write(`gentle-lite: the extraction finished but the graph sync failed: ${(sync.err || sync.out).trim()}\n`);
+      io.stderr.write(`amauta: the extraction finished but the graph sync failed: ${(sync.err || sync.out).trim()}\n`);
       return 1;
     }
-    io.stdout.write(`gentle-lite: semantic pass done; mirrored ${sync.out.trim()}\n`);
+    io.stdout.write(`amauta: semantic pass done; mirrored ${sync.out.trim()}\n`);
     if (lock && (await stat(`${lock}.pending`).then(() => true, () => false))) {
-      io.stdout.write('gentle-lite: a commit (post-commit hook) happened during the pass and its refresh was skipped; run `graphify update .` or commit again to bring the graph up to date\n');
+      io.stdout.write('amauta: a commit (post-commit hook) happened during the pass and its refresh was skipped; run `graphify update .` or commit again to bring the graph up to date\n');
     }
     return 0;
   } finally {
@@ -227,7 +227,7 @@ export async function semanticCommand(args, io) {
   try {
     ({ values } = parseArgs({ args, options: OPTIONS, allowPositionals: false, strict: true }));
   } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
   // The CLI entrypoint owns signal handling; the library only sees the abort signal.

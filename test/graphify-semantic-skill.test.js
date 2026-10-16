@@ -61,7 +61,7 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   assert.match(text, /AskUserQuestion|ask the user/i);
   assert.match(text, /nodes?/i);
   assert.match(text, /tokens/i);
-  assert.match(text, /gentle-lite graphify semantic/); // headless alternative (API key)
+  assert.match(text, /amauta graphify semantic/); // headless alternative (API key)
   assert.doesNotMatch(text, /gentle-ai/);
   assert.ok(text.length < 6000, `skill is ${text.length} chars; keep it concise`);
 });

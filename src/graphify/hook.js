@@ -9,8 +9,8 @@ import { repoRoot as packageRoot } from '../install/assets.js';
 import { semanticCommand } from './semantic.js';
 
 // graphify (https://github.com/Graphify-Labs/graphify, Apache-2.0, PyPI `graphifyy`) is an external tool: detected at run time, never vendored.
-export const BEGIN = '# >>> gentle-lite graphify >>>';
-export const END = '# <<< gentle-lite graphify <<<';
+export const BEGIN = '# >>> amauta graphify >>>';
+export const END = '# <<< amauta graphify <<<';
 const SHEBANG = '#!/bin/sh\n';
 const SHELL_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+)?(?:\S*\/)?(?:ba|z|da|k)?sh(?:\s|$)/;
 
@@ -29,12 +29,12 @@ export function hookBlock({ stateDir }) {
   const log = path.join(stateDir, 'graphify-hook.log');
   return [
     BEGIN,
-    '# Managed by gentle-lite: refresh the graphify graph, then mirror it into memory.db. Background, single-flight, never fails a commit.',
+    '# Managed by amauta: refresh the graphify graph, then mirror it into memory.db. Background, single-flight, never fails a commit.',
     '(',
     '  export GRAPHIFY_QUERY_LOG_DISABLE=1',
     '  cd "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || exit 0',
     `  LOG=${shellQuote(log)}`,
-    '  LOCK="$(git rev-parse --git-path gentle-lite-graphify.lock 2>/dev/null)"; [ -n "$LOCK" ] || exit 0',
+    '  LOCK="$(git rev-parse --git-path amauta-graphify.lock 2>/dev/null)"; [ -n "$LOCK" ] || exit 0',
     `  note() { mkdir -p "$(dirname "$LOG")" 2>/dev/null; [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt ${LOG_MAX_BYTES} ] && : > "$LOG"; printf '%s %s\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >> "$LOG" 2>/dev/null; }`,
     "  # The lock protocol (mkdir acquire, pid + start token, 15 min AND owner-gone staleness, atomic takeover) lives in ONE place,",
     "  # python/amauta/graph/lock.py, shared with Node and the Python writers. Exit 0 = acquired, 75 = held, anything else",
@@ -145,7 +145,7 @@ async function run(args, io) {
   const [group, action, ...rest] = args;
   if (group === 'semantic') return semanticCommand(args.slice(1), io);
   if (group !== 'hook' || !['install', 'uninstall'].includes(action)) {
-    io.stderr.write('gentle-lite: usage: gentle-lite graphify hook <install|uninstall> [--cwd DIR] [--state-dir DIR] | gentle-lite graphify semantic [--cwd DIR] [--model M] [--state-dir DIR]\n');
+    io.stderr.write('amauta: usage: amauta graphify hook <install|uninstall> [--cwd DIR] [--state-dir DIR] | amauta graphify semantic [--cwd DIR] [--model M] [--state-dir DIR]\n');
     return 1;
   }
   try {
@@ -153,15 +153,15 @@ async function run(args, io) {
     const opts = { cwd: path.resolve(values.cwd ?? process.cwd()), stateDir: values['state-dir'] };
     if (action === 'install') {
       const r = await installHook(opts);
-      io.stdout.write(r.changed ? `gentle-lite: graphify post-commit hook installed in ${r.file}\n` : `gentle-lite: graphify post-commit hook already up to date (${r.file})\n`);
+      io.stdout.write(r.changed ? `amauta: graphify post-commit hook installed in ${r.file}\n` : `amauta: graphify post-commit hook already up to date (${r.file})\n`);
       for (const w of r.warnings) io.stdout.write(`  warning: ${w}\n`);
     } else {
       const r = await uninstallHook(opts);
-      io.stdout.write(r.changed ? `gentle-lite: graphify post-commit hook removed from ${r.file}\n` : 'gentle-lite: no graphify hook block found\n');
+      io.stdout.write(r.changed ? `amauta: graphify post-commit hook removed from ${r.file}\n` : 'amauta: no graphify hook block found\n');
     }
     return 0;
   } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
 }

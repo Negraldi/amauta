@@ -42,7 +42,7 @@ FILE_TYPES = {"code", "document", "paper", "image", "rationale", "concept"}
 CONFIDENCES = {"EXTRACTED", "INFERRED", "AMBIGUOUS"}
 ID_RE = re.compile(r"^[a-z0-9_]+$")
 MAX_CHUNK_BYTES = 16 * 1024 * 1024
-CHUNK_GLOB, PROMPT_GLOB, REPLY_GLOB = ".graphify_chunk_*.json", ".gentle_semantic_prompt_*.md", ".gentle_semantic_reply_*.json"
+CHUNK_GLOB, PROMPT_GLOB, REPLY_GLOB = ".graphify_chunk_*.json", ".amauta_semantic_prompt_*.md", ".amauta_semantic_reply_*.json"
 HINT_MAX_IDS = 200
 UPDATE_TIMEOUT = 900
 WORKER_TIMEOUT = 900
@@ -120,7 +120,7 @@ Path(payload["out"]).write_text(json.dumps(result))
 
 
 def run_worker(python: str, op: str, payload: dict) -> dict:
-    with tempfile.TemporaryDirectory(prefix="gentle-lite-sem-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="amauta-sem-") as tmp:
         out = Path(tmp) / "out.json"
         env = {**os.environ, "GRAPHIFY_QUERY_LOG_DISABLE": "1"}
         try:
@@ -140,11 +140,11 @@ def out_dir(repo: Path) -> Path:
 
 
 def plan_file(repo: Path) -> Path:
-    return out_dir(repo) / ".gentle_semantic_plan.json"
+    return out_dir(repo) / ".amauta_semantic_plan.json"
 
 
 def cached_file(repo: Path) -> Path:
-    return out_dir(repo) / ".gentle_semantic_cached.json"
+    return out_dir(repo) / ".amauta_semantic_cached.json"
 
 
 def chunk_file(repo: Path, num: int) -> Path:
@@ -152,7 +152,7 @@ def chunk_file(repo: Path, num: int) -> Path:
 
 
 def prompt_file_of(repo: Path, num: int) -> Path:
-    return out_dir(repo) / f".gentle_semantic_prompt_{num:02d}.md"
+    return out_dir(repo) / f".amauta_semantic_prompt_{num:02d}.md"
 
 
 def _read_json(path: Path, what: str):
@@ -344,7 +344,7 @@ def load_plan(repo: Path) -> dict:
 
 
 def clean_cached(raw) -> dict:
-    """graphify-out/.gentle_semantic_cached.json is repo-local too: keep only well-formed node/edge/hyperedge objects."""
+    """graphify-out/.amauta_semantic_cached.json is repo-local too: keep only well-formed node/edge/hyperedge objects."""
     out = {"nodes": [], "edges": [], "hyperedges": []}
     if not isinstance(raw, dict):
         return out
@@ -541,7 +541,7 @@ def cmd_save_chunk(args) -> dict:
     # Another chunk may own an endpoint that is not saved yet, so this is a warning here; validate/merge decide for good.
     warnings = check_endpoints(data, known | _node_ids(data))
     target = Path(plan["chunks"][args.num - 1]["chunk_path"])
-    fd, tmp = tempfile.mkstemp(prefix=".gentle_semantic_tmp_", dir=target.parent)
+    fd, tmp = tempfile.mkstemp(prefix=".amauta_semantic_tmp_", dir=target.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False)

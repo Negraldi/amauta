@@ -193,7 +193,7 @@ class Base(unittest.TestCase):
     def plan(self, *extra):
         code, out, err = run_main("plan", "--repo", str(self.repo), "--graphify-bin", str(self.fake.exe), "--skip-update", *extra)
         self.assertEqual(code, 0, err)
-        return json.loads(out), json.loads((self.repo / "graphify-out" / ".gentle_semantic_plan.json").read_text())
+        return json.loads(out), json.loads((self.repo / "graphify-out" / ".amauta_semantic_plan.json").read_text())
 
 
 class FindGraphifyTest(Base):
@@ -272,7 +272,7 @@ class PlanTest(Base):
         self.assertEqual([f for c in plan["chunks"] for f in c["files"]], [fresh])
         self.assertEqual(self.calls("check")[-1]["prompt_file"], plan["spec"])
         self.assertEqual(summary["cached_files"], 1)
-        saved = json.loads((self.repo / "graphify-out" / ".gentle_semantic_cached.json").read_text())
+        saved = json.loads((self.repo / "graphify-out" / ".amauta_semantic_cached.json").read_text())
         self.assertEqual([n["id"] for n in saved["nodes"]], ["c1"])
 
     def test_nothing_to_extract_yields_no_chunks(self):
@@ -455,7 +455,7 @@ class MergeTest(Base):
         self.assertEqual(len(self.graph()["nodes"]), 3, "graph.json untouched")
 
     def test_cached_semantic_results_are_merged_too(self):
-        cached = self.repo / "graphify-out" / ".gentle_semantic_cached.json"
+        cached = self.repo / "graphify-out" / ".amauta_semantic_cached.json"
         cached.write_text(json.dumps({"nodes": [{"id": "cached_one", "label": "C", "file_type": "concept", "source_file": "c.md"}], "edges": [], "hyperedges": []}))
         self.place(good_chunk())
         self.assertEqual(self.merge("--no-sync")[0], 0)
@@ -517,7 +517,7 @@ class RealGraphifyTest(unittest.TestCase):
     def test_plan_validate_merge_against_the_installed_graphify(self):
         code, out, err = run_main("plan", "--repo", str(self.repo))
         self.assertEqual(code, 0, err)
-        plan = json.loads((self.repo / "graphify-out" / ".gentle_semantic_plan.json").read_text())
+        plan = json.loads((self.repo / "graphify-out" / ".amauta_semantic_plan.json").read_text())
         self.assertEqual(len(plan["chunks"]), 1)
         self.assertEqual(len(plan["chunks"][0]["files"]), 3)
         self.assertTrue(Path(plan["spec"]).is_file())

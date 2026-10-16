@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { capture, runSemantic, streamMasker } from '../src/graphify/semantic.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = path.join(repoRoot, 'bin', 'gentle-lite.js');
+const BIN = path.join(repoRoot, 'bin', 'amauta.js');
 const CANARY = 'sk-ant-CANARY-0123456789abcdef';
 const GRAPH = JSON.stringify({ nodes: [{ id: 'a', label: 'A', file_type: 'code', source_file: 'a.py' }], links: [] });
 
@@ -111,11 +111,11 @@ test('a missing graphify binary is reported with an install hint', async () => {
   await rm(t.root, { recursive: true, force: true });
 });
 
-const LOCK = (t) => path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+const LOCK = (t) => path.join(t.repo, '.git', 'amauta-graphify.lock');
 const pathExists = (p) => readFile(p).then(() => true, (e) => (e.code === 'EISDIR' ? true : false));
 
 test('it holds the hook\'s per-repo lock while graphify extract runs and releases it afterwards', async () => {
-  const t = await sandbox(`if [ -d .git/gentle-lite-graphify.lock ]; then echo LOCK_HELD_DURING_EXTRACT >> "$(dirname "$0")/../seen"; fi\n${WRITE_GRAPH}`);
+  const t = await sandbox(`if [ -d .git/amauta-graphify.lock ]; then echo LOCK_HELD_DURING_EXTRACT >> "$(dirname "$0")/../seen"; fi\n${WRITE_GRAPH}`);
   const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
   assert.equal(r.status, 0, r.stderr);
   assert.match(await readFile(path.join(t.root, 'seen'), 'utf8'), /LOCK_HELD_DURING_EXTRACT/);
@@ -139,7 +139,7 @@ test('while a hook (or another pass) holds the lock it fails fast, never calls g
 });
 
 test('a hook trigger that arrived during the pass is reported, not silently dropped', async () => {
-  const t = await sandbox(`: > .git/gentle-lite-graphify.lock.pending\n${WRITE_GRAPH}`);
+  const t = await sandbox(`: > .git/amauta-graphify.lock.pending\n${WRITE_GRAPH}`);
   const r = t.run([], { ANTHROPIC_API_KEY: CANARY });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout + r.stderr, /commit|hook/i);
@@ -244,7 +244,7 @@ for (const signal of Object.keys(SIGNO)) {
       env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: t.root, ANTHROPIC_API_KEY: CANARY }, stdio: 'ignore',
     });
     const exited = new Promise((res) => cli.on('close', (code, sig) => res({ code, sig })));
-    const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+    const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
     const readPid = async (f) => waitFor(() => readFile(f, 'utf8').then((x) => Number.parseInt(x, 10) || 0, () => 0), f);
     const pid = await readPid(pidFile);
     const gc = await readPid(gcFile);

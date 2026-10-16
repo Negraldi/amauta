@@ -41,7 +41,7 @@ async function sandbox({ graphify = null } = {}) {
   // The post-commit hook keeps running in the background: let it release its lock first, and retry on ENOTEMPTY,
   // otherwise it can create files in .git while the directory is being removed (an intermittent cleanup failure).
   t.cleanup = async () => {
-    const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+    const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
     const end = Date.now() + 5000;
     while (Date.now() < end && ((await access(lock).then(() => true, () => false)) || (await access(`${lock}.pending`).then(() => true, () => false)))) await sleep(50);
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
@@ -67,7 +67,7 @@ test('install creates an executable post-commit hook with only the marked block'
   assert.match(text, /export GRAPHIFY_QUERY_LOG_DISABLE=1/);
   assert.match(text, /command -v graphify >\/dev\/null 2>&1/);
   assert.match(text, /graphify update \./);
-  assert.match(text, /gentle-lite-graphify\.lock/);
+  assert.match(text, /amauta-graphify\.lock/);
   assert.ok(text.includes(path.join(t.state, 'graphify-hook.log')), 'failures are logged under the state dir');
   assert.match(text, new RegExp(`PYTHONPATH='?${path.join(repoRoot, 'python').replaceAll('/', '\\/')}'? .*python3 -P -m amauta\\.graph sync --repo`));
   assert.ok(text.includes(`AMAUTA_STATE_DIR=${t.state}`));
@@ -215,7 +215,7 @@ test('concurrent triggers never overlap: every graphify start is followed by its
   await installHook(t.opts());
   const trace = path.join(t.root, 'trace.log');
   for (let i = 0; i < 6; i += 1) runHook(t);
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   // Quiescence, not a fixed sleep: a coalesced re-run can grab the lock right after it is released, so wait
   // until there is no lock, no pending marker and the trace has stopped changing for longer than one run.
   let last = '';
@@ -235,7 +235,7 @@ test('concurrent triggers never overlap: every graphify start is followed by its
 test('a fresh lock makes a trigger leave a pending marker instead of running', async () => {
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   await mkdir(lock);
   runHook(t);
   assert.ok(await waitFor(() => exists(`${lock}.pending`)), 'pending marker written');
@@ -247,7 +247,7 @@ test('a fresh lock makes a trigger leave a pending marker instead of running', a
 test('a stale lock is taken over', async () => {
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   await mkdir(lock);
   const old = new Date(Date.now() - 3600_000);
   await utimes(lock, old, old);
@@ -272,7 +272,7 @@ test('failures are appended to <state>/graphify-hook.log instead of being discar
 test('a stale lock that is not a directory is taken over (the old rmdir-only takeover spun forever)', async () => {
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   await writeFile(lock, 'x');
   const old = new Date(Date.now() - 3600_000);
   await utimes(lock, old, old);
@@ -294,7 +294,7 @@ test('the hook has no lock protocol of its own: it asks the shared helper (pytho
 test('a lock older than the stale limit whose owner is still alive is never taken over', async () => {
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   const owner = spawn('sleep', ['30'], { stdio: 'ignore' });
   await mkdir(lock);
   await writeFile(path.join(lock, 'pid'), `${owner.pid}\n`);
@@ -329,7 +329,7 @@ test('a helper that cannot run at all (python missing) fails open: no marker, no
   assert.equal(c.status, 0, c.stderr);
   await sleep(500);
   assert.equal(await exists(t.log), false, 'graphify did not run');
-  assert.equal(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock.pending')), false, 'no orphan marker');
+  assert.equal(await exists(path.join(t.repo, '.git', 'amauta-graphify.lock.pending')), false, 'no orphan marker');
   await t.cleanup();
 });
 
@@ -378,7 +378,7 @@ test('a running hook records its pid and a start token in the lock', async (ctx)
   if (!(await hasProc())) return ctx.skip('no /proc');
   const t = await sandbox({ graphify: 'sleep 3' });
   await installHook(t.opts());
-  const pidFile = path.join(t.repo, '.git', 'gentle-lite-graphify.lock', 'pid');
+  const pidFile = path.join(t.repo, '.git', 'amauta-graphify.lock', 'pid');
   runHook(t);
   const text = await waitFor(async () => { const l = await lines(pidFile); return l.length ? l[0] : null; });
   assert.ok(text, 'pid file written');
@@ -392,7 +392,7 @@ test('a lock whose recorded pid was reused by another live process (start token 
   if (!(await hasProc())) return ctx.skip('no /proc');
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   const stranger = spawn('sleep', ['30'], { stdio: 'ignore' });
   await mkdir(lock);
   await writeFile(path.join(lock, 'pid'), `${stranger.pid} not-the-same-boot:1\n`);
@@ -408,7 +408,7 @@ test('an old lock whose pid and start token both match a live process is never t
   if (!(await hasProc())) return ctx.skip('no /proc');
   const t = await sandbox({ graphify: 'true' });
   await installHook(t.opts());
-  const lock = path.join(t.repo, '.git', 'gentle-lite-graphify.lock');
+  const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
   const owner = spawn('sleep', ['30'], { stdio: 'ignore' });
   await mkdir(lock);
   await writeFile(path.join(lock, 'pid'), `${owner.pid} ${await procToken(owner.pid)}\n`);
@@ -429,7 +429,7 @@ test('the lock owner pid is the live background subshell even when `sh -c` is a 
   // `me="$(sh -c 'echo $PPID')"` recorded exactly such a short-lived pid; the owner must be the hook's own subshell.
   await writeFile(path.join(t.bin, 'sh'), '#!/bin/sh\n/bin/sh "$@"\n', { mode: 0o755 });
   await installHook(t.opts());
-  const pidFile = path.join(t.repo, '.git', 'gentle-lite-graphify.lock', 'pid');
+  const pidFile = path.join(t.repo, '.git', 'amauta-graphify.lock', 'pid');
   spawn('/bin/sh', [t.hook], { cwd: t.repo, env: { ...process.env, ...t.env }, stdio: 'ignore' });
   const text = await waitFor(async () => { const l = await lines(pidFile); return l.length ? l[0] : null; });
   assert.ok(text, 'pid file written');
@@ -482,7 +482,7 @@ test('a clean check-update clears the pending flag, and a failing check-update l
   const t = await sandbox({ graphify: `case "$1" in\n  update) ${writeGraph}\n ;;\n  check-update) [ -e "$(dirname "$0")/../pending" ] && echo "[graphify check-update] Pending non-code changes in $2."; [ -e "$(dirname "$0")/../broken" ] && exit 3; exit 0 ;;\nesac` });
   await installHook(t.opts());
   const db = path.join(t.state, 'memory.db');
-  const settle = async () => waitFor(async () => !(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock'))) && !(await exists(path.join(t.repo, '.git', 'gentle-lite-graphify.lock.pending'))));
+  const settle = async () => waitFor(async () => !(await exists(path.join(t.repo, '.git', 'amauta-graphify.lock'))) && !(await exists(path.join(t.repo, '.git', 'amauta-graphify.lock.pending'))));
   await writeFile(path.join(t.root, 'pending'), '');
   await t.commit('one');
   assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '1'));

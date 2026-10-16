@@ -45,7 +45,7 @@ class Env(Base):
         return json.loads((self.out / "graph.json").read_text())
 
     def edit_plan(self, fn):
-        pf = self.out / ".gentle_semantic_plan.json"
+        pf = self.out / ".amauta_semantic_plan.json"
         plan = json.loads(pf.read_text())
         fn(plan)
         pf.write_text(json.dumps(plan))
@@ -57,11 +57,11 @@ class LeftoverTest(Env):
         self.plan()
         keep = self.out / "graph.html"
         keep.write_text("keep")
-        for name in (".graphify_chunk_01.json", ".graphify_chunk_07.json", ".gentle_semantic_prompt_09.md"):
+        for name in (".graphify_chunk_01.json", ".graphify_chunk_07.json", ".amauta_semantic_prompt_09.md"):
             (self.out / name).write_text("old")
         self.plan()
-        names = sorted(p.name for p in self.out.iterdir() if p.name.startswith((".graphify_chunk_", ".gentle_semantic_prompt_")))
-        self.assertEqual(names, [".gentle_semantic_prompt_01.md"], "only the new plan's prompt files remain, no chunk files")
+        names = sorted(p.name for p in self.out.iterdir() if p.name.startswith((".graphify_chunk_", ".amauta_semantic_prompt_")))
+        self.assertEqual(names, [".amauta_semantic_prompt_01.md"], "only the new plan's prompt files remain, no chunk files")
         self.assertTrue(keep.exists())
 
     def test_a_stale_chunk_from_an_earlier_run_is_never_reused(self):
@@ -162,7 +162,7 @@ class UntrustedChunkTest(Env):
 
     def test_garbage_in_the_cached_results_file_is_ignored(self):
         self.put(good_chunk())
-        (self.out / ".gentle_semantic_cached.json").write_text(json.dumps({"nodes": [{"id": ["x"]}, "s", {"id": "ok_one", "label": "o", "file_type": "concept", "source_file": "c.md"}], "edges": "no", "hyperedges": 7}))
+        (self.out / ".amauta_semantic_cached.json").write_text(json.dumps({"nodes": [{"id": ["x"]}, "s", {"id": "ok_one", "label": "o", "file_type": "concept", "source_file": "c.md"}], "edges": "no", "hyperedges": 7}))
         code, report, err = self.merge()
         self.assertEqual(code, 0, err)
         ids = {n["id"] for n in self.graph()["nodes"]}
@@ -223,7 +223,7 @@ class CleanupTest(Env):
     def test_plan_also_removes_leftover_reply_files(self):
         self.doc("docs/a.md")
         self.plan()
-        reply = Path(self.repo / "graphify-out" / ".gentle_semantic_reply_01.json")
+        reply = Path(self.repo / "graphify-out" / ".amauta_semantic_reply_01.json")
         reply.write_text("{}")
         self.plan()
         self.assertFalse(reply.exists())

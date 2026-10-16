@@ -58,7 +58,7 @@ class SaveChunkTest(Env):
         self.assertEqual(code, 2, err)
         self.assertEqual(report, {})
         self.assertEqual(self.target.read_text(), "PREVIOUS", "a rejected reply never touches the chunk file")
-        self.assertEqual([p.name for p in self.out.glob(".gentle_semantic_tmp*")], [], "no temp file left behind")
+        self.assertEqual([p.name for p in self.out.glob(".amauta_semantic_tmp*")], [], "no temp file left behind")
         if needle:
             self.assertIn(needle, err)
         self.assertNotIn("Traceback", err)
@@ -100,7 +100,7 @@ class SaveChunkTest(Env):
             self.assertIn("chunk", err)
 
     def test_requires_a_plan(self):
-        (self.out / ".gentle_semantic_plan.json").unlink()
+        (self.out / ".amauta_semantic_plan.json").unlink()
         code, _, err = self.save(json.dumps(good_chunk()))
         self.assertEqual(code, 2)
         self.assertIn("plan", err)
@@ -120,7 +120,7 @@ class SaveChunkTest(Env):
         lock = gl.lock_path(self.repo)
         lock.mkdir()
         (lock / "pid").write_text(f"{os.getpid()}\n")
-        reply = self.out / ".gentle_semantic_reply_01.json"
+        reply = self.out / ".amauta_semantic_reply_01.json"
         reply.write_text(json.dumps(good_chunk()))
         before = reply.read_bytes()
         code, _, _ = run_main("save-chunk", "1", "--repo", str(self.repo), "--input", str(reply))
