@@ -4,6 +4,8 @@ from __future__ import annotations
 import hmac
 import json
 import secrets
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
@@ -14,21 +16,43 @@ LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another inte
 STATIC = Path(__file__).resolve().parent / "static"
 JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
 STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
+                "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
 MAX_BODY = 1024
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; img-src 'self' data:; "
+CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; img-src 'self' data:; manifest-src 'self'; "
        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+class IdleMonitor:
+    """Thread-safe 'no heartbeat for N seconds' timer; the clock is injectable so tests never sleep."""
+
+    def __init__(self, timeout: float, clock=time.monotonic):
+        if timeout <= 0:
+            raise ValueError("idle timeout must be positive")
+        self.timeout = timeout
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._last = clock()
+
+    def beat(self) -> None:
+        with self._lock:
+            self._last = self._clock()
+
+    def expired(self) -> bool:
+        with self._lock:
+            return self._clock() - self._last >= self.timeout
 
 
 class PortalServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, cfg, port):
+    def __init__(self, cfg, port, idle_exit=None, clock=time.monotonic):
         super().__init__((LOOPBACK, port), Handler)
+        self.idle = IdleMonitor(idle_exit, clock) if idle_exit else None
         self.portal = Portal(cfg)
         self.token = secrets.token_urlsafe(32)
         self.port = self.server_address[1]
@@ -37,8 +61,20 @@ class PortalServer(ThreadingHTTPServer):
         return {f"{LOOPBACK}:{self.port}", f"localhost:{self.port}"}
 
 
-def make_server(cfg, port: int = 8765) -> PortalServer:
-    return PortalServer(cfg, port)
+def make_server(cfg, port: int = 8765, idle_exit=None, clock=time.monotonic) -> PortalServer:
+    return PortalServer(cfg, port, idle_exit=idle_exit, clock=clock)
+
+
+def watch_idle(srv: PortalServer, interval: float = 1.0) -> threading.Thread:
+    """Start a daemon thread that stops `srv.serve_forever()` once the idle monitor expires (no-op without one)."""
+    def run():
+        while srv.idle is not None and not srv.idle.expired():
+            time.sleep(interval)
+        if srv.idle is not None:
+            srv.shutdown()
+    t = threading.Thread(target=run, name="amauta-portal-idle", daemon=True)
+    t.start()
+    return t
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -98,16 +134,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(status, body)
         self._json(404, {"error": "not found"})
 
+    def _write_guard(self):
+        """Host, same-origin and token checks shared by every POST endpoint; True when the request may proceed."""
+        if not self._origin_ok() or self.headers.get("Sec-Fetch-Site") not in (None, "same-origin", "none"):
+            self._json(403, {"error": "cross-origin request refused"})
+            return False
+        supplied = self.headers.get("X-Portal-Token", "")
+        if not hmac.compare_digest(supplied.encode(), self.server.token.encode()):
+            self._json(403, {"error": "missing or wrong token"})
+            return False
+        return True
+
     def do_POST(self):
         if not self._host_ok():
             return
-        if urlsplit(self.path).path != "/api/refresh":
+        path = urlsplit(self.path).path
+        if path not in ("/api/refresh", "/api/heartbeat"):
             return self._json(404, {"error": "not found"})
-        if not self._origin_ok() or self.headers.get("Sec-Fetch-Site") not in (None, "same-origin", "none"):
-            return self._json(403, {"error": "cross-origin request refused"})
-        supplied = self.headers.get("X-Portal-Token", "")
-        if not hmac.compare_digest(supplied.encode(), self.server.token.encode()):
-            return self._json(403, {"error": "missing or wrong token"})
+        if not self._write_guard():
+            return
+        if path == "/api/heartbeat":
+            if self.server.idle is not None:
+                self.server.idle.beat()
+            return self._json(200, {"ok": True})
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:

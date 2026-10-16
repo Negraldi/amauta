@@ -536,3 +536,7 @@ window.addEventListener("hashchange", () => { state.route = R.parseHash(location
 state.route = R.parseHash(location.hash);
 loadRecent();
 loadProjects().then(render);
+// Liveness signal: lets a launcher-started server exit once the window is gone. Failures are silent on purpose.
+function heartbeat() { fetch("/api/heartbeat", { method: "POST", headers: { "X-Portal-Token": token } }).catch(() => {}); }
+heartbeat();
+setInterval(heartbeat, 10000);

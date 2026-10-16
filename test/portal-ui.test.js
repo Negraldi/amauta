@@ -227,3 +227,11 @@ test('graph memory: API failures are shown inline', async () => {
     assert.deepEqual(rejections, []);
   });
 });
+
+test('the page sends a token-authenticated heartbeat every 10 seconds', async () => {
+  const js = await read('app.js');
+  assert.match(js, /\/api\/heartbeat/);
+  assert.match(js, /setInterval\(heartbeat, 10000\)/);
+  assert.match(js, /heartbeat[\s\S]{0,200}X-Portal-Token/);
+  assert.match(await read('index.html'), /rel="manifest" href="\/static\/manifest\.webmanifest"/);
+});
