@@ -23,7 +23,7 @@ STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.mi
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
 MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
-SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo": "undo"}
+SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
 # frame-src 'self' is the only addition for archify: the Harness page embeds /archify/<hash>.html in a sandboxed iframe.

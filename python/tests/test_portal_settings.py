@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from python.amauta.portal import server
+from python.amauta.portal import server, settings as settings_mod
 from python.amauta.portal.config import Config
 
 REPO = Path(__file__).resolve().parents[2]
@@ -21,6 +21,20 @@ LOG = pathlib.Path({log!r}); STATE = pathlib.Path({state!r}); FLAGS = pathlib.Pa
 argv = sys.argv[1:]
 with LOG.open("a") as f:
     f.write(json.dumps({{"argv": argv, "env": sorted(os.environ)}}) + "\\n")
+BK = STATE.parent / "backups"
+if argv[0] == "install" and "--dry-run" in argv:
+    if (FLAGS / "slowdry").exists():
+        time.sleep(1.5)
+    if (FLAGS / "mutate_on_dry").exists():
+        STATE.write_text(json.dumps({{"persona": "gentleman", "rdd_mode": "on"}}))
+if argv[0] == "install" and "--dry-run" not in argv and (FLAGS / "hang").exists():
+    (BK / "20261016T111111Z").mkdir(parents=True)
+    import subprocess
+    (FLAGS / "gpid").write_text(str(subprocess.Popen(["sleep", "300"]).pid))
+    time.sleep(300)
+if argv[0] == "install" and "--dry-run" not in argv and (FLAGS / "failbackup").exists():
+    (BK / "20261016T222222Z").mkdir(parents=True)
+    sys.stderr.write("half done\\n"); sys.exit(1)
 if (FLAGS / "fail").exists():
     sys.stderr.write("boom: it broke\\n"); sys.exit(1)
 if argv[0] == "install":
@@ -129,12 +143,13 @@ class ReadTest(SettingsBase):
 
 
 class GuardTest(SettingsBase):
-    PATHS = ("/api/settings/preview", "/api/settings/apply", "/api/settings/undo")
-    GOOD = {"preview": {"persona": "neutral"}, "apply": {"apply_token": "x", "confirm": True}, "undo": {"confirm": True}}
+    PATHS = ("/api/settings/preview", "/api/settings/apply", "/api/settings/undo/preview", "/api/settings/undo")
+    GOOD = {"/api/settings/preview": {"persona": "neutral"}, "/api/settings/apply": {"apply_token": "x", "confirm": True},
+            "/api/settings/undo/preview": {}, "/api/settings/undo": {"apply_token": "x", "confirm": True}}
 
     def each(self):
         for p in self.PATHS:
-            yield p, self.GOOD[p.rsplit("/", 1)[1]]
+            yield p, self.GOOD[p]
 
     def test_only_post_is_accepted(self):
         for p in self.PATHS:
@@ -208,7 +223,9 @@ class GuardTest(SettingsBase):
     def test_apply_and_undo_bodies_are_closed_too(self):
         for p, body in (("/api/settings/apply", {"apply_token": "x", "confirm": True, "persona": "neutral"}), ("/api/settings/apply", {"apply_token": "x"}),
                         ("/api/settings/apply", {"confirm": True}), ("/api/settings/apply", {"apply_token": 5, "confirm": True}),
-                        ("/api/settings/undo", {}), ("/api/settings/undo", {"confirm": "yes"}), ("/api/settings/undo", {"confirm": True, "backup": "../x"})):
+                        ("/api/settings/undo", {}), ("/api/settings/undo", {"confirm": True}), ("/api/settings/undo", {"apply_token": "x", "confirm": "yes"}),
+                        ("/api/settings/undo", {"apply_token": "x", "confirm": True, "backup": "../x"}), ("/api/settings/undo/preview", {"backup": "../x"}),
+                        ("/api/settings/undo/preview", {"confirm": True})):
             self.assertEqual(self.post(p, body)[0], 400, (p, body))
         self.assertEqual(self.calls(), [])
 
@@ -342,41 +359,158 @@ class FlowTest(SettingsBase):
         self.assertIn("boom", data["detail"])
         self.assertFalse((self.state_dir / "portal-settings.log").exists())
 
-    def undo(self, confirm=True):
-        return self.post("/api/settings/undo", {"confirm": confirm})
+    def undo_preview(self):
+        return self.post("/api/settings/undo/preview", {})
+
+    def undo(self, token, confirm=True):
+        return self.post("/api/settings/undo", {"apply_token": token, "confirm": confirm})
+
+    def installs(self):
+        return [c["argv"] for c in self.calls() if c["argv"][0] == "install"]
 
     def test_undo_without_a_portal_apply_is_refused(self):
-        status, data, _ = self.undo()
+        status, data, _ = self.undo_preview()
         self.assertEqual(status, 409)
         self.assertIn("no portal change", data["error"])
-        self.assertEqual([c for c in self.calls() if c["argv"][0] == "restore"], [])
+        self.assertEqual(self.installs(), [])
 
-    def test_undo_restores_the_logged_backup_through_the_installer(self):
-        data = self.apply(self.preview({"persona": "neutral"})["apply_token"])[1]
-        self.assertTrue(self.describe()["undo"]["available"])
-        self.assertEqual(self.describe()["undo"]["backup"], data["backup"])
-        status, res, _ = self.undo()
+    def test_undo_previews_then_reruns_install_with_the_logged_previous_values(self):
+        applied = self.apply(self.preview({"persona": "neutral", "modules": {"sdd": "on"}})["apply_token"])[1]
+        d = self.describe()["undo"]
+        self.assertTrue(d["available"])
+        n_before = len(self.installs())
+        status, prev, _ = self.undo_preview()
+        self.assertEqual(status, 200, prev)
+        self.assertEqual({c["key"]: (c["from"], c["to"]) for c in prev["changes"]}, {"persona": ("neutral", "gentleman"), "module:sdd": ("on", "off")})
+        dry = self.installs()[n_before:]
+        self.assertEqual(len(dry), 1)
+        self.assertIn("--dry-run", dry[0])
+        self.assertEqual(dry[0][dry[0].index("--persona") + 1], "gentleman")
+        self.assertIn("--without-sdd", dry[0])
+        self.assertEqual(self.describe()["current"]["persona"], "neutral", "the preview changed nothing")
+        status, res, _ = self.undo(prev["apply_token"])
         self.assertEqual(status, 200, res)
-        self.assertEqual(res["backup"], data["backup"])
-        self.assertEqual(res["restored"], ["/x/settings.json"])
-        restore = [c["argv"] for c in self.calls() if c["argv"][0] == "restore"]
-        self.assertEqual(len(restore), 1)
-        self.assertEqual(restore[0][restore[0].index("--backup") + 1], data["backup"])
+        self.assertTrue(res["ok"])
+        self.assertNotEqual(res["backup"], applied["backup"], "undo makes its own fresh backup")
+        real = self.installs()[-1]
+        self.assertNotIn("--dry-run", real)
+        self.assertEqual(real[real.index("--persona") + 1], "gentleman")
+        self.assertIn("--without-sdd", real)
+        self.assertEqual([c for c in self.calls() if c["argv"][0] == "restore"], [], "the portal never restores snapshots")
+        self.assertEqual(self.describe()["current"]["persona"], "gentleman")
+        log = [json.loads(line) for line in (self.state_dir / "portal-settings.log").read_text().splitlines()]
+        self.assertEqual([e["action"] for e in log], ["apply", "undo"])
+        self.assertEqual(log[1]["backup"], res["backup"])
         self.assertFalse(self.describe()["undo"]["available"])
-        self.assertEqual(self.undo()[0], 409, "an apply can be undone once")
+        self.assertEqual(self.undo_preview()[0], 409, "an apply can be undone once")
 
-    def test_undo_is_refused_when_the_harness_changed_after_the_apply(self):
+    def test_undo_token_is_single_use_and_not_interchangeable_with_apply(self):
+        self.apply(self.preview({"persona": "neutral"})["apply_token"])
+        utoken = self.undo_preview()[1]["apply_token"]
+        self.assertEqual(self.apply(utoken)[0], 400, "an undo token cannot be applied as a plain change")
+        utoken = self.undo_preview()[1]["apply_token"]
+        self.assertEqual(self.undo(utoken)[0], 200)
+        self.assertEqual(self.undo(utoken)[0], 400)
+        ptoken = self.preview({"persona": "neutral"})["apply_token"]
+        self.assertEqual(self.undo(ptoken)[0], 400, "an apply token cannot undo")
+
+    def test_undo_is_refused_when_the_settings_changed_after_the_apply(self):
         self.apply(self.preview({"persona": "neutral"})["apply_token"])
         self.write_state(persona="gentleman", rdd_mode="on")
-        status, data, _ = self.undo()
+        n = len(self.installs())
+        status, data, _ = self.undo_preview()
         self.assertEqual(status, 409)
         self.assertIn("changed", data["error"])
-        self.assertEqual([c for c in self.calls() if c["argv"][0] == "restore"], [])
+        self.assertEqual(len(self.installs()), n)
+
+    def test_undo_is_refused_when_the_state_moved_between_preview_and_confirm(self):
+        self.apply(self.preview({"persona": "neutral"})["apply_token"])
+        token = self.undo_preview()[1]["apply_token"]
+        self.write_state(persona="neutral", rdd_mode="on")
+        n = len(self.installs())
+        status, data, _ = self.undo(token)
+        self.assertEqual(status, 409)
+        self.assertIn("preview again", data["error"])
+        self.assertEqual(len(self.installs()), n)
 
     def test_undo_needs_confirm(self):
         self.apply(self.preview({"persona": "neutral"})["apply_token"])
-        self.assertEqual(self.undo(confirm=False)[0], 400)
-        self.assertEqual([c for c in self.calls() if c["argv"][0] == "restore"], [])
+        token = self.undo_preview()[1]["apply_token"]
+        n = len(self.installs())
+        self.assertEqual(self.undo(token, confirm=False)[0], 400)
+        self.assertEqual(len(self.installs()), n)
+
+    def test_claude_json_is_passed_as_one_token(self):
+        with mock.patch.dict(os.environ, {"AMAUTA_CLAUDE_JSON": "/sandbox/claude.json"}):
+            self.preview({"persona": "neutral"})
+        argv = self.calls()[0]["argv"]
+        self.assertIn("--claude-json=/sandbox/claude.json", argv)
+        self.assertNotIn("--claude-json", argv)
+
+    def test_a_killed_apply_kills_the_whole_group_and_logs_the_partial_backup(self):
+        token = self.preview({"persona": "neutral"})["apply_token"]
+        (self.flags / "hang").write_text("1")
+        with mock.patch.object(settings_mod, "APPLY_TIMEOUT", 2):
+            status, data, _ = self.apply(token)
+        self.assertEqual(status, 504)
+        self.assertEqual(data.get("backup"), "20261016T111111Z")
+        gpid = int((self.flags / "gpid").read_text())
+        deadline = time.time() + 5
+        alive = True
+        while alive and time.time() < deadline:
+            try:
+                os.kill(gpid, 0)
+                st = Path(f"/proc/{gpid}/stat").read_text().split()[2] if Path(f"/proc/{gpid}/stat").exists() else "Z"
+                alive = st != "Z"
+            except OSError:
+                alive = False
+            time.sleep(0.05)
+        self.assertFalse(alive, "the grandchild was killed with the group")
+        log = [json.loads(line) for line in (self.state_dir / "portal-settings.log").read_text().splitlines()]
+        self.assertEqual(len(log), 1)
+        self.assertEqual((log[0]["action"], log[0]["backup"], log[0]["status"]), ("apply_failed", "20261016T111111Z", "timeout"))
+        self.assertFalse(self.describe()["undo"]["available"], "a failed run is visible but not an undo target")
+
+    def test_a_failed_apply_that_made_a_backup_is_logged(self):
+        token = self.preview({"persona": "neutral"})["apply_token"]
+        (self.flags / "failbackup").write_text("1")
+        status, data, _ = self.apply(token)
+        self.assertEqual(status, 502)
+        self.assertEqual(data.get("backup"), "20261016T222222Z")
+        log = [json.loads(line) for line in (self.state_dir / "portal-settings.log").read_text().splitlines()]
+        self.assertEqual((log[0]["action"], log[0]["backup"], log[0]["status"]), ("apply_failed", "20261016T222222Z", "failed"))
+
+    def test_preview_is_refused_when_the_state_changes_during_the_dry_run(self):
+        (self.flags / "mutate_on_dry").write_text("1")
+        status, data, _ = self.post("/api/settings/preview", {"persona": "neutral"})
+        self.assertEqual(status, 409)
+        self.assertIn("preview again", data["error"])
+        self.assertNotIn("apply_token", data)
+
+    def test_parallel_previews_are_capped_at_two(self):
+        (self.flags / "slowdry").write_text("1")
+        results = []
+        threads = [threading.Thread(target=lambda: results.append(self.post("/api/settings/preview", {"persona": "neutral"})[0])) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(sorted(results), [200, 200, 429, 429])
+
+    def test_lock_busy_message_says_to_preview_again(self):
+        (self.flags / "slow").write_text("1")
+        t1 = self.preview({"persona": "neutral"})["apply_token"]
+        t2 = self.preview({"persona": "neutral", "review_mode": "on"})["apply_token"]
+        th = threading.Thread(target=lambda: self.apply(t1))
+        th.start()
+        deadline = time.time() + 10
+        while not (self.flags / "started").exists() and time.time() < deadline:
+            time.sleep(0.02)
+        status, data, _ = self.apply(t2)
+        th.join()
+        self.assertEqual(status, 409)
+        self.assertIn("preview again", data["error"])
+        self.assertEqual(self.apply(t2)[0], 400, "the token was consumed")
 
 
 def tree(root: Path) -> dict:
@@ -415,15 +549,24 @@ class RealInstallerRoundTrip(unittest.TestCase):
                     self.assertTrue((home / "skills" / "archify" / "SKILL.md").is_file())
                     self.assertEqual(json.loads((home / "settings.json").read_text())["outputStyle"], "Neutral")
                     self.assertEqual(http_call(port, "GET", "/api/settings")[1]["current"]["modules"]["archify"], "on")
-                    st, undone, _ = http_call(port, "POST", "/api/settings/undo", hdr, json.dumps({"confirm": True}))
+                    # Newer edits made by hand after the apply must survive the undo.
+                    cj_data = json.loads(cj.read_text()); cj_data["dummyKey"] = {"keep": True}; cj.write_text(json.dumps(cj_data))
+                    st_data = json.loads((home / "settings.json").read_text()); st_data["dummySetting"] = 1; (home / "settings.json").write_text(json.dumps(st_data))
+                    st, uprev, _ = http_call(port, "POST", "/api/settings/undo/preview", hdr, "{}")
+                    self.assertEqual(st, 200, uprev)
+                    self.assertIn("persona", {c["key"] for c in uprev["changes"]})
+                    st, undone, _ = http_call(port, "POST", "/api/settings/undo", hdr, json.dumps({"apply_token": uprev["apply_token"], "confirm": True}))
                     self.assertEqual(st, 200, undone)
-                    self.assertEqual(undone["backup"], res["backup"])
-                    self.assertTrue(undone["restored"])
-                    after = tree(home), cj.read_bytes(), (state / "state.json").read_bytes()
-                    self.assertEqual(before[1:], after[1:])
-                    self.assertEqual(before[0], after[0], "every file of the Claude home is back byte for byte")
+                    self.assertNotEqual(undone["backup"], res["backup"])
+                    self.assertTrue((state / "backups" / undone["backup"]).is_dir())
+                    s = json.loads((state / "state.json").read_text())
+                    self.assertEqual((s["persona"], s["rdd_mode"], s["telemetry"], s["archify"]), ("gentleman", "off", True, False))
+                    self.assertEqual(json.loads(cj.read_text())["dummyKey"], {"keep": True})
+                    now_settings = json.loads((home / "settings.json").read_text())
+                    self.assertEqual(now_settings["dummySetting"], 1)
+                    self.assertEqual(now_settings["outputStyle"], "Gentleman")
                     self.assertFalse((home / "skills" / "archify").exists())
-                    self.assertEqual(http_call(port, "POST", "/api/settings/undo", hdr, json.dumps({"confirm": True}))[0], 409)
+                    self.assertEqual(http_call(port, "POST", "/api/settings/undo/preview", hdr, "{}")[0], 409)
                     # Turning a module off again goes through the installer too.
                     st, prev, _ = http_call(port, "POST", "/api/settings/preview", hdr, json.dumps({"modules": {"sdd": "on"}}))
                     http_call(port, "POST", "/api/settings/apply", hdr, json.dumps({"apply_token": prev["apply_token"], "confirm": True}))
