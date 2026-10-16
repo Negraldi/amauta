@@ -67,12 +67,12 @@ F5 Launcher
 - [x] W18 Heartbeat auto-shutdown fallback; optional web manifest and icon. (`b67c928`; `POST /api/heartbeat`, `--idle-exit`, IdleMonitor with fake clock, manifest + icon.svg, CSP `manifest-src 'self'`; npm test exit 0, node 374, python 355. Route: delegated to one writer.)
 
 F2 Entity pages
-- [ ] W6 Memory topic page: content, revision history with diff, derived links/backlinks, related graph nodes.
-- [ ] W7 Skill/tool/MCP page: rendered SKILL.md, usage, sessions, tokens.
-- [ ] W8 Session page: skills, tools, subagents, tokens, memories saved.
-- [ ] W9 ODD feature page: rendered doc, progress, linked commits.
-- [ ] W10 Graph node page: neighbors and neighborhood diagram.
-- [ ] W11 Home: overview numbers, charts, recent activity.
+- [x] W6 Memory topic page: content, revision history with diff, derived links/backlinks, related graph nodes. (`15a4a9a`; the store keeps one row per topic_key and no revisions table (own and engram DBs checked), so the page states "latest revision only" and shows a line diff only when an `observation_revisions|versions|history` table exists; hierarchy, capped mentions >= 12 chars whole-word, graph nodes by label; also session labels by git-root repo + prompt snippet + date and leading-H1 dedupe; npm test exit 0, node 400, python 374. Route: delegated direct (writer trigger: 2+ files).)
+- [x] W7 Skill/tool/MCP page: rendered SKILL.md, usage, sessions, tokens. (`f1e69d8`; node 401, python 385, exit 0. Route: delegated direct (writer trigger: 2+ files).)
+- [x] W8 Session page: skills, tools, subagents, tokens, memories saved. (`f1e69d8`, same commit as W7.)
+- [x] W9 ODD feature page: rendered doc, progress, linked commits. (`5fd7ae0`; `git log -1` per validated hash, 5 s timeout, unresolved stay plain; node 404, python 398, exit 0. Route: delegated direct (writer trigger: 2+ files).)
+- [x] W10 Graph node page: neighbors and neighborhood diagram. (`5fd7ae0`, same commit as W9.)
+- [x] W11 Home: overview numbers, charts, recent activity. (`1da8c80`; `/api/wiki/home`, old overview at `#/usage`; node 406, python 404, exit 0. Route: delegated direct (writer trigger: 2+ files).)
 
 F3 Diagrams
 - [ ] W12 Vendor archify (update check off); generate harness architecture JSON from install state; render on `#/harness`.
@@ -121,6 +121,8 @@ F8 Publish and transition
   `e41ae64` wiki shell: `wikiroute.js`, sidebar, recent changes, palette, design-system CSS (node 373, python 342).
   Manual check on real data (read-only, port 8799): endpoints, fonts (font/woff2, sha256 matches the manifest) and CSP verified with curl; browser check of light/dark/phone width is still W15.
 
+- W6-W11 manual check on real data (read-only, port 8799, stopped after): memory, skill python-testing (installed, 0 calls) and impeccable (2 calls), current session, feature portal-wiki (7 commits resolved, 7 of 29 done) and home endpoints answered 200 with the expected shape; no node page checked (the amauta repo graph is not mirrored in the real DB). Browser look is pending (W15).
+
 ## Next step
 
-F2 entity pages (W6-W11): fill the page schema richly (revision diff, SKILL.md rendering, session detail, ODD commits, node diagram, home).
+F3 diagrams (W12-W13), then F6 skill-impact, F7 settings, F4 quality (browser check of the new pages in W15).
