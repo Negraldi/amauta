@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeEnv, Element } from './helpers/fakedom.js';
+import { runPortal } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
@@ -38,7 +39,7 @@ async function boot(hash, { failRender = false } = {}) {
   env.document.head = head;
   env.document.importNode = (n) => n;
   class DOMParser { parseFromString(_s, type) { log.parsedAs = type; return { body: { querySelector: () => new Element('svg') } }; } }
-  vm.runInNewContext(await read('app.js'), { ...env, DOMParser, URLSearchParams, console, setTimeout, String, Number, Object, Math, Array, Promise, Error, RegExp, queueMicrotask });
+  await runPortal(env, { DOMParser, queueMicrotask });
   await tick();
   return { env, log };
 }

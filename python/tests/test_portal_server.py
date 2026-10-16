@@ -78,6 +78,35 @@ class ReadTest(ServerBase):
         for bad in ("/static/../api.py", "/static/%2e%2e/api.py", "/static/nope.js", "/api/nope", "/..%2f..%2fetc/passwd", "/x"):
             self.assertEqual(self.request("GET", bad)[0], 404, bad)
 
+    def test_new_static_modules_and_fonts_are_served_with_the_right_types(self):
+        for name, ctype in (("markdown.js", "text/javascript; charset=utf-8"), ("wikiroute.js", "text/javascript; charset=utf-8"),
+                            ("fonts/source-serif-4-latin-400-normal.woff2", "font/woff2"), ("fonts/source-serif-4-latin-400-italic.woff2", "font/woff2"),
+                            ("fonts/source-serif-4-latin-600-normal.woff2", "font/woff2")):
+            status, h, body = self.request("GET", f"/static/{name}")
+            self.assertEqual((status, h["content-type"]), (200, ctype), name)
+            self.assertEqual(h["x-content-type-options"], "nosniff")
+            self.assertTrue(body)
+        self.assertEqual(self.request("GET", "/static/fonts/OFL.txt")[0], 404)  # license ships with the repo, not through the whitelist
+        for bad in ("/static/fonts/../app.js", "/static/fonts/%2e%2e/app.js", "/static/fonts/nope.woff2", "/static/fonts/"):
+            self.assertEqual(self.request("GET", bad)[0], 404, bad)
+
+    def test_csp_allows_only_same_origin_fonts_and_keeps_scripts_strict(self):
+        csp = self.request("GET", "/")[1]["content-security-policy"]
+        directives = {d.strip().split(" ", 1)[0]: d.strip() for d in csp.split(";") if d.strip()}
+        self.assertEqual(directives["font-src"], "font-src 'self'")
+        self.assertEqual(directives["script-src"], "script-src 'self'")
+        self.assertEqual(directives["default-src"], "default-src 'none'")
+        self.assertEqual(directives["connect-src"], "connect-src 'self'")
+
+    def test_wiki_endpoints_are_served_and_read_only(self):
+        for path in ("/api/wiki/recent", "/api/wiki/search?q=widgets", "/api/wiki/page?kind=memory&id=1"):
+            status, h, body = self.request("GET", path)
+            self.assertEqual(status, 200, path)
+            self.assertEqual(h["content-type"], "application/json; charset=utf-8")
+        self.assertEqual(self.request("GET", "/api/wiki/page?kind=memory&id=999")[0], 404)
+        self.assertEqual(self.request("POST", "/api/wiki/search?q=x")[0], 404)
+        self.assertEqual(self.request("GET", "/api/wiki/search?q=x", host="evil.example")[0], 403)
+
     def test_unknown_methods_rejected(self):
         for m in ("PUT", "DELETE", "PATCH"):
             self.assertEqual(self.request(m, "/api/overview")[0], 405, m)
