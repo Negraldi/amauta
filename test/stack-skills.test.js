@@ -7,7 +7,7 @@ import path from 'node:path';
 import { loadManifest, assetPath, readAssetText } from '../src/install/assets.js';
 import { install } from '../src/install/installer.js';
 
-const STACK = ['cpp-testing', 'python-testing', 'node-testing', 'r-testing', 'tabular-data', 'doc-formats'];
+const STACK = ['cpp-testing', 'python-testing', 'node-testing', 'r-testing', 'tabular-data', 'doc-formats', 'mermaid-diagrams'];
 
 test('go-testing is gone from the manifest and from disk', async () => {
   const m = await loadManifest();
@@ -42,4 +42,13 @@ test('install puts the stack skills under ~/.claude/skills and no go-testing', a
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('mermaid-diagrams teaches when to draw, which type, the syntax traps and how to validate', async () => {
+  const text = await readAssetText('skills/mermaid-diagrams/SKILL.md');
+  for (const needle of ['flowchart', 'sequenceDiagram', 'erDiagram', 'stateDiagram-v2', 'classDiagram', 'gantt', '`end`', 'subgraph', '```mermaid', 'amauta mermaid check', 'GitHub']) {
+    assert.ok(text.includes(needle), `missing: ${needle}`);
+  }
+  assert.match(text, /quote/i);
+  assert.doesNotMatch(text, /https?:\/\//); // local contract: no external references
 });
