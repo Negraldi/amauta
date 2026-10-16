@@ -5,6 +5,7 @@ import { registerReviewCommands } from './review/cli.js';
 import { registerPortalCommands } from './portal/cli.js';
 import { registerCodegraphCommands } from './codegraph/index.js';
 import { registerGraphifyCommands } from './graphify/hook.js';
+import { registerMermaidCommands } from './mermaid/cli.js';
 
 /**
  * Subcommand registry. Each entry: { summary, run(args, io) -> exit code | Promise }.
@@ -37,6 +38,7 @@ registerReviewCommands(commands);
 registerPortalCommands(commands);
 registerCodegraphCommands(commands);
 registerGraphifyCommands(commands);
+registerMermaidCommands(commands);
 
 export async function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const [name, ...rest] = argv;
