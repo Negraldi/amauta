@@ -69,6 +69,61 @@ class BuildTest(unittest.TestCase):
         self.assertIn(f"{50 - archify.MAX_EVENTS} more events", {c["label"] for c in ir["components"]})
         self.assertIn(f"{50 - archify.MAX_SERVERS} more servers", {c["label"] for c in ir["components"]})
 
+    def groups(self, ir):
+        return [set(b["wraps"]) for b in ir["boundaries"]]
+
+    def test_layout_has_no_fan_out_every_group_is_reached_by_one_connection(self):
+        hs = {**HS, "hooks": [{"event": f"E{i}", "kind": "other"} for i in range(8)], "mcp_servers": [{"name": f"s{i}", "type": "stdio"} for i in range(8)]}
+        ir = archify.build(hs, STORES)
+        self.assertEqual(archify.check(ir), [])
+        core = ir["components"][0]["id"]
+        degree = {}
+        for c in ir["connections"]:
+            for end in (c["from"], c["to"]):
+                degree[end] = degree.get(end, 0) + 1
+        self.assertLessEqual(degree[core], 4, "the hub keeps one line per group")
+        self.assertTrue(all(d == 1 for cid, d in degree.items() if cid != core))
+        self.assertEqual(len(ir["boundaries"]), 4)
+        grouped = set().union(*self.groups(ir))
+        self.assertEqual(grouped, {c["id"] for c in ir["components"]} - {core}, "every non-hub component sits inside exactly one labelled group")
+        self.assertEqual(sum(len(g) for g in self.groups(ir)), len(grouped))
+
+    def test_hub_is_centered_on_the_hook_and_server_groups_so_those_lines_are_straight(self):
+        hs = {**HS, "hooks": [{"event": f"E{i}", "kind": "other"} for i in range(5)], "mcp_servers": [{"name": f"s{i}", "type": "stdio"} for i in range(3)]}
+        ir = archify.build(hs, STORES)
+        pos = {c["id"]: (c["row"], c["col"]) for c in ir["components"]}
+        core = ir["components"][0]["id"]
+        by_target = {c["to"]: c for c in ir["connections"]}
+        for k in ir["connections"]:
+            if k["from"] == core and pos[k["to"]][0] != pos[core][0]:
+                self.assertEqual(pos[k["to"]][1], pos[core][1], "vertical connections are straight")
+
+    def test_no_two_components_share_a_cell_and_no_line_crosses_a_node_in_its_row(self):
+        for n_hooks, n_servers in ((1, 1), (3, 2), (8, 8), (50, 50)):
+            hs = {**HS, "hooks": [{"event": f"E{i:02}", "kind": "other"} for i in range(n_hooks)], "mcp_servers": [{"name": f"s{i}", "type": "stdio"} for i in range(n_servers)]}
+            ir = archify.build(hs, STORES)
+            cells = [(c["row"], c["col"]) for c in ir["components"]]
+            self.assertEqual(len(cells), len(set(cells)), (n_hooks, n_servers))
+            pos = {c["id"]: (c["row"], c["col"]) for c in ir["components"]}
+            for k in ir["connections"]:
+                (r1, c1), (r2, c2) = pos[k["from"]], pos[k["to"]]
+                if r1 == r2:
+                    between = [p for p in cells if p[0] == r1 and min(c1, c2) < p[1] < max(c1, c2)]
+                    self.assertEqual(between, [], f"{k['id']} passes through a node")
+            self.assertTrue(all(c["col"] < ir["layout"]["cols"] for c in ir["components"]))
+
+    def test_hook_events_follow_the_session_lifecycle_then_alphabetical(self):
+        hs = {**HS, "hooks": [{"event": e, "kind": "other"} for e in ("Stop", "Zeta", "PostToolUse", "Alpha", "SessionStart", "UserPromptSubmit")]}
+        ir = archify.build(hs, [])
+        row0 = sorted((c for c in ir["components"] if c["row"] == 0), key=lambda c: c["col"])
+        self.assertEqual([c["label"] for c in row0], ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "Alpha", "Zeta"])
+
+    def test_without_boundaries_every_member_keeps_its_own_line_as_a_fallback(self):
+        ir = archify.build(HS, STORES, boundaries=False)
+        self.assertEqual(ir["boundaries"], [])
+        linked = {c["to"] for c in ir["connections"]}
+        self.assertEqual(linked, {c["id"] for c in ir["components"]} - {ir["components"][0]["id"]})
+
     def test_check_rejects_what_the_schema_rejects(self):
         ir = archify.build(HS, STORES)
         bad = json.loads(json.dumps(ir))

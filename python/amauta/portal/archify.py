@@ -17,6 +17,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 MAX_EVENTS = 8
+LIFECYCLE = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStop", "Stop", "PreCompact", "SessionEnd")
 MAX_SERVERS = 8
 RENDER_TIMEOUT = 40
 MAX_HTML = 8 * 1024 * 1024
@@ -44,11 +45,15 @@ def build(hs: dict, stores: list | None = None, boundaries: bool = True) -> dict
         kinds = by_event.setdefault(clean(h.get("event"), 40), {})
         k = clean(h.get("kind"), 20)
         kinds[k] = kinds.get(k, 0) + 1
-    events = sorted(by_event)
+    events = sorted(by_event, key=lambda e: (LIFECYCLE.index(e) if e in LIFECYCLE else len(LIFECYCLE), e))  # lifecycle order, unknown events last
     servers = hs.get("mcp_servers") or []
     shown_e, shown_s = events[:MAX_EVENTS], servers[:MAX_SERVERS]
-    cols = max(len(shown_e) + (1 if len(events) > MAX_EVENTS else 0), len(shown_s) + (1 if len(servers) > MAX_SERVERS else 0), 6)
-    mid = cols // 2
+    n_e = len(shown_e) + (1 if len(events) > MAX_EVENTS else 0)
+    n_s = len(shown_s) + (1 if len(servers) > MAX_SERVERS else 0)
+    # The hub sits in the middle column; the hook group (row 0) and the server group (row 2) are centered on it so their one line each is straight.
+    # Left of the hub: installed assets. Right of it: state stores. Every neighbouring pair on the hub's row is adjacent, so no line crosses a node.
+    mid = max(n_e // 2, n_s // 2, 2)
+    cols = max(mid + 3, mid + n_e - n_e // 2, mid + n_s - n_s // 2)
     comps, conns, bounds = [], [], []
 
     def add(kind, label, sub, row, col, tag=None):
@@ -61,49 +66,52 @@ def build(hs: dict, stores: list | None = None, boundaries: bool = True) -> dict
         comps.append(c)
         return cid
 
+    def group(ids, label, kind, anchor, **line):
+        """One labelled boundary around `ids` and one line from the hub to the anchor member; without boundaries every member keeps its own line."""
+        if not ids:
+            return
+        targets = [anchor] if boundaries else ids
+        for cid in targets:
+            conns.append({"id": f"k-{cid}", "from": core, "to": cid, **line})
+        bounds.append({"kind": kind, "label": label, "wraps": ids})
+
     head = " ".join(x for x in ("amauta", clean(hs.get("version"), 16)) if x)
     sub = " · ".join(x for x in (f"persona {clean(hs['persona'], 16)}" if hs.get("persona") else "", f"RDD {clean(hs['rdd_mode'], 12)}" if hs.get("rdd_mode") else "") if x)
     core = add("backend", head, sub, 1, mid)
 
     hook_ids = []
+    start = mid - n_e // 2
     for i, ev in enumerate(shown_e):
         kinds = ", ".join(k if c == 1 else f"{k} x{c}" for k, c in sorted(by_event[ev].items()))
-        hook_ids.append(add("messagebus", ev, kinds, 0, i, "hook"))
+        hook_ids.append(add("messagebus", ev, kinds, 0, start + i, "hook"))
     if len(events) > MAX_EVENTS:
-        hook_ids.append(add("messagebus", f"{len(events) - MAX_EVENTS} more events", "", 0, len(shown_e)))
-    for cid in hook_ids:
-        conns.append({"id": f"k-{cid}", "from": core, "to": cid, "label": "hook" if cid == hook_ids[0] else None})
+        hook_ids.append(add("messagebus", f"{len(events) - MAX_EVENTS} more events", "", 0, start + len(shown_e)))
     if hook_ids:
-        bounds.append({"kind": "region", "label": "Claude Code hooks (settings.json)", "wraps": hook_ids})
+        group(hook_ids, "Claude Code hooks (settings.json)", "region", hook_ids[n_e // 2])
 
-    skills = add("frontend", f"{int(hs.get('skills') or 0)} skills", "installed by amauta", 1, max(mid - 2, 0))
-    agents = add("frontend", f"{int(hs.get('agents') or 0)} agents", "installed by amauta", 1, max(mid - 1, 0))
-    conns += [{"id": "k-skills", "from": core, "to": skills, "fromSide": "left"}, {"id": "k-agents", "from": core, "to": agents, "fromSide": "left"}]
+    agents = add("frontend", f"{int(hs.get('agents') or 0)} agents", "installed by amauta", 1, mid - 2)
+    skills = add("frontend", f"{int(hs.get('skills') or 0)} skills", "installed by amauta", 1, mid - 1)
+    group([agents, skills], "installed assets", "region", skills, fromSide="left")
 
-    store_ids = []
-    for j, st in enumerate((stores or [])[:2]):
-        store_ids.append(add("database", st.get("label"), st.get("detail"), 1, min(mid + 1 + j, cols - 1)))
-    for cid in store_ids:
-        conns.append({"id": f"k-{cid}", "from": core, "to": cid, "variant": "dashed"})
+    store_ids = [add("database", st.get("label"), st.get("detail"), 1, mid + 1 + j) for j, st in enumerate((stores or [])[:2])]
     if store_ids:
-        bounds.append({"kind": "security-group", "label": "state dir", "wraps": store_ids})
+        group(store_ids, "state dir", "security-group", store_ids[0], variant="dashed")
 
     srv_ids = []
+    start = mid - n_s // 2
     for i, s in enumerate(shown_s):
-        srv_ids.append(add("external", s.get("name"), s.get("type"), 2, i, "MCP"))
+        srv_ids.append(add("external", s.get("name"), s.get("type"), 2, start + i, "MCP"))
     if len(servers) > MAX_SERVERS:
-        srv_ids.append(add("external", f"{len(servers) - MAX_SERVERS} more servers", "", 2, len(shown_s)))
-    for cid in srv_ids:
-        conns.append({"id": f"k-{cid}", "from": core, "to": cid, "label": "MCP" if cid == srv_ids[0] else None})
+        srv_ids.append(add("external", f"{len(servers) - MAX_SERVERS} more servers", "", 2, start + len(shown_s)))
     if srv_ids:
-        bounds.append({"kind": "region", "label": "MCP servers (.claude.json)", "wraps": srv_ids})
+        group(srv_ids, "MCP servers (.claude.json)", "region", srv_ids[n_s // 2])
 
     for c in conns:
         for k in [k for k, v in c.items() if v is None]:
             del c[k]
     ir = {"schema_version": 1, "diagram_type": "architecture",
           "meta": {"title": "amauta harness", "output": "harness.html", "quality_profile": "standard"},
-          "layout": {"mode": "grid", "cols": cols, "cellW": 170, "gapX": 40}, "components": comps, "boundaries": bounds if boundaries else [], "connections": conns}
+          "layout": {"mode": "grid", "cols": cols, "cellW": 170, "gapX": 40, "gapY": 90}, "components": comps, "boundaries": bounds if boundaries else [], "connections": conns}
     return ir
 
 
