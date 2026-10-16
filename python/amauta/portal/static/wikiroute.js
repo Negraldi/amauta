@@ -67,5 +67,21 @@
     });
   }
 
-  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, NODE_CAP: 30 };
+  // Skill impact: direction is always shown as a shape plus words (lower is better for every metric), never by color alone.
+  function deltaMark(m) {
+    if (!m || m.suppressed || m.delta == null || !m.verdict) return { mark: "–", text: "not enough data", name: "na" };
+    if (m.verdict === "no clear difference") return { mark: "■", text: "no clear difference", name: "flat" };
+    return m.delta < 0 ? { mark: "▼", text: "lower, better", name: "better" } : { mark: "▲", text: "higher, worse", name: "worse" };
+  }
+  function fmtMetric(name, v) {
+    if (v == null || !Number.isFinite(Number(v))) return "n/a";
+    return name === "tokens_per_turn" ? `${Math.round(v)} tokens` : `${(v * 100).toFixed(1)}%`;
+  }
+  function fmtDelta(name, d) {
+    if (d == null || !Number.isFinite(Number(d))) return "";
+    if (name === "tokens_per_turn") return `${d < 0 ? "-" : "+"}${Math.abs(Math.round(d))} tokens`;
+    return `${d < 0 ? "-" : "+"}${Math.abs(d * 100).toFixed(1)} pp`;
+  }
+
+  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

@@ -209,3 +209,10 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
+
+/* ---- skill impact: direction is a shape plus words; the color only reinforces it ---- */
+.impact .note { border: 1px solid var(--line); background: var(--accent-soft); border-radius: 4px; padding: var(--s2) var(--s3); color: var(--ink); font-weight: 500; }
+.mark { white-space: nowrap; }
+.mark-better { color: var(--ink); }
+.mark-worse { color: var(--ink); font-weight: 600; }
+.mark-na, .mark-flat { color: var(--ink-muted); }

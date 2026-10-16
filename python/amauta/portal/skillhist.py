@@ -166,3 +166,17 @@ def changes(portal, skill, sessions):
     done = sorted(deltas(sessions, skill, points), key=lambda p: p["ts"], reverse=True)
     return {"versions": [{"hash": v["hash"][:12], "first_seen": v["first_seen"], "current": i == len(vs) - 1} for i, v in reversed(list(enumerate(vs)))][:LIST_CAP],
             "commits": commits, "changes": done[:LIST_CAP]}
+
+
+def block(portal, skill, days=si.DAYS, today=None):
+    """The skill page's "Impact (comparative)" data: metrics, sample sizes, change log with before/after deltas, and the correlation note."""
+    observe(portal)
+    conn = portal._usage_conn()
+    if conn is None:
+        return {"available": False, "reason": "no usage data yet", "note": si.NOTE}
+    try:
+        sessions = si.load_sessions(conn, si.since_date(days, today))
+        recorded = si.outcomes_recorded(conn)
+    finally:
+        conn.close()
+    return {"available": True, "days": days, "outcomes_recorded": recorded, "note": si.NOTE, **si.analyze(sessions, skill), "changes": changes(portal, skill, sessions)}

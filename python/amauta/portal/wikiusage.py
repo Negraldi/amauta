@@ -138,6 +138,9 @@ def usage_page(kind):
                 server = conn.execute("SELECT c.mcp_server FROM tool_calls c WHERE c.tool = ? AND c.mcp_server IS NOT NULL LIMIT 1", (ident,)).fetchone()
                 if server:
                     pg["links"] = [_ref("mcp", server[0])]
+            if kind == "skill":
+                from . import skillhist  # lazy: skillhist imports this module for SKILL_NAME
+                pg["impact"] = skillhist.block(portal, ident)
             return pg
         finally:
             if conn is not None:

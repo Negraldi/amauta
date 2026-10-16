@@ -24,7 +24,7 @@ class HomeTest(WikiBase):
 
     def test_shape(self):
         h = self.home()
-        self.assertEqual(set(h), {"activity", "spending", "health"})
+        self.assertEqual(set(h), {"activity", "spending", "health", "impact"})
 
     def test_activity_is_grouped_by_day_newest_first_with_links_data(self):
         days = self.home()["activity"]

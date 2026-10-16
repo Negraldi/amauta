@@ -415,8 +415,46 @@ function taskDiagramBlock(pg) {
     d.tasks > d.shown ? h("p", { class: "muted" }, `Showing the first ${d.shown} of ${fmt(d.tasks)} tasks.`) : null);
 }
 
+// Skill impact (comparative): the metrics with their sample sizes, then the change log with before/after deltas. Direction is a shape plus words.
+function markSpan(m) {
+  const d = R.deltaMark(m);
+  return h("span", { class: `mark mark-${d.name}` }, `${d.mark} ${d.text}`);
+}
+function impactRow(name, m) {
+  const reason = m.suppressed ? h("div", { class: "muted" }, m.reason || "too few sessions") : null;
+  return h("tr", null, h("td", null, m.label, reason), h("td", { class: "n" }, R.fmtMetric(name, m.exposed.value)), h("td", { class: "n" }, R.fmtMetric(name, m.baseline.value)),
+    h("td", null, markSpan(m), m.delta == null ? null : h("span", { class: "muted" }, ` ${R.fmtDelta(name, m.delta)}`)),
+    h("td", { class: "n" }, `${fmt(m.exposed.n)} / ${fmt(m.baseline.n)}`));
+}
+function changeItem(c) {
+  const head = c.kind === "installed" ? `Installed version ${c.label}` : `Commit ${c.label}`;
+  const when = String(c.when || c.ts).slice(0, 10);
+  const lines = c.suppressed ? [h("p", { class: "muted" }, c.reason || "too few sessions")] : Object.entries(c.metrics).filter(([, m]) => m.delta != null).map(([name, m]) =>
+    h("li", null, `${m.label}: ${R.fmtMetric(name, m.before)} to ${R.fmtMetric(name, m.after)} `, markSpan(m), h("span", { class: "muted" }, ` (n ${fmt(m.n_before)} before, ${fmt(m.n_after)} after)`)));
+  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, `, ${when}: ${c.before_sessions} sessions before, ${c.after_sessions} after`), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
+}
+function impactBlock(im) {
+  if (!im) return null;
+  const title = h("h2", null, "Impact (comparative)");
+  const note = h("p", { class: "note" }, im.note);
+  if (!im.available) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, im.reason || "No data yet."));
+  if (!im.exposed_sessions) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, `This skill was not loaded in the last ${im.days} days, so there is nothing to compare.`));
+  const scope = im.control_scope === "same-project" ? "same project" : "all projects";
+  const m = im.metrics, u = m.unused_after_load;
+  const rows = ["error_rate", "retry_rate", "tokens_per_turn", "test_failure_rate"].map((k) => impactRow(k, m[k]));
+  const ch = im.changes || { versions: [], commits: [], changes: [] };
+  return h("section", { class: "page-section impact" }, title, note,
+    h("p", null, `${im.exposed_sessions} sessions loaded this skill in the last ${im.days} days; ${im.control_sessions} sessions without it (${scope}) form the baseline. Values below ${im.min_sessions} sessions on either side are withheld.`),
+    im.outcomes_recorded ? null : h("p", { class: "muted" }, "Tool outcomes are not recorded yet: run Refresh usage so the transcripts are read again."),
+    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Metric"), h("th", { class: "n" }, "After load"), h("th", { class: "n" }, "Baseline"), h("th", null, "Difference"), h("th", { class: "n" }, "n (calls or turns)"))), h("tbody", null, rows)),
+    h("p", null, u.suppressed ? `Loaded but unused: ${u.n} loaded sessions, ${u.reason || "too few to show a share"}.` : `Loaded but unused: ${u.unused} of ${u.n} loaded sessions (${R.fmtMetric("rate", u.value)}) ended with no tool call after the load.`),
+    h("h3", null, "Change log"),
+    ch.versions.length ? h("p", { class: "muted" }, "Installed versions (first seen): " + ch.versions.map((v) => `${v.hash}${v.current ? " (current)" : ""} ${String(v.first_seen).slice(0, 10)}`).join(", ")) : null,
+    ch.changes.length ? h("ul", { class: "items" }, ch.changes.map(changeItem)) : h("p", { class: "muted" }, "No change recorded yet: a skill needs a second installed version or a git commit (a repository passed with --repo that holds it) to compare before and after."));
+}
+
 function pageExtras(pg) {
-  return [usageBlock(pg.usage), historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
+  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
 }
 
 function bodyNodes(pg) {
@@ -477,10 +515,21 @@ function healthBlock(hl) {
   const rows = [["Version", hl.version || "-"], ["Hooks", hl.hooks], ["MCP servers", hl.mcp_servers], ["Skills", hl.skills], ["Agents", hl.agents], ["Telemetry", hl.telemetry ? "on" : "off"]];
   return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", "Harness details")));
 }
+function impactRankBlock(rk) {
+  if (!rk || !rk.available) return null;
+  const line = (r) => h("li", null, `${r.verdict === "better" ? "▼" : "▲"} `, link("skill", r.skill, r.skill),
+    h("span", { class: "muted" }, ` ${R.fmtDelta("error_rate", r.delta)} error rate, ${fmt(r.n)} calls, ${r.sessions} sessions`));
+  const list = (title, rows) => (rows.length ? h("div", null, h("h3", null, title), h("ul", { class: "refs" }, rows.map(line))) : null);
+  const none = !rk.best.length && !rk.worst.length;
+  return h("div", null,
+    none ? h("p", { class: "muted" }, `No skill has ${rk.min_sessions} or more sessions with and without it yet.`) : null,
+    list("Lower error rate after load", rk.best), list("Higher error rate after load", rk.worst),
+    h("p", { class: "muted" }, `${rk.ranked} of ${rk.tracked} skills have enough sessions (last ${rk.days} days). ${rk.note}`));
+}
 async function viewHome() {
   const hm = await api("wiki/home");
   return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Recent activity"), activityBlock(hm.activity)),
-    h("aside", { class: "rail", "aria-label": "Spending and harness" }, railBlock("Spending", spendingBlock(hm.spending)), railBlock("Harness health", healthBlock(hm.health))))];
+    h("aside", { class: "rail", "aria-label": "Spending and harness" }, railBlock("Spending", spendingBlock(hm.spending)), railBlock("Skill impact", impactRankBlock(hm.impact)), railBlock("Harness health", healthBlock(hm.health))))];
 }
 async function viewUsagePage() { return [...(await viewOverview()), ...(await viewUsage())]; }
 

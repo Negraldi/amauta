@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from .api import columns, has_table
 
+NOTE = "Correlation, not causation: sessions that load a skill differ in other ways too."
 MIN_SESSIONS = 5  # below this on either side a metric is suppressed: the numbers would only be noise
 RETRY_WINDOW = 3
 DAYS = 30
@@ -168,3 +169,25 @@ def impact(portal, skill, days=DAYS, today=None, min_sessions=MIN_SESSIONS):
         return {"available": True, "days": days, "outcomes_recorded": outcomes_recorded(conn), **out}
     finally:
         conn.close()
+
+
+def ranking(portal, days=DAYS, today=None, top=3, min_sessions=MIN_SESSIONS):
+    """Home rail: skills with enough sessions, best and worst by tool-error-rate delta after load vs baseline. Flat differences are not ranked."""
+    conn = portal._usage_conn()
+    if conn is None:
+        return {"available": False, "note": NOTE}
+    try:
+        sessions = load_sessions(conn, since_date(days, today))
+    finally:
+        conn.close()
+    skills = sorted({c["skill"] for s in sessions for c in s["calls"] if c["tool"] == "Skill" and c["skill"]})
+    rows = []
+    for name in skills:
+        r = analyze(sessions, name, min_sessions)
+        m = r["metrics"]["error_rate"]
+        if not m["suppressed"]:
+            rows.append({"skill": name, "delta": m["delta"], "exposed": m["exposed"]["value"], "baseline": m["baseline"]["value"], "n": m["exposed"]["n"],
+                         "sessions": r["exposed_sessions"], "verdict": m["verdict"]})
+    best = sorted((r for r in rows if r["verdict"] == "better"), key=lambda r: (r["delta"], r["skill"]))[:top]
+    worst = sorted((r for r in rows if r["verdict"] == "worse"), key=lambda r: (-r["delta"], r["skill"]))[:top]
+    return {"available": True, "days": days, "min_sessions": min_sessions, "tracked": len(skills), "ranked": len(rows), "best": best, "worst": worst, "note": NOTE}

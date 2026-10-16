@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from . import wiki
+from . import skillimpact, wiki
 
 PER_DAY = 20
 DAYS_SHOWN = 14
@@ -59,4 +59,4 @@ def health(portal):
 
 
 def home(portal, q):
-    return {"activity": activity(portal), "spending": spending(portal), "health": health(portal)}
+    return {"activity": activity(portal), "spending": spending(portal), "health": health(portal), "impact": skillimpact.ranking(portal)}
