@@ -96,12 +96,17 @@
   "skills": [
     "chained-pr",
     "cognitive-doc-design",
-    "go-testing",
+    "cpp-testing",
+    "doc-formats",
     "graphify-semantic",
     "judgment-day",
+    "node-testing",
+    "python-testing",
+    "r-testing",
     "skill-creator",
     "skill-improver",
     "skill-registry",
+    "tabular-data",
     "work-unit-commits"
   ],
   "skillsDir": "skills",

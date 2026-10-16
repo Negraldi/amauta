@@ -42,8 +42,8 @@ Inject paths, not summaries:
 
 Read these exact files before reading, writing, reviewing, testing, or creating artifacts:
 
-- /absolute/path/to/skills/go-testing/SKILL.md
-- /absolute/path/to/skills/typescript/SKILL.md
+- /absolute/path/to/skills/cpp-testing/SKILL.md
+- /absolute/path/to/skills/python-testing/SKILL.md
 ```
 
 The sub-agent MUST read those files before task-specific work. `SKILL.md` is the runtime contract and source of truth.

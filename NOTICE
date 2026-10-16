@@ -22,6 +22,9 @@ are renamed /gentle-sdd-* -> /amauta-sdd-*, calls to the compiled `gentle-ai sdd
 commands point at amauta.sdd, and the native archive composer section is
 replaced by a manual-composition note.
 
+The skills cpp-testing, python-testing, node-testing, r-testing, tabular-data and
+doc-formats are original to amauta (MIT, see LICENSE), not vendored.
+
 MIT License
 
 Copyright (c) 2025 Gentleman Programming
