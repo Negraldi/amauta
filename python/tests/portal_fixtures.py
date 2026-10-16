@@ -62,7 +62,7 @@ def build(root: Path) -> dict:
     (mem / "note.md").write_text(f"# Hello\n{XSS}\n")
     (home / "settings.json").write_text(json.dumps({"hooks": {
         "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "env PYTHONPATH=/r python3 -P -m amauta.usage hook"}, {"type": "command", "command": "echo SECRET-USER-HOOK"}]}],
-        "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "node /r/bin/gentle-lite.js hook review-stop"}]}],
+        "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "node /r/bin/amauta.js hook review-stop"}]}],
     }}))
     cj = root / "claude.json"
     cj.write_text(json.dumps({"mcpServers": {"engram": {"type": "stdio", "command": "python3", "args": ["-P"], "env": {"TOKEN": "SECRET-ENV"}}, "other": {"command": "foo"}}}))

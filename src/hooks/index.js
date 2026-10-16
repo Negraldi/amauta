@@ -31,7 +31,7 @@ function parsePayload(text) {
 export async function runHook(name, io) {
   const handler = handlers.get(name);
   if (!handler) {
-    io.stderr.write(`gentle-lite: unknown hook: ${name ?? ''}\n`);
+    io.stderr.write(`amauta: unknown hook: ${name ?? ''}\n`);
     return 1;
   }
   try {

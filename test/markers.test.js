@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { injectSection, removeSection, listSections } from '../src/core/markers.js';
 
-const open = (id) => `<!-- gentle-lite:${id} -->`;
-const close = (id) => `<!-- /gentle-lite:${id} -->`;
+const open = (id) => `<!-- amauta:${id} -->`;
+const close = (id) => `<!-- /amauta:${id} -->`;
 const block = (id, body) => `${open(id)}\n${body}\n${close(id)}`;
 
 test('appends a section to empty text', () => {
@@ -35,7 +35,7 @@ test('drops duplicate pairs of the same id after the first', () => {
 test('repairs an orphan open marker', () => {
   const base = `intro\n${open('a')}\nstray\n`;
   const out = injectSection(base, 'a', 'body');
-  assert.ok(!out.includes('stray\n\n<!-- gentle-lite:a -->\nstray'));
+  assert.ok(!out.includes('stray\n\n<!-- amauta:a -->\nstray'));
   assert.equal(listSections(out).length, 1);
   assert.match(out, /intro/);
   assert.match(out, /stray/);

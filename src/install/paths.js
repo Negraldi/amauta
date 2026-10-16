@@ -14,7 +14,7 @@ export function resolveTargets(opts = {}, env = process.env, home = os.homedir()
     opts.claudeJson ?? env.AMAUTA_CLAUDE_JSON ?? (custom ? path.join(claudeHome, '.claude.json') : path.join(home, '.claude.json')),
   );
   const stateDir = path.resolve(
-    opts.stateDir ?? env.AMAUTA_STATE_DIR ?? (custom ? path.join(claudeHome, '.gentle-lite') : path.join(home, '.gentle-lite')),
+    opts.stateDir ?? env.AMAUTA_STATE_DIR ?? (custom ? path.join(claudeHome, '.amauta') : path.join(home, '.amauta')),
   );
   return { claudeHome, claudeJson, stateDir };
 }

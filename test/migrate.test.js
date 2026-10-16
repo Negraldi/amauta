@@ -110,7 +110,7 @@ async function fixture() {
 // umask 022 makes private modes a property of the scripts, not of the caller's umask.
 const run = (script, args, f, extraEnv = {}, input = '') => spawnSync('bash', ['-c', 'umask 022; exec bash "$@"', 'bash', script, ...args], { encoding: 'utf8', env: { ...f.env, ...extraEnv }, input, timeout: 180000 });
 const mode = async (p) => ((await stat(p)).mode & 0o777).toString(8);
-const migrationDirs = async (f) => (await readdir(path.join(f.home, 'gentle-lite-migration'))).filter((n) => /^\d/.test(n)).sort();
+const migrationDirs = async (f) => (await readdir(path.join(f.home, 'amauta-migration'))).filter((n) => /^\d/.test(n)).sort();
 
 /** path -> sha256 for every regular file under dir (relative paths), plus directory entries. */
 async function tree(dir, base = dir, out = {}) {
@@ -159,17 +159,17 @@ test('migrate.sh --execute migrates, keeps settings.local.json, then rollback.sh
 
     const md = await read(f.claude, 'CLAUDE.md');
     assert.doesNotMatch(md, /gentle-ai:/);
-    assert.match(md, /gentle-lite:/);
+    assert.match(md, /amauta:/);
     assert.match(md, /# My rules/);
     assert.doesNotMatch(await read(f.claude, 'settings.json'), /gentle-ai /);
     assert.deepEqual(await readFile(path.join(f.claude, 'settings.local.json')), pre.local);
-    assert.ok((await stat(path.join(f.home, '.gentle-lite', 'memory.db'))).size > 0);
+    assert.ok((await stat(path.join(f.home, '.amauta', 'memory.db'))).size > 0);
     assert.match(r.stdout, /observations/);
     assert.match(r.stdout, /Claude Code/);
 
-    const runs = await readdir(path.join(f.home, 'gentle-lite-migration'));
+    const runs = await readdir(path.join(f.home, 'amauta-migration'));
     assert.equal(runs.length, 1);
-    const backupDir = path.join(f.home, 'gentle-lite-migration', runs[0]);
+    const backupDir = path.join(f.home, 'amauta-migration', runs[0]);
     assert.ok((await stat(path.join(backupDir, 'backup.tar.gz'))).size > 0);
     assert.ok((await stat(path.join(backupDir, 'migrate.log'))).size > 0);
     assert.ok(!(r.stdout + (await read(backupDir, 'migrate.log'))).includes('numStartups'), 'never print config contents');
@@ -206,8 +206,8 @@ test('migrate.sh stops when gentle-ai uninstall rejects --agent, and never reach
     assert.match(r.stdout + r.stderr, /uninstall did not complete/);
     assert.match(r.stdout + r.stderr, /does not support 'uninstall --agent'/, 'the error tells how to recognise an old gentle-ai');
     assert.doesNotMatch(await read(f.log), /plugin disable/);
-    assert.doesNotMatch(await read(f.claude, 'CLAUDE.md'), /gentle-lite:/);
-    assert.ok((await stat(path.join(f.home, 'gentle-lite-migration'))).isDirectory(), 'the backup of phase 1 exists');
+    assert.doesNotMatch(await read(f.claude, 'CLAUDE.md'), /amauta:/);
+    assert.ok((await stat(path.join(f.home, 'amauta-migration'))).isDirectory(), 'the backup of phase 1 exists');
   } finally { await f.cleanup(); }
 });
 
@@ -215,7 +215,7 @@ test('rollback.sh refuses a backup whose checksum does not match and changes not
   const f = await fixture();
   try {
     assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
-    const dir = path.join(f.home, 'gentle-lite-migration', (await readdir(path.join(f.home, 'gentle-lite-migration')))[0]);
+    const dir = path.join(f.home, 'amauta-migration', (await readdir(path.join(f.home, 'amauta-migration')))[0]);
     await writeFile(path.join(dir, 'backup.tar.gz.sha256'), `${'0'.repeat(64)}  backup.tar.gz\n`);
     const before = await tree(f.claude);
     const r = run(ROLLBACK, [dir, '--assume-yes'], f);
@@ -229,31 +229,31 @@ test('the backup directory is private (0700) and every file in it is 0600, whate
   try {
     assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
     const [name] = await migrationDirs(f);
-    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    const dir = path.join(f.home, 'amauta-migration', name);
     assert.equal(await mode(dir), '700');
-    assert.equal(await mode(path.join(f.home, 'gentle-lite-migration')), '700');
+    assert.equal(await mode(path.join(f.home, 'amauta-migration')), '700');
     const files = (await readdir(dir)).filter((n) => !n.endsWith('.done'));
     for (const want of ['backup.tar.gz', 'backup.tar.gz.sha256', 'backup.list', 'pre.sha256', 'migrate.log']) assert.ok(files.includes(want), want);
     for (const n of files) assert.equal(await mode(path.join(dir, n)), '600', n);
-    // gentle-lite's own files keep the normal umask: the private umask is not leaked into children
-    assert.equal(await mode(path.join(f.home, '.gentle-lite', 'memory.db')), '644');
+    // amauta's own files keep the normal umask: the private umask is not leaked into children
+    assert.equal(await mode(path.join(f.home, '.amauta', 'memory.db')), '644');
     const rb = run(ROLLBACK, [dir, '--assume-yes'], f);
     assert.equal(rb.status, 0, rb.stdout + rb.stderr);
-    const aside = path.join(f.home, 'gentle-lite-migration', 'rollbacks');
+    const aside = path.join(f.home, 'amauta-migration', 'rollbacks');
     const [ts] = await readdir(aside);
     assert.equal(await mode(path.join(aside, ts)), '700');
     assert.equal(await mode(path.join(aside, ts, 'rollback.log')), '600');
   } finally { await f.cleanup(); }
 });
 
-test('declining at phase 3 exits 3, and rollback then works although gentle-lite was never installed', async () => {
+test('declining at phase 3 exits 3, and rollback then works although amauta was never installed', async () => {
   const f = await fixture();
   try {
     const pre = await tree(f.claude);
     const r = run(MIGRATE, ['--execute'], f, {}, 'y\ny\nn\n');
     assert.equal(r.status, 3, r.stdout + r.stderr);
     const [name] = await migrationDirs(f);
-    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    const dir = path.join(f.home, 'amauta-migration', name);
     assert.ok((await readdir(dir)).includes('phase2.done'));
     assert.ok(!(await readdir(dir)).includes('phase3.done'));
     assert.doesNotMatch(await read(f.log).catch(() => ''), /uninstall/);
@@ -268,7 +268,7 @@ test('resuming after a declined prompt skips the finished phases and runs the re
   try {
     assert.equal(run(MIGRATE, ['--execute'], f, {}, 'y\ny\nn\n').status, 3);
     const [name] = await migrationDirs(f);
-    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    const dir = path.join(f.home, 'amauta-migration', name);
     const backupSha = sha(await readFile(path.join(dir, 'backup.tar.gz')));
     const r = run(MIGRATE, ['--execute'], f, {}, 'y\ny\ny\ny\n');
     assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -285,7 +285,7 @@ test('a migration after a rollback gets a NEW run directory and never touches th
   try {
     assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
     const [first] = await migrationDirs(f);
-    const dir = path.join(f.home, 'gentle-lite-migration', first);
+    const dir = path.join(f.home, 'amauta-migration', first);
     const before = await tree(dir);
     assert.equal(run(ROLLBACK, [dir, '--assume-yes'], f).status, 0);
     assert.ok((await readdir(dir)).includes('rolled-back'), 'rollback marks the run instead of deleting its markers');
@@ -307,7 +307,7 @@ test('phase 1 refuses to write over an existing backup archive', async () => {
   try {
     assert.equal(run(MIGRATE, ['--execute'], f, {}, 'y\nn\n').status, 3);
     const [name] = await migrationDirs(f);
-    const dir = path.join(f.home, 'gentle-lite-migration', name);
+    const dir = path.join(f.home, 'amauta-migration', name);
     const archive = path.join(dir, 'backup.tar.gz');
     await rm(path.join(dir, 'phase1.done')); // e.g. a crash between the archive move and the marker
     const sum = sha(await readFile(archive));
@@ -323,7 +323,7 @@ test('rollback verifies the restored files BEFORE re-enabling the plugin', async
   try {
     assert.equal(run(MIGRATE, ['--execute', '--assume-yes'], f).status, 0);
     const [name] = await migrationDirs(f);
-    const rb = run(ROLLBACK, [path.join(f.home, 'gentle-lite-migration', name), '--assume-yes'], f, { STUB_ENABLE_REWRITES: '1' });
+    const rb = run(ROLLBACK, [path.join(f.home, 'amauta-migration', name), '--assume-yes'], f, { STUB_ENABLE_REWRITES: '1' });
     assert.equal(rb.status, 0, rb.stdout + rb.stderr);
     const verifiedAt = rb.stdout.indexOf('verified');
     const enableAt = rb.stdout.indexOf('re-enable engram plugin');
@@ -342,7 +342,7 @@ test('gentle-ai uninstall runs with the real terminal on stdin and stdout (pseud
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(await read(f.log), /^gentle-ai uninstall tty: stdin=1 stdout=1 stderr=1$/m);
     const [name] = await migrationDirs(f);
-    assert.match(await read(f.home, 'gentle-lite-migration', name, 'migrate.log'), /gentle-ai uninstall/, 'the log keeps a summary line');
+    assert.match(await read(f.home, 'amauta-migration', name, 'migrate.log'), /gentle-ai uninstall/, 'the log keeps a summary line');
   } finally { await f.cleanup(); }
 });
 
@@ -357,7 +357,7 @@ test('rollback restores the original file modes (not masked by the script umask)
     await rm(script, { force: true });
     await chmod(path.join(f.claude, 'CLAUDE.md'), 0o600);
     const [name] = await migrationDirs(f);
-    const rb = run(ROLLBACK, [path.join(f.home, 'gentle-lite-migration', name), '--assume-yes'], f);
+    const rb = run(ROLLBACK, [path.join(f.home, 'amauta-migration', name), '--assume-yes'], f);
     assert.equal(rb.status, 0, rb.stdout + rb.stderr);
     assert.equal((await stat(script)).mode & 0o777, 0o755);
     assert.equal((await stat(path.join(f.claude, 'CLAUDE.md'))).mode & 0o777, 0o644);

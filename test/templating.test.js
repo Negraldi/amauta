@@ -53,9 +53,9 @@ test('renderAgent resolves model, drops default effort line, rewrites engram pre
   assert.ok(!out.includes('{{'));
   assert.ok(!out.includes('effort'));
   assert.match(out, /^tools: Read, mcp__engram__mem_search, mcp__codegraph__codegraph_explore$/m);
-  assert.match(out, /<!-- gentle-lite:codegraph-guidance -->\nCG\n<!-- \/gentle-lite:codegraph-guidance -->/);
-  assert.match(out, /<!-- gentle-lite:agent-language-contract -->/);
-  assert.ok(out.indexOf('Body.') < out.indexOf('gentle-lite:codegraph-guidance'));
+  assert.match(out, /<!-- amauta:codegraph-guidance -->\nCG\n<!-- \/amauta:codegraph-guidance -->/);
+  assert.match(out, /<!-- amauta:agent-language-contract -->/);
+  assert.ok(out.indexOf('Body.') < out.indexOf('amauta:codegraph-guidance'));
 });
 
 test('renderAgent writes an effort line when configured and keeps the plugin prefix when asked', () => {
@@ -72,5 +72,5 @@ test('renderAgent leaves empty tools lists alone and is idempotent in its footer
   const empty = AGENT.replace(/^tools: .*$/m, 'tools: []');
   const out = renderAgent(empty, { assignment: { model: 'sonnet' }, engramPrefix: 'mcp__engram__', footers });
   assert.match(out, /^tools: \[\]$/m);
-  assert.equal(out.split('gentle-lite:codegraph-guidance -->').length - 1, 2);
+  assert.equal(out.split('amauta:codegraph-guidance -->').length - 1, 2);
 });

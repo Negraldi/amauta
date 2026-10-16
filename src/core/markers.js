@@ -1,13 +1,13 @@
 // Managed Markdown sections delimited by HTML comment markers:
-//   <!-- gentle-lite:ID -->
+//   <!-- amauta:ID -->
 //   ...body...
-//   <!-- /gentle-lite:ID -->
+//   <!-- /amauta:ID -->
 // Everything outside a managed pair is never touched.
 
-const OPEN_RE = /^<!-- gentle-lite:(\S+) -->$/;
+const OPEN_RE = /^<!-- amauta:(\S+) -->$/;
 
-const openMarker = (id) => `<!-- gentle-lite:${id} -->`;
-const closeMarker = (id) => `<!-- /gentle-lite:${id} -->`;
+const openMarker = (id) => `<!-- amauta:${id} -->`;
+const closeMarker = (id) => `<!-- /amauta:${id} -->`;
 
 const trimTrailingNewlines = (s) => s.replace(/\n+$/, '');
 

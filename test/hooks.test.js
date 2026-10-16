@@ -6,7 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
+const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
 const run = (args, input = '{}', env = {}) =>
   spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', input, env: { ...process.env, ...env } });
 const exists = (p) => stat(p).then(() => true, () => false);

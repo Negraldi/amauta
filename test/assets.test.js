@@ -7,7 +7,7 @@ import { loadManifest, assetPath, readAssetText, listFiles } from '../src/instal
 
 test('manifest records the upstream commit and every referenced asset exists', async () => {
   const m = await loadManifest();
-  assert.equal(m.schema, 'gentle-lite.assets/v1');
+  assert.equal(m.schema, 'amauta.assets/v1');
   assert.match(m.upstream.commit, /^[0-9a-f]{40}$/);
   const refs = [
     ...m.claudeMd.map((s) => s.source).filter((s) => !s.startsWith('persona:')),

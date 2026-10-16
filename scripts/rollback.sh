@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Undo scripts/migrate.sh from its backup.
 #
-#   scripts/rollback.sh ~/gentle-lite-migration/<timestamp>
+#   scripts/rollback.sh ~/amauta-migration/<timestamp>
 #
 # Restores the Claude Code config paths, only the mcpServers key of ~/.claude.json, ~/.gentle-ai and ~/.engram,
 # and re-enables engram@engram. The backup directory is kept and marked rolled-back. ~/.claude/projects (your conversations) is never touched. Everything it replaces is
-# moved aside under ~/gentle-lite-migration/rollbacks/<timestamp>/, never deleted. Run with Claude Code closed.
+# moved aside under ~/amauta-migration/rollbacks/<timestamp>/, never deleted. Run with Claude Code closed.
 # --assume-yes answers yes to every prompt and exists ONLY for the automated tests.
 set -euo pipefail
 
@@ -52,10 +52,10 @@ grep -Fxq -- .claude.json "$BACKUP_DIR/rollback.list.tmp" && has_json=1
 rm -f "$BACKUP_DIR/rollback.list.tmp"
 
 TS=$(date +%Y%m%d-%H%M%S)
-ASIDE=$HOME/gentle-lite-migration/rollbacks/$TS
+ASIDE=$HOME/amauta-migration/rollbacks/$TS
 log ""
 log "Plan:"
-log "   1. gentle-lite uninstall"
+log "   1. amauta uninstall"
 log "   2. restore from backup: ${present[*]:-nothing}"
 ((has_json)) && log "   3. restore only the mcpServers key of ~/.claude.json"
 log "   4. verify sha256 of the restored files"
@@ -67,7 +67,7 @@ confirm "Roll back now?" || {
 }
 
 mkdir -p "$ASIDE"
-chmod 700 "$HOME/gentle-lite-migration" "$HOME/gentle-lite-migration/rollbacks" "$ASIDE"
+chmod 700 "$HOME/amauta-migration" "$HOME/amauta-migration/rollbacks" "$ASIDE"
 exec > >(tee -a "$ASIDE/rollback.log") 2>&1
 
 # Extract first: if the archive cannot be read, nothing has been uninstalled yet.
@@ -77,9 +77,9 @@ members=("${present[@]}")
 ((has_json)) && members+=(.claude.json)
 tar --same-permissions -xzf "$ARCHIVE" -C "$STAGE" -- "${members[@]}" || die "could not extract the backup. Nothing was changed."
 
-# gentle-lite may never have been installed (the migration stopped before phase 5): that is not a reason to stop.
-log "== gentle-lite uninstall"
-with_caller_umask node "$REPO_DIR/bin/gentle-lite.js" uninstall || warn "gentle-lite uninstall failed or had nothing to remove; continuing with the restore"
+# amauta may never have been installed (the migration stopped before phase 5): that is not a reason to stop.
+log "== amauta uninstall"
+with_caller_umask node "$REPO_DIR/bin/amauta.js" uninstall || warn "amauta uninstall failed or had nothing to remove; continuing with the restore"
 
 log "== restore"
 for item in "${present[@]}"; do

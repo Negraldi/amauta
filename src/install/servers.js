@@ -19,21 +19,21 @@ export function desiredMcpServers({ stateDir, rea = false, context7 = false } = 
   return {
     memory: memoryServer(stateDir),
     codegraph: { type: 'stdio', command: 'codegraph', args: ['serve', '--mcp'] },
-    'gentle-lite': { type: 'stdio', command: 'node', args: [path.join(repoRoot, 'src', 'mcp', 'server.js')] },
+    'amauta': { type: 'stdio', command: 'node', args: [path.join(repoRoot, 'src', 'mcp', 'server.js')] },
     // Opt-in (--with-context7 / --with-rea): third-party servers that run unsandboxed; rea alone lists ~300 tools.
     ...(context7 ? { context7: { command: 'npx', args: ['-y', '--package=@upstash/context7-mcp@2.2.5', '--', 'context7-mcp'] } } : {}),
     ...(rea ? { rea: { command: 'npx', args: ['-y', 'rea-agents@6.4.0', 'mcp'] } } : {}),
   };
 }
 
-const BIN = path.join(repoRoot, 'bin', 'gentle-lite.js');
+const BIN = path.join(repoRoot, 'bin', 'amauta.js');
 
 /** Quote a path for a POSIX shell only when it contains unsafe characters. */
 export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.replaceAll("'", `'\\''`)}'`);
 
-/** True for any hook command gentle-lite registered (absolute `node .../gentle-lite.js hook X` or legacy `gentle-lite ...`). */
-export const isGentleLiteHook = (command) =>
-  /gentle-lite\.js['"]?\s+hook\s/.test(command) || command.startsWith('gentle-lite ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
+/** True for any hook command amauta registered (absolute `node .../amauta.js hook X` or legacy `amauta ...`). */
+export const isAmautaHook = (command) =>
+  /amauta\.js['"]?\s+hook\s/.test(command) || command.startsWith('amauta ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
   /amauta\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
 const hook = (name, timeout) => ({
@@ -54,14 +54,14 @@ const telemetryHook = (stateDir) => pythonHook(stateDir, 'amauta.telemetry', 5);
 /** Transcript usage ingestion: only after a turn or subagent ends. */
 const USAGE_EVENTS = ['Stop', 'SubagentStop'];
 
-/** Command prefix the SDD assets use to call our status module (`{{GENTLE_LITE_SDD}}`) and the preflight hook command. */
+/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`) and the preflight hook command. */
 export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m amauta.sdd`;
 
 const PREFLIGHT_DENY = JSON.stringify({
   hookSpecificOutput: {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
-    permissionDecisionReason: 'SDD preflight hook could not run (python3 missing, import failure or crash); dispatch refused fail-closed. Fix the gentle-lite install (gentle-lite status).',
+    permissionDecisionReason: 'SDD preflight hook could not run (python3 missing, import failure or crash); dispatch refused fail-closed. Fix the amauta install (amauta status).',
   },
 });
 

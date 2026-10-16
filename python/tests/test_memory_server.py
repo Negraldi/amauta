@@ -36,7 +36,7 @@ class ServerTest(unittest.TestCase):
 
     def test_initialize_and_tools_list(self):
         init = mserver.handle(self.store, rpc(1, "initialize", {"protocolVersion": "2025-06-18"}))
-        self.assertEqual(init["result"]["serverInfo"]["name"], "gentle-lite-memory")
+        self.assertEqual(init["result"]["serverInfo"]["name"], "amauta-memory")
         self.assertEqual(init["result"]["protocolVersion"], "2025-06-18")
         self.assertIn("tools", init["result"]["capabilities"])
         self.assertIsNone(mserver.handle(self.store, {"jsonrpc": "2.0", "method": "notifications/initialized"}))

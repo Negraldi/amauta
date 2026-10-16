@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { makeRepo } from './helpers/repo.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = path.join(repoRoot, 'bin', 'gentle-lite.js');
+const CLI = path.join(repoRoot, 'bin', 'amauta.js');
 const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
 
 const SEED_SETTINGS = {
@@ -72,7 +72,7 @@ before(async () => {
   home = path.join(root, 'home');
   claudeHome = path.join(home, '.claude');
   claudeJson = path.join(home, '.claude.json');
-  stateDir = path.join(home, '.gentle-lite');
+  stateDir = path.join(home, '.amauta');
   fakeBin = path.join(root, 'bin');
   await mkdir(claudeHome, { recursive: true });
   await mkdir(fakeBin);
@@ -103,14 +103,14 @@ test('install --with-sdd --with-rea --with-context7 writes settings hooks, MCP e
   }
   assert.ok(hookCommands('PreToolUse').some((h) => h.command === 'echo user-pre-hook'), 'user PreToolUse hook kept');
   assert.ok(hookCommands('UserPromptSubmit').some((h) => h.command === 'codegraph prompt-hook'), 'codegraph hook (fake codegraph on PATH)');
-  for (const key of ['engram', 'gentle-lite', 'context7', 'rea', 'codegraph', 'mine']) assert.ok(mcp[key], `mcp ${key}`);
+  for (const key of ['engram', 'amauta', 'context7', 'rea', 'codegraph', 'mine']) assert.ok(mcp[key], `mcp ${key}`);
   const state = await readJson(path.join(stateDir, 'state.json'));
   assert.equal(state.sdd, true);
   assert.equal(state.telemetry, true);
   assert.ok(existsSync(path.join(claudeHome, 'skills', 'sdd-apply', 'SKILL.md')));
   const md = await readFile(path.join(claudeHome, 'CLAUDE.md'), 'utf8');
   assert.ok(md.startsWith('# My own rules'));
-  assert.match(md, /<!-- gentle-lite:/);
+  assert.match(md, /<!-- amauta:/);
   const s = spawnSync('node', [CLI, 'status'], { encoding: 'utf8', env });
   assert.equal(s.status, 0, s.stdout + s.stderr);
 });
@@ -164,8 +164,8 @@ test('memory MCP server (engram entry): initialize, tools/list, mem_save and mem
   assert.equal(query("select count(*) from observations where title='e2e decision'")[0][0], 1);
 });
 
-test('gentle-lite MCP server: initialize, tools/list and odd_tasks_status', async () => {
-  await withMcp(mcp['gentle-lite'], async ({ tools, callTool }) => {
+test('amauta MCP server: initialize, tools/list and odd_tasks_status', async () => {
+  await withMcp(mcp['amauta'], async ({ tools, callTool }) => {
     for (const t of ['odd_tasks_status', 'review_assess', 'skill_registry_refresh', 'review_mode_status']) assert.ok(tools.includes(t), t);
     const out = JSON.parse(await callTool('odd_tasks_status', { cwd: project.dir }));
     assert.deepEqual(out.files, [{ file: 'odd/tasks/demo.md', done: 1, total: 2, next: 'T2 second' }]);

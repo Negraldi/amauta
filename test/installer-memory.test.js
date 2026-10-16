@@ -74,27 +74,27 @@ test('memory MCP server is registered as "engram" when absent', async () => {
   const cj = await t.cj();
   assert.deepEqual(cj.mcpServers.engram, memoryEntry(t));
   assert.equal((await t.state()).memory_server_key, 'engram');
-  assert.ok(!('gentle-memory' in cj.mcpServers));
+  assert.ok(!('amauta-memory' in cj.mcpServers));
   const judge = await readFile(path.join(t.claudeHome, 'agents', 'jd-judge-a.md'), 'utf8');
   assert.match(judge, /mcp__engram__mem_search/);
   await uninstall(t.opts());
   await t.cleanup();
 });
 
-test('a foreign "engram" entry is kept; ours goes to "gentle-memory" and agents use that prefix', async () => {
+test('a foreign "engram" entry is kept; ours goes to "amauta-memory" and agents use that prefix', async () => {
   const foreign = { command: 'engram', args: ['mcp'] };
   const t = await sandbox({ claudeJson: { mcpServers: { engram: foreign } } });
   await install(t.opts());
   const cj = await t.cj();
   assert.deepEqual(cj.mcpServers.engram, foreign);
-  assert.deepEqual(cj.mcpServers['gentle-memory'], memoryEntry(t));
-  assert.equal((await t.state()).memory_server_key, 'gentle-memory');
+  assert.deepEqual(cj.mcpServers['amauta-memory'], memoryEntry(t));
+  assert.equal((await t.state()).memory_server_key, 'amauta-memory');
   const judge = await readFile(path.join(t.claudeHome, 'agents', 'jd-judge-a.md'), 'utf8');
-  assert.match(judge, /mcp__gentle-memory__mem_search/);
+  assert.match(judge, /mcp__amauta-memory__mem_search/);
   assert.ok(!/mcp__engram__mem_search/.test(judge));
 
   await install(t.opts()); // idempotent, key is stable
-  assert.equal((await t.state()).memory_server_key, 'gentle-memory');
+  assert.equal((await t.state()).memory_server_key, 'amauta-memory');
 
   await uninstall(t.opts());
   const after = await t.cj();
@@ -119,7 +119,7 @@ test('engram plugin enabled: no memory server is registered', async () => {
   const t = await sandbox({ settings: { enabledPlugins: { 'engram@engram': true } } });
   await install(t.opts());
   const cj = await t.cj();
-  assert.ok(!('engram' in cj.mcpServers) && !('gentle-memory' in cj.mcpServers));
+  assert.ok(!('engram' in cj.mcpServers) && !('amauta-memory' in cj.mcpServers));
   assert.equal((await t.state()).memory_server_key, null);
   await t.cleanup();
 });
@@ -168,7 +168,7 @@ test('paths with spaces are shell-quoted in the telemetry hook command', async (
 
 test('CLI: --no-telemetry installs without telemetry hooks', async () => {
   const t = await sandbox();
-  const bin = path.join(repo, 'bin', 'gentle-lite.js');
+  const bin = path.join(repo, 'bin', 'amauta.js');
   const r = spawnSync(process.execPath, [bin, 'install', '--no-telemetry', '--claude-home', t.claudeHome, '--claude-json', t.claudeJson, '--state-dir', t.stateDir], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(telemetryCommands(await t.settings()).length, 0);

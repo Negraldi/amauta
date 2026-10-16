@@ -1,4 +1,4 @@
-"""State directory resolution, consistent with the Node CLI (AMAUTA_STATE_DIR, else ~/.gentle-lite)."""
+"""State directory resolution, consistent with the Node CLI (AMAUTA_STATE_DIR, else ~/.amauta)."""
 from __future__ import annotations
 
 import os
@@ -10,7 +10,7 @@ def state_dir(env=None, home: Path | None = None) -> Path:
     configured = env.get("AMAUTA_STATE_DIR")
     if configured:
         return Path(configured)
-    return (home or Path.home()) / ".gentle-lite"
+    return (home or Path.home()) / ".amauta"
 
 
 def db_path(env=None) -> Path:

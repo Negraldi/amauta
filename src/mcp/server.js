@@ -34,7 +34,7 @@ async function handle(msg) {
         result: {
           protocolVersion: SUPPORTED.includes(wanted) ? wanted : SUPPORTED[0],
           capabilities: { tools: {} },
-          serverInfo: { name: 'gentle-lite', version: packageVersion() },
+          serverInfo: { name: 'amauta', version: packageVersion() },
         },
       });
     }

@@ -33,7 +33,7 @@ Does this inflate the parent context without need? If yes, use one bounded worke
 
 ## Review
 
-Review is a user-owned switch (`gentle-lite review mode status|enable|disable`), off by default; never enable it unprompted. After each work-unit commit run `gentle-lite review assess --base-ref <last reviewed commit> --committed-only --json` (MCP tool `review_assess`). Risk is `passive`, `medium` or `high`; read `review_due` and `review_due_reason`.
+Review is a user-owned switch (`amauta review mode status|enable|disable`), off by default; never enable it unprompted. After each work-unit commit run `amauta review assess --base-ref <last reviewed commit> --committed-only --json` (MCP tool `review_assess`). Risk is `passive`, `medium` or `high`; read `review_due` and `review_due_reason`.
 
 - Passive: structural readback only. Any assessment failure counts as `high`.
 - When review is due and the switch is on, dispatch the `review-risk`, `review-resilience`, `review-readability` and `review-reliability` agents with the diff in the prompt, then `review-refuter` for blocking findings that are inferential. Candidate-caused severe findings block; pre-existing ones are follow-ups. Allow one scoped correction per commit, no loop-until-clean.
@@ -41,7 +41,7 @@ Review is a user-owned switch (`gentle-lite review mode status|enable|disable`),
 
 ## Optional modules and skills
 
-- SDD (only with `--with-sdd`, only when the user asks or accepts a proposal): read `~/.claude/skills/_shared/sdd-orchestrator-workflow.md` first, then use the `/lite-sdd-*` commands. Size or risk alone never selects SDD.
+- SDD (only with `--with-sdd`, only when the user asks or accepts a proposal): read `~/.claude/skills/_shared/sdd-orchestrator-workflow.md` first, then use the `/amauta-sdd-*` commands. Size or risk alone never selects SDD.
 - Adversarial dual review: only on an explicit "judgment day" request, via the `judgment-day` skill.
 - Skills: the `<available_skills>` list is authoritative. If a request matches one, load it before replying. `.atl/skill-registry.md` (when present) indexes project skills; pass only matching `SKILL.md` paths to workers.
 

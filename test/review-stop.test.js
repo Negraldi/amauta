@@ -32,7 +32,7 @@ test('Stop blocks once for a high-risk candidate, then stays quiet for the same 
   t.repo.commit();
   const first = await t.fire('Stop');
   assert.equal(first.decision, 'block');
-  assert.match(first.reason, /gentle-lite review assess/);
+  assert.match(first.reason, /amauta review assess/);
   assert.equal(await t.fire('Stop'), null);
   await t.repo.write('src/auth/login.js', 'y\n');
   t.repo.commit();

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 
-const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
+const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
 const run = (args, env) => spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', env: { ...process.env, ...env } });
 
 test('install/status/uninstall via CLI honour the environment variables', async () => {
@@ -23,7 +23,7 @@ test('install/status/uninstall via CLI honour the environment variables', async 
   r = run(['install'], env);
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /installed/i);
-  assert.match(await readFile(path.join(root, 'claude', 'CLAUDE.md'), 'utf8'), /gentle-lite:orchestrator/);
+  assert.match(await readFile(path.join(root, 'claude', 'CLAUDE.md'), 'utf8'), /amauta:orchestrator/);
 
   r = run(['status'], env);
   assert.equal(r.status, 0, r.stdout);

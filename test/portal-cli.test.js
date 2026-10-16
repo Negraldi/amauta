@@ -21,9 +21,9 @@ test('defaults: no forwarded options, state dir derived like the installer', () 
   const r = buildPortalSpawn([], { HOME: '/h' });
   assert.deepEqual(r.args, ['-P', '-m', 'amauta.portal']);
   assert.equal(r.env.PYTHONPATH, path.join(repo, 'python'));
-  assert.ok(r.env.AMAUTA_STATE_DIR.endsWith('.gentle-lite'));
+  assert.ok(r.env.AMAUTA_STATE_DIR.endsWith('.amauta'));
   const sandbox = buildPortalSpawn(['--claude-home', '/x/.claude'], {});
-  assert.equal(sandbox.env.AMAUTA_STATE_DIR, path.join('/x/.claude', '.gentle-lite'));
+  assert.equal(sandbox.env.AMAUTA_STATE_DIR, path.join('/x/.claude', '.amauta'));
 });
 
 test('there is no way to pass a host', async () => {
@@ -54,9 +54,9 @@ test('portal is listed in the CLI help', async () => {
 
 test('defaultSpawn reports why the child could not start (python3 missing)', async () => {
   const err = sink();
-  const code = await defaultSpawn('gentle-lite-definitely-not-a-command', [], { stdio: 'ignore' }, { stderr: err });
+  const code = await defaultSpawn('amauta-definitely-not-a-command', [], { stdio: 'ignore' }, { stderr: err });
   assert.equal(code, 1);
-  assert.match(err.text, /gentle-lite portal: cannot start gentle-lite-definitely-not-a-command: .*ENOENT/);
+  assert.match(err.text, /amauta portal: cannot start amauta-definitely-not-a-command: .*ENOENT/);
 });
 
 test('defaultSpawn maps a SIGTERM-terminated child to 143 and removes its signal listeners', async () => {

@@ -159,7 +159,7 @@ def handle(store, msg):
         return _result(i, {
             "protocolVersion": wanted if wanted in SUPPORTED else SUPPORTED[0],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "gentle-lite-memory", "version": __version__},
+            "serverInfo": {"name": "amauta-memory", "version": __version__},
         })
     if method == "ping":
         return _result(i, {})

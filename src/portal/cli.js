@@ -43,7 +43,7 @@ export function defaultSpawn(command, args, opts, io = { stderr: process.stderr 
     forward.forEach((fn, sig) => process.on(sig, fn));
     child.on('error', (err) => {
       cleanup();
-      io.stderr.write(`gentle-lite portal: cannot start ${command}: ${err.code ?? ''} ${err.message}\n`);
+      io.stderr.write(`amauta portal: cannot start ${command}: ${err.code ?? ''} ${err.message}\n`);
       resolve(1);
     });
     child.on('exit', (code, signal) => {
@@ -58,7 +58,7 @@ export async function runPortal(args, io, { spawn = defaultSpawn } = {}) {
   try {
     built = buildPortalSpawn(args);
   } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
   return spawn(built.command, built.args, { env: built.env, stdio: 'inherit' }, io);

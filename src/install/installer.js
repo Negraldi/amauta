@@ -14,16 +14,16 @@ import {
   renderAgent,
   resolveAssignment,
 } from './templating.js';
-import { desiredHooks, desiredMcpServers, isGentleLiteHook, shellQuote } from './servers.js';
+import { desiredHooks, desiredMcpServers, isAmautaHook, shellQuote } from './servers.js';
 import { renderSddFiles } from './sdd.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
 import { graphifyStatus, lastHookError } from '../graphify/probe.js';
 
-export const STATE_SCHEMA = 'gentle-lite.state/v1';
+export const STATE_SCHEMA = 'amauta.state/v1';
 const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
 const STYLE_NAMES = ['Gentleman', 'Neutral'];
-/** Always-on CLAUDE.md budget (chars across the blocks gentle-lite installed). */
+/** Always-on CLAUDE.md budget (chars across the blocks amauta installed). */
 export const CLAUDE_MD_BUDGET = 20000;
 /** CLAUDE.md section ids an earlier version shipped (agent-routing nested remote-authorization). */
 const RETIRED_SECTIONS = ['agent-routing', 'remote-authorization'];
@@ -70,14 +70,14 @@ const isOurs = (servers, prev, key) =>
 
 /**
  * Key under which our memory server is registered: "engram" when free (vendored prompts use
- * mcp__engram__*), else "gentle-memory" so a foreign engram entry is never overwritten.
+ * mcp__engram__*), else "amauta-memory" so a foreign engram entry is never overwritten.
  * Null when the engram plugin already provides memory tools.
  */
 function chooseMemoryKey({ settings, currentServers, prev }) {
   if (settings.enabledPlugins?.['engram@engram'] === true) return null;
   const last = prev?.memory_server_key;
   if (last && (isOurs(currentServers, prev, last) || !(last in currentServers))) return last;
-  return 'engram' in currentServers && !isOurs(currentServers, prev, 'engram') ? 'gentle-memory' : 'engram';
+  return 'engram' in currentServers && !isOurs(currentServers, prev, 'engram') ? 'amauta-memory' : 'engram';
 }
 
 /** Set `timeout` on installed hooks that lack one, matched by event and exact command from `owned`. */
@@ -96,7 +96,7 @@ function ensureTimeouts(settings, owned) {
 const PERMISSION_KINDS = ['ask', 'deny'];
 
 /**
- * Rules gentle-lite added, per kind. Current schema: `permissions_added: {ask, deny}`. The T15 schema only had
+ * Rules amauta added, per kind. Current schema: `permissions_added: {ask, deny}`. The T15 schema only had
  * `ask_added`. The pre-T15 `deny_added` is deliberately ignored: it listed a broad deny set the user may rely on.
  */
 function permissionsAdded(state) {
@@ -258,8 +258,8 @@ async function plan(opts) {
   if (permissions.changed) settings = { ...settings, permissions: permissions.value };
   const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry, sdd });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
-  // Drop stale gentle-lite hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
-  settings = removeHooksWhere(settings, (c) => isGentleLiteHook(c) && !wantedCommands.has(c));
+  // Drop stale amauta hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
+  settings = removeHooksWhere(settings, (c) => isAmautaHook(c) && !wantedCommands.has(c));
   settings = mergeHooks(settings, wantedHooks);
   // codegraph's own prompt hook: only when the tool is installed, never duplicated, and only removed again if we added it.
   const hookWasThere = hasCommand(settingsIn.data, 'UserPromptSubmit', CODEGRAPH_PROMPT_HOOK);
@@ -394,7 +394,7 @@ export async function uninstall(opts = {}) {
   const settingsFile = abs(t.claudeHome, 'settings.json');
   const settingsIn = await readJsonObject(settingsFile, 'settings.json');
   if (settingsIn.existed) {
-    let s = removeHooksWhere(settingsIn.data, (c) => isGentleLiteHook(c) || (state?.codegraph_hook_added === true && c === CODEGRAPH_PROMPT_HOOK));
+    let s = removeHooksWhere(settingsIn.data, (c) => isAmautaHook(c) || (state?.codegraph_hook_added === true && c === CODEGRAPH_PROMPT_HOOK));
     if (state?.settings_prev && STYLE_NAMES.includes(s.outputStyle)) {
       s = { ...s };
       if (state.settings_prev.outputStyle === null) delete s.outputStyle;
@@ -496,7 +496,7 @@ export async function status(opts = {}) {
   }
   // Optional external tools: reported, but never make the install unhealthy.
   const cg = await codegraphStatus({ cwd: opts.cwd, searchPath: opts.searchPath });
-  notes.push({ name: 'codegraph', ok: cg.onPath, detail: cg.onPath ? `${cg.path}; index in ${path.resolve(opts.cwd ?? process.cwd())}: ${cg.indexed ? 'present' : 'missing (run: gentle-lite codegraph init)'}` : CODEGRAPH_HINT });
+  notes.push({ name: 'codegraph', ok: cg.onPath, detail: cg.onPath ? `${cg.path}; index in ${path.resolve(opts.cwd ?? process.cwd())}: ${cg.indexed ? 'present' : 'missing (run: amauta codegraph init)'}` : CODEGRAPH_HINT });
   const gfy = await graphifyStatus({ searchPath: opts.searchPath, deep: opts.deep === true });
   notes.push({ name: 'graphify', ok: gfy.onPath, detail: gfy.detail });
   const hookError = await lastHookError(t.stateDir);

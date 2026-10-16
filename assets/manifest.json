@@ -1,5 +1,5 @@
 {
-  "schema": "gentle-lite.assets/v1",
+  "schema": "amauta.assets/v1",
   "upstream": {
     "repo": "Gentleman-Programming/gentle-ai",
     "commit": "09e4e4aef14e87199784fcf4edb667017d70b9b3",
@@ -108,7 +108,7 @@
   "sharedSkillsDir": "skills/_shared",
   "settingsOverlay": "claude/settings-overlay.json",
   "sdd": {
-    "note": "optional module, installed with --with-sdd; v3.4.0 SDD assets (MIT) renamed to /lite-sdd-*",
+    "note": "optional module, installed with --with-sdd; v3.4.0 SDD assets (MIT) renamed to /amauta-sdd-*",
     "skills": [
       "sdd-init",
       "sdd-explore",

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Migrate Claude Code from gentle-ai to gentle-lite. Replaces, does not coexist.
+# Migrate Claude Code from gentle-ai to amauta. Replaces, does not coexist.
 #
 #   scripts/migrate.sh              dry run: prints every action, changes nothing
 #   scripts/migrate.sh --execute    does it, one y/N prompt per modifying phase
 #
-# Run it from a terminal with Claude Code closed. Backup and log: ~/gentle-lite-migration/<timestamp>/
-# Undo: scripts/rollback.sh ~/gentle-lite-migration/<timestamp>
+# Run it from a terminal with Claude Code closed. Backup and log: ~/amauta-migration/<timestamp>/
+# Undo: scripts/rollback.sh ~/amauta-migration/<timestamp>
 # --assume-yes answers yes to every prompt and exists ONLY for the automated tests.
 set -euo pipefail
 
@@ -31,8 +31,8 @@ done
 isolate_to_home
 CLAUDE_HOME=$HOME/.claude
 CLAUDE_JSON=$HOME/.claude.json
-MIG_ROOT=$HOME/gentle-lite-migration
-GL=(node "$REPO_DIR/bin/gentle-lite.js")
+MIG_ROOT=$HOME/amauta-migration
+GL=(node "$REPO_DIR/bin/amauta.js")
 ENGRAM_DB=$HOME/.engram/engram.db
 BASELINE_FILES=(.claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude.json) # hashed before, compared after
 KEY_FILES=("${BASELINE_FILES[@]}" .engram/engram.db)                                                 # must be inside the archive
@@ -136,7 +136,7 @@ if begin_phase 1 "backup ~/.claude (incl. projects), ~/.claude.json, ~/.gentle-a
 fi
 
 # ---------------------------------------------------------------- Phase 2
-if begin_phase 2 "import engram memory into ~/.gentle-lite (source is opened read-only)"; then
+if begin_phase 2 "import engram memory into ~/.amauta (source is opened read-only)"; then
   log "   would run: python3 -P -m amauta.memory import-engram --from $ENGRAM_DB"
   if gate "Import the engram database now?"; then
     if [[ -f $ENGRAM_DB ]]; then
@@ -177,7 +177,7 @@ if begin_phase 3 "remove gentle-ai from Claude Code"; then
     # Names gentle-ai 3.x installs (SDD phases, judgment-day, review actors). gentle-ai's uninstall may leave some behind.
     for dir in agents skills commands; do
       for f in "$CLAUDE_HOME/$dir"/*gentle-ai* "$CLAUDE_HOME/$dir"/gentle-sdd* "$CLAUDE_HOME/$dir"/sdd-* "$CLAUDE_HOME/$dir"/jd-* "$CLAUDE_HOME/$dir"/judgment-day* "$CLAUDE_HOME/$dir"/review-*; do
-        [[ -e $f ]] && log "   leftover (gentle-lite will skip a same-name file you own): ${f#"$HOME"/}"
+        [[ -e $f ]] && log "   leftover (amauta will skip a same-name file you own): ${f#"$HOME"/}"
       done
     done
     ((bad == 0)) || die "gentle-ai is not fully removed. Fix the items above by hand (the backup is in $RUN_DIR), then re-run."
@@ -186,7 +186,7 @@ if begin_phase 3 "remove gentle-ai from Claude Code"; then
 fi
 
 # ---------------------------------------------------------------- Phase 4
-if begin_phase 4 "disable the engram@engram Claude Code plugin (gentle-lite registers its own memory server)"; then
+if begin_phase 4 "disable the engram@engram Claude Code plugin (amauta registers its own memory server)"; then
   log "   would run: claude plugin disable engram@engram --scope user"
   if gate "Disable the engram@engram plugin now?"; then
     with_caller_umask claude plugin disable engram@engram --scope user || warn "could not disable engram@engram (already disabled?). Check '/plugin' later: two memory servers would conflict."
@@ -195,9 +195,9 @@ if begin_phase 4 "disable the engram@engram Claude Code plugin (gentle-lite regi
 fi
 
 # ---------------------------------------------------------------- Phase 5
-if begin_phase 5 "install gentle-lite"; then
-  log "   would run: gentle-lite install --dry-run, then gentle-lite install --with-sdd --with-rea --with-context7"
-  if gate "Show the install plan and install gentle-lite now?"; then
+if begin_phase 5 "install amauta"; then
+  log "   would run: amauta install --dry-run, then amauta install --with-sdd --with-rea --with-context7"
+  if gate "Show the install plan and install amauta now?"; then
     with_caller_umask "${GL[@]}" install --dry-run
     confirm "Install exactly that?" || {
       log "Stopped at your request. Re-run to resume."
@@ -213,7 +213,7 @@ log ""
 log "== Phase 6: verify"
 if [[ $EXECUTE == 1 ]]; then
   problems=0
-  "${GL[@]}" status || { log "   FAIL gentle-lite status reports problems"; problems=1; }
+  "${GL[@]}" status || { log "   FAIL amauta status reports problems"; problems=1; }
   if file_has "$CLAUDE_HOME/CLAUDE.md" "$AI_MD_MARK"; then log "   FAIL gentle-ai sections in CLAUDE.md"; problems=1; else log "   ok   no gentle-ai sections in CLAUDE.md"; fi
   if file_has "$CLAUDE_HOME/settings.json" "$AI_HOOK_MARK"; then log "   FAIL gentle-ai hooks in settings.json"; problems=1; else log "   ok   no gentle-ai hooks in settings.json"; fi
   if [[ -f $RUN_DIR/pre.sha256 ]]; then
@@ -249,9 +249,9 @@ PY
   log ""
   log "Migration complete."
 else
-  log "   would check: gentle-lite status, no gentle-ai markers/hooks, settings.local.json unchanged, memory search smoke"
+  log "   would check: amauta status, no gentle-ai markers/hooks, settings.local.json unchanged, memory search smoke"
   log ""
   log "End of dry run. Nothing was changed."
 fi
-log "Next: start Claude Code again, run /mcp (expect gentle-lite memory, codegraph, context7, rea), then try mem search."
+log "Next: start Claude Code again, run /mcp (expect amauta memory, codegraph, context7, rea), then try mem search."
 log "Undo at any time: scripts/rollback.sh $RUN_DIR"

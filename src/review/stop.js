@@ -63,6 +63,6 @@ export async function reviewStop(payload, env = process.env) {
   await writeBaseline(file, { ...base, notified: [...(base.notified ?? []), key] });
   return {
     decision: 'block',
-    reason: `Receipt-driven development is on and this session's changes need review (${result.risk} risk: ${result.review_due_reason}, ${result.changed_lines} changed lines). Run \`gentle-lite review assess --cwd ${cwd}\` and review the candidate before finishing.`,
+    reason: `Receipt-driven development is on and this session's changes need review (${result.risk} risk: ${result.review_due_reason}, ${result.changed_lines} changed lines). Run \`amauta review assess --cwd ${cwd}\` and review the candidate before finishing.`,
   };
 }

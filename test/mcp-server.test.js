@@ -28,7 +28,7 @@ const call = (id, name, args) => rpc(id, 'tools/call', { name, arguments: args }
 const payload = (res) => JSON.parse(res.result.content[0].text);
 
 test('the installer registers exactly this server path', () => {
-  assert.deepEqual(desiredMcpServers()['gentle-lite'], { type: 'stdio', command: 'node', args: [server] });
+  assert.deepEqual(desiredMcpServers()['amauta'], { type: 'stdio', command: 'node', args: [server] });
 });
 
 test('initialize answers with name, version and tools capability; notifications get no reply', async () => {
@@ -39,7 +39,7 @@ test('initialize answers with name, version and tools capability; notifications 
   ]);
   assert.equal(res.length, 2);
   assert.equal(res[0].id, 1);
-  assert.equal(res[0].result.serverInfo.name, 'gentle-lite');
+  assert.equal(res[0].result.serverInfo.name, 'amauta');
   assert.equal(res[0].result.serverInfo.version, packageVersion());
   assert.equal(res[0].result.protocolVersion, '2025-06-18');
   assert.ok(res[0].result.capabilities.tools);

@@ -4,7 +4,7 @@
 ASSUME_YES=0 # test-only: answer yes to every prompt. Never use it on a real run.
 
 # Everything these scripts create (backups, logs, checksums) holds credentials and conversations: private by default.
-# Child programs (gentle-ai, claude, gentle-lite, python) get the caller's umask back, see with_caller_umask.
+# Child programs (gentle-ai, claude, amauta, python) get the caller's umask back, see with_caller_umask.
 CALLER_UMASK=$(umask)
 umask 077
 
@@ -36,7 +36,7 @@ confirm() {
   [[ $answer == y || $answer == Y || $answer == yes ]]
 }
 
-# Never leave a name in the environment that would redirect gentle-lite away from $HOME.
+# Never leave a name in the environment that would redirect amauta away from $HOME.
 isolate_to_home() {
   unset AMAUTA_CLAUDE_HOME AMAUTA_CLAUDE_JSON AMAUTA_STATE_DIR
 }

@@ -59,7 +59,7 @@ test('--with-sdd installs skills, agents, commands, shared contracts and the Pre
     assert.ok(existsSync(path.join(t.claudeHome, 'agents', `sdd-${p}.md`)), `agent sdd-${p}`);
   }
   for (const c of ['new', 'continue', 'ff', 'status', 'apply', 'verify', 'archive', 'explore', 'init', 'onboard', 'research']) {
-    assert.ok(existsSync(path.join(t.claudeHome, 'commands', `lite-sdd-${c}.md`)), `command lite-sdd-${c}`);
+    assert.ok(existsSync(path.join(t.claudeHome, 'commands', `amauta-sdd-${c}.md`)), `command amauta-sdd-${c}`);
   }
   for (const s of ['sdd-orchestrator-workflow', 'sdd-phase-common', 'sdd-status-contract', 'openspec-convention']) {
     assert.ok(existsSync(path.join(t.claudeHome, 'skills', '_shared', `${s}.md`)), s);
@@ -78,7 +78,7 @@ test('no placeholder survives rendering and commands point at our status module'
   const files = (await tree(t.claudeHome)).filter((f) => /sdd/.test(f));
   assert.ok(files.length > 30);
   for (const f of files) assert.ok(!(await t.read(f)).includes('{{'), `placeholder left in ${f}`);
-  const status_ = await t.read('commands/lite-sdd-status.md');
+  const status_ = await t.read('commands/amauta-sdd-status.md');
   assert.ok(status_.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m amauta.sdd status [change] --cwd <repo> --json --instructions`));
   assert.ok(!(await t.read('skills/_shared/sdd-status-contract.md')).includes('gentle-ai sdd-'));
   for (const f of files.filter((x) => x.startsWith('commands/'))) assert.ok(!/gentle-sdd-/.test(await t.read(f)), `${f} still names /gentle-sdd-*`);
@@ -97,7 +97,7 @@ test('agents get the assigned model, the active engram prefix (no duplicates) an
   assert.ok(tools.includes('mcp__engram__mem_save'));
   assert.ok(!propose.includes('mcp__plugin_engram_engram__'));
   assert.ok(tools.includes('mcp__codegraph__codegraph_explore'));
-  assert.match(propose, /<!-- gentle-lite:codegraph-guidance -->/);
+  assert.match(propose, /<!-- amauta:codegraph-guidance -->/);
   await t.cleanup();
 
   const plugin = await sandbox({ settings: { enabledPlugins: { 'engram@engram': true } } });
@@ -107,7 +107,7 @@ test('agents get the assigned model, the active engram prefix (no duplicates) an
 
   const foreign = await sandbox({ claudeJson: { mcpServers: { engram: { command: 'engram', args: ['mcp'] } } } });
   await install(foreign.opts({ withSdd: true }));
-  assert.match(await foreign.read('agents/sdd-apply.md'), /mcp__gentle-memory__mem_save/);
+  assert.match(await foreign.read('agents/sdd-apply.md'), /mcp__amauta-memory__mem_save/);
   await foreign.cleanup();
 });
 
@@ -168,10 +168,10 @@ test('uninstall removes the whole module and restores the pre-install tree and s
 test('a user-edited SDD file is kept on uninstall', async () => {
   const t = await sandbox();
   await install(t.opts({ withSdd: true }));
-  await writeFile(path.join(t.claudeHome, 'commands', 'lite-sdd-new.md'), 'edited by me');
+  await writeFile(path.join(t.claudeHome, 'commands', 'amauta-sdd-new.md'), 'edited by me');
   const r = await uninstall(t.opts());
-  assert.ok(r.kept.includes('commands/lite-sdd-new.md'));
-  assert.equal(await t.read('commands/lite-sdd-new.md'), 'edited by me');
+  assert.ok(r.kept.includes('commands/amauta-sdd-new.md'));
+  assert.equal(await t.read('commands/amauta-sdd-new.md'), 'edited by me');
   assert.ok(!existsSync(path.join(t.claudeHome, 'agents', 'sdd-apply.md')));
   await t.cleanup();
 });
@@ -211,7 +211,7 @@ test('manifest lists every SDD asset and nothing in assets/sdd is left unreferen
   for (const s of m.sdd.skills) assert.ok(existsSync(assetPath(`${m.sdd.skillsDir}/${s}/SKILL.md`)), s);
   for (const a of m.sdd.agents) assert.ok(existsSync(assetPath(`${m.sdd.agentsDir}/${a.name}.md`)), a.name);
   assert.deepEqual(m.sdd.agents.map((a) => a.name).sort(), PHASES.map((p) => `sdd-${p}`).sort());
-  assert.match(await readAssetText('sdd/commands/lite-sdd-new.md'), /lite-sdd|sdd-orchestrator-workflow/);
+  assert.match(await readAssetText('sdd/commands/amauta-sdd-new.md'), /amauta-sdd|sdd-orchestrator-workflow/);
 });
 
 const AGENT_PAYLOAD = { session_id: 'abc-123', hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'sdd-apply', prompt: 'x' } };

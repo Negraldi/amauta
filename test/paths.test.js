@@ -10,7 +10,7 @@ test('defaults point at the home directory', () => {
   assert.deepEqual(t, {
     claudeHome: '/fake/home/.claude',
     claudeJson: '/fake/home/.claude.json',
-    stateDir: '/fake/home/.gentle-lite',
+    stateDir: '/fake/home/.amauta',
   });
 });
 
@@ -27,7 +27,7 @@ test('env variables override defaults and flags override env', () => {
 test('a custom claude home never leaks into the real home', () => {
   const t = resolveTargets({ claudeHome: '/sandbox/.claude' }, {}, HOME);
   assert.equal(t.claudeJson, path.join('/sandbox/.claude', '.claude.json'));
-  assert.equal(t.stateDir, path.join('/sandbox/.claude', '.gentle-lite'));
+  assert.equal(t.stateDir, path.join('/sandbox/.claude', '.amauta'));
 });
 
 test('relative paths are resolved to absolute', () => {

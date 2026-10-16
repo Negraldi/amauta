@@ -84,20 +84,20 @@ test('fresh install creates every component', async () => {
   assert.deepEqual(settings.permissions.ask, ['Bash(git push --force*)', 'Bash(git reset --hard*)', 'Bash(rm -rf*)']);
   assert.deepEqual(settings.permissions.deny, SECRET_DENY, 'secret-read deny set is installed');
   assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default
-  const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
+  const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
   assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, `node ${bin} hook skill-registry`);
   assert.equal(settings.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact');
   assert.equal(settings.hooks.Stop[0].hooks[0].command, `node ${bin} hook review-stop`);
 
   const cj = await readJson(t.claudeJson);
-  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['engram', 'gentle-lite']); // rea and context7 are opt-in
-  assert.equal(cj.mcpServers['gentle-lite'].command, 'node');
-  assert.ok(path.isAbsolute(cj.mcpServers['gentle-lite'].args[0]));
-  assert.match(cj.mcpServers['gentle-lite'].args[0], /src[\\/]mcp[\\/]server\.js$/);
+  assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['amauta', 'engram']); // rea and context7 are opt-in
+  assert.equal(cj.mcpServers['amauta'].command, 'node');
+  assert.ok(path.isAbsolute(cj.mcpServers['amauta'].args[0]));
+  assert.match(cj.mcpServers['amauta'].args[0], /src[\\/]mcp[\\/]server\.js$/);
   assert.equal((await stat(t.claudeJson)).mode & 0o777, 0o600);
 
   const state = await readJson(path.join(t.stateDir, 'state.json'));
-  assert.equal(state.schema, 'gentle-lite.state/v1');
+  assert.equal(state.schema, 'amauta.state/v1');
   assert.equal(state.rdd_mode, 'off');
   assert.equal(state.claude_home, t.claudeHome);
   assert.ok(state.installed_at);
@@ -306,18 +306,18 @@ test('uninstall without state still strips markers and hooks', async () => {
   await t.cleanup();
 });
 
-test('install replaces legacy PATH-based gentle-lite hooks and keeps user hooks; uninstall removes quoted entries', async () => {
-  const legacy = { type: 'command', command: 'gentle-lite hook review-stop' };
+test('install replaces legacy PATH-based amauta hooks and keeps user hooks; uninstall removes quoted entries', async () => {
+  const legacy = { type: 'command', command: 'amauta hook review-stop' };
   const mine = { type: 'command', command: 'echo mine' };
   const t = await sandbox({ settings: { hooks: { Stop: [{ matcher: '', hooks: [legacy, mine] }] } } });
   await install(t.opts());
   const cmds = (await readJson(t.p('settings.json'))).hooks.Stop.flatMap((e) => e.hooks.map((h) => h.command));
-  assert.ok(!cmds.includes('gentle-lite hook review-stop'));
+  assert.ok(!cmds.includes('amauta hook review-stop'));
   assert.ok(cmds.includes('echo mine'));
-  assert.ok(cmds.some((c) => /^node \S+gentle-lite\.js hook review-stop$/.test(c)));
+  assert.ok(cmds.some((c) => /^node \S+amauta\.js hook review-stop$/.test(c)));
   // A hand-written quoted variant is also recognised on uninstall.
   const s = await readJson(t.p('settings.json'));
-  s.hooks.Stop.push({ matcher: '', hooks: [{ type: 'command', command: "node '/my dir/bin/gentle-lite.js' hook review-stop" }] });
+  s.hooks.Stop.push({ matcher: '', hooks: [{ type: 'command', command: "node '/my dir/bin/amauta.js' hook review-stop" }] });
   await writeFile(t.p('settings.json'), JSON.stringify(s));
   await uninstall(t.opts());
   const left = (await readJson(t.p('settings.json'))).hooks.Stop.flatMap((e) => e.hooks.map((h) => h.command));
@@ -326,18 +326,18 @@ test('install replaces legacy PATH-based gentle-lite hooks and keeps user hooks;
 });
 
 const NESTED_ROUTING = [
-  '<!-- gentle-lite:agent-routing -->',
+  '<!-- amauta:agent-routing -->',
   '## Implementation Routing',
   '',
   '- Delegate mapping when 4+ files are needed.',
   '',
-  '<!-- gentle-lite:remote-authorization -->',
+  '<!-- amauta:remote-authorization -->',
   '## Remote operation authorization',
   '',
   'Permission to develop locally does not authorize remote execution.',
   '- Do not reuse ambient SSH agents.',
-  '<!-- /gentle-lite:remote-authorization -->',
-  '<!-- /gentle-lite:agent-routing -->',
+  '<!-- /amauta:remote-authorization -->',
+  '<!-- /amauta:agent-routing -->',
 ].join('\n');
 
 async function seedStaleRouting(t, { listInState }) {
@@ -370,7 +370,7 @@ for (const [name, listInState] of [['only the outer id is in state', ['agent-rou
   });
 }
 
-test('every hook gentle-lite registers, including the codegraph prompt hook, carries a timeout', async () => {
+test('every hook amauta registers, including the codegraph prompt hook, carries a timeout', async () => {
   const t = await sandbox();
   const bin = path.join(t.root, 'bin');
   await mkdir(bin);
@@ -432,7 +432,7 @@ test('status reports the size of each CLAUDE.md block and warns above the 20k-ch
   assert.deepEqual(ok.warnings, []);
 
   const md = await readFile(t.p('CLAUDE.md'), 'utf8');
-  await writeFile(t.p('CLAUDE.md'), md.replace('<!-- /gentle-lite:orchestrator -->', `${'x'.repeat(21000)}\n<!-- /gentle-lite:orchestrator -->`));
+  await writeFile(t.p('CLAUDE.md'), md.replace('<!-- /amauta:orchestrator -->', `${'x'.repeat(21000)}\n<!-- /amauta:orchestrator -->`));
   const big = await status(t.opts());
   assert.equal(big.sizes.over, true);
   assert.match(big.warnings.join('\n'), /20000/);

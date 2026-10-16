@@ -17,7 +17,7 @@ class StoreTest(unittest.TestCase):
 
     def test_state_dir_resolution(self):
         self.assertEqual(paths.state_dir({"AMAUTA_STATE_DIR": "/x/y"}), Path("/x/y"))
-        self.assertEqual(paths.state_dir({}, home=Path("/h")), Path("/h/.gentle-lite"))
+        self.assertEqual(paths.state_dir({}, home=Path("/h")), Path("/h/.amauta"))
 
     def test_pragmas_and_schema_version(self):
         c = self.store.conn
