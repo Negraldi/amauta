@@ -80,7 +80,7 @@ F3 Diagrams
 
 F6 Skill-impact
 - [x] W19 Verify what telemetry captures today (tool results, exit codes) and record the evidence here. (see "W19 evidence"; migration 6 + `ingest.parse_results`/`command_class`, `python/tests/test_usage_outcome.py`; RED seen (1 failure, 4 errors), then GREEN; npm test exit 0, node 414, python 443. Route: delegated direct (writer trigger: 2+ files).)
-- [ ] W20 Comparative per-skill metrics (error/retry rate after load, tokens per task, test outcomes, loaded-but-unused).
+- [x] W20 Comparative per-skill metrics (error/retry rate after load, tokens per task, test outcomes, loaded-but-unused). (`portal/skillimpact.py`: pure `analyze` + `load_sessions` + `impact`; metrics = tool error rate, retry proxy (same tool within 3 calls after an error), output tokens per main-thread assistant turn after the load message, test-command failure rate, loaded-but-unused; denied/unknown results excluded; controls = whole sessions without the skill, same project when >= 5 else all projects; every metric carries n and sessions and is suppressed below 5 sessions per side or with no data on a side; verdict = better/worse/no clear difference with a flat band. 16 tests; RED seen for the metric math (module missing), loader/wrapper tests written after the code; node 414, python 459, exit 0. Route: delegated direct.)
 - [ ] W21 Per-skill change log (git/hash) with before/after metrics.
 - [ ] W22 Skill page section and home ranking, with a correlation-not-causation note.
 
