@@ -58,9 +58,9 @@ F0 Design (impeccable)
 - [x] W2 `impeccable shape`: wiki visual direction; user approves before UI work.
 
 F1 Wiki shell
-- [ ] W3 Hash routes, `/api/wiki/page?kind=&id=` with a common schema (title, body, links, backlinks, meta), sidebar, recent changes.
-- [ ] W4 Global search across memories (FTS5), skills, sessions, tasks and graph nodes, grouped by kind.
-- [ ] W5 Safe markdown subset renderer (headings, lists, code, tables, links, `[[wikilinks]]`, mermaid fences), DOM-built.
+- [x] W3 Hash routes, `/api/wiki/page?kind=&id=` with a common schema (title, body, links, backlinks, meta), sidebar, recent changes. (`3b4cbce` API, `15fd38b` static whitelist/CSP, `e41ae64` shell)
+- [x] W4 Global search across memories (FTS5), skills, sessions, tasks and graph nodes, grouped by kind. (`3b4cbce` endpoint, `e41ae64` palette)
+- [x] W5 Safe markdown subset renderer (headings, lists, code, tables, links, `[[wikilinks]]`, mermaid fences), DOM-built. (`d383531`)
 
 F5 Launcher
 - [ ] W17 `.desktop` (Terminal=false) + Node launcher: free port, Chrome `--app` with own profile, stop server on window close; reuse a running server.
@@ -113,6 +113,14 @@ F8 Publish and transition
 - 2026-10-16: plan approved by the user (editable option list confirmed). `main` tagged `v0.1.0`, branch `feat/portal-wiki` created.
 - W1/W2 (route: inline, impeccable interview needs the user): `docs/PRODUCT.md` (register product; warm and studious; anti-refs old wikis and toy UIs; WCAG AA + reduced motion) and `docs/DESIGN.md` (Restrained, teal accent OKLCH 0.50 0.09 200, Source Serif 4 reading + system sans, sidebar + reading column + right rail, home = recent activity) written; brief approved by the user. Live mode not configured (no dev server).
 
+- W3/W4/W5 (route: delegated direct, writer trigger: 2+ files), strict TDD, runner `npm test`. Commits, each with `npm test` exit 0:
+  `554a40b` fonts (Source Serif 4 woff2 x3 + OFL, NOTICE, manifest; node 343, python 320);
+  `3b4cbce` wiki endpoints `/api/wiki/page|recent|search` in `portal/wiki.py` (node 343, python 339);
+  `d383531` markdown renderer `static/markdown.js` (node 355, python 339);
+  `15fd38b` static whitelist for the new scripts and fonts, CSP gains `font-src 'self'` only;
+  `e41ae64` wiki shell: `wikiroute.js`, sidebar, recent changes, palette, design-system CSS (node 373, python 342).
+  Manual check on real data (read-only, port 8799): endpoints, fonts (font/woff2, sha256 matches the manifest) and CSP verified with curl; browser check of light/dark/phone width is still W15.
+
 ## Next step
 
-F1 W3: wiki shell (routes, page schema, sidebar).
+F2 entity pages (W6-W11): fill the page schema richly (revision diff, SKILL.md rendering, session detail, ODD commits, node diagram, home).
