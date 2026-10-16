@@ -45,6 +45,73 @@ BACKUP_PATHS=(.claude .claude.json .gentle-ai .engram)
 # Keep the real terminal for programs that prompt (gentle-ai's "Type 'yes'"); everything else is logged through tee.
 exec 3>&1 4>&2
 
+# strip_leftover_blocks FILE SAVE_AS: gentle-ai's uninstaller can leave marked blocks (even nested ones) in CLAUDE.md.
+# When markers remain, keep a private copy at SAVE_AS, then drop every outermost block. Unbalanced markers: no edit.
+strip_leftover_blocks() {
+  local file=$1 save=$2 rc=0
+  file_has "$file" "$AI_MD_MARK" || return 0
+  cp -p -- "$file" "$save" && chmod 600 "$save" || die "could not save a copy of $file to $save"
+  log "   gentle-ai left markers in ~/.claude/CLAUDE.md; copy saved to $save"
+  python3 -P - "$file" <<'PY' | sed 's/^/   /' || rc=$?
+import os, re, sys, tempfile
+path = sys.argv[1]
+text = open(path, encoding="utf-8", newline="").read()
+lines = text.splitlines(keepends=True)
+mark = re.compile(r"^[ \t]*<!-- (/?)gentle-ai:([^\s>]+) -->[ \t]*\r?\n?$")
+spans, stack, ids = [], [], []
+for i, line in enumerate(lines):
+    m = mark.match(line)
+    if not m:
+        continue
+    close, ident = m.group(1) == "/", m.group(2)
+    if not close:
+        stack.append((i, ident))
+    elif stack and stack[-1][1] == ident:
+        start, _ = stack.pop()
+        if not stack:
+            spans.append((start, i))
+            ids.append(ident)
+    else:
+        print("unbalanced gentle-ai markers (unexpected close of %s); CLAUDE.md not edited" % ident)
+        sys.exit(2)
+total = len(re.findall(r"<!-- /?gentle-ai:", text))
+parsed = sum(1 for l in lines if mark.match(l))
+if stack or total != parsed:
+    print("unbalanced or unrecognised gentle-ai markers; CLAUDE.md not edited")
+    sys.exit(2)
+if not spans:
+    sys.exit(0)
+drop = {n for a, b in spans for n in range(a, b + 1)}
+kept = [l for n, l in enumerate(lines) if n not in drop]
+if spans[0][0] == 0:
+    while kept and not kept[0].strip():
+        kept.pop(0)
+if spans[-1][1] == len(lines) - 1:
+    while kept and not kept[-1].strip():
+        kept.pop()
+    if kept and not kept[-1].endswith("\n"):
+        kept[-1] += "\n"
+mode = os.stat(path).st_mode & 0o7777
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".CLAUDE.md.")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+        fh.write("".join(kept))
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+except BaseException:
+    os.unlink(tmp)
+    raise
+for ident in ids:
+    print("removed leftover gentle-ai block: %s" % ident)
+PY
+  if ((rc == 2)); then
+    log "   the original is untouched; a copy is in $save. Remove the blocks by hand."
+  elif ((rc != 0)); then
+    die "could not clean $file (exit $rc); a copy is in $save"
+  fi
+  return 0
+}
+
 # ---- pick the run directory: resume an unfinished one, stop if the last one finished.
 # A rolled-back run is over: the next --execute starts a new directory and never reuses that backup.
 RUN_DIR=""
@@ -161,6 +228,7 @@ fi
 if begin_phase 3 "remove gentle-ai from Claude Code"; then
   log "   would run: gentle-ai telemetry disable"
   log "   would run: gentle-ai uninstall --agent claude-code   (gentle-ai asks for its own confirmation; type yes there)"
+  log "   then strip leftover gentle-ai blocks it leaves in ~/.claude/CLAUDE.md (copy kept in $RUN_DIR/CLAUDE.md.gentle-ai-leftovers; unbalanced markers are never edited)"
   log "   then verify no gentle-ai markers/hooks remain and list leftovers"
   if gate "Disable gentle-ai telemetry and uninstall gentle-ai from Claude Code now?"; then
     with_caller_umask gentle-ai telemetry disable || warn "gentle-ai telemetry disable failed (continuing)"
@@ -171,6 +239,7 @@ if begin_phase 3 "remove gentle-ai from Claude Code"; then
     if ((rc != 0)); then
       die "gentle-ai uninstall did not complete (exit $rc; see its message above). If it says the flag is not defined, this gentle-ai ($(gentle-ai --version 2>&1 | head -1)) does not support 'uninstall --agent': update gentle-ai or remove it by hand, then re-run. Nothing after phase 3 was changed; re-run to retry."
     fi
+    strip_leftover_blocks "$CLAUDE_HOME/CLAUDE.md" "$RUN_DIR/CLAUDE.md.gentle-ai-leftovers"
     bad=0
     if file_has "$CLAUDE_HOME/CLAUDE.md" "$AI_MD_MARK"; then log "   FAIL gentle-ai sections remain in ~/.claude/CLAUDE.md"; bad=1; fi
     if file_has "$CLAUDE_HOME/settings.json" "$AI_HOOK_MARK"; then log "   FAIL gentle-ai hooks remain in ~/.claude/settings.json"; bad=1; fi

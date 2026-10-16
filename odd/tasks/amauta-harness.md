@@ -316,6 +316,8 @@ T16 done. Open: nothing blocking.
 
 - 2026-10-15: RDD for T23b (`91307f8..19ff254`): high, 258 lines → granted → approved, acknowledged (review-75e60e288cfa41f2); warning: rollback extracted under umask 077 so restored modes were masked (644→600, 755→700). Parent fix `9fe63bc` (TDD: RED on new mode-preservation test, 448 vs 493): `tar --same-permissions` on extract; also a strict verify-before-enable order assertion. Suite by exit code: node 303 / python 284, exit=0. RDD `19ff254..9fe63bc`: high, 25 lines → granted → approved with no warnings (review-b6e88078c86b4c4d). Migration scripts ready for the user; still never run against the real home.
 
+- 2026-10-16: T29 migrate leftover-block cleanup: phase 3 now strips the outermost gentle-ai blocks (nested ones included) that `gentle-ai uninstall` leaves in ~/.claude/CLAUDE.md, after saving `CLAUDE.md.gentle-ai-leftovers` (0600) in the run dir; unbalanced markers are never edited and still FAIL. TDD: RED 3 failing of 15 migrate tests, then GREEN; `npm test` exit 0 (node 342 / python 320). rollback.sh unchanged: it restores CLAUDE.md from the backup tarball. Commit: the one that adds this line (see git log).
+
 ## Next session
 
 - T23b done: the T23 review warnings are fixed and covered by tests (modes, rollback without gentle-lite, new run dir after rollback, TTY for gentle-ai's prompt, resume). Still never run against the real home. The user runs, from a terminal with Claude Code closed, in /home/negraldi/gentle-lite:

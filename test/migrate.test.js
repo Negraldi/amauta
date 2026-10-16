@@ -21,10 +21,16 @@ if [ "$1" = "uninstall" ]; then
   echo "gentle-ai uninstall tty: stdin=$t0 stdout=$t1 stderr=$t2" >> "$STUB_LOG"
   if [ -n "\${STUB_UNINSTALL_FAIL:-}" ]; then echo "Error: flag provided but not defined: -agent" >&2; exit 1; fi
   python3 - "$HOME/.claude" <<'PY'
-import json, re, sys
+import json, os, re, sys
 home = sys.argv[1]
 md = open(home + "/CLAUDE.md").read()
 md = re.sub(r"<!-- gentle-ai:(\\S+) -->.*?<!-- /gentle-ai:\\1 -->\\n?", "", md, flags=re.S)
+leftover = os.environ.get("STUB_LEFTOVER")
+if leftover:
+    md += "\\nuser before\\n\\n<!-- gentle-ai:codegraph-guidance -->\\ncg text\\n<!-- /gentle-ai:codegraph-guidance -->\\n\\nmiddle text\\n\\n<!-- gentle-ai:agent-routing -->\\nrouting\\n<!-- gentle-ai:remote-authorization -->\\nremote\\n<!-- /gentle-ai:remote-authorization -->\\nmore routing\\n"
+    if leftover == "nested":
+        md += "<!-- /gentle-ai:agent-routing -->\\n"
+    md += "\\nuser after\\n"
 open(home + "/CLAUDE.md", "w").write(md)
 s = json.load(open(home + "/settings.json"))
 for ev, entries in list(s.get("hooks", {}).items()):
@@ -376,5 +382,57 @@ test('rollback restores the original file modes (not masked by the script umask)
     assert.equal(rb.status, 0, rb.stdout + rb.stderr);
     assert.equal((await stat(script)).mode & 0o777, 0o755);
     assert.equal((await stat(path.join(f.claude, 'CLAUDE.md'))).mode & 0o777, 0o644);
+  } finally { await f.cleanup(); }
+});
+
+test('phase 3 strips the nested gentle-ai blocks the uninstaller leaves in CLAUDE.md, keeping a private copy', async () => {
+  const f = await fixture();
+  try {
+    await chmod(path.join(f.claude, 'CLAUDE.md'), 0o640);
+    const r = run(MIGRATE, ['--execute', '--assume-yes'], f, { STUB_LEFTOVER: 'nested' });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const [name] = await migrationDirs(f);
+    const dir = path.join(f.home, 'amauta-migration', name);
+    const saved = await read(dir, 'CLAUDE.md.gentle-ai-leftovers');
+    assert.match(saved, /<!-- gentle-ai:agent-routing -->/);
+    assert.match(saved, /<!-- gentle-ai:remote-authorization -->/);
+    assert.equal(await mode(path.join(dir, 'CLAUDE.md.gentle-ai-leftovers')), '600');
+    for (const id of ['codegraph-guidance', 'agent-routing']) assert.match(r.stdout, new RegExp(`removed leftover gentle-ai block: ${id}`));
+    assert.doesNotMatch(r.stdout, /removed leftover gentle-ai block: remote-authorization/, 'only outermost blocks are reported');
+    const md = await read(f.claude, 'CLAUDE.md');
+    assert.doesNotMatch(md, /gentle-ai:/);
+    assert.doesNotMatch(md, /cg text|^routing$|^more routing$|^remote$/m);
+    assert.match(md, /# My rules\n\nmine\n/);
+    assert.ok(md.includes('user before\n\n\nmiddle text\n\n\nuser after\n'), 'text outside the blocks is kept byte-for-byte');
+    assert.equal(await mode(path.join(f.claude, 'CLAUDE.md')), '640', 'file mode preserved');
+    // the pre-migration CLAUDE.md is still what rollback restores (it comes from the backup tarball)
+    const pre = (await read(f.claude, 'CLAUDE.md')).length; assert.ok(pre > 0);
+    const rb = run(ROLLBACK, [dir, '--assume-yes'], f);
+    assert.equal(rb.status, 0, rb.stdout + rb.stderr);
+    assert.match(await read(f.claude, 'CLAUDE.md'), /<!-- gentle-ai:orchestrator -->/);
+  } finally { await f.cleanup(); }
+});
+
+test('phase 3 leaves CLAUDE.md untouched and still fails when the leftover markers are unbalanced', async () => {
+  const f = await fixture();
+  try {
+    const r = run(MIGRATE, ['--execute', '--assume-yes'], f, { STUB_LEFTOVER: 'unbalanced' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stdout + r.stderr, /FAIL gentle-ai sections remain in ~\/\.claude\/CLAUDE\.md/);
+    assert.match(r.stdout + r.stderr, /unbalanced/);
+    const [name] = await migrationDirs(f);
+    const dir = path.join(f.home, 'amauta-migration', name);
+    const saved = await read(dir, 'CLAUDE.md.gentle-ai-leftovers');
+    assert.equal(await read(f.claude, 'CLAUDE.md'), saved, 'not edited');
+    assert.match(r.stdout + r.stderr, /CLAUDE\.md\.gentle-ai-leftovers/);
+    assert.ok(!(await readdir(dir)).includes('phase3.done'));
+  } finally { await f.cleanup(); }
+});
+
+test('the dry run describes the leftover-block cleanup of phase 3', async () => {
+  const f = await fixture();
+  try {
+    const r = run(MIGRATE, [], f);
+    assert.match(r.stdout, /leftover gentle-ai blocks/i);
   } finally { await f.cleanup(); }
 });
