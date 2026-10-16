@@ -48,3 +48,7 @@ pre.text { white-space: pre-wrap; word-break: break-word; background: var(--bg);
   .filters select { width: 100%; }
   .card .v { font-size: 19px; }
 }
+.diagram svg { max-width: 100%; height: auto; }
+details > summary { cursor: pointer; margin: 6px 0; }
+.diagram { background: #ffffff; color: #1d1f23; border-radius: 6px; padding: 8px; }
+.diagram .muted { color: #62666d; }

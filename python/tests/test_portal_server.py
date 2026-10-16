@@ -54,7 +54,9 @@ class ReadTest(ServerBase):
         self.assertEqual(status, 200)
         self.assertIn("text/html", h["content-type"])
         self.assertIn("default-src 'none'", h["content-security-policy"])
-        self.assertNotIn("unsafe-inline", h["content-security-policy"])
+        scripts = [d for d in h["content-security-policy"].split(";") if d.strip().startswith(("script-src", "default-src"))]
+        self.assertTrue(scripts and all("unsafe-inline" not in d and "unsafe-eval" not in d for d in scripts))
+        self.assertIn("style-src 'self' 'unsafe-inline'", h["content-security-policy"])  # mermaid's inline SVG styles
         self.assertEqual(h["x-content-type-options"], "nosniff")
         self.assertEqual(h["cache-control"], "no-store")
         self.assertTrue(len(self.token()) >= 32)

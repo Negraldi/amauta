@@ -3,7 +3,7 @@
 const token = document.querySelector('meta[name="portal-token"]').content;
 const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
-const VIEWS = [["overview", "Overview"], ["usage", "Usage"], ["sessions", "Sessions"], ["memories", "Memories"], ["harness", "Harness"]];
+const VIEWS = [["overview", "Overview"], ["usage", "Usage"], ["sessions", "Sessions"], ["memories", "Memories"], ["harness", "Harness"], ["diagrams", "Diagrams"]];
 const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
 
 function h(tag, attrs, ...kids) {
@@ -33,6 +33,52 @@ async function api(path, params = {}) {
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
   return body;
+}
+
+
+// Mermaid is vendored (/static/mermaid.min.js, no CDN) and loaded on first use. Source text is generated server-side with every label
+// escaped, and mermaid itself runs with securityLevel "strict"; the SVG it returns is parsed into an inert document and adopted as nodes, never assigned as an HTML string.
+let mermaidReady = null;
+function loadMermaid() {
+  mermaidReady ||= new Promise((resolve, reject) => {
+    const tag = document.createElement("script");
+    tag.src = "/static/mermaid.min.js";
+    tag.onload = () => {
+      try {
+        // Always the light theme: the diagram sits on a white card (see .diagram), so label colors stay readable in a dark page too.
+        window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "default", suppressErrorRendering: true });
+        resolve(window.mermaid);
+      } catch (err) { reject(err); }
+    };
+    tag.onerror = () => { mermaidReady = null; reject(new Error("could not load /static/mermaid.min.js")); };
+    document.head.append(tag);
+  });
+  return mermaidReady;
+}
+let mermaidSeq = 0;
+async function drawMermaid(source, into) {
+  try {
+    const mermaid = await loadMermaid();
+    const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, source);
+    // Parsed into an inert document (no script runs, no resource loads), then only the <svg> element is adopted. HTML parsing, not XML:
+    // flowchart labels carry HTML inside <foreignObject>, which is not well-formed XML.
+    const root = new DOMParser().parseFromString(svg, "text/html").body.querySelector("svg");
+    if (!root) throw new Error("diagram output was not SVG");
+    into.replaceChildren(document.importNode(root, true));
+  } catch (err) {
+    into.replaceChildren(h("p", { class: "warn" }, `Diagram could not be rendered: ${String(err.message || err).split("\n")[0]}`), h("pre", { class: "text" }, source));
+  }
+}
+function diagramBox(source, caption) {
+  const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || "Diagram" }, h("p", { class: "muted" }, "Rendering..."));
+  drawMermaid(source, box);
+  return box;
+}
+// Markdown the portal shows as text may hold ```mermaid fences: draw the first few under it.
+function fenceDiagrams(text, into) {
+  const sources = [...String(text).matchAll(/^```mermaid[ \t]*\r?\n([\s\S]*?)^```[ \t]*$/gm)].slice(0, 5).map((m) => m[1]);
+  into.replaceChildren(...sources.map((src, i) => h("div", null, h("div", { class: "muted" }, `Mermaid diagram ${i + 1}`), diagramBox(src, `Mermaid diagram ${i + 1}`))));
+  into.hidden = sources.length === 0;
 }
 
 const state = { view: "overview", usageKind: "skills", memSource: "own", sort: {} };
@@ -149,12 +195,14 @@ function guarded(fn, into) {
   };
 }
 
+function fences(text) { const box = h("div", null); fenceDiagrams(text, box); return box; }
+
 async function showMemory(source, id, into) {
   const m = await api("memory", { source, id });
   const hist = m.topic_key ? await api("memory/history", { source, topic_key: m.topic_key, project: m.project }) : { items: [] };
   into.replaceChildren(
     h("h2", null, m.title), h("div", { class: "muted" }, [m.type, m.project, m.topic_key, `rev ${m.revision}`, m.updated_at].filter(Boolean).join(" · ")),
-    h("pre", { class: "text" }, m.content),
+    h("pre", { class: "text" }, m.content), fences(m.content),
     hist.items.length > 1 || (hist.items[0] && hist.items[0].revision > 1) ? h("div", null, h("h2", null, "Topic history"), table("hist", [{ key: "id", label: "#", num: true }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }, { key: "deleted_at", label: "Deleted" }], hist.items)) : null);
 }
 
@@ -175,13 +223,24 @@ async function viewMemories() {
   const files = await api("memory-files");
   const fileDetail = h("pre", { class: "text" }, "");
   fileDetail.hidden = true;
+  const fileFences = h("div", null);
+  fileFences.hidden = true;
   return [
     h("div", { class: "tabs" }, [["own", "amauta memory"], ["engram", "Engram (read-only)"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
     panel("Search", h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, "Search")), mine),
     detail,
-    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, guarded(async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; }, fileDetail)) : empty("No file memories found."), fileDetail),
+    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, guarded(async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; fenceDiagrams(b.content, fileFences); }, fileDetail)) : empty("No file memories found."), fileDetail, fileFences),
     await graphifyPanel(),
   ];
+}
+
+function graphDiagram(repo, node, depth) {
+  const box = h("div", null, h("p", { class: "muted" }, "Rendering..."));
+  api("graph/diagram", { repo, node, depth }).then((d) => {
+    if (!d.source) box.replaceChildren(empty("Nothing to draw."));
+    else box.replaceChildren(diagramBox(d.source, "Neighbors of the selected graph node"), d.truncated || d.nodes > 30 ? empty(`Showing the nearest 30 of ${fmt(d.nodes)} nodes.`) : null);
+  }).catch((err) => box.replaceChildren(h("p", { class: "warn" }, String(err.message || err))));
+  return box;
 }
 
 // One block per --repo: stats, searchable node list, neighbors of the selected node. Data only ever becomes text.
@@ -195,6 +254,7 @@ function graphRepo(r) {
     const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
     near.replaceChildren(h("h3", null, `Neighbors of ${node.label || node.id}`),
       table("gn-" + r.path, [{ key: "depth", label: "Depth", num: true }, { key: "label", label: "Label" }, { key: "kind", label: "Kind" }, { key: "file", label: "File" }], g.nodes),
+      h("h3", null, "Neighborhood diagram"), graphDiagram(r.path, node.id, depth.value),
       g.edges.length ? table("ge-" + r.path, [{ key: "src", label: "From" }, { key: "relation", label: "Relation" }, { key: "dst", label: "To" }], g.edges) : empty("No edges between these nodes."));
   }, near);
   const load = guarded(async () => {
@@ -230,7 +290,25 @@ async function viewHarness() {
   return out;
 }
 
-const RENDERERS = { overview: viewOverview, usage: viewUsage, sessions: viewSessions, memories: viewMemories, harness: viewHarness };
+async function viewDiagrams() {
+  const d = await api("diagrams");
+  const out = [panel("Architecture", d.architecture ? diagramBox(d.architecture, "amauta install architecture") : empty("amauta is not installed (no state.json in the state directory)."))];
+  const docs = h("div", null);
+  for (const [i, doc] of d.odd.entries()) {
+    const body = h("div", null);
+    const det = h("details", { open: i === 0 }, h("summary", null, `${doc.repo}/${doc.document}: ${doc.done}/${doc.total} done`), body);
+    let drawn = false;
+    const draw = () => { if (!drawn) { drawn = true; body.replaceChildren(diagramBox(doc.source, `Task progress of ${doc.document}`)); } };
+    det.addEventListener("toggle", () => { if (det.open) draw(); });
+    if (i === 0) draw();
+    docs.append(det);
+  }
+  out.push(panel("ODD task progress", d.odd.length ? docs : empty("No odd/tasks/*.md with tasks found (use --repo).")));
+  out.push(panel("Graph memory", empty("Search a node under Memories > Graph memory to see its neighborhood diagram.")));
+  return out;
+}
+
+const RENDERERS = { overview: viewOverview, usage: viewUsage, sessions: viewSessions, memories: viewMemories, harness: viewHarness, diagrams: viewDiagrams };
 let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;

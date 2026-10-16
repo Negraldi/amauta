@@ -14,6 +14,7 @@ from ..graph import query as graph_query
 from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import ingest
+from . import diagrams
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
@@ -448,11 +449,14 @@ class Portal:
             spec = spec if isinstance(spec, dict) else {}
             servers.append({"name": name, "type": spec.get("type") or ("stdio" if spec.get("command") else "unknown"),
                             "command": Path(str(spec.get("command", ""))).name or None})  # no args, no env
+        managed = state.get("managed_files") or {}
         return {
             "installed": True, "version": state.get("version"), "installed_at": state.get("installed_at"), "persona": state.get("persona"),
             "components": state.get("components") or [], "rdd_mode": state.get("rdd_mode"), "telemetry": state.get("telemetry") is True,
             "memory_server_key": state.get("memory_server_key"), "managed_files": len(state.get("managed_files") or {}),
             "claude_home": str(home), "hooks": hooks, "mcp_servers": servers,
+            "skills": sum(1 for rel in managed if re.fullmatch(r"skills/[^/]+/SKILL\.md", rel)),
+            "agents": sum(1 for rel in managed if re.fullmatch(r"agents/[^/]+\.md", rel)),
         }
 
     def odd(self, q):
@@ -469,6 +473,29 @@ class Portal:
                 docs.append({"name": f.name, "done": sum(t["done"] for t in tasks), "total": len(tasks), "tasks": tasks})
             repos.append({"repo": repo.name, "documents": docs})
         return {"repos": repos}
+
+    # ---- diagrams (Mermaid source is generated here, from the data the views above already use) --------------
+    def diagrams(self, q):
+        hs = self.harness({})
+        docs = []
+        for r in self.odd({})["repos"]:
+            for d in r["documents"]:
+                src = diagrams.odd_progress(d["name"], d["tasks"])
+                if src:
+                    docs.append({"repo": r["repo"], "document": d["name"], "done": d["done"], "total": d["total"], "source": src})
+        return {"architecture": diagrams.architecture(hs, self.cfg.state_dir), "odd": docs}
+
+    def graph_diagram(self, q):
+        repo = self._graph_repo(q)
+        node = _str(q, "node", 512)
+        if not node:
+            raise BadRequest("node is required")
+        depth = _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
+
+        def build(conn):
+            g = graph_query.neighbors(conn, repo, node, depth)
+            return {"source": diagrams.graph_neighborhood(g), "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": g["truncated"]}
+        return self._graph_call(build)
 
     # ---- the only write ---------------------------------------------------------------------
     def refresh(self):
@@ -513,5 +540,5 @@ _ROUTES = {
     "/api/memories": "memories", "/api/memory": "memory", "/api/memory/history": "memory_history",
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
-    "/api/harness": "harness", "/api/odd": "odd",
+    "/api/harness": "harness", "/api/odd": "odd", "/api/diagrams": "diagrams", "/api/graph/diagram": "graph_diagram",
 }
