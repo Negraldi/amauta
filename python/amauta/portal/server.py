@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import re
 import secrets
 import threading
 import time
@@ -10,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
+from . import archify
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
@@ -22,8 +24,15 @@ STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.mi
 MAX_BODY = 1024
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
+# frame-src 'self' is the only addition for archify: the Harness page embeds /archify/<hash>.html in a sandboxed iframe.
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; img-src 'self' data:; manifest-src 'self'; "
-       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+       "frame-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+# The archify viewer is one self-contained page with inline script and style, so it gets its OWN policy instead of loosening the portal's: it runs in an
+# opaque origin (`sandbox allow-scripts`, no allow-same-origin: no cookies, storage or access to the portal), cannot load or send anything
+# (default-src/connect-src 'none'; only data: fonts and images), and may be framed by this origin only.
+ARCHIFY_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data:; "
+               "connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'")
+_ARCHIFY_PATH = re.compile(r"^/archify/([0-9a-f]{64})\.html$")
 
 
 class IdleMonitor:
@@ -85,13 +94,13 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # ---- helpers --------------------------------------------------------------------------
-    def _send(self, status, body: bytes, ctype: str):
+    def _send(self, status, body: bytes, ctype: str, csp: str = CSP):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("Content-Security-Policy", csp)
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         self.end_headers()
@@ -125,6 +134,12 @@ class Handler(BaseHTTPRequestHandler):
             if name in STATIC_FILES:  # exact whitelist: no path is ever joined from the request
                 return self._send(200, (STATIC / name).read_bytes(), STATIC_FILES[name])
             return self._json(404, {"error": "not found"})
+        m = _ARCHIFY_PATH.match(url.path)
+        if m:  # only pages this process rendered itself, looked up by hash: no input ever reaches the renderer from here
+            page = archify.cached(m.group(1))
+            if page is None:
+                return self._json(404, {"error": "not found"})
+            return self._send(200, page, "text/html; charset=utf-8", csp=ARCHIFY_CSP)
         if url.path.startswith("/api/"):
             try:
                 query = dict(parse_qsl(url.query, keep_blank_values=True, max_num_fields=20))

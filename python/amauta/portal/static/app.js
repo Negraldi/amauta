@@ -286,12 +286,25 @@ async function graphifyPanel() {
   return panel("Graph memory (graphify)", ...blocks.map((b) => b.el));
 }
 
+// Harness architecture: the archify page lives on its own route with its own sandboxing CSP and is shown in a sandboxed iframe (scripts only, no
+// same-origin), so the portal's script-src 'self' is untouched. Without node/archify the server sends the Mermaid text diagram instead.
+function archifyBlock(d) {
+  if (!d.installed) return null;
+  if (d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)) {
+    return panel("Architecture", h("iframe", { class: "archify-frame", src: d.url, sandbox: "allow-scripts", title: "amauta harness architecture (archify)", referrerpolicy: "no-referrer" }),
+      h("p", { class: "muted" }, `${fmt(d.components)} components drawn by archify from the install state.`));
+  }
+  return panel("Architecture", d.fallback ? diagramBox(d.fallback, "amauta install architecture") : null,
+    h("p", { class: "muted" }, `Showing the Mermaid fallback${d.reason ? ": " + d.reason : ""}.`));
+}
+
 async function viewHarness() {
-  const [hs, odd] = await Promise.all([api("harness"), api("odd")]);
+  const [hs, odd, arch] = await Promise.all([api("harness"), api("odd"), api("archify").catch(() => ({ installed: false }))]);
   const out = [];
   if (!hs.installed) out.push(panel("Harness", empty("amauta is not installed (no state.json in the state directory).")));
   else {
     out.push(h("div", { class: "grid" }, card("Version", hs.version || "-"), card("RDD mode", hs.rdd_mode || "-"), card("Telemetry", hs.telemetry ? "on" : "off"), card("Managed files", fmt(hs.managed_files)), card("Persona", hs.persona || "-")),
+      archifyBlock(arch),
       panel("Components", empty((hs.components || []).join(", ") || "none")),
       panel("Hooks", hs.hooks.length ? table("hooks", [{ key: "event", label: "Event" }, { key: "kind", label: "Kind" }], hs.hooks) : empty("No hooks registered.")),
       panel("MCP servers", hs.mcp_servers.length ? table("mcp", [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "command", label: "Command" }], hs.mcp_servers) : empty("None.")));

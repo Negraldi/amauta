@@ -31,6 +31,7 @@ const routes = {
   '/api/graph/nodes': { available: true, items: [{ id: 'a', label: XSS, kind: 'code', file: 'src/a.py' }, { id: 'b', label: 'Beta', kind: 'code', file: 'src/b.py' }] },
   '/api/graph/neighbors': { available: true, depth: 1, start: ['a'], nodes: [{ id: 'a', label: XSS, kind: 'code', file: 'x', depth: 0 }, { id: 'b', label: 'Beta', kind: 'code', file: 'y', depth: 1 }], edges: [{ src: 'a', dst: 'b', relation: XSS }] },
   '/api/harness': { installed: true, version: '1', hooks: [{ event: 'Stop', kind: 'usage' }], mcp_servers: [{ name: XSS, type: 'stdio', command: 'x' }], components: [XSS], managed_files: 1, telemetry: true, rdd_mode: 'on', persona: 'neutral' },
+  '/api/archify': { installed: true, available: false, reason: XSS, fallback: 'flowchart LR\n  n0["A"]' },
   '/api/odd': { repos: [{ repo: XSS, documents: [{ name: XSS, done: 1, total: 2, tasks: [{ done: true, title: XSS }, { done: false, title: 'b' }] }] }] },
 };
 

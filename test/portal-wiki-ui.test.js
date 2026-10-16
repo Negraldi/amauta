@@ -387,6 +387,25 @@ test('a feature page draws the task grid once and notes a capped document; a nod
   assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
 });
 
+test('the Harness page embeds archify in a sandboxed iframe on its own route, and falls back to Mermaid with the reason', async () => {
+  const url = '/archify/' + 'a'.repeat(64) + '.html';
+  const harness = { '/api/harness': { installed: true, version: '1', hooks: [], mcp_servers: [], components: [], managed_files: 0, telemetry: false, rdd_mode: 'on', persona: 'neutral' } };
+  let { env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url, components: 12, fallback: 'flowchart LR\n  n0["A"]' } });
+  let frames = tree(view(env)).filter((e) => e.tagName === 'iframe');
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0].getAttribute('src'), url);
+  assert.equal(frames[0].getAttribute('sandbox'), 'allow-scripts'); // never allow-same-origin
+  assert.match(view(env).textContent, /12 components drawn by archify/);
+  assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 0);
+  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url: 'https://evil.example/x.html', components: 1, fallback: 'flowchart LR\n  n0["A"]' } }));
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0, 'only our own route is ever framed');
+  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: false, reason: XSS, fallback: 'flowchart LR\n  n0["A"]' } }));
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0);
+  assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 1);
+  assert.ok(view(env).textContent.includes(XSS));
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'img').length, 0);
+});
+
 test('a feature without commits or progress adds neither block; an empty task list does not divide by zero', async () => {
   let { env } = await boot('#/feature/feat', { '/api/wiki/page': { ...PAGE, kind: 'feature', progress: { done: 0, total: 0, percent: 0 }, commits: [] } });
   assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Commits'));

@@ -158,6 +158,7 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 /* Mermaid always draws with its light theme, so diagrams sit on a white sheet in both color schemes. */
 .diagram { background: oklch(1 0 0); color: oklch(0.23 0.012 200); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2); margin: 0 0 var(--s4); }
 .diagram svg { max-width: 100%; height: auto; }
+.archify-frame { display: block; width: 100%; height: 42rem; max-height: 80vh; border: 1px solid var(--line); border-radius: 6px; background: oklch(1 0 0); margin: 0 0 var(--s2); }
 .diagram .muted { color: oklch(0.45 0.012 200); }
 
 /* ---- loading: skeleton lines, not spinners ---- */
