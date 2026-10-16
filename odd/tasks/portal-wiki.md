@@ -75,8 +75,8 @@ F2 Entity pages
 - [x] W11 Home: overview numbers, charts, recent activity. (`1da8c80`; `/api/wiki/home`, old overview at `#/usage`; node 406, python 404, exit 0. Route: delegated direct (writer trigger: 2+ files).)
 
 F3 Diagrams
-- [ ] W12 Vendor archify (update check off); generate harness architecture JSON from install state; render on `#/harness`.
-- [ ] W13 Mermaid ODD diagrams grouped by status, grid layout.
+- [x] W12 Vendor archify (update check off); generate harness architecture JSON from install state; render on `#/harness`. (`3ec82fb` vendor archify 3.1.0 unmodified, upstream commit `68031cf`, MIT; `ce92db8` update check off in `bin/delivery-update.mjs` + `scripts/check-update.mjs`, NOTICE + manifest checksums; `9f2effe` `--with-archify` sticky/status/uninstall/migrate line; `7b8a1c1` portal: `portal/archify.py` builds the grid JSON from `Portal.harness()` (generated ids, labels cleaned and capped, structural check), renders with the vendored CLI (node argument list, temp dir, scrubbed env, 40 s timeout, validate then render, in-memory cache by input hash), `/api/archify`, route `/archify/<sha256>.html` under its own CSP (`sandbox allow-scripts`, default-src 'none', no allow-same-origin, frame-ancestors 'self'), portal CSP gains only `frame-src 'self'` and keeps `script-src 'self'`; Harness page shows a `sandbox="allow-scripts"` iframe, Mermaid fallback when node/archify is missing or the render fails; retry without region boundaries when the router refuses a crowded layout; npm test exit 0, node 414, python 438. Route: delegated direct (writer trigger: 2+ files).)
+- [x] W13 Mermaid ODD diagrams grouped by status, grid layout. (`d1ab71a`; `wikifeature.parse_tasks` reads phases (bare line above a checklist or markdown heading) and blocked (`[!]` or the word); `flowchart TB` with a summary node and one `subgraph` per phase, `direction LR`, rows of 6 built with invisible links, no hub; stadium/rectangle/hexagon + word + class per status; cap 60 + "N more"; feature page `diagram` field and "Task grid" section; checked with real Mermaid 11.17.2 in headless Chrome at 29 (real doc), 200 hostile, 1 tasks: rendered, no garbling; tests for 0, 1, 34, 200 and hostile labels; node 407, python 415, exit 0. Route: delegated direct.)
 
 F6 Skill-impact
 - [ ] W19 Verify what telemetry captures today (tool results, exit codes) and record the evidence here.
@@ -123,6 +123,8 @@ F8 Publish and transition
 
 - W6-W11 manual check on real data (read-only, port 8799, stopped after): memory, skill python-testing (installed, 0 calls) and impeccable (2 calls), current session, feature portal-wiki (7 commits resolved, 7 of 29 done) and home endpoints answered 200 with the expected shape; no node page checked (the amauta repo graph is not mirrored in the real DB). Browser look is pending (W15).
 
+- W12/W13 manual check on real data (read-only, port 8799, stopped after): `/api/archify` gave available=true, 16 components; `/archify/<hash>.html` 200 with the sandbox CSP; unknown hash 404; feature diagram source 29 tasks in 9 phases; headless Chrome showed the iframe drawing the diagram inside `#/harness` with no console or CSP errors.
+
 ## Next step
 
-F3 diagrams (W12-W13), then F6 skill-impact, F7 settings, F4 quality (browser check of the new pages in W15).
+F6 skill-impact (F3 diagrams done), F7 settings, F4 quality (browser check of the new pages in W15).
