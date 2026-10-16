@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeEnv, Element } from './helpers/fakedom.js';
+import { runPortal } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
@@ -36,10 +37,12 @@ const routes = {
 async function boot(hash = '') {
   const env = makeEnv(routes);
   env.location.hash = hash;
-  vm.runInNewContext(await read('app.js'), { ...env, URLSearchParams, console, setTimeout, String, Number, Object, Math, Array, Promise, Error });
+  await runPortal(env);
   await tick();
   return env;
 }
+// Wiki links carry the percent-encoded id in href (e.g. %3Cimg%20onerror...): inert, and it must stay a wiki route.
+const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === 'href' ? v.startsWith('#/') : !v.includes('onerror')) && !k.startsWith('on'));
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 
 test('static files: no innerHTML-style sinks, no external URLs, no inline script or style', async () => {
@@ -89,7 +92,7 @@ for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
     }
     assert.ok(view.textContent.includes(XSS), view.textContent.slice(0, 200));
     assert.equal(tree(view).filter((e) => e.tagName === 'img').length, 0);
-    assert.ok(tree(view).every((e) => Object.values(e.attrs).every((v) => !v.includes('onerror'))));
+    assert.ok(tree(view).every(noHandlerAttrs));
   });
 }
 
@@ -214,7 +217,7 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
   assert.match(n.url, /node=a/);
   assert.match(view.textContent, /Beta/);
   assert.equal(tree(view).filter((e) => e.tagName === 'img').length, 0);
-  assert.ok(tree(view).every((e) => Object.values(e.attrs).every((v) => !v.includes('onerror'))));
+  assert.ok(tree(view).every(noHandlerAttrs));
 });
 
 test('graph memory: API failures are shown inline', async () => {

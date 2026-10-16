@@ -15,6 +15,7 @@ export class Element extends NodeBase {
   set textContent(v) { this.children = []; this._text = String(v); }
   get textContent() { return this._text ?? this.children.map((c) => c.textContent).join(''); }
   get options() { return this.children.filter((c) => c.tagName === 'option'); }
+  focus() { this.focused = true; }
   click() { for (const fn of this.listeners.click ?? []) fn({ target: this }); }
   walk(fn) { fn(this); for (const c of this.children) if (c instanceof Element) c.walk(fn); }
 }
@@ -22,7 +23,10 @@ export function makeEnv(routes) {
   const byId = new Map();
   const token = new Element('meta');
   token.setAttribute('content', 'TOKEN-123');
+  const docListeners = {};
   const document = {
+    title: '',
+    addEventListener: (type, fn) => { (docListeners[type] ??= []).push(fn); },
     createElement: (t) => new Element(t),
     createElementNS: (ns, t) => new Element(t, ns),
     createTextNode: (d) => new Text(d),
@@ -40,5 +44,5 @@ export function makeEnv(routes) {
   const location = { hash: '' };
   const listeners = {};
   const window = { addEventListener: (t, fn) => { listeners[t] = fn; } };
-  return { document, fetch, location, window, calls, listeners, byId, Node: NodeBase };
+  return { document, fetch, location, window, calls, listeners, docListeners, byId, Node: NodeBase };
 }

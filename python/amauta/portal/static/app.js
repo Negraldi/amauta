@@ -3,7 +3,15 @@
 const token = document.querySelector('meta[name="portal-token"]').content;
 const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
-const VIEWS = [["overview", "Overview"], ["usage", "Usage"], ["sessions", "Sessions"], ["memories", "Memories"], ["harness", "Harness"], ["diagrams", "Diagrams"]];
+const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown; // markdown.js and wikiroute.js load first (see index.html)
+const SECTIONS = [
+  ["Knowledge", [["home", "Home"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
+  ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"], ["diagrams", "Diagrams"]]],
+  ["Spending", [["usage", "Usage"]]],
+  ["Manage", [["settings", "Settings"]]],
+];
+// Pages that read the Range and Project filters in the top bar.
+const FILTERED = new Set(["home", "usage", "session", "skill", "tool", "mcp"]);
 const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
 
 function h(tag, attrs, ...kids) {
@@ -81,7 +89,8 @@ function fenceDiagrams(text, into) {
   into.hidden = sources.length === 0;
 }
 
-const state = { view: "overview", usageKind: "skills", memSource: "own", sort: {} };
+const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {} };
+const link = (kind, id, label, attrs) => h("a", { href: R.formatHash(kind, id), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value });
 
 function card(label, value, extra) { return h("div", { class: "card" }, h("div", { class: "v" }, value), h("div", { class: "l" }, label), extra); }
@@ -171,7 +180,8 @@ async function viewUsage() {
   const t = await api("tools", filters());
   if (!t.available) return [panel("Usage", empty("No usage data yet."))];
   const kinds = [["skills", "Skills"], ["tools", "Tools"], ["mcp_servers", "MCP servers"], ["mcp_tools", "MCP tools"], ["subagents", "Subagent types"]];
-  const cols = [{ key: "name", label: "Name" }, { key: "count", label: "Calls", num: true }, { key: "sessions", label: "Sessions", num: true }, { key: "last_used", label: "Last used" }];
+  const linkKind = { skills: "skill", tools: "tool", mcp_servers: "mcp", mcp_tools: "tool" }[state.usageKind];
+  const cols = [{ key: "name", label: "Name", render: linkKind ? (v) => link(linkKind, v, v) : undefined }, { key: "count", label: "Calls", num: true }, { key: "sessions", label: "Sessions", num: true }, { key: "last_used", label: "Last used" }];
   return [
     h("div", { class: "tabs" }, kinds.map(([k, l]) => h("button", { type: "button", "aria-pressed": state.usageKind === k, onclick: () => { state.usageKind = k; render(); } }, `${l} (${t[k].length})`))),
     panel(kinds.find(([k]) => k === state.usageKind)[1], t[state.usageKind].length ? table("usage-" + state.usageKind, cols, t[state.usageKind]) : empty("Nothing recorded in this range.")),
@@ -184,7 +194,7 @@ async function viewSessions() {
   const nums = [["messages", "Msgs"], ["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]].map(([key, label]) => ({ key, label, num: true }));
   return [
     panel("Projects", table("projects", [{ key: "project", label: "Project", link: true }, { key: "sessions", label: "Sessions", num: true }, ...nums], s.projects, (r) => { $("project").value = r.project; render(); })),
-    panel("Sessions", table("sessions", [{ key: "session_id", label: "Session", render: (v) => String(v).slice(0, 8) }, { key: "project", label: "Project" }, { key: "last_ts", label: "Last activity" }, { key: "model", label: "Model" }, ...nums], s.sessions)),
+    panel("Sessions", table("sessions", [{ key: "session_id", label: "Session", render: (v) => link("session", v, String(v).slice(0, 8)) }, { key: "project", label: "Project" }, { key: "last_ts", label: "Last activity" }, { key: "model", label: "Model" }, ...nums], s.sessions)),
   ];
 }
 
@@ -201,7 +211,7 @@ async function showMemory(source, id, into) {
   const m = await api("memory", { source, id });
   const hist = m.topic_key ? await api("memory/history", { source, topic_key: m.topic_key, project: m.project }) : { items: [] };
   into.replaceChildren(
-    h("h2", null, m.title), h("div", { class: "muted" }, [m.type, m.project, m.topic_key, `rev ${m.revision}`, m.updated_at].filter(Boolean).join(" · ")),
+    h("h2", null, m.title), h("p", null, link("memory", m.id, "Open as wiki page")), h("div", { class: "muted" }, [m.type, m.project, m.topic_key, `rev ${m.revision}`, m.updated_at].filter(Boolean).join(" · ")),
     h("pre", { class: "text" }, m.content), fences(m.content),
     hist.items.length > 1 || (hist.items[0] && hist.items[0].revision > 1) ? h("div", null, h("h2", null, "Topic history"), table("hist", [{ key: "id", label: "#", num: true }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }, { key: "deleted_at", label: "Deleted" }], hist.items)) : null);
 }
@@ -252,7 +262,7 @@ function graphRepo(r) {
   const near = h("div", null);
   const show = guarded(async (node) => {
     const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
-    near.replaceChildren(h("h3", null, `Neighbors of ${node.label || node.id}`),
+    near.replaceChildren(h("h3", null, `Neighbors of ${node.label || node.id}`), h("p", null, link("node", `${r.name}::${node.id}`, "Open as wiki page")),
       table("gn-" + r.path, [{ key: "depth", label: "Depth", num: true }, { key: "label", label: "Label" }, { key: "kind", label: "Kind" }, { key: "file", label: "File" }], g.nodes),
       h("h3", null, "Neighborhood diagram"), graphDiagram(r.path, node.id, depth.value),
       g.edges.length ? table("ge-" + r.path, [{ key: "src", label: "From" }, { key: "relation", label: "Relation" }, { key: "dst", label: "To" }], g.edges) : empty("No edges between these nodes."));
@@ -286,7 +296,7 @@ async function viewHarness() {
       panel("Hooks", hs.hooks.length ? table("hooks", [{ key: "event", label: "Event" }, { key: "kind", label: "Kind" }], hs.hooks) : empty("No hooks registered.")),
       panel("MCP servers", hs.mcp_servers.length ? table("mcp", [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "command", label: "Command" }], hs.mcp_servers) : empty("None.")));
   }
-  out.push(panel("ODD task progress", odd.repos.length ? odd.repos.map((r) => h("div", null, h("h2", null, r.repo), r.documents.length ? r.documents.map((d) => h("div", null, h("strong", null, d.name), ` ${d.done}/${d.total}`, h("ul", null, d.tasks.map((t) => h("li", null, (t.done ? "[x] " : "[ ] ") + t.title))))) : empty("No odd/tasks/*.md found."))) : empty("No repositories configured (use --repo).")));
+  out.push(panel("ODD task progress", odd.repos.length ? odd.repos.map((r) => h("div", null, h("h2", null, r.repo), r.documents.length ? r.documents.map((d) => h("div", null, h("strong", null, link("feature", d.name.replace(/\.md$/, ""), d.name)), ` ${d.done}/${d.total}`, h("ul", null, d.tasks.map((t) => h("li", null, (t.done ? "[x] " : "[ ] ") + t.title))))) : empty("No odd/tasks/*.md found."))) : empty("No repositories configured (use --repo).")));
   return out;
 }
 
@@ -308,17 +318,122 @@ async function viewDiagrams() {
   return out;
 }
 
-const RENDERERS = { overview: viewOverview, usage: viewUsage, sessions: viewSessions, memories: viewMemories, harness: viewHarness, diagrams: viewDiagrams };
+
+// ---- wiki pages ---------------------------------------------------------------------------------------------
+const HINTS = {
+  memory: "Memories appear here after mem_save; a bare [[topic]] link points at a topic_key or title.",
+  skill: "Skill pages appear after a session loads the skill; usage comes from the telemetry backfill (Refresh usage).",
+  tool: "Tool pages appear after a session calls the tool; usage comes from the telemetry backfill (Refresh usage).",
+  mcp: "MCP server pages appear after a session calls one of its tools; usage comes from the telemetry backfill.",
+  session: "Session pages appear after the usage backfill reads its transcript (Refresh usage).",
+  feature: "Feature pages come from odd/tasks/*.md in a repository passed with --repo.",
+  node: "Graph node pages come from a mirrored graphify graph; run graphify update and the graph sync for a --repo.",
+};
+const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value === "done" ? "● " : value === "pending" ? "○ " : "▲ ") + value);
+const isStatus = (v) => v === "done" || v === "pending" || v === "warning";
+
+function skeleton() {
+  return h("div", { class: "skeleton", "aria-hidden": "true" }, h("div", { class: "sk sk-title" }), h("div", { class: "sk" }), h("div", { class: "sk" }), h("div", { class: "sk sk-short" }));
+}
+function teach(title, ...paras) {
+  return h("div", { class: "teach" }, h("h1", null, title), ...paras.map((p) => h("p", null, p)), h("p", null, link("home", "", "Back to Home")));
+}
+function refList(refs) {
+  return h("ul", { class: "refs" }, refs.map((r) => h("li", null, link(r.kind, r.id, r.title), h("span", { class: "muted" }, ` ${R.KINDS[r.kind] || r.kind}`))));
+}
+function railBlock(title, body) { return body ? h("section", { class: "rail-block" }, h("h2", null, title), body) : null; }
+
+function sectionBlock(s) {
+  return h("section", { class: "page-section" }, h("h2", null, s.heading), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
+    it.kind && it.id ? link(it.kind, it.id, it.label) : h("span", null, it.label),
+    it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${it.value}`)))));
+}
+
+function bodyNodes(pg) {
+  const known = (kind, id) => !(pg.missing || []).some((m) => m.kind === kind && m.id === id);
+  let diagrams = 0;
+  const mermaid = (src) => (++diagrams <= 5 ? diagramBox(src, "Mermaid diagram") : h("pre", { class: "code" }, h("code", null, src)));
+  return MD.toDom(MD.parse(pg.body_md), document, { known, mermaid, headingOffset: 1 });
+}
+
+async function viewWikiPage(kind, id) {
+  let pg;
+  try { pg = await api("wiki/page", { kind, id }); } catch (err) {
+    if (/not found/i.test(String(err.message))) return [teach(`No ${(R.KINDS[kind] || kind).toLowerCase()} page`, `Nothing is stored under ${id}.`, HINTS[kind] || "")];
+    throw err;
+  }
+  document.title = `${pg.title} - amauta`;
+  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => [h("dt", null, m.label), h("dd", null, m.value)])) : null;
+  return [h("div", { class: "page" },
+    h("article", { class: "doc" },
+      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title),
+      pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
+      ...pg.sections.map(sectionBlock)),
+    h("aside", { class: "rail", "aria-label": "Page details" }, railBlock("Details", meta), railBlock("Links", pg.links.length ? refList(pg.links) : null), railBlock("Linked from", pg.backlinks.length ? refList(pg.backlinks) : null)))];
+}
+
+async function viewFeatures() {
+  const odd = await api("odd");
+  const docs = odd.repos.flatMap((r) => r.documents.map((d) => ({ ...d, repo: r.repo })));
+  if (!docs.length) return [teach("ODD features", "Feature documents appear here when a repository passed with --repo has odd/tasks/*.md.")];
+  return [h("h1", null, "ODD features"), h("ul", { class: "items" }, docs.map((d) => h("li", null, link("feature", d.name.replace(/\.md$/, ""), d.name), h("span", { class: "muted" }, ` ${d.repo}`), ` ${d.done}/${d.total} tasks done`)))];
+}
+
+async function viewGraph() { return [h("h1", null, "Graph"), await graphifyPanel()]; }
+
+function viewSettings() {
+  return [teach("Settings", "The settings editor is not built yet. It will edit a closed list of harness options (persona, review mode, telemetry, optional modules), always with a preview of the change before anything is written.", "Until then, change options by running amauta install in a terminal.")];
+}
+
+async function viewHome() { return viewOverview(); }
+
+async function renderRoute(route, changed) {
+  const { kind, id } = route;
+  if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
+  if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
+  if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
+  const views = { home: viewHome, usage: viewUsage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings };
+  return views[kind]();
+}
+
+function renderNav(route) {
+  $("nav").replaceChildren(...SECTIONS.map(([heading, items]) => h("section", { class: "nav-section" }, h("h2", null, heading),
+    h("ul", null, items.map(([k, label]) => h("li", null, link(k, "", label, { "aria-current": k === route.kind ? "page" : false })))))));
+}
+
 let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
-  $("nav").replaceChildren(...VIEWS.map(([k, l]) => h("a", { href: "#" + k, "aria-current": k === state.view ? "page" : false }, l)));
+  const route = state.route;
+  const key = `${route.kind}/${route.id}`;
+  const changed = state.shown !== key;
+  renderNav(route);
+  $("filters").hidden = !FILTERED.has(route.kind);
+  $("shell").setAttribute("data-nav", "closed");
+  $("nav-toggle").setAttribute("aria-expanded", "false");
+  document.title = `${R.KINDS[route.kind] || "amauta"} - amauta`;
+  if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }
   try {
-    const nodes = await RENDERERS[state.view]();
-    if (seq === renderSeq) $("view").replaceChildren(...nodes);
+    const nodes = await renderRoute(route, changed);
+    if (seq !== renderSeq) return;
+    $("view").replaceChildren(...nodes);
+    state.shown = key;
+    if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {
-    if (seq === renderSeq) $("view").replaceChildren(panel("Error", h("p", { class: "warn" }, String(err.message || err))));
+    if (seq === renderSeq) { $("view").replaceChildren(panel("Error", h("p", { class: "warn" }, String(err.message || err)))); state.shown = key; }
+  } finally {
+    if (seq === renderSeq) $("view").setAttribute("aria-busy", "false");
   }
+}
+
+async function loadRecent() {
+  const box = $("recent");
+  try {
+    const r = await api("wiki/recent", { limit: 12 });
+    box.replaceChildren(r.items.length
+      ? h("ul", { class: "refs" }, r.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${String(i.ts).slice(0, 10)}`))))
+      : h("p", { class: "muted" }, "Saved memories, sessions and ODD document edits appear here."));
+  } catch (_) { box.replaceChildren(h("p", { class: "muted" }, "Recent changes are unavailable.")); }
 }
 
 async function loadProjects() {
@@ -330,6 +445,81 @@ async function loadProjects() {
   } catch (_) { /* optional */ }
 }
 
+// ---- search palette (native <dialog>) ---------------------------------------------------------------------------
+const palette = { items: [], nodes: [], index: -1, seq: 0 };
+function openPalette() {
+  const dlg = $("palette");
+  if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", ""); }
+  const input = $("palette-input");
+  if (input.focus) input.focus();
+  if (input.select) input.select();
+}
+function closePalette() {
+  const dlg = $("palette");
+  if (dlg.close) dlg.close(); else dlg.setAttribute("open", "false");
+}
+function selectResult(index) {
+  palette.index = index;
+  palette.nodes.forEach((n, i) => n.setAttribute("aria-selected", String(i === index)));
+  const node = palette.nodes[index];
+  if (node) {
+    $("palette-input").setAttribute("aria-activedescendant", node.getAttribute("id"));
+    if (node.scrollIntoView) node.scrollIntoView({ block: "nearest" });
+  }
+}
+function goResult(index) {
+  const item = palette.items[index];
+  if (!item) return;
+  closePalette();
+  location.hash = R.formatHash(item.kind, item.id);
+}
+function paintResults(groups, q) {
+  const box = $("palette-results");
+  palette.items = R.flattenResults(groups);
+  palette.nodes = [];
+  if (!palette.items.length) { box.replaceChildren(h("p", { class: "muted" }, `No results for "${q}". Memories, skills, tools, sessions, ODD features and graph nodes are searched.`)); return; }
+  let flat = 0;
+  box.replaceChildren(...groups.map((g) => h("div", { class: "pal-group", role: "group", "aria-label": g.kind }, h("div", { class: "pal-head" }, `${g.kind} (${g.count})`),
+    g.items.map((it) => {
+      const i = flat++;
+      const node = h("div", { role: "option", id: `pal-${i}`, class: "pal-item", "aria-selected": "false", onclick: () => goResult(i) },
+        h("span", { class: "pal-kind" }, g.kind), h("span", { class: "pal-title" }, it.title), it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
+      palette.nodes.push(node);
+      return node;
+    }))));
+  selectResult(0);
+}
+async function runSearch() {
+  const q = $("palette-input").value.trim();
+  const seq = ++palette.seq;
+  if (!q) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "muted" }, "Type to search. Arrow keys move, Enter opens, Esc closes.")); return; }
+  try {
+    const r = await api("wiki/search", { q });
+    if (seq === palette.seq) paintResults(r.groups, q);
+  } catch (err) {
+    if (seq === palette.seq) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "warn" }, `Search failed: ${String(err.message || err)}`)); }
+  }
+}
+let searchTimer = null;
+$("palette-input").addEventListener("input", () => { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
+$("palette-input").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (palette.items.length) selectResult(R.moveIndex(palette.index, e.key === "ArrowDown" ? 1 : -1, palette.items.length)); }
+  else if (e.key === "Enter" && palette.index >= 0) { e.preventDefault(); goResult(palette.index); }
+});
+$("palette").addEventListener("click", (e) => { if (e.target === $("palette")) closePalette(); });
+$("search-open").addEventListener("click", openPalette);
+document.addEventListener("keydown", (e) => {
+  const tag = String((e.target && e.target.tagName) || "").toLowerCase();
+  const typing = tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable);
+  if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openPalette(); }
+  else if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openPalette(); }
+});
+
+$("nav-toggle").addEventListener("click", () => {
+  const open = $("shell").getAttribute("data-nav") !== "open";
+  $("shell").setAttribute("data-nav", open ? "open" : "closed");
+  $("nav-toggle").setAttribute("aria-expanded", String(open));
+});
 $("refresh").addEventListener("click", async () => {
   $("status").textContent = "Refreshing...";
   try {
@@ -337,10 +527,12 @@ $("refresh").addEventListener("click", async () => {
     const b = await r.json();
     $("status").textContent = r.ok ? `Done: ${b.messages} new message(s) from ${b.files} file(s).` : `Failed: ${b.error}`;
     await loadProjects();
+    loadRecent();
     render();
   } catch (err) { $("status").textContent = "Failed: " + err.message; }
 });
 for (const id of ["days", "project"]) $(id).addEventListener("change", render);
-window.addEventListener("hashchange", () => { state.view = VIEWS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : "overview"; render(); });
-state.view = VIEWS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : "overview";
+window.addEventListener("hashchange", () => { state.route = R.parseHash(location.hash); render(); });
+state.route = R.parseHash(location.hash);
+loadRecent();
 loadProjects().then(render);

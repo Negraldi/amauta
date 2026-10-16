@@ -9,17 +9,36 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="top">
-  <h1>amauta</h1>
-  <nav id="nav" aria-label="Views"></nav>
-</header>
-<section class="filters" aria-label="Filters">
-  <label>Range <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option><option value="3650">All</option></select></label>
-  <label>Project <select id="project"><option value="">All projects</option></select></label>
-  <button id="refresh" type="button">Refresh usage</button>
-  <span id="status" role="status"></span>
-</section>
-<main id="view" tabindex="-1"><p class="muted">Loading...</p></main>
+<a class="skip" href="#view">Skip to content</a>
+<div class="shell" id="shell" data-nav="closed">
+  <nav class="sidebar" id="sidebar" aria-label="Wiki">
+    <a class="brand" href="#/">amauta</a>
+    <div id="nav"></div>
+    <section class="recent" aria-labelledby="recent-title">
+      <h2 id="recent-title">Recent changes</h2>
+      <div id="recent"><p class="muted">Loading...</p></div>
+    </section>
+  </nav>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="nav-toggle" class="nav-toggle" type="button" aria-controls="sidebar" aria-expanded="false">Menu</button>
+      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /">Search the wiki <kbd>Ctrl K</kbd></button>
+      <div class="filters" id="filters" role="group" aria-label="Filters">
+        <label>Range <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option><option value="3650">All</option></select></label>
+        <label>Project <select id="project"><option value="">All projects</option></select></label>
+        <button id="refresh" type="button">Refresh usage</button>
+        <span id="status" role="status"></span>
+      </div>
+    </header>
+    <main id="view" tabindex="-1"><p class="muted">Loading...</p></main>
+  </div>
+</div>
+<dialog id="palette" class="palette" aria-label="Search the wiki">
+  <input id="palette-input" type="search" placeholder="Search memories, skills, tools, sessions, features, nodes" aria-label="Search" aria-controls="palette-results" autocomplete="off" spellcheck="false">
+  <div id="palette-results" role="listbox" aria-label="Results"><p class="muted">Type to search. Arrow keys move, Enter opens, Esc closes.</p></div>
+</dialog>
+<script src="/static/markdown.js"></script>
+<script src="/static/wikiroute.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>
