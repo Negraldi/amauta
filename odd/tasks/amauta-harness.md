@@ -320,7 +320,7 @@ T16 done. Open: nothing blocking.
 
 ## Next session
 
-- T23b done: the T23 review warnings are fixed and covered by tests (modes, rollback without gentle-lite, new run dir after rollback, TTY for gentle-ai's prompt, resume). Still never run against the real home. The user runs, from a terminal with Claude Code closed, in /home/negraldi/gentle-lite:
+- T23b done: the T23 review warnings are fixed and covered by tests (modes, rollback without gentle-lite, new run dir after rollback, TTY for gentle-ai's prompt, resume). Still never run against the real home. The user runs, from a terminal with Claude Code closed, in ~/gentle-lite:
   1. `scripts/migrate.sh` (dry run)
   2. `scripts/migrate.sh --execute` (y/N per phase; type `yes` at gentle-ai's own prompt, which now runs on the real terminal)
   3. restart Claude Code, run `/mcp`
