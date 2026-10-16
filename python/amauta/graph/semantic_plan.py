@@ -143,6 +143,18 @@ def plan_file(repo: Path) -> Path:
     return out_dir(repo) / ".amauta_semantic_plan.json"
 
 
+def _replace_text(target: Path, text: str) -> None:
+    """Write text to target through a temp file and os.replace, so an existing symlink at target is replaced, not followed."""
+    fd, tmp = tempfile.mkstemp(prefix=".amauta_semantic_tmp_", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, target)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def cached_file(repo: Path) -> Path:
     return out_dir(repo) / ".amauta_semantic_cached.json"
 
@@ -292,7 +304,7 @@ def cmd_plan(args) -> dict:
         prompt_path = prompt_file_of(repo, i)
         prompt_path.write_text(render_prompt(block, files, i, len(groups), args.deep, sql_ids), encoding="utf-8")
         chunks.append({"num": i, "files": files, "chunk_path": str(chunk_file(repo, i)), "prompt_file": str(prompt_path)})
-    cached_file(repo).write_text(json.dumps(found["cached"]), encoding="utf-8")
+    _replace_text(cached_file(repo), json.dumps(found["cached"]))  # never write through a planted symlink
     plan = {"plan_id": uuid.uuid4().hex, "created_ns": created_ns, "repo": str(repo), "graphify": exe, "graphify_python": python,
             "spec": found["spec"], "deep": bool(args.deep), "mode": mode, "all_files": found["files"], "ast_sql_ids": sql_ids,
             "chunks": chunks, "total_chunks": len(chunks)}
