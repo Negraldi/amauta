@@ -50,6 +50,8 @@ amauta status    [same options]
 
 ```
 amauta portal    [--port N] [--repo DIR]...      # read-only control portal
+amauta portal launch [--idle-exit S]             # app window (Chrome --app), stops the server when closed
+amauta portal install-launcher [--remove]        # desktop entry (menu launcher), separate from `amauta install`
 amauta codegraph init|status [--cwd DIR]
 amauta graphify hook install|uninstall [--cwd DIR]
 amauta graphify semantic [--cwd DIR] [--model M] [--timeout SECONDS]    # optional LLM pass, needs ANTHROPIC_API_KEY
@@ -163,6 +165,17 @@ PYTHONPATH=python python3 -P -m amauta.portal [--port 8765] [--claude-home DIR] 
 ```
 
 `amauta portal [--port N] [--repo DIR]...` starts the same thing from the CLI (it sets `PYTHONPATH` and the state dir).
+
+**App launcher.** `amauta portal launch` behaves like a web app: it picks a free port on 127.0.0.1, starts the portal detached
+(log in `<state>/portal/portal.log`, run file `<state>/portal/run.json`), and opens Google Chrome/Chromium (`google-chrome`,
+`google-chrome-stable`, `chromium`, `chromium-browser`, or `AMAUTA_BROWSER`) as `--app=` window with its own profile
+(`<state>/portal/browser-profile`, class `amauta-portal`). When that window closes the server gets SIGTERM (SIGKILL after 5 s)
+unless another launcher is still attached; a second launch reuses the running server. Without a Chromium-family browser it
+falls back to `xdg-open`. The page sends a heartbeat every 10 s, and a server started by `launch` (`--idle-exit`, default 30 s)
+exits by itself once the heartbeats stop; plain `amauta portal` runs until stopped. `amauta portal install-launcher` writes
+`~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) pointing at
+this checkout's `bin/amauta.js` and the vendored icon; `--remove` deletes it. It is not part of `amauta install`, which only
+manages Claude Code configuration. The portal also ships a web app manifest (`/static/manifest.webmanifest`).
 Views: Overview (tokens per day stacked by input/output/cache read/cache write, model split, cache hit ratio, sessions
 per day, dropped-telemetry counter, optional cost estimate), Usage (skills, tools, MCP servers/tools, subagent types;
 sortable), Sessions (per project/session, project and date filters), Memories (own DB with FTS, engram DB read-only,
