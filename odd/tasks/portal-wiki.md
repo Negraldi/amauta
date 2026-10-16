@@ -63,8 +63,8 @@ F1 Wiki shell
 - [x] W5 Safe markdown subset renderer (headings, lists, code, tables, links, `[[wikilinks]]`, mermaid fences), DOM-built. (`d383531`)
 
 F5 Launcher
-- [ ] W17 `.desktop` (Terminal=false) + Node launcher: free port, Chrome `--app` with own profile, stop server on window close; reuse a running server.
-- [ ] W18 Heartbeat auto-shutdown fallback; optional web manifest and icon.
+- [x] W17 `.desktop` (Terminal=false) + Node launcher: free port, Chrome `--app` with own profile, stop server on window close; reuse a running server. (`8fe301d`; `amauta portal launch` / `install-launcher [--remove]`, run file ref-count, xdg-open fallback; not wired into `amauta install` by design; smoke with fake browser: server answered 200 during the window, stopped after it; npm test exit 0, node 397, python 355. Route: delegated to one writer.)
+- [x] W18 Heartbeat auto-shutdown fallback; optional web manifest and icon. (`b67c928`; `POST /api/heartbeat`, `--idle-exit`, IdleMonitor with fake clock, manifest + icon.svg, CSP `manifest-src 'self'`; npm test exit 0, node 374, python 355. Route: delegated to one writer.)
 
 F2 Entity pages
 - [ ] W6 Memory topic page: content, revision history with diff, derived links/backlinks, related graph nodes.
