@@ -133,9 +133,9 @@ const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'python')) {
   if (!rel.endsWith('.md')) return buf;
   let text = buf.toString('utf8');
-  if (!text.includes('{{GENTLE_LITE_')) return buf;
+  if (!text.includes('{{AMAUTA_')) return buf;
   // The whole `NAME=value` assignment is quoted, so a checkout path with spaces or quotes still forms one `env` argument.
-  text = text.replaceAll('{{GENTLE_LITE_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
+  text = text.replaceAll('{{AMAUTA_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
   return Buffer.from(text, 'utf8');
 }
 

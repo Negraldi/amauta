@@ -68,7 +68,7 @@ test('the graphify-semantic skill is vendored with a trigger description and the
 
 test('the rendered helper command survives a checkout path with spaces and quotes (it is shell-quoted)', () => {
   const dir = "/tmp/a b/it's/python";
-  const out = renderSkillFile('graphify-semantic/SKILL.md', Buffer.from('Prefix: `env {{GENTLE_LITE_PYTHONPATH_ENV}} python3 -P -m x`'), dir).toString('utf8');
+  const out = renderSkillFile('graphify-semantic/SKILL.md', Buffer.from('Prefix: `env {{AMAUTA_PYTHONPATH_ENV}} python3 -P -m x`'), dir).toString('utf8');
   const frag = out.match(/`env (.*) python3/)[1];
   const r = spawnSync('sh', ['-c', `set -- ${frag}; printf '%s' "$1"`], { encoding: 'utf8' });
   assert.equal(r.stdout, `PYTHONPATH=${dir}`);

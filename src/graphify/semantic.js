@@ -135,7 +135,7 @@ export async function takeLock(lock) {
 }
 
 function parseTimeout(raw, env) {
-  const value = raw ?? env.GENTLE_LITE_GRAPHIFY_TIMEOUT;
+  const value = raw ?? env.AMAUTA_GRAPHIFY_TIMEOUT;
   if (value === undefined || value === '') return DEFAULT_TIMEOUT_SECONDS;
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) throw new Error(`invalid timeout ${JSON.stringify(value)}: expected a positive number of seconds`);
@@ -160,7 +160,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     io.stderr.write(`gentle-lite: ${err.message}\n`);
     return 1;
   }
-  const chosen = model || env.GENTLE_LITE_GRAPHIFY_MODEL || DEFAULT_MODEL;
+  const chosen = model || env.AMAUTA_GRAPHIFY_MODEL || DEFAULT_MODEL;
   const root = (await gitRepoRoot(path.resolve(cwd))) ?? path.resolve(cwd);
   const exe = await findOnPath('graphify', searchPath ?? env.PATH ?? '');
   if (!exe) {
@@ -194,7 +194,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     if (extract.code !== 0) {
       if (extract.err) io.stderr.write(extract.err.endsWith('\n') ? extract.err : `${extract.err}\n`);
       io.stderr.write(extract.timedOut
-        ? `gentle-lite: graphify extract timed out after ${seconds}s and was stopped; the graph mirror was not updated (raise --timeout or GENTLE_LITE_GRAPHIFY_TIMEOUT)\n`
+        ? `gentle-lite: graphify extract timed out after ${seconds}s and was stopped; the graph mirror was not updated (raise --timeout or AMAUTA_GRAPHIFY_TIMEOUT)\n`
         : `gentle-lite: graphify extract failed (exit ${extract.code ?? 'not started'}); the graph mirror was not updated\n`);
       return 1;
     }

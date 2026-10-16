@@ -62,7 +62,7 @@ def find_graphify(graphify_bin: str | None = None) -> tuple[str, str]:
     exe = graphify_bin or shutil.which("graphify")
     if not exe or not Path(exe).is_file():
         raise SemanticError("graphify is not on PATH (install it with `pipx install graphifyy`) and --graphify-bin was not given")
-    override = os.environ.get("GENTLE_LITE_GRAPHIFY_PYTHON")
+    override = os.environ.get("AMAUTA_GRAPHIFY_PYTHON")
     candidate = override
     if not candidate:
         try:
@@ -74,7 +74,7 @@ def find_graphify(graphify_bin: str | None = None) -> tuple[str, str]:
         if parts and Path(parts[0]).is_absolute() and Path(parts[0]).name.startswith("python"):
             candidate = parts[0]
     if not candidate or not Path(candidate).is_file():
-        raise SemanticError(f"cannot tell which Python interpreter runs {exe} (no absolute python shebang); set GENTLE_LITE_GRAPHIFY_PYTHON")
+        raise SemanticError(f"cannot tell which Python interpreter runs {exe} (no absolute python shebang); set AMAUTA_GRAPHIFY_PYTHON")
     return str(exe), str(candidate)
 
 

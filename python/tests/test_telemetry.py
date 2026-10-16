@@ -155,11 +155,11 @@ class DroppedAndRetentionTest(unittest.TestCase):
 
     def test_retention_days_env_and_invalid_values(self):
         self.assertEqual(housekeeping.retention_days({}), 90)
-        self.assertEqual(housekeeping.retention_days({"GENTLE_LITE_TELEMETRY_RETENTION_DAYS": "30"}), 30)
+        self.assertEqual(housekeeping.retention_days({"AMAUTA_TELEMETRY_RETENTION_DAYS": "30"}), 30)
         for bad in ("x", "0", "-3", ""):
-            self.assertEqual(housekeeping.retention_days({"GENTLE_LITE_TELEMETRY_RETENTION_DAYS": bad}), 90)
+            self.assertEqual(housekeeping.retention_days({"AMAUTA_TELEMETRY_RETENTION_DAYS": bad}), 90)
         self.add_event(40)
-        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env={**self.env, "GENTLE_LITE_TELEMETRY_RETENTION_DAYS": "30"})
+        thook.record({"hook_event_name": "Stop", "cwd": "/x"}, 5, env={**self.env, "AMAUTA_TELEMETRY_RETENTION_DAYS": "30"})
         self.assertEqual([e["event"] for e in events(self.state)], ["Stop"])
 
 

@@ -34,7 +34,7 @@ def dropped(env=None) -> int:
 
 def retention_days(env=None) -> int:
     env = os.environ if env is None else env
-    raw = env.get("GENTLE_LITE_TELEMETRY_RETENTION_DAYS", "")
+    raw = env.get("AMAUTA_TELEMETRY_RETENTION_DAYS", "")
     try:
         days = int(raw)
     except ValueError:

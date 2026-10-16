@@ -203,7 +203,7 @@ class FindGraphifyTest(Base):
         self.assertEqual(python, str(self.fake.python))
 
     def test_env_override_names_the_interpreter(self):
-        with mock.patch.dict(os.environ, {"GENTLE_LITE_GRAPHIFY_PYTHON": str(self.fake.python)}):
+        with mock.patch.dict(os.environ, {"AMAUTA_GRAPHIFY_PYTHON": str(self.fake.python)}):
             _, python = sp.find_graphify(str(self.fake.exe))
         self.assertEqual(python, str(self.fake.python))
 

@@ -69,11 +69,11 @@ test('with a key it runs `graphify extract <repo> --backend claude --model claud
   await rm(t.root, { recursive: true, force: true });
 });
 
-test('the model comes from --model, else GENTLE_LITE_GRAPHIFY_MODEL, else the Haiku default', async () => {
+test('the model comes from --model, else AMAUTA_GRAPHIFY_MODEL, else the Haiku default', async () => {
   const t = await sandbox(WRITE_GRAPH);
   const env = { ANTHROPIC_API_KEY: CANARY };
-  assert.equal(t.run(['--model', 'm-flag'], { ...env, GENTLE_LITE_GRAPHIFY_MODEL: 'm-env' }).status, 0);
-  assert.equal(t.run([], { ...env, GENTLE_LITE_GRAPHIFY_MODEL: 'm-env' }).status, 0);
+  assert.equal(t.run(['--model', 'm-flag'], { ...env, AMAUTA_GRAPHIFY_MODEL: 'm-env' }).status, 0);
+  assert.equal(t.run([], { ...env, AMAUTA_GRAPHIFY_MODEL: 'm-env' }).status, 0);
   const models = (await calls(t)).map((c) => c.match(/--model (\S+)/)[1]);
   assert.deepEqual(models, ['m-flag', 'm-env']);
   assert.equal(t.db('select semantic_model from graph_sync'), "('m-env',)");
@@ -159,16 +159,16 @@ test('a stuck extraction is killed after the timeout: non-zero exit, lock releas
   await rm(t.root, { recursive: true, force: true });
 });
 
-test('the timeout comes from GENTLE_LITE_GRAPHIFY_TIMEOUT too and a bad value is rejected before anything runs', async () => {
+test('the timeout comes from AMAUTA_GRAPHIFY_TIMEOUT too and a bad value is rejected before anything runs', async () => {
   const t = await sandbox(WRITE_GRAPH);
-  for (const [args, env] of [[['--timeout', 'soon'], {}], [['--timeout', '0'], {}], [[], { GENTLE_LITE_GRAPHIFY_TIMEOUT: '-5' }]]) {
+  for (const [args, env] of [[['--timeout', 'soon'], {}], [['--timeout', '0'], {}], [[], { AMAUTA_GRAPHIFY_TIMEOUT: '-5' }]]) {
     const r = t.run(args, { ANTHROPIC_API_KEY: CANARY, ...env });
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /invalid timeout/i);
   }
   assert.deepEqual(await calls(t), []);
   const slow = await sandbox('exec sleep 60');
-  const r = slow.run([], { ANTHROPIC_API_KEY: CANARY, GENTLE_LITE_GRAPHIFY_TIMEOUT: '1' });
+  const r = slow.run([], { ANTHROPIC_API_KEY: CANARY, AMAUTA_GRAPHIFY_TIMEOUT: '1' });
   assert.match(r.stderr, /timed out after 1s/);
   await rm(slow.root, { recursive: true, force: true });
   await rm(t.root, { recursive: true, force: true });
