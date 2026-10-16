@@ -38,6 +38,15 @@ placeholders resolved at install time; the `pin`, `unpin` and `hooks` commands a
 scripts/context.mjs was disabled; the `allowed-tools` frontmatter was dropped. Everything else is
 as upstream published it.
 
+The portal serves a vendored, unmodified Mermaid build (python/amauta/portal/static/mermaid.min.js),
+distributed under the MIT License:
+
+  Project:  mermaid-js/mermaid
+  URL:      https://github.com/mermaid-js/mermaid
+  Package:  mermaid@11.17.2 from npm, file package/dist/mermaid.min.js
+  SHA-256:  581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8
+  License:  MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist
+
 The skills cpp-testing, python-testing, node-testing, r-testing, tabular-data and
 doc-formats are original to amauta (MIT, see LICENSE), not vendored.
 

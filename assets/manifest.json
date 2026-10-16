@@ -192,5 +192,16 @@
       "path": ".claude/skills/impeccable",
       "license": "Apache-2.0"
     }
+  },
+  "vendored": {
+    "mermaid": {
+      "note": "served by the portal (static route); rendering code is separate",
+      "path": "python/amauta/portal/static/mermaid.min.js",
+      "package": "mermaid",
+      "version": "11.17.2",
+      "source": "npm pack mermaid@11.17.2, file package/dist/mermaid.min.js",
+      "sha256": "581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8",
+      "license": "MIT"
+    }
   }
 }
