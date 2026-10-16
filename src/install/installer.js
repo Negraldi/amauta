@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, rm, stat } from 'node:fs/promises';
+import { lstat, readFile, rm, stat } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
@@ -132,6 +132,28 @@ function mergePermissions(settings, prev, overlay) {
 
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 
+/**
+ * Path of a managed_files key that is safe to delete, or null. state.json is plain data, so a key is untrusted:
+ * no absolute paths, no `..`, the resolved target must stay inside claudeHome, and no component below claudeHome
+ * may be a symlink (a symlinked parent would redirect the delete elsewhere).
+ */
+async function safeManagedPath(claudeHome, rel) {
+  if (typeof rel !== 'string' || rel === '' || rel.includes('\\') || rel.includes('\0') || path.isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) return null;
+  const parts = rel.split('/');
+  if (parts.some((p) => p === '' || p === '.' || p === '..')) return null;
+  const root = path.resolve(claudeHome);
+  const target = path.resolve(root, ...parts);
+  if (!target.startsWith(root + path.sep)) return null;
+  let cur = root;
+  for (const part of parts) {
+    cur = path.join(cur, part);
+    const st = await lstat(cur).catch(() => null);
+    if (st === null) return target; // nothing there (yet): the caller sees a missing file
+    if (st.isSymbolicLink()) return null;
+  }
+  return target;
+}
+
 /** Markdown skill files may name helper code of this checkout; resolve those placeholders to shell-safe absolute values. */
 export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'python')) {
   if (!rel.endsWith('.md')) return buf;
@@ -250,7 +272,11 @@ async function plan(opts) {
   const removes = [];
   for (const [rel, hash] of Object.entries(prev?.managed_files ?? {})) {
     if (rendered.has(rel)) continue;
-    const file = abs(t.claudeHome, rel);
+    const file = await safeManagedPath(t.claudeHome, rel);
+    if (file === null) {
+      skipped.push(rel);
+      continue;
+    }
     const buf = await readOrNull(file);
     if (buf === null) continue;
     if (sha256(buf) === hash) removes.push({ rel, path: file });
@@ -416,7 +442,7 @@ export async function restore(opts = {}) {
   if (typeof opts.backup !== 'string' || !BACKUP_ID.test(opts.backup)) throw new Error(`invalid backup id: ${String(opts.backup)} (expected a name like 20261016T101500Z)`);
   const dir = path.join(t.stateDir, 'backups', opts.backup);
   if ((await statOrNull(dir)) === null) throw new Error(`no such backup: ${opts.backup}`);
-  const manifest = await restoreBackup(dir, { stop: t.claudeHome });
+  const manifest = await restoreBackup(dir, { stop: t.claudeHome, allow: [t.claudeHome, t.claudeJson, t.stateDir] });
   return { backup: opts.backup, restored: manifest.entries.map((e) => e.original_path) };
 }
 
@@ -484,7 +510,11 @@ export async function uninstall(opts = {}) {
 
   // Managed files, only when byte-identical to what was installed.
   for (const [rel, hash] of Object.entries(state?.managed_files ?? {})) {
-    const file = abs(t.claudeHome, rel);
+    const file = await safeManagedPath(t.claudeHome, rel);
+    if (file === null) {
+      kept.push(rel);
+      continue;
+    }
     const buf = await readOrNull(file);
     if (buf === null) continue;
     if (sha256(buf) === hash) deletes.push(file);

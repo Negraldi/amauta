@@ -85,8 +85,18 @@ export async function pruneEmptyDirs(start, stop) {
   }
 }
 
-export async function restoreBackup(dir, { stop } = {}) {
+export async function restoreBackup(dir, { stop, allow } = {}) {
   const manifest = await readManifest(dir);
+  if (allow) {
+    // A manifest is plain data on disk: every path it names must be one of the allowed files or live inside an allowed directory.
+    const roots = allow.map((a) => path.resolve(a));
+    for (const e of manifest.entries) {
+      const p = typeof e.original_path === 'string' ? path.resolve(e.original_path) : null;
+      if (p === null || !roots.some((r) => p === r || p.startsWith(r + path.sep))) {
+        throw new Error(`backup entry outside the allowed locations: ${String(e.original_path)}; nothing was restored`);
+      }
+    }
+  }
   for (const e of manifest.entries) {
     if (!e.existed) continue;
     const snapshot = e.snapshot_path ? path.join(dir, e.snapshot_path) : null;
