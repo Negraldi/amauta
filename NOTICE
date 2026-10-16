@@ -1,4 +1,4 @@
-gentle-lite
+amauta
 Copyright (c) 2026 Negraldi (MIT, see LICENSE)
 
 Vendored third-party assets
@@ -12,14 +12,14 @@ MIT License:
   Commit:   09e4e4aef14e87199784fcf4edb667017d70b9b3
   License:  MIT, Copyright (c) 2025 Gentleman Programming
 
-Only machine-facing markers and command names (gentle-ai -> gentle-lite) were
+Only machine-facing markers and command names (gentle-ai -> amauta) were
 adapted; prose content is kept as upstream wrote it. The upstream license text
 is reproduced below as required by that license.
 
 The optional SDD module (assets/sdd/) comes from the v3.4.0 release of the same
 project (skills, agents, commands and shared contracts, MIT). Differences: commands
-are renamed /gentle-sdd-* -> /lite-sdd-*, calls to the compiled `gentle-ai sdd-*`
-commands point at gentle_lite.sdd, and the native archive composer section is
+are renamed /gentle-sdd-* -> /amauta-sdd-*, calls to the compiled `gentle-ai sdd-*`
+commands point at amauta.sdd, and the native archive composer section is
 replaced by a manual-composition note.
 
 MIT License

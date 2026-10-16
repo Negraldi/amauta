@@ -1,10 +1,10 @@
-# T14 audit: gentle-lite vs harness-creator (walkinglabs/learn-harness-engineering, MIT)
+# T14 audit: amauta vs harness-creator (walkinglabs/learn-harness-engineering, MIT)
 
 Method: validate-harness.mjs (json, no --html) on the repo; SKILL.md + 7 references read fully; sandbox install (temp dirs, deleted afterwards) to measure what is injected. Read-only: nothing in the repo or in the real ~/.claude / ~/.gentle-ai / ~/.engram was touched. Token figures are chars/4 estimates.
 
 ## Summary
 
-- validate-harness: overall 20/100; every subsystem 1/5 checks "0 passed" (score 1 = floor). Bottleneck reported: `instructions`. The score is almost entirely a naming artifact: the script looks for 7 fixed filenames (AGENTS.md/CLAUDE.md, feature_list.json, progress.md, init.sh, session-handoff.md ...) and gentle-lite has none of them. The repo does carry the equivalent state (odd/tasks/gentle-lite-harness.md, 221 lines) and verification (npm test).
+- validate-harness: overall 20/100; every subsystem 1/5 checks "0 passed" (score 1 = floor). Bottleneck reported: `instructions`. The score is almost entirely a naming artifact: the script looks for 7 fixed filenames (AGENTS.md/CLAUDE.md, feature_list.json, progress.md, init.sh, session-handoff.md ...) and amauta has none of them. The repo does carry the equivalent state (odd/tasks/amauta-harness.md, 221 lines) and verification (npm test).
 - Real repo gaps are 3: no repo-level CLAUDE.md/AGENTS.md (a fresh agent has only README.md to start from), the task document has no "Next session should / blockers" handoff block as the single restart pointer (progress lines are append-only, T-list is long), and no one-command verify (npm test exists but is only documented under README "Tests"; no fail-fast chain with lint/static check).
 - Harness design (what install injects): the single dominant finding is context size. Always-on injected text = 62,032 chars / 484 lines of CLAUDE.md (~15.5k tokens) + 7.1k-char output style (~1.8k tokens) + ~1.7k chars of skill descriptions = about 17.5-18k tokens before the user's first word. The reference's own budget template is 2,000 (system) + 3,000 (instruction files). We are ~5x over its instruction-file budget, and ~2/3 of it (orchestrator 35.6k chars + agent-routing 17.1k chars = 85% of the block) is dead or duplicated prose from gentle-ai (consent envelopes, lineage/receipts, Go-only terminal procedures, `gentle-ai review ...`), contradicting the repo's own scope ("Out: consent envelopes, lineage/receipts/burn").
 - Strengths vs references: fail-open/fail-closed hook design is deliberate and tested; hooks are small and fast (21-83 ms measured); permissions never sets defaultMode and unions the deny list; memory is a bounded SQLite store with topic_key upsert (two-step-save invariant not needed); skills use progressive disclosure; subagent tool sets are filtered (review lenses `tools: []`).
@@ -71,18 +71,18 @@ Legend: meets / partial / gap / n/a. Evidence paths are relative to the repo.
 |---|---|---|
 | Explicit context budget (system 2k, instructions 3k) | GAP | Always-on CLAUDE.md = 15.5k tokens; no budget stated anywhere (README, task doc). |
 | SELECT: JIT loading, progressive disclosure tiers | PARTIAL | Skills are JIT (frontmatter only, bodies on demand: assets/skills/*/SKILL.md, 8 skills ~1.7k chars of descriptions). But the SDD workflow, judgment-day review, consent/lineage procedure and RDD native-review procedure are all inlined in the always-on block (assets/claude/orchestrator.md:13-52, 123-end; assets/claude/agent-routing.md) instead of being skills/references. The orchestrator itself says "SDD workflow (lazy-loaded)" but still embeds ~290 lines. |
-| Hard caps on every variable-length block + truncation pointers | PARTIAL | memory search/context capped (python/gentle_lite/memory/store.py:262,267 limit<=100/20; server.py:93 summaries truncated to 300 chars); telemetry text fields capped (telemetry/hook.py `_text`). Always-on text itself has no cap. |
+| Hard caps on every variable-length block + truncation pointers | PARTIAL | memory search/context capped (python/amauta/memory/store.py:262,267 limit<=100/20; server.py:93 summaries truncated to 300 chars); telemetry text fields capped (telemetry/hook.py `_text`). Always-on text itself has no cap. |
 | COMPRESS: compaction handling | MEETS (delegated to Claude Code) | SessionStart matcher includes `compact` (src/install/servers.js:77); review-stop keeps baseline across resume/compact (src/review/stop.js:41-47). |
 | ISOLATE: delegated work must not pollute parent | MEETS | Mandatory delegation triggers + review lenses with `tools: []` (assets/claude/agents/review-*.md) + orchestrator "delegate mapping/writes". Cost: the trigger text is itself large (agent-routing.md 17k chars). |
-| Memoize with explicit invalidation | MEETS | skill-registry fingerprint cache (src/registry/skill-registry.js:140-166), usage ingest_state offsets (python/gentle_lite/usage/ingest.py). |
+| Memoize with explicit invalidation | MEETS | skill-registry fingerprint cache (src/registry/skill-registry.js:140-166), usage ingest_state offsets (python/amauta/usage/ingest.py). |
 | Gotcha: isolation enforced at call time, not by prompt only | PARTIAL | Reviewer lenses have `tools: []` (call-time); but "orchestrator never edits / one writer" is prompt-only (and the SDD preflight hook enforces only SDD dispatch, src/install/servers.js:60-84). |
-| Gotcha: truncation silent until it fires | PARTIAL | Claude Code does not truncate CLAUDE.md, but quality degrades with size; no check/warning in `gentle-lite status` of block size. |
+| Gotcha: truncation silent until it fires | PARTIAL | Claude Code does not truncate CLAUDE.md, but quality degrades with size; no check/warning in `amauta status` of block size. |
 
 ### 2.2 memory-persistence-pattern.md
 
 | Item | Verdict | Evidence |
 |---|---|---|
-| Separate layers (instruction / auto-memory / session extraction) | MEETS | Instruction = CLAUDE.md markers; auto-memory = SQLite observations (python/gentle_lite/memory/store.py:14-60) with sessions + summaries; portal reads Claude file memories read-only (T11). No background extraction (explicit tool calls only, by the model). |
+| Separate layers (instruction / auto-memory / session extraction) | MEETS | Instruction = CLAUDE.md markers; auto-memory = SQLite observations (python/amauta/memory/store.py:14-60) with sessions + summaries; portal reads Claude file memories read-only (T11). No background extraction (explicit tool calls only, by the model). |
 | Two-step save invariant (topic file then index) | N/A | SQLite transaction is atomic; weaker concern than files. Orphan-sweep gotcha (#15) also N/A. |
 | Bounded always-on index; detail on demand | MEETS | Memory is not injected at all; `mem_context` limit 20 (store.py:267), `mem_get_observation` for detail. Better than the reference. |
 | One-line index entries (gotcha #1) | N/A | No index file. The user's separate `~/.claude/projects/.../MEMORY.md` is Claude Code's own mechanism, not ours. |
@@ -90,13 +90,13 @@ Legend: meets / partial / gap / n/a. Evidence paths are relative to the repo.
 | Local overrides win / test the priority stack (gotcha #2) | PARTIAL | Marker injector preserves user text (src/core/markers.js) and README documents it, but nothing warns that a project `CLAUDE.md`/`CLAUDE.local.md` overrides injected global rules; no test of the full stack. |
 | Extraction timing race (gotcha #3) | MEETS / N/A | Writes are synchronous tool calls; telemetry uses 500 ms busy timeout and counts dropped events (telemetry/hook.py:11, housekeeping.count_dropped). |
 | Progress-log template with Next-session block | PARTIAL | `mem_session_summary` + odd task Progress section; no mandated "next session should" field in the summary template. |
-| Memory-protocol/tool parity | GAP (found) | Protocol references `mem_review`, `ambiguous_project`/`recovery_token`/`available_projects` (assets/engram/protocol-slim.md:7,30-48) which python/gentle_lite/memory/server.py does not implement. The model is told to follow flows that cannot trigger. ~25 lines of dead protocol. |
+| Memory-protocol/tool parity | GAP (found) | Protocol references `mem_review`, `ambiguous_project`/`recovery_token`/`available_projects` (assets/engram/protocol-slim.md:7,30-48) which python/amauta/memory/server.py does not implement. The model is told to follow flows that cannot trigger. ~25 lines of dead protocol. |
 
 ### 2.3 tool-registry-pattern.md
 
 | Item | Verdict | Evidence |
 |---|---|---|
-| Fail-closed defaults / default permission not "allow" (gotcha #13) | PARTIAL | install never sets `permissions.defaultMode` and does not add an allow list (src/install/servers.js; assets/claude/settings-overlay.json has only `deny`). So user's own mode governs: safe, but gentle-lite adds no `ask` rules for destructive commands. |
+| Fail-closed defaults / default permission not "allow" (gotcha #13) | PARTIAL | install never sets `permissions.defaultMode` and does not add an allow list (src/install/servers.js; assets/claude/settings-overlay.json has only `deny`). So user's own mode governs: safe, but amauta adds no `ask` rules for destructive commands. |
 | Bypass-immune protected paths/commands | PARTIAL | Deny list of 24 entries (settings-overlay.json): `rm -rf /`, `rm -rf ~`, .env, .ssh, .aws, *.pem, *.key, secrets. Missing from reference's list: `.git/**` writes, `mkfs*`, `DROP TABLE*`, `git push --force`, `git reset --hard`; patterns are relative (`Read(.env)`) and macOS-only (`Library/Keychains`). Unioned with user deny (not replaced) = good. |
 | Per-call (not per-tool) concurrency classification | N/A | Claude Code owns the tool runtime. |
 | Permission evaluator side effects: do not cache | N/A | Same. |
@@ -123,7 +123,7 @@ Legend: meets / partial / gap / n/a. Evidence paths are relative to the repo.
 |---|---|---|
 | Hooks fail open / never break the session | MEETS | `runHook` swallows all errors, exit 0 (src/hooks/index.js:30-45); telemetry `main` same (telemetry/hook.py:60-66). |
 | Hook latency / blocking | MEETS (with 1 gap) | 21-83 ms each (measured). Only Stop `review-stop` can block, once per candidate, and only when RDD is on (src/review/stop.js:55-67). Gap: telemetry/usage/codegraph hooks registered with no `timeout` field (servers.js:81-82; settings.json sandbox) so a hung python/node process would stall the event until Claude Code's default timeout. Add `timeout: 5`. |
-| Hook trust gate / dispatch scope | PARTIAL | We rely on Claude Code's own trust prompt. Hooks run from absolute repo paths `node /home/.../gentle-lite/bin/gentle-lite.js` (servers.js; T4): moving or deleting the repo silently breaks all hooks (they fail open, no warning except `gentle-lite status`). |
+| Hook trust gate / dispatch scope | PARTIAL | We rely on Claude Code's own trust prompt. Hooks run from absolute repo paths `node /home/.../amauta/bin/amauta.js` (servers.js; T4): moving or deleting the repo silently breaks all hooks (they fail open, no warning except `amauta status`). |
 | Hook types disjoint, no overlap | PARTIAL | Seven telemetry hook processes (5 events) + usage (2) + 4 others; per-tool-call process spawn (~45 ms x every tool use) is the largest steady cost. Not disjoint with the Engram/Claude Code transcript (usage ingest re-reads transcripts). |
 | Bootstrap staged, sensitive subsystems after trust | PARTIAL | Install order is atomic with backup/manifest (src/core/backup.js, fsatomic.js; T2b hardened). Telemetry is opt-out via `--no-telemetry` (default ON; local only, no network) and the portal binds 127.0.0.1 only (T11). The reference wants security-sensitive subsystems after explicit consent; default-on local telemetry of tool names/cwd is mild but is a default. |
 | Startup path / restart path per session | PARTIAL | SessionStart only writes a review baseline (review-stop). No session-start context hook: the model must remember to call `mem_current_project` -> `mem_context` (protocol-slim.md:6-20). That is ~15 lines of procedure the model might skip; the reference prefers a hook that loads the 1-page state. |
@@ -139,7 +139,7 @@ Legend: meets / partial / gap / n/a. Evidence paths are relative to the repo.
 | Frontmatter trigger front-loaded / per-entry listing budget (~150 chars, gotcha #12) | PARTIAL | 8 descriptions total ~1.7k chars (avg ~210); several exceed 150 and start with "Trigger: ..." (good), but chained-pr/work-unit-commits/go-testing are low-value for most projects and still cost listing space. |
 | No project-specific / user-private paths in skills | PARTIAL | go-testing (Go/Bubbletea) and chained-pr/work-unit-commits are domain- or workflow-specific copies; reviewer text cites "ai-course-2 slides" (assets/claude/agents/review-risk.md:9, unreachable source). |
 | No destructive commands in skills | MEETS | none found. |
-| Skills not depending on private local paths | PARTIAL | `~/.config/o...`/`.agents/skills` registry guidance mentions several agents' skill dirs (orchestrator.md:353) that gentle-lite never installs. |
+| Skills not depending on private local paths | PARTIAL | `~/.config/o...`/`.agents/skills` registry guidance mentions several agents' skill dirs (orchestrator.md:353) that amauta never installs. |
 | Skill-registry as an always-on file written into projects | MEETS (opt-in) | `.atl/` only if project opted in (T4b R1-001). |
 
 ### 2.7 gotchas.md (cross-check of the 15)
@@ -162,7 +162,7 @@ Legend: meets / partial / gap / n/a. Evidence paths are relative to the repo.
 | 14 | team memory requires auto-memory | N/A | |
 | 15 | orphaned topic files | N/A | sqlite |
 
-Gentle-lite-specific gotchas the references do not cover (found here): installer text templating can strip file names (`..md`); protocol/tool drift between assets and the Python memory server; duplicated blocks if gentle-ai (Go) is also installed in the same `~/.claude` (both inject the same orchestrator under different markers; not measured because it would touch the real home).
+Amauta-specific gotchas the references do not cover (found here): installer text templating can strip file names (`..md`); protocol/tool drift between assets and the Python memory server; duplicated blocks if gentle-ai (Go) is also installed in the same `~/.claude` (both inject the same orchestrator under different markers; not measured because it would touch the real home).
 
 ## Top 10 recommendations for T15
 
@@ -174,10 +174,10 @@ Gentle-lite-specific gotchas the references do not cover (found here): installer
 | 4 | Fix the dangling/stripped links: vendor-or-remove `review-ledger-contract.md` refs in judgment-day SKILL.md:53 and _shared/README.md:11; fix the templating that renders `..md`; add a test that every relative link in installed skills resolves | skill-runtime "Every referenced bundled file exists" | S | SIMPLIFIES (deletes dead refs) |
 | 5 | Make the engram protocol match the Python server: drop `mem_review`, `ambiguous_project`/`recovery_token` flows (assets/engram/protocol-slim.md:7,30-48) or implement them; add a memory-type taxonomy + "do not save what the repo already shows" rule in 3 lines | memory-persistence gotcha #4, "Derivable content"; parity of tool contract | S | SIMPLIFIES (-~1k chars) and adds 3 lines |
 | 6 | Add `timeout` (e.g. 5 s) to telemetry, usage and codegraph hooks; consider registering PostToolUse telemetry only when telemetry is explicitly requested (per-tool-call process spawn ~45 ms) or batch it | lifecycle "hook latency / one hook must not stall"; gotcha #10 | S | ADDS 1 field per hook; reduces latency risk |
-| 7 | Add a repo-level `CLAUDE.md` (~25 lines): layout, `npm test`, "never touch real ~/.claude (use GENTLE_LITE_* env)", pointer to odd/tasks, and a "Next session should" block in the task doc | SKILL.md Instructions + Lifecycle subsystems; validate-harness failures 1/5 | S | ADDS ~25 lines |
+| 7 | Add a repo-level `CLAUDE.md` (~25 lines): layout, `npm test`, "never touch real ~/.claude (use AMAUTA_* env)", pointer to odd/tasks, and a "Next session should" block in the task doc | SKILL.md Instructions + Lifecycle subsystems; validate-harness failures 1/5 | S | ADDS ~25 lines |
 | 8 | Tighten the deny overlay and make patterns absolute/home-aware (`Read(~/.ssh/**)`, `Read(**/.env*)`), drop macOS Keychains entries, add `Bash(git push --force*)`/`git reset --hard` as `ask` (not deny), and say in README that no defaultMode/allow list is set | tool-registry "Bypass-immune rules", gotcha #13 | S | ADDS ~4 rules, removes 2 |
-| 9 | Make `rea` (~300 tools) and `context7` opt-in installs (`--with-rea`) instead of default MCP entries for every project; default set = engram-equivalent + gentle-lite + codegraph | context-engineering "SELECT: JIT, don't load all at once"; tool-registry safety checklist | S | SIMPLIFIES (fewer default tools/listing tokens) |
-| 10 | Add a size guard: `gentle-lite status` prints the injected-context size per block and warns above a budget (e.g. 20k chars), plus a unit test pinning the budget so it cannot regress | context-engineering "Context Budget" template; gotcha "silent until it fires" | S | ADDS ~30 lines + 1 test, protects #1 |
+| 9 | Make `rea` (~300 tools) and `context7` opt-in installs (`--with-rea`) instead of default MCP entries for every project; default set = engram-equivalent + amauta + codegraph | context-engineering "SELECT: JIT, don't load all at once"; tool-registry safety checklist | S | SIMPLIFIES (fewer default tools/listing tokens) |
+| 10 | Add a size guard: `amauta status` prints the injected-context size per block and warns above a budget (e.g. 20k chars), plus a unit test pinning the budget so it cannot regress | context-engineering "Context Budget" template; gotcha "silent until it fires" | S | ADDS ~30 lines + 1 test, protects #1 |
 
 ## Candidates to delete or shrink (with estimates)
 
@@ -185,7 +185,7 @@ Gentle-lite-specific gotchas the references do not cover (found here): installer
 |---|---|---|
 | Consent envelope relay / Lossless Blocking Prompts section | assets/claude/orchestrator.md:13-52 | ~40 lines, ~9k chars (~2.2k tokens) |
 | Gentle AI Provider Defect Handoff + SDD Edit-Authority Consent Relay | orchestrator.md (inside the above range + following) | ~6k chars (~1.5k tokens) |
-| Native review lifecycle prose: START/STATUS/lineage/acknowledge, Authority-First Terminal Procedure, stop reason table, Cross-repository lifecycle root, Concurrent Reviewer Group | rendered in CLAUDE.md ~lines 230-345 (orchestrator.md + agent-routing.md) | ~90-110 lines, ~14k chars (~3.5k tokens). gentle-lite has no START/lineage commands, so this is dead text. |
+| Native review lifecycle prose: START/STATUS/lineage/acknowledge, Authority-First Terminal Procedure, stop reason table, Cross-repository lifecycle root, Concurrent Reviewer Group | rendered in CLAUDE.md ~lines 230-345 (orchestrator.md + agent-routing.md) | ~90-110 lines, ~14k chars (~3.5k tokens). amauta has no START/lineage commands, so this is dead text. |
 | Duplicate delegation/triggers/ODD copy (orchestrator Delegation Rules vs agent-routing Mandatory Delegation Triggers vs ODD sections) | CLAUDE.md lines ~57-122 vs 400-474 | ~5k chars (~1.2k tokens) |
 | `gentle-ai`-specific references and Go-only wording (`gentle-ai review ...`, "native Go owns", "gentle-ai sync") | orchestrator/agent-routing | ~2k chars (~0.5k tokens) |
 | Skill Registry Protocol referencing absent agent dirs | orchestrator.md:123-end | ~3k chars (~0.75k tokens) |
