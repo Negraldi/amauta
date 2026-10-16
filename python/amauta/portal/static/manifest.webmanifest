@@ -1,0 +1,11 @@
+{
+  "name": "amauta",
+  "short_name": "amauta",
+  "description": "Read-only local control portal and wiki for the amauta harness",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#007277",
+  "background_color": "#f7fbfb",
+  "icons": [{ "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

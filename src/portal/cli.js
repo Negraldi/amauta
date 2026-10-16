@@ -3,12 +3,15 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveTargets } from '../install/paths.js';
+import { runLaunch } from './launch.js';
+import { runInstallLauncher } from './launcher.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // No host option on purpose: the Python portal binds 127.0.0.1 only.
-const OPTIONS = {
+export const OPTIONS = {
   port: { type: 'string' },
+  'idle-exit': { type: 'string' },
   'claude-home': { type: 'string' },
   'engram-db': { type: 'string' },
   'state-dir': { type: 'string' },
@@ -19,9 +22,11 @@ const OPTIONS = {
 export function buildPortalSpawn(args, env = process.env) {
   const { values } = parseArgs({ args, options: OPTIONS, allowPositionals: false, strict: true });
   if (values.port !== undefined && !(/^\d+$/.test(values.port) && Number(values.port) <= 65535)) throw new Error(`invalid port: ${values.port}`);
+  if (values['idle-exit'] !== undefined && !(Number(values['idle-exit']) > 0)) throw new Error(`invalid --idle-exit: ${values['idle-exit']} (seconds, greater than 0)`);
   const targets = resolveTargets({ claudeHome: values['claude-home'], stateDir: values['state-dir'] }, env);
   const out = ['-P', '-m', 'amauta.portal'];
   if (values.port !== undefined) out.push('--port', values.port);
+  if (values['idle-exit'] !== undefined) out.push('--idle-exit', values['idle-exit']);
   if (values['claude-home'] !== undefined) out.push('--claude-home', values['claude-home']);
   if (values['engram-db'] !== undefined) out.push('--engram-db', values['engram-db']);
   for (const r of values.repo ?? []) out.push('--repo', path.resolve(r));
@@ -53,7 +58,9 @@ export function defaultSpawn(command, args, opts, io = { stderr: process.stderr 
   });
 }
 
-export async function runPortal(args, io, { spawn = defaultSpawn } = {}) {
+export async function runPortal(args, io, { spawn = defaultSpawn, launch = runLaunch, install = runInstallLauncher } = {}) {
+  if (args[0] === 'launch') return launch(args.slice(1), io);
+  if (args[0] === 'install-launcher') return install(args.slice(1), io);
   let built;
   try {
     built = buildPortalSpawn(args);
@@ -65,5 +72,5 @@ export async function runPortal(args, io, { spawn = defaultSpawn } = {}) {
 }
 
 export function registerPortalCommands(commands) {
-  commands.set('portal', { summary: 'Start the read-only control portal on 127.0.0.1 (--port --claude-home --engram-db --state-dir --repo)', run: (args, io) => runPortal(args, io) });
+  commands.set('portal', { summary: 'Start the read-only control portal on 127.0.0.1 (--port --idle-exit --claude-home --engram-db --state-dir --repo); `portal launch` opens it as an app window, `portal install-launcher [--remove]` adds the desktop entry', run: (args, io) => runPortal(args, io) });
 }

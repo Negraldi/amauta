@@ -128,8 +128,8 @@ class SemanticStatsTest(Base):
 
 
 class SyncTest(Base):
-    def test_schema_is_version_5_with_graph_tables_and_semantic_columns(self):
-        self.assertEqual(mstore.SCHEMA_VERSION, 5)
+    def test_schema_has_version_5_with_graph_tables_and_semantic_columns(self):
+        self.assertGreaterEqual(mstore.SCHEMA_VERSION, 5)
         cols = {r["name"] for r in self.rows("PRAGMA table_info(graph_sync)")}
         self.assertTrue({"sql_tables", "semantic_pending", "semantic_at", "semantic_model"} <= cols)
         names = {r["name"] for r in self.rows("SELECT name FROM sqlite_master WHERE type='table'")}

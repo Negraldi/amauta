@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .. import paths
 from .config import Config
-from .server import make_server
+from .server import make_server, watch_idle
 
 
 def build_parser():
@@ -16,6 +16,7 @@ def build_parser():
     p.add_argument("--claude-home")
     p.add_argument("--engram-db")
     p.add_argument("--repo", action="append", default=[], help="repository whose odd/tasks/*.md and mirrored graphify graph to show (repeatable)")
+    p.add_argument("--idle-exit", type=float, default=None, metavar="SECONDS", help="exit cleanly after this many seconds without a page heartbeat (default: run until stopped)")
     return p
 
 
@@ -28,12 +29,14 @@ def main(argv=None) -> int:
         repos=args.repo,
     )
     try:
-        srv = make_server(cfg, port=args.port)
+        srv = make_server(cfg, port=args.port, idle_exit=args.idle_exit)
     except OSError as err:
         sys.stderr.write(f"amauta portal: cannot listen on 127.0.0.1:{args.port}: {err.strerror}\n")
         return 1
     sys.stdout.write(f"amauta portal: http://127.0.0.1:{srv.port}/  (Ctrl+C to stop)\n")
     sys.stdout.flush()
+    if srv.idle is not None:
+        watch_idle(srv)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

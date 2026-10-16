@@ -31,6 +31,7 @@ const routes = {
   '/api/graph/nodes': { available: true, items: [{ id: 'a', label: XSS, kind: 'code', file: 'src/a.py' }, { id: 'b', label: 'Beta', kind: 'code', file: 'src/b.py' }] },
   '/api/graph/neighbors': { available: true, depth: 1, start: ['a'], nodes: [{ id: 'a', label: XSS, kind: 'code', file: 'x', depth: 0 }, { id: 'b', label: 'Beta', kind: 'code', file: 'y', depth: 1 }], edges: [{ src: 'a', dst: 'b', relation: XSS }] },
   '/api/harness': { installed: true, version: '1', hooks: [{ event: 'Stop', kind: 'usage' }], mcp_servers: [{ name: XSS, type: 'stdio', command: 'x' }], components: [XSS], managed_files: 1, telemetry: true, rdd_mode: 'on', persona: 'neutral' },
+  '/api/archify': { installed: true, available: false, reason: XSS, fallback: 'flowchart LR\n  n0["A"]' },
   '/api/odd': { repos: [{ repo: XSS, documents: [{ name: XSS, done: 1, total: 2, tasks: [{ done: true, title: XSS }, { done: false, title: 'b' }] }] }] },
 };
 
@@ -66,8 +67,8 @@ test('app.js is valid JavaScript', async () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
-test('overview renders KPIs, chart and the dropped counter; data strings only become text', async () => {
-  const env = await boot();
+test('overview (now under #/usage) renders KPIs, chart and the dropped counter; data strings only become text', async () => {
+  const env = await boot('#/usage');
   const view = env.document.getElementById('view');
   const text = view.textContent;
   assert.match(text, /Cache hit ratio/);
@@ -123,7 +124,7 @@ test('refresh button POSTs with the page token and nothing else sensitive', asyn
 test('API failures render an error panel instead of throwing', async () => {
   const saved = routes['/api/overview'];
   delete routes['/api/overview'];
-  const env = await boot();
+  const env = await boot('#/usage');
   routes['/api/overview'] = saved;
   assert.match(env.document.getElementById('view').textContent, /Error/);
 });
@@ -185,10 +186,10 @@ test('withRoutes restores every shared route even when the callback rewrites or 
 });
 
 test('overview reports invalid prices and an unreadable prices file', async () => {
-  await withRoutes({ '/api/costs': { enabled: true, label: 'L', models: [{ model: 'm', cost: null }], total: 0, invalid_prices: ['m: input'], unpriced_models: [] } }, '', async (env) => {
+  await withRoutes({ '/api/costs': { enabled: true, label: 'L', models: [{ model: 'm', cost: null }], total: 0, invalid_prices: ['m: input'], unpriced_models: [] } }, '#/usage', async (env) => {
     assert.match(env.document.getElementById('view').textContent, /Invalid prices.*m: input/);
   });
-  await withRoutes({ '/api/costs': { enabled: false, models: [], error: 'prices.json is unreadable' } }, '', async (env) => {
+  await withRoutes({ '/api/costs': { enabled: false, models: [], error: 'prices.json is unreadable' } }, '#/usage', async (env) => {
     assert.match(env.document.getElementById('view').textContent, /prices\.json is unreadable/);
   });
 });
@@ -226,4 +227,12 @@ test('graph memory: API failures are shown inline', async () => {
     assert.match(view.textContent, /not found/);
     assert.deepEqual(rejections, []);
   });
+});
+
+test('the page sends a token-authenticated heartbeat every 10 seconds', async () => {
+  const js = await read('app.js');
+  assert.match(js, /\/api\/heartbeat/);
+  assert.match(js, /setInterval\(heartbeat, 10000\)/);
+  assert.match(js, /heartbeat[\s\S]{0,200}X-Portal-Token/);
+  assert.match(await read('index.html'), /rel="manifest" href="\/static\/manifest\.webmanifest"/);
 });

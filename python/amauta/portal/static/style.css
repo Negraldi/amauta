@@ -7,7 +7,7 @@
   --bg: oklch(0.985 0.004 200); --surface: oklch(1 0 0); --sidebar: oklch(0.965 0.006 200);
   --ink: oklch(0.23 0.012 200); --ink-muted: oklch(0.45 0.012 200); --line: oklch(0.89 0.008 200);
   --accent: oklch(0.50 0.09 200); --accent-soft: oklch(0.95 0.025 200);
-  --warn: oklch(0.62 0.15 70); --ok: oklch(0.55 0.12 150);
+  --warn: oklch(0.52 0.15 70); --ok: oklch(0.50 0.12 150);
   --c-input: oklch(0.55 0.13 255); --c-output: oklch(0.68 0.14 60); --c-cache-read: oklch(0.62 0.11 165); --c-cache-write: oklch(0.58 0.13 300);
   --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -103,6 +103,19 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .teach { max-width: 68ch; }
 .teach p { color: var(--ink-muted); }
 
+/* ---- revision diff (marks, not color alone) ---- */
+.progress-block { margin: 0 0 var(--s5); }
+.progress-block progress { width: 100%; max-width: 28rem; height: 0.625rem; accent-color: var(--accent); }
+table.compact { font-size: 0.8125rem; margin: 0 0 var(--s3); }
+table.compact th, table.compact td { padding: var(--s1) var(--s2); }
+.day:first-of-type { margin-top: 0; border-top: 0; padding-top: 0; }
+.spark { max-width: 28rem; }
+.diff { font: 0.8125rem/1.5 var(--mono); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2) 0; margin: 0 0 var(--s3); overflow: auto; }
+.diff-line { white-space: pre-wrap; padding: 0 var(--s3); }
+.diff-add { color: var(--ok); background: var(--accent-soft); }
+.diff-del { color: var(--warn); }
+.diff-gap { color: var(--ink-muted); font-style: italic; }
+
 /* ---- prose (memory content, SKILL.md, ODD documents) ---- */
 .prose { font: 1.0625rem/1.6 var(--serif); }
 .prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose .scroll, .prose hr { margin: 0 0 var(--s4); }
@@ -145,6 +158,7 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 /* Mermaid always draws with its light theme, so diagrams sit on a white sheet in both color schemes. */
 .diagram { background: oklch(1 0 0); color: oklch(0.23 0.012 200); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2); margin: 0 0 var(--s4); }
 .diagram svg { max-width: 100%; height: auto; }
+.archify-frame { display: block; width: 100%; height: 42rem; max-height: 80vh; border: 1px solid var(--line); border-radius: 6px; background: oklch(1 0 0); margin: 0 0 var(--s2); }
 .diagram .muted { color: oklch(0.45 0.012 200); }
 
 /* ---- loading: skeleton lines, not spinners ---- */
@@ -171,11 +185,11 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 @keyframes pal-in { from { opacity: 0; transform: translateY(-0.25rem); } to { opacity: 1; transform: none; } }
 
 /* ---- collapse rules ---- */
-@media (max-width: 72rem) {
+@media (width < 72rem) {
   .page { grid-template-columns: minmax(0, var(--measure)); gap: var(--s5); }
   .rail { border-top: 1px solid var(--line); padding-top: var(--s4); }
 }
-@media (max-width: 52rem) {
+@media (width < 52rem) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); z-index: var(--z-overlay); transform: translateX(-100%); visibility: hidden; transition: transform var(--t) var(--ease), visibility 0s linear var(--t); }
   .shell[data-nav="open"] .sidebar { transform: none; visibility: visible; transition-delay: 0s; }
@@ -194,4 +208,37 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}
+
+/* ---- skill impact: direction is a shape plus words; the color only reinforces it ---- */
+.impact .note { border: 1px solid var(--line); background: var(--accent-soft); border-radius: 4px; padding: var(--s2) var(--s3); color: var(--ink); font-weight: 500; }
+.mark { white-space: nowrap; }
+.mark-better { color: var(--ink); }
+.mark-worse { color: var(--ink); font-weight: 600; }
+.mark-na, .mark-flat { color: var(--ink-muted); }
+
+/* ---- settings editor ---- */
+.settings { max-width: 52rem; }
+.settings h1 { font: 600 1.875rem/1.2 var(--serif); text-wrap: balance; margin: 0 0 var(--s3); }
+.settings h2 { font: 600 1.25rem/1.3 var(--sans); margin: var(--s5) 0 var(--s3); }
+.settings .option { display: grid; grid-template-columns: minmax(10rem, 14rem) auto 1fr; gap: var(--s1) var(--s3); align-items: baseline; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: var(--s3); margin: 0 0 var(--s2); }
+.settings .option label { font-weight: 600; }
+.settings .option .current { color: var(--ink-muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.settings .option .changed { grid-column: 2 / 4; font-size: 0.8125rem; font-weight: 600; color: var(--accent); }
+.settings .option .changed:empty { display: none; }
+.settings .option-help { grid-column: 1 / -1; margin: 0; }
+.settings .actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s3) 0; }
+.settings .plain-list { list-style: none; margin: 0 0 var(--s3); padding: 0; }
+.settings .plain-list li { padding: var(--s1) 0; }
+.settings details { margin: var(--s2) 0; }
+.settings summary { cursor: pointer; }
+.settings .notice { border: 1px solid var(--line); background: var(--accent-soft); border-radius: 6px; padding: var(--s2) var(--s3); }
+.settings .notice.warn { border-color: var(--warn); color: var(--ink); }
+.settings .confirm { border: 1px solid var(--line); border-radius: 6px; padding: var(--s2) var(--s3); background: var(--surface); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+button.primary:active:not(:disabled) { background: var(--accent); filter: brightness(0.94); }
+@media (max-width: 40rem) {
+  .settings .option { grid-template-columns: 1fr; }
+  .settings .option .changed { grid-column: 1; }
 }

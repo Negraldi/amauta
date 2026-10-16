@@ -8,10 +8,8 @@ const SECTIONS = [
   ["Knowledge", [["home", "Home"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
   ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"], ["diagrams", "Diagrams"]]],
   ["Spending", [["usage", "Usage"]]],
-  ["Manage", [["settings", "Settings"]]],
+  ["Manage", [["lint", "Lint"], ["settings", "Settings"]]],
 ];
-// Pages that read the Range and Project filters in the top bar.
-const FILTERED = new Set(["home", "usage", "session", "skill", "tool", "mcp"]);
 const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
 
 function h(tag, attrs, ...kids) {
@@ -108,11 +106,11 @@ function table(id, columns, rows, onRow) {
   const head = h("tr", null, columns.map((c) => h("th", {
     class: c.num ? "n" : "", "data-key": c.key, tabindex: 0, "aria-sort": s.key === c.key ? (s.dir > 0 ? "ascending" : "descending") : "none",
     onclick: () => { state.sort[id] = { key: c.key, dir: s.key === c.key ? -s.dir : -1 }; render(); },
-    onkeydown: (e) => { if (e.key === "Enter") e.target.click(); },
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } },
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
   const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
     c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : r[c.key] ?? "-"))));
-  return h("div", { class: "scroll" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
+  return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": "Table, scrollable" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
 function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h("span", null, h("span", { class: `sw f-${k}` }), l))); }
@@ -286,12 +284,25 @@ async function graphifyPanel() {
   return panel("Graph memory (graphify)", ...blocks.map((b) => b.el));
 }
 
+// Harness architecture: the archify page lives on its own route with its own sandboxing CSP and is shown in a sandboxed iframe (scripts only, no
+// same-origin), so the portal's script-src 'self' is untouched. Without node/archify the server sends the Mermaid text diagram instead.
+function archifyBlock(d) {
+  if (!d.installed) return null;
+  if (d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)) {
+    return panel("Architecture", h("iframe", { class: "archify-frame", src: d.url, sandbox: "allow-scripts", title: "amauta harness architecture (archify)", referrerpolicy: "no-referrer" }),
+      h("p", { class: "muted" }, `${fmt(d.components)} components drawn by archify from the install state.`));
+  }
+  return panel("Architecture", d.fallback ? diagramBox(d.fallback, "amauta install architecture") : null,
+    h("p", { class: "muted" }, `Showing the Mermaid fallback${d.reason ? ": " + d.reason : ""}.`));
+}
+
 async function viewHarness() {
-  const [hs, odd] = await Promise.all([api("harness"), api("odd")]);
+  const [hs, odd, arch] = await Promise.all([api("harness"), api("odd"), api("archify").catch(() => ({ installed: false }))]);
   const out = [];
   if (!hs.installed) out.push(panel("Harness", empty("amauta is not installed (no state.json in the state directory).")));
   else {
     out.push(h("div", { class: "grid" }, card("Version", hs.version || "-"), card("RDD mode", hs.rdd_mode || "-"), card("Telemetry", hs.telemetry ? "on" : "off"), card("Managed files", fmt(hs.managed_files)), card("Persona", hs.persona || "-")),
+      archifyBlock(arch),
       panel("Components", empty((hs.components || []).join(", ") || "none")),
       panel("Hooks", hs.hooks.length ? table("hooks", [{ key: "event", label: "Event" }, { key: "kind", label: "Kind" }], hs.hooks) : empty("No hooks registered.")),
       panel("MCP servers", hs.mcp_servers.length ? table("mcp", [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "command", label: "Command" }], hs.mcp_servers) : empty("None.")));
@@ -349,6 +360,101 @@ function sectionBlock(s) {
     it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${it.value}`)))));
 }
 
+function historyBlock(hist) {
+  if (!hist) return null;
+  if (!hist.available) return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note));
+  const revs = hist.revisions.map((r) => h("li", null, `Revision ${r.revision}`, r.title ? ` ${r.title}` : null, r.updated_at ? h("span", { class: "muted" }, ` ${r.updated_at}`) : null));
+  const diffs = hist.diffs.map((d) => h("details", null, h("summary", null, `Revision ${d.from} to ${d.to}`),
+    h("div", { class: "diff", role: "group", "aria-label": `Changes from revision ${d.from} to ${d.to}` }, d.lines.map((ln) => { const r = R.diffRow(ln); return h("div", { class: `diff-line diff-${r.name}` }, r.mark + r.text); }))));
+  return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note), h("ul", { class: "items" }, revs), ...diffs);
+}
+
+// Calls per day as small bars; the title text and a sentence carry the numbers, so color and shape are never the only signal.
+function usageBlock(usage) {
+  if (!usage) return null;
+  const total = usage.daily.reduce((a, d) => a + d.value, 0);
+  const last = usage.daily.length ? usage.daily[usage.daily.length - 1].day : "";
+  if (!total) return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, "No calls recorded yet."));
+  const W = 360, H = 60;
+  const bars = R.dailyBars(usage.daily, W, H);
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": `Calls per day over the ${usage.days} days up to ${last}` },
+    ...bars.map((b) => svg("g", null, svg("title", null, `${b.day}: ${b.value} calls`), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
+    svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, bars[0].day.slice(5)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, last.slice(5)));
+  return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, `${fmt(total)} calls in the ${usage.days} days up to ${last}.`), h("div", { class: "spark" }, root));
+}
+
+// ODD feature: a progress bar with its number, state chips (shape plus label) and the commits the document mentions that git could resolve.
+function progressBlock(pg) {
+  if (!pg.progress) return null;
+  const p = R.progress(pg.progress.done, pg.progress.total);
+  const pending = pg.progress.total - pg.progress.done;
+  return h("section", { class: "progress-block", "aria-label": "Task progress" },
+    h("progress", { max: Math.max(pg.progress.total, 1), value: pg.progress.done, "aria-label": p.label }),
+    h("p", null, h("strong", null, p.label), ` (${p.percent}%)`, statusChip("done"), ` ${pg.progress.done}`, statusChip("pending"), ` ${pending}`));
+}
+
+function commitsBlock(commits) {
+  if (!commits || !commits.length) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Commits"), h("ul", { class: "items" }, commits.map((c) => h("li", null, h("code", null, c.hash), ` ${c.subject}`, h("span", { class: "muted" }, ` ${String(c.date).slice(0, 10)}`)))));
+}
+
+// Graph node: the neighborhood diagram is drawn lazily (mermaid loads on first use) from source the server generated with every label escaped.
+function nodeDiagramBlock(diagram) {
+  if (!diagram || !diagram.source) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Neighborhood"), diagramBox(diagram.source, "Neighbors of this graph node"),
+    diagram.truncated ? h("p", { class: "muted" }, `Showing the nearest ${R.NODE_CAP} of ${fmt(diagram.nodes)} nodes.`) : null);
+}
+
+// ODD feature: tasks grouped by phase in a grid (shape + word + class carry the status); long documents are capped server-side.
+function taskDiagramBlock(pg) {
+  const d = pg.diagram;
+  if (pg.kind !== "feature" || !d || !d.source) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Task grid"), diagramBox(d.source, "Tasks of this feature grouped by phase and status"),
+    d.tasks > d.shown ? h("p", { class: "muted" }, `Showing the first ${d.shown} of ${fmt(d.tasks)} tasks.`) : null);
+}
+
+// Skill impact (comparative): the metrics with their sample sizes, then the change log with before/after deltas. Direction is a shape plus words.
+function markSpan(m) {
+  const d = R.deltaMark(m);
+  return h("span", { class: `mark mark-${d.name}` }, `${d.mark} ${d.text}`);
+}
+function impactRow(name, m) {
+  const reason = m.suppressed ? h("div", { class: "muted" }, m.reason || "too few sessions") : null;
+  return h("tr", null, h("td", null, m.label, reason), h("td", { class: "n" }, R.fmtMetric(name, m.exposed.value)), h("td", { class: "n" }, R.fmtMetric(name, m.baseline.value)),
+    h("td", null, markSpan(m), m.delta == null ? null : h("span", { class: "muted" }, ` ${R.fmtDelta(name, m.delta)}`)),
+    h("td", { class: "n" }, `${fmt(m.exposed.n)} / ${fmt(m.baseline.n)}`));
+}
+function changeItem(c) {
+  const head = c.kind === "installed" ? `Installed version ${c.label}` : `Commit ${c.label}`;
+  const when = String(c.when || c.ts).slice(0, 10);
+  const lines = c.suppressed ? [h("p", { class: "muted" }, c.reason || "too few sessions")] : Object.entries(c.metrics).filter(([, m]) => m.delta != null).map(([name, m]) =>
+    h("li", null, `${m.label}: ${R.fmtMetric(name, m.before)} to ${R.fmtMetric(name, m.after)} `, markSpan(m), h("span", { class: "muted" }, ` (n ${fmt(m.n_before)} before, ${fmt(m.n_after)} after)`)));
+  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, `, ${when}: ${c.before_sessions} sessions before, ${c.after_sessions} after`), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
+}
+function impactBlock(im) {
+  if (!im) return null;
+  const title = h("h2", null, "Impact (comparative)");
+  const note = h("p", { class: "note" }, im.note);
+  if (!im.available) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, im.reason || "No data yet."));
+  if (!im.exposed_sessions) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, `This skill was not loaded in the last ${im.days} days, so there is nothing to compare.`));
+  const scope = im.control_scope === "same-project" ? "same project" : "all projects";
+  const m = im.metrics, u = m.unused_after_load;
+  const rows = ["error_rate", "retry_rate", "tokens_per_turn", "test_failure_rate"].map((k) => impactRow(k, m[k]));
+  const ch = im.changes || { versions: [], commits: [], changes: [] };
+  return h("section", { class: "page-section impact" }, title, note,
+    h("p", null, `${im.exposed_sessions} sessions loaded this skill in the last ${im.days} days; ${im.control_sessions} sessions without it (${scope}) form the baseline. Values below ${im.min_sessions} sessions on either side are withheld.`),
+    im.outcomes_recorded ? null : h("p", { class: "muted" }, "Tool outcomes are not recorded yet: run Refresh usage so the transcripts are read again."),
+    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Metric"), h("th", { class: "n" }, "After load"), h("th", { class: "n" }, "Baseline"), h("th", null, "Difference"), h("th", { class: "n" }, "n (calls or turns)"))), h("tbody", null, rows)),
+    h("p", null, u.suppressed ? `Loaded but unused: ${u.n} loaded sessions, ${u.reason || "too few to show a share"}.` : `Loaded but unused: ${u.unused} of ${u.n} loaded sessions (${R.fmtMetric("rate", u.value)}) ended with no tool call after the load.`),
+    h("h3", null, "Change log"),
+    ch.versions.length ? h("p", { class: "muted" }, "Installed versions (first seen): " + ch.versions.map((v) => `${v.hash}${v.current ? " (current)" : ""} ${String(v.first_seen).slice(0, 10)}`).join(", ")) : null,
+    ch.changes.length ? h("ul", { class: "items" }, ch.changes.map(changeItem)) : h("p", { class: "muted" }, "No change recorded yet: a skill needs a second installed version or a git commit (a repository passed with --repo that holds it) to compare before and after."));
+}
+
+function pageExtras(pg) {
+  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
+}
+
 function bodyNodes(pg) {
   const known = (kind, id) => !(pg.missing || []).some((m) => m.kind === kind && m.id === id);
   let diagrams = 0;
@@ -366,9 +472,9 @@ async function viewWikiPage(kind, id) {
   const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => [h("dt", null, m.label), h("dd", null, m.value)])) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title),
+      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title), progressBlock(pg),
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
-      ...pg.sections.map(sectionBlock)),
+      ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": "Page details" }, railBlock("Details", meta), railBlock("Links", pg.links.length ? refList(pg.links) : null), railBlock("Linked from", pg.backlinks.length ? refList(pg.backlinks) : null)))];
 }
 
@@ -381,18 +487,241 @@ async function viewFeatures() {
 
 async function viewGraph() { return [h("h1", null, "Graph"), await graphifyPanel()]; }
 
-function viewSettings() {
-  return [teach("Settings", "The settings editor is not built yet. It will edit a closed list of harness options (persona, review mode, telemetry, optional modules), always with a preview of the change before anything is written.", "Until then, change options by running amauta install in a terminal.")];
+// ---- Settings editor: a closed list of options, always preview -> confirm -> apply, with undo ----------------------------------------
+const SETTING_OPTIONS = [
+  ["persona", "Persona", [["gentleman", "Gentleman"], ["neutral", "Neutral"]], "How Claude talks to you: gentleman is warm and mentoring, neutral is plain and direct. Applying swaps the installed output style and the persona section of CLAUDE.md."],
+  ["review_mode", "Review mode", [["off", "Off"], ["on", "On"]], "On: after each commit amauta assesses the risk of the change and may ask for a review before you go on. Off: no review reminders."],
+  ["telemetry", "Telemetry", [["on", "On"], ["off", "Off"]], "On: hooks record which tools ran, how long they took and how big they were, into your own local database (never content, never sent anywhere). Off: those hooks are removed."],
+];
+const SETTING_MODULES = [
+  ["sdd", "Spec-driven development (SDD)", "Skills, agents and /amauta-sdd-* commands for planned changes, plus a safety hook that checks sdd agents before they start."],
+  ["rea", "Reverse engineering (rea)", "Registers the rea MCP server in Claude Code so it can inspect binaries and packaged apps."],
+  ["context7", "Library docs (context7)", "Registers the context7 MCP server so Claude can look up current library documentation."],
+  ["impeccable", "Frontend design (impeccable)", "Installs the design skill and downloads its pinned engine with npm (needs the network once)."],
+  ["archify", "Architecture diagrams (archify)", "Installs the diagram skill (runs offline). The Harness page uses it to draw the architecture."],
+];
+const setDisabled = (el, on) => { if (on) el.setAttribute("disabled", ""); else el.removeAttribute("disabled"); };
+
+async function postJson(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Portal-Token": token, Accept: "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
 }
 
-async function viewHome() { return viewOverview(); }
+function planBlock(res) {
+  const p = res.plan || {}, files = p.files || [], removed = p.removed || [], skipped = p.skipped || [];
+  const list = (title, items) => items.length ? h("details", null, h("summary", null, `${title} (${items.length})`), h("ul", { class: "plain-list" }, items.slice(0, 40).map((f) => h("li", null, h("code", null, f))), items.length > 40 ? h("li", { class: "muted" }, `and ${items.length - 40} more`) : null)) : null;
+  return h("div", { class: "plan" },
+    res.changes.length ? h("ul", { class: "plain-list" }, res.changes.map((c) => h("li", null, `${settingLabel(c.key)}: ${c.from} → ${c.to}`)))
+      : h("p", null, res.repair ? "No option changes. Repair re-applies the current settings." : "No option changes."),
+    h("p", null, `${files.length} file(s) written, ${removed.length} removed, ${skipped.length} kept because you edited them.`),
+    p.changed === false ? h("p", { class: "muted" }, "Everything is already in place, so applying changes nothing.") : null,
+    p.impeccable && p.impeccable.engine === "would-install" ? h("p", null, "npm will download the pinned impeccable engine.") : null,
+    list("Files written", files), list("Files removed", removed), list("Kept because you edited them", skipped));
+}
+function settingLabel(key) {
+  if (key.startsWith("module:")) return `Module ${key.slice(7)}`;
+  return { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" }[key] || key;
+}
+
+async function viewSettings() {
+  let info = await api("settings");
+  let draft = null;
+  const root = h("div", { class: "settings" });
+  const formBox = h("div", null), out = h("div", { class: "settings-out", "aria-live": "polite" });
+  const marks = new Map();
+  let previewBtn = null, repairBtn = null;
+  const copy = (c) => ({ ...c, modules: { ...c.modules } });
+
+  const refreshMarks = () => {
+    const changes = R.settingsChanges(info.current, draft);
+    for (const [key, el] of marks) { const c = changes.find((x) => x.key === key); el.textContent = c ? `◆ changed, was ${c.from}` : ""; }
+    if (previewBtn) setDisabled(previewBtn, changes.length === 0);
+  };
+  const option = (key, id, label, choices, value, help) => {
+    const mark = h("span", { class: "changed" });
+    marks.set(key, mark);
+    const select = h("select", { id, "aria-describedby": `${id}-help` }, choices.map(([v, l]) => h("option", { value: v, selected: v === value }, l)));
+    select.value = value;
+    select.addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (key.startsWith("module:")) draft.modules[key.slice(7)] = v; else draft[key] = v;
+      refreshMarks();
+    });
+    return h("div", { class: "option" }, h("label", { for: id }, label), select, h("span", { class: "current" }, `now ${value}`), mark, h("p", { id: `${id}-help`, class: "option-help muted" }, help));
+  };
+  const buildForm = () => {
+    draft = copy(info.current);
+    marks.clear();
+    previewBtn = h("button", { type: "button", disabled: true }, "Preview changes");
+    previewBtn.addEventListener("click", () => runPreview(false));
+    repairBtn = h("button", { type: "button" }, "Preview repair");
+    repairBtn.addEventListener("click", () => runPreview(true));
+    formBox.replaceChildren(...[
+      info.installed ? null : h("p", { class: "notice" }, "amauta is not installed yet. Previewing and applying here runs the installer for the first time."),
+      h("div", { class: "options" },
+        ...SETTING_OPTIONS.map(([key, label, choices, help]) => option(key, `set-${key.replace("_", "-")}`, label, choices, info.current[key], help)),
+        h("h2", null, "Optional modules"),
+        ...SETTING_MODULES.map(([name, label, help]) => option(`module:${name}`, `set-module-${name}`, label, [["off", "Off"], ["on", "On"]], info.current.modules[name], help))),
+      h("div", { class: "actions" }, previewBtn),
+      h("section", { class: "repair" }, h("h2", null, "Reinstall / repair"),
+        h("p", { class: "muted" }, "Re-applies the current settings: restores missing or outdated files that amauta installed. Files you edited are kept."), h("div", { class: "actions" }, repairBtn))].filter(Boolean));
+    refreshMarks();
+  };
+
+  const busy = (text) => { out.replaceChildren(h("p", { role: "status", class: "muted" }, text)); };
+  const fail = (res, retry) => {
+    const adv = R.settingsAdvice(res.status);
+    out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${(res.data && res.data.error) || `Request failed (${res.status})`}`),
+      res.data && res.data.detail ? h("p", { class: "muted" }, h("code", null, res.data.detail)) : null, h("p", null, adv.text),
+      adv.again ? (() => { const b = h("button", { type: "button" }, "Preview again"); b.addEventListener("click", () => retry()); return b; })() : null));
+  };
+  const askConfirm = (text, yes, onYes, onNo) => {
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, "Go back");
+    ok.addEventListener("click", onYes); no.addEventListener("click", onNo);
+    return h("div", { class: "confirm", role: "group", "aria-label": "Confirm" }, h("p", null, text), h("div", { class: "actions" }, ok, no));
+  };
+
+  async function runPreview(repair) {
+    const body = R.settingsBody(info.current, draft, repair);
+    setDisabled(previewBtn, true); setDisabled(repairBtn, true);
+    busy("Checking what would change. Nothing is written yet.");
+    let res;
+    try { res = await postJson("/api/settings/preview", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    setDisabled(repairBtn, false); refreshMarks();
+    if (!res.ok) return fail(res, () => runPreview(repair));
+    showPlan(res.data, repair);
+  }
+  function showPlan(plan, repair) {
+    const confirmBox = h("div", null);
+    const apply = h("button", { type: "button", class: "primary" }, "Apply changes");
+    apply.addEventListener("click", () => {
+      setDisabled(apply, true);
+      confirmBox.replaceChildren(askConfirm("This changes your Claude Code configuration. A backup is made first and you can undo it from here.", "Yes, apply now", () => runApply(plan), () => { setDisabled(apply, false); confirmBox.replaceChildren(); }));
+    });
+    const cancel = h("button", { type: "button" }, "Discard preview");
+    cancel.addEventListener("click", () => out.replaceChildren());
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, "Preview: what would change"), planBlock(plan), h("p", { class: "muted" }, `This preview is valid for ${Math.round((plan.expires_in || 300) / 60)} minutes.`), h("div", { class: "actions" }, apply, cancel), confirmBox));
+  }
+  async function runApply(plan) {
+    busy("Applying. This can take a while when a module downloads something.");
+    let res;
+    try { res = await postJson("/api/settings/apply", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runPreview(false));
+    const d = res.data;
+    const undo = d.undo_available ? h("button", { type: "button" }, "Undo this change") : null;
+    if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); runUndoPreview(); });
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Applied."),
+      h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`), d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
+      d.skipped.length ? h("p", { class: "muted" }, `${d.skipped.length} file(s) you edited were kept.`) : null,
+      d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, `▲ The impeccable engine was not installed: ${d.impeccable.detail || "npm failed"}. Run Reinstall / repair to retry.`) : null,
+      h("div", { class: "actions" }, undo)));
+    await reload();
+  }
+  async function runUndoPreview() {
+    busy("Checking what undoing would change.");
+    let res;
+    try { res = await postJson("/api/settings/undo/preview", {}); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runUndoPreview());
+    const plan = res.data, confirmBox = h("div", null);
+    const revert = h("button", { type: "button", class: "primary" }, "Revert these changes");
+    revert.addEventListener("click", () => {
+      setDisabled(revert, true);
+      confirmBox.replaceChildren(askConfirm("Undo re-runs the installer with the previous values and makes a fresh backup. Files you changed by hand since are not overwritten wholesale.", "Yes, undo", () => runUndo(plan), () => { setDisabled(revert, false); confirmBox.replaceChildren(); }));
+    });
+    const cancel = h("button", { type: "button" }, "Discard preview");
+    cancel.addEventListener("click", () => out.replaceChildren());
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, "Preview: what undoing would change"), planBlock(plan),
+      h("p", { class: "muted" }, `Undo re-runs the installer with the settings from before your change. This preview is valid for ${Math.round((plan.expires_in || 300) / 60)} minutes.`),
+      h("div", { class: "actions" }, revert, cancel), confirmBox));
+  }
+  async function runUndo(plan) {
+    busy("Undoing the change.");
+    let res;
+    try { res = await postJson("/api/settings/undo", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runUndoPreview());
+    const d = res.data;
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Undone."), h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`),
+      d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
+      h("p", { class: "muted" }, "If the change had downloaded an npm engine, run Reinstall / repair to bring it back.")));
+    await reload();
+  }
+  async function reload() {
+    try { info = await api("settings"); buildForm(); } catch (_) { /* the page keeps what it shows */ }
+  }
+
+  buildForm();
+  root.append(h("h1", null, "Settings"),
+    h("p", { class: "muted" }, "A short, closed list of harness options. Every change is previewed first, needs your confirmation, makes a backup and can be undone (also previewed first). Nothing else about Claude Code is editable here."),
+    formBox, out);
+  return [root];
+}
+
+// Home: recent activity is the page; spending and harness health sit in the rail as plain text and a small table (no metric tiles).
+function activityBlock(days) {
+  if (!days.length) return h("p", { class: "muted" }, "Memories saved, sessions and ODD document edits appear here, grouped by day.");
+  return h("div", null, days.map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
+    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${R.KINDS[i.kind] || i.kind} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${String(i.ts).slice(11, 16) || "?"}`)))))));
+}
+function spendingBlock(sp) {
+  if (!sp.available) return h("p", { class: "muted" }, "Spending appears after the usage backfill: open Usage and choose Refresh usage.");
+  const by = Object.fromEntries(sp.windows.map((w) => [w.days, w]));
+  const cols = sp.windows.map((w) => w.days);
+  return h("div", null,
+    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Tokens"), cols.map((d) => h("th", { class: "n" }, `${d} days`)))),
+      h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, label), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
+    h("p", null, `Cache hit ratio over ${cols[cols.length - 1]} days: `, h("strong", null, pct(sp.cache_hit_ratio))),
+    sp.top_models.length ? h("div", null, h("h3", null, "Top models"), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, ` ${short(m.tokens)} tokens`))))) : null,
+    h("p", null, link("usage", "", "Usage details")));
+}
+function healthBlock(hl) {
+  if (!hl.installed) return h("p", { class: "muted" }, "amauta is not installed (no state.json in the state directory).");
+  const rows = [["Version", hl.version || "-"], ["Hooks", hl.hooks], ["MCP servers", hl.mcp_servers], ["Skills", hl.skills], ["Agents", hl.agents], ["Telemetry", hl.telemetry ? "on" : "off"]];
+  return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", "Harness details")));
+}
+function impactRankBlock(rk) {
+  if (!rk || !rk.available) return null;
+  const line = (r) => h("li", null, `${r.verdict === "better" ? "▼" : "▲"} `, link("skill", r.skill, r.skill),
+    h("span", { class: "muted" }, ` ${R.fmtDelta("error_rate", r.delta)} error rate, ${fmt(r.n)} calls, ${r.sessions} sessions`));
+  const list = (title, rows) => (rows.length ? h("div", null, h("h3", null, title), h("ul", { class: "refs" }, rows.map(line))) : null);
+  const none = !rk.best.length && !rk.worst.length;
+  return h("div", null,
+    none ? h("p", { class: "muted" }, `No skill has ${rk.min_sessions} or more sessions with and without it yet.`) : null,
+    list("Lower error rate after load", rk.best), list("Higher error rate after load", rk.worst),
+    h("p", { class: "muted" }, `${rk.ranked} of ${rk.tracked} skills have enough sessions (last ${rk.days} days). ${rk.note}`));
+}
+async function viewHome() {
+  const hm = await api("wiki/home");
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Recent activity"), activityBlock(hm.activity)),
+    h("aside", { class: "rail", "aria-label": "Spending and harness" }, railBlock("Spending", spendingBlock(hm.spending)), railBlock("Skill impact", impactRankBlock(hm.impact)), railBlock("Harness health", healthBlock(hm.health))))];
+}
+// Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.
+function lintItem(it) {
+  const people = Array.isArray(it.members) && it.members.length > 1
+    ? h("ul", { class: "refs" }, it.members.map((m) => h("li", null, link(m.kind, m.id, m.title), m.topic_key ? h("span", { class: "muted" }, ` ${m.topic_key}`) : null)))
+    : null;
+  return h("li", null, people ? h("span", null, "Group: ") : link(it.kind, it.id, it.title), it.detail ? h("span", { class: "muted" }, ` ${it.detail}`) : null, people);
+}
+function lintCategory(c) {
+  return h("section", { class: "page-section lint-cat" }, h("h2", null, `${c.title} (${fmt(c.count)})`), h("p", { class: "muted" }, c.note),
+    c.items.length ? h("ul", { class: "items" }, c.items.map(lintItem)) : h("p", null, "Nothing to review."),
+    c.truncated ? h("p", { class: "muted" }, `Showing ${c.items.length} of ${fmt(c.count)}.`) : null);
+}
+async function viewLint() {
+  const l = await api("wiki/lint");
+  const sc = l.scanned || {};
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Lint"),
+    h("p", { class: "muted" }, `Read-only checks over ${fmt(sc.memories)} memories, installed skills and ODD documents${sc.capped ? " (only the newest memories were scanned)" : ""}. These are prompts to review, not errors.`),
+    l.categories.map(lintCategory)))];
+}
+async function viewUsagePage() { return [...(await viewOverview()), ...(await viewUsage())]; }
 
 async function renderRoute(route, changed) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
   if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings };
+  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings, lint: viewLint };
   return views[kind]();
 }
 
@@ -408,7 +737,7 @@ async function render() {
   const key = `${route.kind}/${route.id}`;
   const changed = state.shown !== key;
   renderNav(route);
-  $("filters").hidden = !FILTERED.has(route.kind);
+  $("filters").hidden = !R.showsFilters(route);
   $("shell").setAttribute("data-nav", "closed");
   $("nav-toggle").setAttribute("aria-expanded", "false");
   document.title = `${R.KINDS[route.kind] || "amauta"} - amauta`;
@@ -536,3 +865,7 @@ window.addEventListener("hashchange", () => { state.route = R.parseHash(location
 state.route = R.parseHash(location.hash);
 loadRecent();
 loadProjects().then(render);
+// Liveness signal: lets a launcher-started server exit once the window is gone. Failures are silent on purpose.
+function heartbeat() { fetch("/api/heartbeat", { method: "POST", headers: { "X-Portal-Token": token } }).catch(() => {}); }
+heartbeat();
+setInterval(heartbeat, 10000);

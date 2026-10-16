@@ -226,5 +226,57 @@
       "licenseFile": "python/amauta/portal/static/fonts/OFL.txt",
       "license": "OFL-1.1"
     }
+  },
+  "archify": {
+    "note": "optional, installed with --with-archify; typed JSON to self-contained HTML diagrams (MIT, pure Node, no npm dependencies at runtime). The update check is permanently off in the vendored copy.",
+    "skillDir": "skills/archify",
+    "cli": "bin/archify.mjs",
+    "upstream": {
+      "repo": "tt-a1i/archify",
+      "commit": "68031cf978e0b906aa56c684a394049a3ea9d583",
+      "version": "3.1.0",
+      "path": "archify",
+      "license": "MIT"
+    },
+    "omitted": [
+      "package-lock.json",
+      "examples/ (all but web-app.architecture.json and production-deployment.architecture.json)"
+    ],
+    "patched": [
+      {
+        "path": "bin/delivery-update.mjs",
+        "upstreamSha256": "d5ad7d6d7d949a8a8c37af4f80d79a8b4e057245e30ba11866efb40c6771dafa",
+        "sha256": "747ea98ab3ab44895082c37a15c06361f30c419a53015a25b7b92ad51e883098",
+        "change": "startDeliveryUpdateCheck always resolves 'disabled' (env ignored)"
+      },
+      {
+        "path": "scripts/check-update.mjs",
+        "upstreamSha256": "899e275fc63aa8cc7d324c112dfcc23bae0a6079cdbde97b9d7718a6e4bbd047",
+        "sha256": "fed7200f1a79cc6244bb78e5b4e97c6cb6875aabeacc2448ee4cc2ddc19afe55",
+        "change": "updatesDisabled() always returns true"
+      }
+    ],
+    "files": [
+      {
+        "path": "bin/archify.mjs",
+        "sha256": "5737a0e720579722b167456b3eb4dd301699b8685ef8f3669975e3fd18c15408"
+      },
+      {
+        "path": "schemas/architecture.schema.json",
+        "sha256": "aef992b585a18a4016b8207254fe43a6227b0d45322a1ba95e0f69a80fc8f8c1"
+      },
+      {
+        "path": "assets/template.html",
+        "sha256": "d41049723af445573d8eb7b0dcc371d07d3f735a8a291c438148b8195bbea7d2"
+      },
+      {
+        "path": "SKILL.md",
+        "sha256": "55c126d68c1fbef114ccdef8dd0e7f046419dc9203ac7f6dab1728f6bab3ca71"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "b799ab081703e7821ae5096d2c1abdf14bbdc75e8ea1c4045998c36ed6db9706"
+      }
+    ]
   }
 }

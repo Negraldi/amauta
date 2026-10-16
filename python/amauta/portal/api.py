@@ -14,7 +14,7 @@ from ..graph import query as graph_query
 from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import ingest
-from . import diagrams
+from . import archify, diagrams, wikifeature
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
@@ -469,7 +469,7 @@ class Portal:
                     text = f.read_text(errors="replace")[:MAX_TEXT]
                 except OSError:
                     continue
-                tasks = [{"done": m.group(1).lower() == "x", "title": m.group(2).strip()[:160]} for m in re.finditer(r"^- \[( |x|X)\] (.+)$", text, re.M)]
+                tasks = wikifeature.parse_tasks(text)
                 docs.append({"name": f.name, "done": sum(t["done"] for t in tasks), "total": len(tasks), "tasks": tasks})
             repos.append({"repo": repo.name, "documents": docs})
         return {"repos": repos}
@@ -484,6 +484,26 @@ class Portal:
                 if src:
                     docs.append({"repo": r["repo"], "document": d["name"], "done": d["done"], "total": d["total"], "source": src})
         return {"architecture": diagrams.architecture(hs, self.cfg.state_dir), "odd": docs}
+
+    def archify_view(self, q):
+        """Harness architecture drawn by the vendored archify CLI (rendered now, cached by input hash) plus the Mermaid text diagram as the fallback."""
+        hs = self.harness({})
+        fallback = diagrams.architecture(hs, self.cfg.state_dir)
+        if not hs.get("installed"):
+            return {"installed": False, "available": False, "reason": "amauta is not installed", "fallback": fallback}
+        stores = [{"label": "memory.db", "detail": "memories, graph, usage"}] if self.cfg.db_path.exists() else []
+        if hs.get("telemetry"):
+            stores.append({"label": "telemetry", "detail": "hook events"})
+        cli = archify.find_cli(hs.get("claude_home"))
+        # The router sometimes refuses a crowded layout with region boundaries ("container-border-run"); the same diagram without them always fits.
+        for boundaries in (True, False):
+            ir = archify.build(hs, stores, boundaries=boundaries)
+            key, why = archify.render(ir, cli)
+            if key is not None:
+                break
+        if key is None:
+            return {"installed": True, "available": False, "reason": why, "fallback": fallback}
+        return {"installed": True, "available": True, "url": f"/archify/{key}.html", "components": len(ir["components"]), "fallback": fallback}
 
     def graph_diagram(self, q):
         repo = self._graph_repo(q)
@@ -509,6 +529,14 @@ class Portal:
     def wiki_search(self, q):
         from . import wiki
         return wiki.search(self, q)
+
+    def wiki_lint(self, q):
+        from . import wikilint
+        return wikilint.lint(self, q)
+
+    def wiki_home(self, q):
+        from . import wikihome
+        return wikihome.home(self, q)
 
     # ---- the only write ---------------------------------------------------------------------
     def refresh(self):
@@ -553,6 +581,6 @@ _ROUTES = {
     "/api/memories": "memories", "/api/memory": "memory", "/api/memory/history": "memory_history",
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
-    "/api/harness": "harness", "/api/odd": "odd", "/api/diagrams": "diagrams", "/api/graph/diagram": "graph_diagram",
-    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search",
+    "/api/harness": "harness", "/api/odd": "odd", "/api/diagrams": "diagrams", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint",
 }

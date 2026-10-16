@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, copyFile, rm } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, copyFile, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
 import { writeFileAtomic } from './fsatomic.js';
 
@@ -72,8 +72,31 @@ export async function readManifest(dir) {
  * Every entry is validated first so a damaged backup mutates nothing; a failure
  * midway throws an error listing what was restored and what is still pending.
  */
-export async function restoreBackup(dir) {
+/** Remove `start` and its parents while they are empty, never `stop` itself or anything outside it. */
+export async function pruneEmptyDirs(start, stop) {
+  let dir = start;
+  while (dir.startsWith(stop + path.sep) && dir !== stop) {
+    try {
+      await rmdir(dir);
+    } catch {
+      return;
+    }
+    dir = path.dirname(dir);
+  }
+}
+
+export async function restoreBackup(dir, { stop, allow } = {}) {
   const manifest = await readManifest(dir);
+  if (allow) {
+    // A manifest is plain data on disk: every path it names must be one of the allowed files or live inside an allowed directory.
+    const roots = allow.map((a) => path.resolve(a));
+    for (const e of manifest.entries) {
+      const p = typeof e.original_path === 'string' ? path.resolve(e.original_path) : null;
+      if (p === null || !roots.some((r) => p === r || p.startsWith(r + path.sep))) {
+        throw new Error(`backup entry outside the allowed locations: ${String(e.original_path)}; nothing was restored`);
+      }
+    }
+  }
   for (const e of manifest.entries) {
     if (!e.existed) continue;
     const snapshot = e.snapshot_path ? path.join(dir, e.snapshot_path) : null;
@@ -88,6 +111,7 @@ export async function restoreBackup(dir) {
         await writeFileAtomic(e.original_path, await readFile(path.join(dir, e.snapshot_path)), { mode: e.mode });
       } else {
         await rm(e.original_path, { force: true });
+        if (stop) await pruneEmptyDirs(path.dirname(e.original_path), path.resolve(stop));
       }
     } catch (cause) {
       const pending = manifest.entries.slice(i).map((x) => x.original_path);

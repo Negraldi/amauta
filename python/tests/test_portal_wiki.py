@@ -9,6 +9,7 @@ from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 from python.tests.test_portal import ApiBase
 
+EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact"}, "tool": {"usage"}, "mcp": {"usage"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
 PAGE_KEYS = {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"}
 
 
@@ -28,7 +29,7 @@ class PageSchemaTest(WikiBase):
         key = "repo::a"
         for kind, ident in (("memory", "1"), ("skill", "work-unit-commits"), ("tool", "Bash"), ("mcp", "engram"), ("session", "s1"), ("feature", "feat"), ("node", key)):
             pg = self.page(kind, ident)
-            self.assertEqual(set(pg), PAGE_KEYS | ({"truncated"} if kind == "node" else set()), kind)
+            self.assertEqual(set(pg), PAGE_KEYS | EXTRA_KEYS.get(kind, set()), kind)
             self.assertEqual((pg["kind"], pg["id"] if kind != "memory" else "1"), (kind, ident), kind)
             for k in ("meta", "links", "backlinks", "sections", "missing"):
                 self.assertIsInstance(pg[k], list, (kind, k))
@@ -51,8 +52,8 @@ class MemoryPageTest(WikiBase):
         self.assertEqual(by_id["body_md"], "body two about widgets revised")
         m = self.meta(by_id)
         self.assertEqual((m["Type"], m["Project"], m["Topic"], m["Revision"]), ("decision", "alpha", "arch/widgets", "2"))
-        (rev,) = [s for s in by_id["sections"] if s["heading"] == "Revisions"]
-        self.assertEqual([(i["kind"], i["id"]) for i in rev["items"]], [("memory", "1")])
+        self.assertEqual(by_id["sections"], [])  # one row per topic_key: the row is not listed as its own revision
+        self.assertFalse(by_id["history"]["available"])
 
     def test_wikilinks_siblings_and_backlinks_are_derived(self):
         st = mstore.Store(self.f["state"] / "memory.db")

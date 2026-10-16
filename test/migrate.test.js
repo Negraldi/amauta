@@ -150,7 +150,7 @@ test('migrate.sh without --execute is a dry run: prints the actions and changes 
     for (const phase of ['Phase 0', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Phase 5', 'Phase 6']) assert.match(r.stdout, new RegExp(phase));
     assert.match(r.stdout, /dry run/i);
     assert.match(r.stdout, /gentle-ai uninstall --agent claude-code/);
-    assert.match(r.stdout, /amauta install --with-sdd --with-rea --with-context7 --with-impeccable/);
+    assert.match(r.stdout, /amauta install --with-sdd --with-rea --with-context7 --with-impeccable --with-archify/);
     assert.doesNotMatch(r.stdout, /--yes/);
     assert.deepEqual(await tree(f.home), before, 'dry run must not touch the fake HOME');
     const stubLog = await readFile(f.log, 'utf8').catch(() => '');
@@ -177,6 +177,7 @@ test('migrate.sh --execute migrates, keeps settings.local.json, then rollback.sh
     assert.match(stubLog, /^claude plugin disable engram@engram --scope user$/m);
     assert.match(stubLog, /^npm install --prefix \S+\/impeccable impeccable@3\.6\.1 --omit=optional --ignore-scripts --no-audit --no-fund$/m, 'the pinned engine is installed through the stubbed npm');
     assert.ok((await stat(path.join(f.claude, 'skills', 'impeccable', 'SKILL.md'))).isFile(), 'impeccable skill installed');
+    assert.ok((await stat(path.join(f.claude, 'skills', 'archify', 'bin', 'archify.mjs'))).isFile(), 'archify skill installed');
 
     const md = await read(f.claude, 'CLAUDE.md');
     assert.doesNotMatch(md, /gentle-ai:/);

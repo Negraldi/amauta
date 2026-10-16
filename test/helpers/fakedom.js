@@ -8,6 +8,7 @@ export class Element extends NodeBase {
   constructor(tag, ns) { super(); this.tagName = tag.toLowerCase(); this.ns = ns; this.children = []; this.attrs = {}; this.listeners = {}; this._text = null; this.dataset = {}; this.hidden = false; this.value = ''; this.className = ''; this.nodeType = 1; }
   setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'value') this.value = String(v); }
   getAttribute(k) { return this.attrs[k]; }
+  removeAttribute(k) { delete this.attrs[k]; }
   addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
   append(...kids) { for (const k of kids) this.children.push(k); }
   replaceChildren(...kids) { this.children = []; this._text = null; this.append(...kids); }
@@ -38,7 +39,9 @@ export function makeEnv(routes) {
   const fetch = async (url, opts = {}) => {
     calls.push({ url, opts });
     const path = String(url).split('?')[0];
-    const body = routes[path];
+    let body = routes[path];
+    if (typeof body === 'function') body = await body(opts, url); // a route may compute its answer (and see the request)
+    if (body && body.__status) { const { __status: status, ...rest } = body; return { ok: false, status, json: async () => rest }; }
     return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body ?? { error: 'not found' } };
   };
   const location = { hash: '' };

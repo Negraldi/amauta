@@ -8,7 +8,7 @@ export const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 export const SCRIPTS = ['markdown.js', 'wikiroute.js', 'app.js'];
 
 export async function runPortal(env, extra = {}) {
-  const context = vm.createContext({ ...env, URLSearchParams, console, setTimeout, clearTimeout, ...extra });
+  const context = vm.createContext({ ...env, URLSearchParams, console, setTimeout, clearTimeout, setInterval: () => 0, ...extra });
   for (const file of SCRIPTS) vm.runInContext(await readFile(path.join(STATIC, file), 'utf8'), context, { filename: file });
   return context;
 }

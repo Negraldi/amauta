@@ -27,6 +27,7 @@ def build(root: Path) -> dict:
     p1 = home / "projects" / "-work-alpha" / "s1.jsonl"
     p2 = home / "projects" / "-work-beta" / "s2.jsonl"
     write_jsonl(p1, [
+        {"type": "user", "sessionId": "s1", "timestamp": "2026-10-01T09:59:00.000Z", "cwd": "/work/alpha", "message": {"role": "user", "content": "Fix the portal wiki bug please"}},
         assistant("a1", [tool_use("Skill", "t1", skill="work-unit-commits"), tool_use("Bash", "t2", command="ls")], usage=usage_blob(100, 50, 800, 100, 0, 5), session="s1", ts="2026-10-01T10:00:00.000Z", cwd="/work/alpha"),
         assistant("a2", [tool_use("Agent", "t3", subagent_type="sdd-apply"), tool_use("mcp__engram__mem_save", "t4")], usage=usage_blob(50, 25, 100, 0, 50), session="s1", ts="2026-10-02T10:00:00.000Z", cwd="/work/alpha", model="claude-y"),
     ])
