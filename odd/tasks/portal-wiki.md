@@ -96,7 +96,7 @@ F4 Quality
 
 F8 Publish and transition
 - [x] W26 `CHANGELOG.md` (Keep a Changelog, `[0.2.0] - unreleased` and `[0.1.0] - 2026-10-16`), version 0.2.0 in package.json and `python/amauta/__init__.py`. The `v0.2.0` tag is NOT created: the parent tags after merge.
-- [ ] W27 Chained PRs by phase to `main` on GitHub; user merges.
+- [x] W27 Chained PRs by phase to `main` on GitHub; user merges.
 - [x] W28 Local update path documented in `UPGRADING.md` (manual `git pull` + `amauta install`, sticky flags kept), linked from README.
 - [x] W29 `UPGRADING.md` + `amauta upgrade` (`e78c613`: model = fast-forward the current origin-tracking branch to the latest semver tag via `merge --ff-only`, `--to` older tag = detached HEAD; refuses dirty tree, detached HEAD, branch without origin upstream, bad/unknown tag; dry-run, confirmation or `--yes`, fetch --tags, install then status run from the NEW checkout with the path flags, summary + rollback command; `test/upgrade.test.js` 15 tests with a temp bare origin + clone and a fake installer, RED seen as the missing module; node 474, python 548, exit 0).
 
@@ -146,3 +146,5 @@ F8 Publish and transition
 ## Next step
 
 F4 code is done (lint, README, detector, contrast, keyboard, archify layout). Remaining in W15: the real-browser visual pass in light, dark and phone width (Lint, Settings, Home rail at 72rem, archify harness). Then F8 publish.
+
+- W27 (route: inline): nine stacked PRs opened on GitHub, Negraldi/amauta #1-#9 (pw/01-design-shell ... pw/09-release); merge in order with a merge commit or rebase (not squash). Tag v0.2.0 after merge.
