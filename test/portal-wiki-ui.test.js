@@ -356,3 +356,39 @@ test('a skill page draws usage over time as bars with a text summary, or says no
   assert.match(view(env).textContent, /No calls recorded yet/);
   assert.equal(tree(view(env)).filter((e) => e.tagName === 'rect').length, 0);
 });
+
+test('a feature page shows progress with a bar, a count and shape-labelled chips, and only resolved commits', async () => {
+  const pg = { ...PAGE, sections: [], kind: 'feature', id: 'feat', title: 'Feature', body_md: 'text', progress: { done: 2, total: 3, percent: 67 },
+    commits: [{ hash: '15fd38b', full: 'x'.repeat(40), subject: XSS, date: '2026-10-16T12:00:00+00:00' }] };
+  const { env } = await boot('#/feature/feat', { '/api/wiki/page': pg });
+  const v = view(env);
+  const bar = tree(v).find((e) => e.tagName === 'progress');
+  assert.equal(bar.getAttribute('value'), '2');
+  assert.equal(bar.getAttribute('max'), '3');
+  assert.match(v.textContent, /2 of 3 done \(67%\)/);
+  const chips = tree(v).filter((e) => /chip/.test(cls(e)) && /^[●○]/.test(e.textContent));
+  assert.deepEqual(chips.map((c) => c.textContent), ['● done', '○ pending']);
+  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Commits'));
+  assert.ok(tree(v).some((e) => e.tagName === 'code' && e.textContent === '15fd38b'));
+  assert.ok(v.textContent.includes(XSS));
+  assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
+});
+
+test('a feature without commits or progress adds neither block; an empty task list does not divide by zero', async () => {
+  let { env } = await boot('#/feature/feat', { '/api/wiki/page': { ...PAGE, kind: 'feature', progress: { done: 0, total: 0, percent: 0 }, commits: [] } });
+  assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Commits'));
+  assert.match(view(env).textContent, /0 of 0 done \(0%\)/);
+  ({ env } = await boot('#/memory/7'));
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'progress').length, 0);
+});
+
+test('a graph node page draws its neighborhood diagram lazily and notes truncation', async () => {
+  const pg = { ...PAGE, kind: 'node', id: 'repo::a', diagram: { source: 'flowchart LR\n  a --> b', nodes: 45, edges: 60, truncated: true } };
+  const { env } = await boot('#/node/repo%3A%3Aa', { '/api/wiki/page': pg });
+  const v = view(env);
+  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Neighborhood'));
+  assert.ok(tree(v).some((e) => /diagram/.test(cls(e))));
+  assert.match(v.textContent, /nearest 30 of 45 nodes/);
+  const none = await boot('#/node/repo%3A%3Aa', { '/api/wiki/page': { ...PAGE, kind: 'node', diagram: { source: null, nodes: 0, edges: 0, truncated: false } } });
+  assert.ok(!tree(view(none.env)).some((e) => e.tagName === 'h2' && e.textContent === 'Neighborhood'));
+});

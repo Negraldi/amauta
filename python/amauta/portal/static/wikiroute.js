@@ -67,5 +67,5 @@
     });
   }
 
-  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars };
+  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, NODE_CAP: 30 };
 })();

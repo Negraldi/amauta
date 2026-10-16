@@ -372,8 +372,30 @@ function usageBlock(usage) {
   return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, `${fmt(total)} calls in the ${usage.days} days up to ${last}.`), h("div", { class: "spark" }, root));
 }
 
+// ODD feature: a progress bar with its number, state chips (shape plus label) and the commits the document mentions that git could resolve.
+function progressBlock(pg) {
+  if (!pg.progress) return null;
+  const p = R.progress(pg.progress.done, pg.progress.total);
+  const pending = pg.progress.total - pg.progress.done;
+  return h("section", { class: "progress-block", "aria-label": "Task progress" },
+    h("progress", { max: Math.max(pg.progress.total, 1), value: pg.progress.done, "aria-label": p.label }),
+    h("p", null, h("strong", null, p.label), ` (${p.percent}%)`, statusChip("done"), ` ${pg.progress.done}`, statusChip("pending"), ` ${pending}`));
+}
+
+function commitsBlock(commits) {
+  if (!commits || !commits.length) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Commits"), h("ul", { class: "items" }, commits.map((c) => h("li", null, h("code", null, c.hash), ` ${c.subject}`, h("span", { class: "muted" }, ` ${String(c.date).slice(0, 10)}`)))));
+}
+
+// Graph node: the neighborhood diagram is drawn lazily (mermaid loads on first use) from source the server generated with every label escaped.
+function nodeDiagramBlock(diagram) {
+  if (!diagram || !diagram.source) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Neighborhood"), diagramBox(diagram.source, "Neighbors of this graph node"),
+    diagram.truncated ? h("p", { class: "muted" }, `Showing the nearest ${R.NODE_CAP} of ${fmt(diagram.nodes)} nodes.`) : null);
+}
+
 function pageExtras(pg) {
-  return [usageBlock(pg.usage), historyBlock(pg.history)];
+  return [usageBlock(pg.usage), historyBlock(pg.history), commitsBlock(pg.commits), nodeDiagramBlock(pg.diagram)];
 }
 
 function bodyNodes(pg) {
@@ -393,7 +415,7 @@ async function viewWikiPage(kind, id) {
   const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => [h("dt", null, m.label), h("dd", null, m.value)])) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title),
+      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title), progressBlock(pg),
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": "Page details" }, railBlock("Details", meta), railBlock("Links", pg.links.length ? refList(pg.links) : null), railBlock("Linked from", pg.backlinks.length ? refList(pg.backlinks) : null)))];

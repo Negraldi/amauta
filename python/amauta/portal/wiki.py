@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from ..graph import query as graph_query
 from .api import MAX_TEXT, BadRequest, NotFound, _int, _str, has_table, columns
-from . import wikimem, wikisess, wikiusage
+from . import diagrams, wikifeature, wikimem, wikisess, wikiusage
 from .wikiusage import USAGE_COLUMN as _USAGE_COLUMN
 from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime, _ref, strip_title_h1
 
@@ -172,6 +172,8 @@ def _feature_page(portal, ident, q):
     pg = _blank("feature", ident, title, strip_title_h1(text, title))
     pg["meta"] = _meta(("Repository", repo.name), ("File", f.name), ("Tasks done", f"{sum(d for d, _ in tasks)} of {len(tasks)}"), ("Modified", _mtime(f)))
     pg["sections"] = [{"heading": "Tasks", "items": [_item(t, "done" if d else "pending") for d, t in tasks]}] if tasks else []
+    pg["progress"] = wikifeature.progress(tasks)
+    pg["commits"] = wikifeature.commits(repo, text)
     pg["links"], pg["missing"] = _wikilink_links(portal, text)
     pg["links"] += _feature_memories(portal, ident)
     return pg
@@ -220,11 +222,21 @@ def _node_page(portal, ident, q):
     pg["meta"] = _meta(("Repository", repo.name), ("Kind", me["kind"]), ("File", me["file"]), ("Node id", me["id"]))
     out = [(e, by_id[e["dst"]]) for e in g["edges"] if e["src"] == me["id"] and e["dst"] in by_id and e["dst"] != me["id"]]
     inc = [(e, by_id[e["src"]]) for e in g["edges"] if e["dst"] == me["id"] and e["src"] in by_id and e["src"] != me["id"]]
-    pg["links"], pg["backlinks"] = [ref(n) for _, n in out], [ref(n) for _, n in inc]
-    pg["sections"] = [{"heading": "Edges", "items": [_item(f"{e['relation'] or 'related'} to", n["label"] or n["id"], "node", f"{repo.name}::{n['id']}") for e, n in out]
-                      + [_item(f"{e['relation'] or 'related'} from", n["label"] or n["id"], "node", f"{repo.name}::{n['id']}") for e, n in inc]}] if out or inc else []
+    pg["links"], pg["backlinks"] = _dedupe([ref(n) for _, n in out]), _dedupe([ref(n) for _, n in inc])
+    pg["meta"] += _meta(("Outgoing edges", len(out)), ("Incoming edges", len(inc)))
+    pg["sections"] = _relation_groups(repo.name, out, "outgoing") + _relation_groups(repo.name, inc, "incoming")
+    src = diagrams.graph_neighborhood(g)
+    pg["diagram"] = {"source": src, "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": bool(g["truncated"]) or len(g["nodes"]) > diagrams.MAX_GRAPH_NODES}
     pg["truncated"] = bool(g["truncated"])
     return pg
+
+
+def _relation_groups(repo_name, pairs, direction):
+    """One section per relation, largest group first: 'calls (outgoing)' lists the nodes this one calls."""
+    groups: dict = {}
+    for e, n in pairs:
+        groups.setdefault(e["relation"] or "related", []).append(_item(n["label"] or n["id"], n["kind"], "node", f"{repo_name}::{n['id']}"))
+    return [{"heading": f"{rel} ({direction})", "items": items} for rel, items in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
 
 
 # ---- light existence checks (wikilink targets, search) --------------------------------------------------------
