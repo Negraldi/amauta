@@ -54,8 +54,8 @@ Forecast: 3000-4000 authored lines plus vendored archify. Merge is the user's de
 ## Tasks
 
 F0 Design (impeccable)
-- [ ] W1 `impeccable init` for the portal: `PRODUCT.md`, `DESIGN.md`.
-- [ ] W2 `impeccable shape`: wiki visual direction; user approves before UI work.
+- [x] W1 `impeccable init` for the portal: `PRODUCT.md`, `DESIGN.md`.
+- [x] W2 `impeccable shape`: wiki visual direction; user approves before UI work.
 
 F1 Wiki shell
 - [ ] W3 Hash routes, `/api/wiki/page?kind=&id=` with a common schema (title, body, links, backlinks, meta), sidebar, recent changes.
@@ -111,7 +111,8 @@ F8 Publish and transition
 ## Progress
 
 - 2026-10-16: plan approved by the user (editable option list confirmed). `main` tagged `v0.1.0`, branch `feat/portal-wiki` created.
+- W1/W2 (route: inline, impeccable interview needs the user): `docs/PRODUCT.md` (register product; warm and studious; anti-refs old wikis and toy UIs; WCAG AA + reduced motion) and `docs/DESIGN.md` (Restrained, teal accent OKLCH 0.50 0.09 200, Source Serif 4 reading + system sans, sidebar + reading column + right rail, home = recent activity) written; brief approved by the user. Live mode not configured (no dev server).
 
 ## Next step
 
-W1 `impeccable init` for the portal.
+F1 W3: wiki shell (routes, page schema, sidebar).
