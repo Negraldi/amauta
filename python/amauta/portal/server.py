@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify
+from . import archify, settings as settings_mod
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
@@ -22,6 +22,8 @@ STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.mi
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
 MAX_BODY = 1024
+SETTINGS_MAX_BODY = 4096
+SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
 # frame-src 'self' is the only addition for archify: the Harness page embeds /archify/<hash>.html in a sandboxed iframe.
@@ -59,10 +61,11 @@ class PortalServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, cfg, port, idle_exit=None, clock=time.monotonic):
+    def __init__(self, cfg, port, idle_exit=None, clock=time.monotonic, installer=None):
         super().__init__((LOOPBACK, port), Handler)
         self.idle = IdleMonitor(idle_exit, clock) if idle_exit else None
         self.portal = Portal(cfg)
+        self.settings = settings_mod.Settings(cfg, installer=installer, clock=clock)
         self.token = secrets.token_urlsafe(32)
         self.port = self.server_address[1]
 
@@ -70,8 +73,8 @@ class PortalServer(ThreadingHTTPServer):
         return {f"{LOOPBACK}:{self.port}", f"localhost:{self.port}"}
 
 
-def make_server(cfg, port: int = 8765, idle_exit=None, clock=time.monotonic) -> PortalServer:
-    return PortalServer(cfg, port, idle_exit=idle_exit, clock=clock)
+def make_server(cfg, port: int = 8765, idle_exit=None, clock=time.monotonic, installer=None) -> PortalServer:
+    return PortalServer(cfg, port, idle_exit=idle_exit, clock=clock, installer=installer)
 
 
 def watch_idle(srv: PortalServer, interval: float = 1.0) -> threading.Thread:
@@ -94,7 +97,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # ---- helpers --------------------------------------------------------------------------
-    def _send(self, status, body: bytes, ctype: str, csp: str = CSP):
+    def _send(self, status, body: bytes, ctype: str, csp: str = CSP, extra=None):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -103,11 +106,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", csp)
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
-    def _json(self, status, data):
-        self._send(status, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+    def _json(self, status, data, extra=None):
+        self._send(status, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8", extra=extra)
 
     def _host_ok(self):
         if self.headers.get("Host") in self.server.allowed_hosts():
@@ -140,6 +145,10 @@ class Handler(BaseHTTPRequestHandler):
             if page is None:
                 return self._json(404, {"error": "not found"})
             return self._send(200, page, "text/html; charset=utf-8", csp=ARCHIFY_CSP)
+        if url.path == "/api/settings":
+            return self._json(200, self.server.settings.describe())
+        if url.path in SETTINGS_WRITES:
+            return self._not_allowed()
         if url.path.startswith("/api/"):
             try:
                 query = dict(parse_qsl(url.query, keep_blank_values=True, max_num_fields=20))
@@ -164,10 +173,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat"):
+        if path not in ("/api/refresh", "/api/heartbeat", *SETTINGS_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
+        if path in SETTINGS_WRITES:
+            return self._settings_write(SETTINGS_WRITES[path])
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -185,7 +196,47 @@ class Handler(BaseHTTPRequestHandler):
         status, body = self.server.portal.refresh()
         self._json(status, body)
 
-    def _not_allowed(self):
-        self._json(405, {"error": "method not allowed"})
+    def _settings_body(self):
+        """Strict JSON body of a settings write: JSON content type, bounded size, an object; None after answering with the error."""
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            self._json(415, {"error": "Content-Type must be application/json"})
+            return None
+        if self.headers.get("Transfer-Encoding"):
+            self._json(411, {"error": "a Content-Length body is required"})
+            return None
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self._json(400, {"error": "invalid Content-Length"})
+            return None
+        if length < 0:
+            self._json(400, {"error": "invalid Content-Length"})
+            return None
+        if length > SETTINGS_MAX_BODY:
+            self._json(413, {"error": "body too large"})
+            return None
+        try:
+            data = json.loads(self.rfile.read(length).decode("utf-8")) if length else None
+        except (ValueError, UnicodeDecodeError):
+            self._json(400, {"error": "body is not valid JSON"})
+            return None
+        if not isinstance(data, dict):
+            self._json(400, {"error": "body must be a JSON object"})
+            return None
+        return data
 
-    do_PUT = do_DELETE = do_PATCH = _not_allowed
+    def _settings_write(self, action):
+        body = self._settings_body()
+        if body is None:
+            return
+        try:
+            result = getattr(self.server.settings, action)(body)
+        except settings_mod.SettingsError as err:
+            return self._json(err.status, err.body())
+        self._json(200, result)
+
+    def _not_allowed(self):
+        self._json(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})
+
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _not_allowed
