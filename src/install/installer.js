@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import { readFile, rm, rmdir, stat } from 'node:fs/promises';
+import { readFile, rm, stat } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
 import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
-import { createBackup, restoreBackup } from '../core/backup.js';
+import { createBackup, pruneEmptyDirs, restoreBackup } from '../core/backup.js';
 import { resolveTargets } from './paths.js';
 import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
 import {
@@ -416,20 +416,8 @@ export async function restore(opts = {}) {
   if (typeof opts.backup !== 'string' || !BACKUP_ID.test(opts.backup)) throw new Error(`invalid backup id: ${String(opts.backup)} (expected a name like 20261016T101500Z)`);
   const dir = path.join(t.stateDir, 'backups', opts.backup);
   if ((await statOrNull(dir)) === null) throw new Error(`no such backup: ${opts.backup}`);
-  const manifest = await restoreBackup(dir);
+  const manifest = await restoreBackup(dir, { stop: t.claudeHome });
   return { backup: opts.backup, restored: manifest.entries.map((e) => e.original_path) };
-}
-
-async function pruneEmptyDirs(start, stop) {
-  let dir = start;
-  while (dir.startsWith(stop + path.sep) && dir !== stop) {
-    try {
-      await rmdir(dir);
-    } catch {
-      return;
-    }
-    dir = path.dirname(dir);
-  }
 }
 
 export async function uninstall(opts = {}) {

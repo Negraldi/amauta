@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { install } from '../src/install/installer.js';
+import { install, restore } from '../src/install/installer.js';
 import { main } from '../src/cli.js';
 
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
@@ -113,6 +113,18 @@ test('CLI: --without-* flags, --review-mode and --json; conflicts and bad values
     assert.match(err.text, /amauta:/);
   }
   assert.equal((await t.state()).archify, true, 'nothing changed');
+  await t.cleanup();
+});
+
+test('restore removes the directories a restored-away install created, but never the Claude home itself', async () => {
+  const t = await sandbox();
+  await install(t.opts());
+  const r = await install(t.opts({ withArchify: true }));
+  assert.ok(t.has('skills/archify/bin'));
+  await restore(t.opts({ backup: path.basename(r.backup) }));
+  assert.ok(!t.has('skills/archify'), 'empty module directories are pruned');
+  assert.ok(t.has('skills'), 'directories that still hold files stay');
+  assert.ok(existsSync(t.claudeHome));
   await t.cleanup();
 });
 
