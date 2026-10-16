@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _MIGRATIONS = {
     1: """
@@ -91,6 +91,10 @@ _MIGRATIONS = {
     ALTER TABLE tool_calls ADD COLUMN cmd_class TEXT;
     CREATE INDEX idx_tool_calls_call ON tool_calls(call_id);
     DELETE FROM ingest_state;
+    """,
+    7: """
+    CREATE TABLE skill_versions (
+        skill TEXT NOT NULL, hash TEXT NOT NULL, first_seen TEXT NOT NULL, PRIMARY KEY (skill, hash));
     """,
 }
 
