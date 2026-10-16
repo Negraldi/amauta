@@ -4,7 +4,7 @@
   // kind -> label shown in the sidebar and as the page's kind label
   const KINDS = {
     home: "Home", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
-    node: "Graph node", harness: "Harness", usage: "Usage", settings: "Settings", diagrams: "Diagrams",
+    node: "Graph node", harness: "Harness", usage: "Usage", settings: "Settings", diagrams: "Diagrams", lint: "Lint",
   };
   // Hashes of the previous tabbed portal keep working.
   const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "diagrams" };

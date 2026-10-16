@@ -8,7 +8,7 @@ const SECTIONS = [
   ["Knowledge", [["home", "Home"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
   ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"], ["diagrams", "Diagrams"]]],
   ["Spending", [["usage", "Usage"]]],
-  ["Manage", [["settings", "Settings"]]],
+  ["Manage", [["lint", "Lint"], ["settings", "Settings"]]],
 ];
 // Pages that read the Range and Project filters in the top bar.
 const FILTERED = new Set(["usage", "session", "skill", "tool", "mcp"]);
@@ -679,6 +679,25 @@ async function viewHome() {
   return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Recent activity"), activityBlock(hm.activity)),
     h("aside", { class: "rail", "aria-label": "Spending and harness" }, railBlock("Spending", spendingBlock(hm.spending)), railBlock("Skill impact", impactRankBlock(hm.impact)), railBlock("Harness health", healthBlock(hm.health))))];
 }
+// Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.
+function lintItem(it) {
+  const people = Array.isArray(it.members) && it.members.length > 1
+    ? h("ul", { class: "refs" }, it.members.map((m) => h("li", null, link(m.kind, m.id, m.title), m.topic_key ? h("span", { class: "muted" }, ` ${m.topic_key}`) : null)))
+    : null;
+  return h("li", null, people ? h("span", null, "Group: ") : link(it.kind, it.id, it.title), it.detail ? h("span", { class: "muted" }, ` ${it.detail}`) : null, people);
+}
+function lintCategory(c) {
+  return h("section", { class: "page-section lint-cat" }, h("h2", null, `${c.title} (${fmt(c.count)})`), h("p", { class: "muted" }, c.note),
+    c.items.length ? h("ul", { class: "items" }, c.items.map(lintItem)) : h("p", null, "Nothing to review."),
+    c.truncated ? h("p", { class: "muted" }, `Showing ${c.items.length} of ${fmt(c.count)}.`) : null);
+}
+async function viewLint() {
+  const l = await api("wiki/lint");
+  const sc = l.scanned || {};
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Lint"),
+    h("p", { class: "muted" }, `Read-only checks over ${fmt(sc.memories)} memories, installed skills and ODD documents${sc.capped ? " (only the newest memories were scanned)" : ""}. These are prompts to review, not errors.`),
+    l.categories.map(lintCategory)))];
+}
 async function viewUsagePage() { return [...(await viewOverview()), ...(await viewUsage())]; }
 
 async function renderRoute(route, changed) {
@@ -686,7 +705,7 @@ async function renderRoute(route, changed) {
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
   if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings };
+  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings, lint: viewLint };
   return views[kind]();
 }
 
