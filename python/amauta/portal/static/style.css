@@ -106,6 +106,9 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 /* ---- revision diff (marks, not color alone) ---- */
 .progress-block { margin: 0 0 var(--s5); }
 .progress-block progress { width: 100%; max-width: 28rem; height: 0.625rem; accent-color: var(--accent); }
+table.compact { font-size: 0.8125rem; margin: 0 0 var(--s3); }
+table.compact th, table.compact td { padding: var(--s1) var(--s2); }
+.day:first-of-type { margin-top: 0; border-top: 0; padding-top: 0; }
 .spark { max-width: 28rem; }
 .diff { font: 0.8125rem/1.5 var(--mono); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2) 0; margin: 0 0 var(--s3); overflow: auto; }
 .diff-line { white-space: pre-wrap; padding: 0 var(--s3); }

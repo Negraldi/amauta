@@ -170,8 +170,8 @@ test('existing views stay reachable as pages: legacy hashes, list routes and usa
   assert.ok(usageLinks.includes('#/skill/work-unit-commits'), usageLinks.join(' '));
   ({ env } = await boot('#/feature'));
   assert.ok(hrefs(view(env)).includes('#/feature/feat'));
-  ({ env } = await boot('#/home'));
-  assert.match(view(env).textContent, /No usage data yet/);
+  ({ env } = await boot('#/usage'));
+  assert.match(view(env).textContent, /No usage data yet/);  // the old overview stays reachable under #/usage
 });
 
 test('the sidebar lists every section, marks the current page and shows recent changes as links', async () => {
@@ -391,4 +391,41 @@ test('a graph node page draws its neighborhood diagram lazily and notes truncati
   assert.match(v.textContent, /nearest 30 of 45 nodes/);
   const none = await boot('#/node/repo%3A%3Aa', { '/api/wiki/page': { ...PAGE, kind: 'node', diagram: { source: null, nodes: 0, edges: 0, truncated: false } } });
   assert.ok(!tree(view(none.env)).some((e) => e.tagName === 'h2' && e.textContent === 'Neighborhood'));
+});
+
+const HOME = {
+  activity: [{ day: '2026-10-02', items: [{ kind: 'memory', id: '7', title: XSS, ts: '2026-10-02T10:00:00Z', what: 'memory saved' }, { kind: 'session', id: 's1', title: 'alpha · Fix it · 2026-10-02', ts: '2026-10-02T09:00:00Z', what: 'session, 2 messages' }] },
+    { day: '2026-10-01', items: [{ kind: 'feature', id: 'feat', title: 'feat', ts: '2026-10-01T08:00:00Z', what: 'ODD document updated' }] }],
+  spending: { available: true, windows: [{ days: 7, input: 160, output: 85, cache_read: 900, cache_write: 150 }, { days: 30, input: 1600, output: 850, cache_read: 9000, cache_write: 1500 }], cache_hit_ratio: 0.75, top_models: [{ model: XSS, tokens: 12000 }] },
+  health: { installed: true, version: '0.1.0', hooks: 3, mcp_servers: 2, skills: 12, agents: 4, telemetry: true },
+};
+
+test('home: recent activity grouped by day is the main column; spending and health sit in the rail without metric tiles', async () => {
+  const { env } = await boot('#/home', { '/api/wiki/home': HOME });
+  const v = view(env);
+  assert.ok(env.calls.some((c) => c.url === '/api/wiki/home'));
+  assert.deepEqual(tree(v).filter((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);
+  const links = hrefs(v);
+  for (const h of ['#/memory/7', '#/session/s1', '#/feature/feat', '#/usage', '#/harness']) assert.ok(links.includes(h), h);
+  assert.ok(v.textContent.includes(XSS));
+  assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
+  assert.ok(!tree(v).some((e) => /\bcard\b|\bgrid\b/.test(cls(e))), 'no hero-metric tiles');
+  const rail = tree(v).find((e) => e.tagName === 'aside');
+  assert.match(rail.textContent, /Spending/);
+  assert.match(rail.textContent, /7 days/);
+  assert.match(rail.textContent, /30 days/);
+  assert.match(rail.textContent, /75\.0%/);
+  assert.match(rail.textContent, /Harness health/);
+  assert.match(rail.textContent, /Hooks/);
+  assert.ok(!tree(rail).some((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)), 'activity is not in the rail');
+  assert.equal(env.document.getElementById('filters').hidden, true);
+});
+
+test('home teaches when there is no activity, no usage data and no install', async () => {
+  const empty = { activity: [], spending: { available: false, windows: [], cache_hit_ratio: null, top_models: [] }, health: { installed: false } };
+  const { env } = await boot('#/home', { '/api/wiki/home': empty });
+  const t = view(env).textContent;
+  assert.match(t, /appear here/);
+  assert.match(t, /Refresh usage/);
+  assert.match(t, /not installed/);
 });

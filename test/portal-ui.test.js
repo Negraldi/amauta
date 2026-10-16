@@ -66,8 +66,8 @@ test('app.js is valid JavaScript', async () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
-test('overview renders KPIs, chart and the dropped counter; data strings only become text', async () => {
-  const env = await boot();
+test('overview (now under #/usage) renders KPIs, chart and the dropped counter; data strings only become text', async () => {
+  const env = await boot('#/usage');
   const view = env.document.getElementById('view');
   const text = view.textContent;
   assert.match(text, /Cache hit ratio/);
@@ -123,7 +123,7 @@ test('refresh button POSTs with the page token and nothing else sensitive', asyn
 test('API failures render an error panel instead of throwing', async () => {
   const saved = routes['/api/overview'];
   delete routes['/api/overview'];
-  const env = await boot();
+  const env = await boot('#/usage');
   routes['/api/overview'] = saved;
   assert.match(env.document.getElementById('view').textContent, /Error/);
 });
@@ -185,10 +185,10 @@ test('withRoutes restores every shared route even when the callback rewrites or 
 });
 
 test('overview reports invalid prices and an unreadable prices file', async () => {
-  await withRoutes({ '/api/costs': { enabled: true, label: 'L', models: [{ model: 'm', cost: null }], total: 0, invalid_prices: ['m: input'], unpriced_models: [] } }, '', async (env) => {
+  await withRoutes({ '/api/costs': { enabled: true, label: 'L', models: [{ model: 'm', cost: null }], total: 0, invalid_prices: ['m: input'], unpriced_models: [] } }, '#/usage', async (env) => {
     assert.match(env.document.getElementById('view').textContent, /Invalid prices.*m: input/);
   });
-  await withRoutes({ '/api/costs': { enabled: false, models: [], error: 'prices.json is unreadable' } }, '', async (env) => {
+  await withRoutes({ '/api/costs': { enabled: false, models: [], error: 'prices.json is unreadable' } }, '#/usage', async (env) => {
     assert.match(env.document.getElementById('view').textContent, /prices\.json is unreadable/);
   });
 });

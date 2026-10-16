@@ -510,6 +510,10 @@ class Portal:
         from . import wiki
         return wiki.search(self, q)
 
+    def wiki_home(self, q):
+        from . import wikihome
+        return wikihome.home(self, q)
+
     # ---- the only write ---------------------------------------------------------------------
     def refresh(self):
         if not self._refresh_lock.acquire(blocking=False):
@@ -554,5 +558,5 @@ _ROUTES = {
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/odd": "odd", "/api/diagrams": "diagrams", "/api/graph/diagram": "graph_diagram",
-    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home",
 }

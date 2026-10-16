@@ -11,7 +11,7 @@ const SECTIONS = [
   ["Manage", [["settings", "Settings"]]],
 ];
 // Pages that read the Range and Project filters in the top bar.
-const FILTERED = new Set(["home", "usage", "session", "skill", "tool", "mcp"]);
+const FILTERED = new Set(["usage", "session", "skill", "tool", "mcp"]);
 const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
 
 function h(tag, attrs, ...kids) {
@@ -434,14 +434,41 @@ function viewSettings() {
   return [teach("Settings", "The settings editor is not built yet. It will edit a closed list of harness options (persona, review mode, telemetry, optional modules), always with a preview of the change before anything is written.", "Until then, change options by running amauta install in a terminal.")];
 }
 
-async function viewHome() { return viewOverview(); }
+// Home: recent activity is the page; spending and harness health sit in the rail as plain text and a small table (no metric tiles).
+function activityBlock(days) {
+  if (!days.length) return h("p", { class: "muted" }, "Memories saved, sessions and ODD document edits appear here, grouped by day.");
+  return h("div", null, days.map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
+    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${R.KINDS[i.kind] || i.kind} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${String(i.ts).slice(11, 16) || "?"}`)))))));
+}
+function spendingBlock(sp) {
+  if (!sp.available) return h("p", { class: "muted" }, "Spending appears after the usage backfill: open Usage and choose Refresh usage.");
+  const by = Object.fromEntries(sp.windows.map((w) => [w.days, w]));
+  const cols = sp.windows.map((w) => w.days);
+  return h("div", null,
+    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Tokens"), cols.map((d) => h("th", { class: "n" }, `${d} days`)))),
+      h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, label), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
+    h("p", null, `Cache hit ratio over ${cols[cols.length - 1]} days: `, h("strong", null, pct(sp.cache_hit_ratio))),
+    sp.top_models.length ? h("div", null, h("h3", null, "Top models"), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, ` ${short(m.tokens)} tokens`))))) : null,
+    h("p", null, link("usage", "", "Usage details")));
+}
+function healthBlock(hl) {
+  if (!hl.installed) return h("p", { class: "muted" }, "amauta is not installed (no state.json in the state directory).");
+  const rows = [["Version", hl.version || "-"], ["Hooks", hl.hooks], ["MCP servers", hl.mcp_servers], ["Skills", hl.skills], ["Agents", hl.agents], ["Telemetry", hl.telemetry ? "on" : "off"]];
+  return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", "Harness details")));
+}
+async function viewHome() {
+  const hm = await api("wiki/home");
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Recent activity"), activityBlock(hm.activity)),
+    h("aside", { class: "rail", "aria-label": "Spending and harness" }, railBlock("Spending", spendingBlock(hm.spending)), railBlock("Harness health", healthBlock(hm.health))))];
+}
+async function viewUsagePage() { return [...(await viewOverview()), ...(await viewUsage())]; }
 
 async function renderRoute(route, changed) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
   if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings };
+  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings };
   return views[kind]();
 }
 
