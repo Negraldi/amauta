@@ -7,7 +7,7 @@
   --bg: oklch(0.985 0.004 200); --surface: oklch(1 0 0); --sidebar: oklch(0.965 0.006 200);
   --ink: oklch(0.23 0.012 200); --ink-muted: oklch(0.45 0.012 200); --line: oklch(0.89 0.008 200);
   --accent: oklch(0.50 0.09 200); --accent-soft: oklch(0.95 0.025 200);
-  --warn: oklch(0.62 0.15 70); --ok: oklch(0.55 0.12 150);
+  --warn: oklch(0.52 0.15 70); --ok: oklch(0.50 0.12 150);
   --c-input: oklch(0.55 0.13 255); --c-output: oklch(0.68 0.14 60); --c-cache-read: oklch(0.62 0.11 165); --c-cache-write: oklch(0.58 0.13 300);
   --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -185,11 +185,11 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 @keyframes pal-in { from { opacity: 0; transform: translateY(-0.25rem); } to { opacity: 1; transform: none; } }
 
 /* ---- collapse rules ---- */
-@media (max-width: 72rem) {
+@media (width < 72rem) {
   .page { grid-template-columns: minmax(0, var(--measure)); gap: var(--s5); }
   .rail { border-top: 1px solid var(--line); padding-top: var(--s4); }
 }
-@media (max-width: 52rem) {
+@media (width < 52rem) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); z-index: var(--z-overlay); transform: translateX(-100%); visibility: hidden; transition: transform var(--t) var(--ease), visibility 0s linear var(--t); }
   .shell[data-nav="open"] .sidebar { transform: none; visibility: visible; transition-delay: 0s; }

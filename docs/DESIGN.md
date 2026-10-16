@@ -28,8 +28,8 @@ series. Status never relies on color alone (always a label, icon or shape).
 | `--line` | 0.89 0.008 200 | 0.32 0.01 200 | Hairlines, table rules |
 | `--accent` | 0.50 0.09 200 | 0.78 0.09 200 | Links, selection, focus ring |
 | `--accent-soft` | 0.95 0.025 200 | 0.30 0.04 200 | Selected row, current nav item background |
-| `--warn` | 0.62 0.15 70 | 0.80 0.13 75 | Warnings and errors (with icon + text) |
-| `--ok` | 0.55 0.12 150 | 0.78 0.12 150 | Done/success (with label) |
+| `--warn` | 0.52 0.15 70 | 0.80 0.13 75 | Warnings and errors (with icon + text) |
+| `--ok` | 0.50 0.12 150 | 0.78 0.12 150 | Done/success (with label) |
 | `--c-input` | 0.55 0.13 255 | 0.75 0.11 255 | Data: input tokens |
 | `--c-output` | 0.68 0.14 60 | 0.80 0.12 60 | Data: output tokens |
 | `--c-cache-read` | 0.62 0.11 165 | 0.80 0.10 165 | Data: cache read |

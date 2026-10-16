@@ -67,6 +67,13 @@
     });
   }
 
+  // The Range and Project filters belong to the usage views: Usage itself and the list routes that read them (never a single page).
+  const FILTERED_LISTS = ["session", "skill", "tool", "mcp"];
+  function showsFilters(route) {
+    const r = route || {};
+    return r.kind === "usage" || (FILTERED_LISTS.includes(r.kind) && !r.id);
+  }
+
   // Skill impact: direction is always shown as a shape plus words (lower is better for every metric), never by color alone.
   function deltaMark(m) {
     if (!m || m.suppressed || m.delta == null || !m.verdict) return { mark: "–", text: "not enough data", name: "na" };
@@ -114,5 +121,5 @@
     return { text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

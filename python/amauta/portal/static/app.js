@@ -10,8 +10,6 @@ const SECTIONS = [
   ["Spending", [["usage", "Usage"]]],
   ["Manage", [["lint", "Lint"], ["settings", "Settings"]]],
 ];
-// Pages that read the Range and Project filters in the top bar.
-const FILTERED = new Set(["usage", "session", "skill", "tool", "mcp"]);
 const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
 
 function h(tag, attrs, ...kids) {
@@ -108,11 +106,11 @@ function table(id, columns, rows, onRow) {
   const head = h("tr", null, columns.map((c) => h("th", {
     class: c.num ? "n" : "", "data-key": c.key, tabindex: 0, "aria-sort": s.key === c.key ? (s.dir > 0 ? "ascending" : "descending") : "none",
     onclick: () => { state.sort[id] = { key: c.key, dir: s.key === c.key ? -s.dir : -1 }; render(); },
-    onkeydown: (e) => { if (e.key === "Enter") e.target.click(); },
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } },
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
   const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
     c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : r[c.key] ?? "-"))));
-  return h("div", { class: "scroll" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
+  return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": "Table, scrollable" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
 function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h("span", null, h("span", { class: `sw f-${k}` }), l))); }
@@ -721,7 +719,7 @@ async function render() {
   const key = `${route.kind}/${route.id}`;
   const changed = state.shown !== key;
   renderNav(route);
-  $("filters").hidden = !FILTERED.has(route.kind);
+  $("filters").hidden = !R.showsFilters(route);
   $("shell").setAttribute("data-nav", "closed");
   $("nav-toggle").setAttribute("aria-expanded", "false");
   document.title = `${R.KINDS[route.kind] || "amauta"} - amauta`;

@@ -271,7 +271,7 @@
         case "list": return list(b);
         case "quote": return el("blockquote", null, b.children.map(block));
         case "hr": return el("hr");
-        case "table": return el("div", { class: "scroll" }, el("table", null,
+        case "table": return el("div", { class: "scroll", tabindex: "0", role: "region", "aria-label": "Table, scrollable" }, el("table", null,
           el("thead", null, el("tr", null, b.head.map((c, k) => el("th", { class: b.align[k] ? "al-" + b.align[k] : null }, inline(c))))),
           el("tbody", null, b.rows.map((r) => el("tr", null, r.map((c, k) => el("td", { class: b.align[k] ? "al-" + b.align[k] : null }, inline(c))))))));
         default: return null;
