@@ -30,9 +30,9 @@ def main(argv=None) -> int:
     try:
         srv = make_server(cfg, port=args.port)
     except OSError as err:
-        sys.stderr.write(f"gentle-lite portal: cannot listen on 127.0.0.1:{args.port}: {err.strerror}\n")
+        sys.stderr.write(f"amauta portal: cannot listen on 127.0.0.1:{args.port}: {err.strerror}\n")
         return 1
-    sys.stdout.write(f"gentle-lite portal: http://127.0.0.1:{srv.port}/  (Ctrl+C to stop)\n")
+    sys.stdout.write(f"amauta portal: http://127.0.0.1:{srv.port}/  (Ctrl+C to stop)\n")
     sys.stdout.flush()
     try:
         srv.serve_forever()

@@ -29,7 +29,7 @@ def main(argv=None) -> int:
     try:
         s = status.compute(args.cwd, args.change, instructions=args.cmd == "continue" or args.instructions)
     except status.StatusError as err:
-        sys.stderr.write(f"gentle-lite sdd: {err}\n")
+        sys.stderr.write(f"amauta sdd: {err}\n")
         return 1
     if args.cmd == "continue":
         sys.stdout.write(status.render_dispatcher(s))

@@ -37,7 +37,7 @@ def make_server(cfg, port: int = 8765) -> PortalServer:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "gentle-lite-portal"
+    server_version = "amauta-portal"
     sys_version = ""
 
     def log_message(self, fmt, *args):  # quiet: no request logging of query strings

@@ -41,7 +41,7 @@ class LockModuleTest(unittest.TestCase):
         self.lock = gl.lock_path(self.repo)
 
     def test_lock_path_is_the_git_path_the_hook_uses(self):
-        out = subprocess.run(["git", "-C", str(self.repo), "rev-parse", "--git-path", "gentle-lite-graphify.lock"], capture_output=True, text=True, check=True).stdout.strip()
+        out = subprocess.run(["git", "-C", str(self.repo), "rev-parse", "--git-path", "amauta-graphify.lock"], capture_output=True, text=True, check=True).stdout.strip()
         self.assertEqual(self.lock, (self.repo / out).resolve())
 
     def test_not_a_git_repo_means_no_lock(self):

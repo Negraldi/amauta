@@ -147,7 +147,7 @@ def decide(payload) -> str | None:
     block = resolve_authority(path, session)
     if block is None:
         return _deny(REASON_MISSING)
-    return _output("allow", "parent-confirmed SDD preflight attached by gentle-lite", {**tool_input, "prompt": f"{block}\n\n{prompt}"})
+    return _output("allow", "parent-confirmed SDD preflight attached by amauta", {**tool_input, "prompt": f"{block}\n\n{prompt}"})
 
 
 def run(raw: str | bytes) -> str | None:

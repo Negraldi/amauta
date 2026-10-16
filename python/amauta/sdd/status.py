@@ -106,7 +106,7 @@ def compute(root, change: str | None = None, instructions: bool = False) -> dict
     else:
         selected, next_override = active[0], None
     if store in ("engram", "hybrid"):
-        blocked.append(f"artifact store '{store}' is not supported by gentle-lite (openspec only); declare artifact_store: openspec in openspec/config.yaml.")
+        blocked.append(f"artifact store '{store}' is not supported by amauta (openspec only); declare artifact_store: openspec in openspec/config.yaml.")
 
     base = planning_home / "changes" / selected if selected else None
     paths = {"proposal": [], "specs": [], "design": [], "tasks": [], "applyProgress": [], "verifyReport": []}

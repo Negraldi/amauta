@@ -176,7 +176,7 @@ async function viewMemories() {
   const fileDetail = h("pre", { class: "text" }, "");
   fileDetail.hidden = true;
   return [
-    h("div", { class: "tabs" }, [["own", "gentle-lite memory"], ["engram", "Engram (read-only)"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
+    h("div", { class: "tabs" }, [["own", "amauta memory"], ["engram", "Engram (read-only)"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
     panel("Search", h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, "Search")), mine),
     detail,
     panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, guarded(async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; }, fileDetail)) : empty("No file memories found."), fileDetail),
@@ -219,7 +219,7 @@ async function graphifyPanel() {
 async function viewHarness() {
   const [hs, odd] = await Promise.all([api("harness"), api("odd")]);
   const out = [];
-  if (!hs.installed) out.push(panel("Harness", empty("gentle-lite is not installed (no state.json in the state directory).")));
+  if (!hs.installed) out.push(panel("Harness", empty("amauta is not installed (no state.json in the state directory).")));
   else {
     out.push(h("div", { class: "grid" }, card("Version", hs.version || "-"), card("RDD mode", hs.rdd_mode || "-"), card("Telemetry", hs.telemetry ? "on" : "off"), card("Managed files", fmt(hs.managed_files)), card("Persona", hs.persona || "-")),
       panel("Components", empty((hs.components || []).join(", ") || "none")),

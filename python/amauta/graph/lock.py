@@ -1,11 +1,11 @@
 """The per-repo graphify lock, shared by every Python writer of graphify-out (plan, save-chunk, merge).
 
 This module is the ONLY implementation of the protocol. The post-commit hook (src/graphify/hook.js, a shell block) and
-`gentle-lite graphify semantic` (src/graphify/semantic.js) do not reimplement it: they run
+`amauta graphify semantic` (src/graphify/semantic.js) do not reimplement it: they run
 `python3 -P -m amauta.graph.lock acquire --lock PATH --pid OWNER_PID` (exit 0 acquired, 75 held) and release by removing
 the directory. So all writers are mutually exclusive across languages, with one format:
 
-  path   `git rev-parse --git-path gentle-lite-graphify.lock` (a directory; mkdir is the atomic acquire)
+  path   `git rev-parse --git-path amauta-graphify.lock` (a directory; mkdir is the atomic acquire)
   owner  `<lock>/pid` holds `<pid> <start-token>\\n`; the token is `<boot_id>:<starttime>` read from /proc (Linux), absent
          without /proc. A pid file with only `<pid>` is honoured (no token check).
   pending `<lock>.pending` is the hook's "run again" marker (shell only; see hook.js).
@@ -32,7 +32,7 @@ import time
 import uuid
 from pathlib import Path
 
-LOCK_NAME = "gentle-lite-graphify.lock"
+LOCK_NAME = "amauta-graphify.lock"
 STALE_SECONDS = 15 * 60
 TAKEOVER_ATTEMPTS = 3
 GIT_TIMEOUT = 20
@@ -117,7 +117,7 @@ def _take_over(lock: Path) -> bool:
             os.rename(tomb, lock)
         except OSError as exc:
             # The residual window: the live owner's lock now sits under a tombstone name nobody cleans up. Say so.
-            print(f"gentle-lite: could not put the live lock back ({exc}); it stays at {tomb}", file=sys.stderr)
+            print(f"amauta: could not put the live lock back ({exc}); it stays at {tomb}", file=sys.stderr)
         return False
     _remove(tomb)
     return True
@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="amauta.graph.lock", description="Take the per-repo graphify lock for another process.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     acq = sub.add_parser("acquire", help="take the lock for --pid (the caller removes the directory to release it)")
-    acq.add_argument("--lock", required=True, help="absolute lock path (git rev-parse --git-path gentle-lite-graphify.lock)")
+    acq.add_argument("--lock", required=True, help="absolute lock path (git rev-parse --git-path amauta-graphify.lock)")
     acq.add_argument("--pid", type=int, required=True, help="the owner process that will hold the lock")
     args = parser.parse_args(argv)
     lock = Path(args.lock)

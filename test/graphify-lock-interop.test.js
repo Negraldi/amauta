@@ -15,7 +15,7 @@ async function gitRepo() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'gl-lockx-'));
   const repo = path.join(root, 'repo');
   assert.equal(spawnSync('git', ['init', '-q', repo]).status, 0);
-  const lock = path.resolve(repo, spawnSync('git', ['-C', repo, 'rev-parse', '--git-path', 'gentle-lite-graphify.lock'], { encoding: 'utf8' }).stdout.trim());
+  const lock = path.resolve(repo, spawnSync('git', ['-C', repo, 'rev-parse', '--git-path', 'amauta-graphify.lock'], { encoding: 'utf8' }).stdout.trim());
   return { root, repo, lock };
 }
 

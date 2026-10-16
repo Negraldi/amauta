@@ -92,7 +92,7 @@ class DecisionTest(Base):
         out = self.decide(payload(self.transcript))
         h = out["hookSpecificOutput"]
         self.assertEqual((h["hookEventName"], h["permissionDecision"]), ("PreToolUse", "allow"))
-        self.assertEqual(h["permissionDecisionReason"], "parent-confirmed SDD preflight attached by gentle-lite")
+        self.assertEqual(h["permissionDecisionReason"], "parent-confirmed SDD preflight attached by amauta")
         block = BLOCK.format(pace="interactive", store="openspec", strategy="ask-on-risk")
         self.assertEqual(h["updatedInput"]["prompt"], block + "\n\ndo the thing")
         self.assertEqual(h["updatedInput"]["subagent_type"], "sdd-apply")
