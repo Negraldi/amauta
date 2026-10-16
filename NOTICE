@@ -38,6 +38,21 @@ placeholders resolved at install time; the `pin`, `unpin` and `hooks` commands a
 scripts/context.mjs was disabled; the `allowed-tools` frontmatter was dropped. Everything else is
 as upstream published it.
 
+The optional diagram skill assets/skills/archify/ is vendored from archify, which is
+distributed under the MIT License (full text in assets/skills/archify/LICENSE):
+
+  Project:  tt-a1i/archify
+  URL:      https://github.com/tt-a1i/archify
+  Version:  3.1.0 (path archify/)
+  Commit:   68031cf978e0b906aa56c684a394049a3ea9d583
+  License:  MIT, Copyright (c) 2026 tt-a1i (Archify), Copyright (c) 2025 Cocoon AI
+
+Changes made by amauta: package-lock.json and all examples except web-app.architecture.json
+and production-deployment.architecture.json were left out; the update check was disabled for good
+(bin/delivery-update.mjs resolves "disabled" without starting a child process, and
+scripts/check-update.mjs updatesDisabled() returns true), so the skill never touches the network.
+Everything else is as upstream published it. Checksums are in assets/manifest.json.
+
 The portal serves a vendored, unmodified Mermaid build (python/amauta/portal/static/mermaid.min.js),
 distributed under the MIT License:
 

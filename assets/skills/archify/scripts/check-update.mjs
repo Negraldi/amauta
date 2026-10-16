@@ -51,7 +51,8 @@ function silent(reason) {
 }
 
 function updatesDisabled() {
-  return process.env.ARCHIFY_UPDATE_CHECK_DISABLED === '1';
+  // amauta: permanently disabled in this vendored copy.
+  return true;
 }
 
 function isPlainObject(value) {
