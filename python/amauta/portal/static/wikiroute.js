@@ -42,5 +42,30 @@
     return (index + delta + n) % n;
   }
 
-  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex };
+  // Line diff rows from the server: a visible mark (never color alone) and a style name.
+  const DIFF = { "+": ["+ ", "add"], "-": ["- ", "del"], " ": ["  ", "same"], "=": ["... ", "gap"] };
+  function diffRow(line) {
+    const [mark, name] = DIFF[line && line.op] || DIFF[" "];
+    return { mark, name, text: String((line && line.text) ?? "") };
+  }
+
+  // Done/total for the progress bar of an ODD feature: a whole percent and the text label.
+  function progress(done, total) {
+    const d = Math.max(0, Number(done) || 0), t = Math.max(0, Number(total) || 0);
+    return { percent: t ? Math.min(100, Math.round((d / t) * 100)) : 0, label: `${d} of ${t} done` };
+  }
+
+  // Bars for a small per-day chart: [{day, value}] -> [{day, value, x, y, width, height}] inside a W x H box (at least 1px tall when value > 0).
+  function dailyBars(daily, W, H) {
+    const rows = Array.isArray(daily) ? daily : [];
+    const max = Math.max(1, ...rows.map((r) => Number(r.value) || 0));
+    const bw = rows.length ? W / rows.length : W;
+    return rows.map((r, i) => {
+      const v = Math.max(0, Number(r.value) || 0);
+      const height = v > 0 ? Math.max(1, (v / max) * H) : 0;
+      return { day: String(r.day), value: v, x: i * bw, y: H - height, width: Math.max(bw - 1, 1), height };
+    });
+  }
+
+  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars };
 })();

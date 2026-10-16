@@ -349,6 +349,19 @@ function sectionBlock(s) {
     it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${it.value}`)))));
 }
 
+function historyBlock(hist) {
+  if (!hist) return null;
+  if (!hist.available) return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note));
+  const revs = hist.revisions.map((r) => h("li", null, `Revision ${r.revision}`, r.title ? ` ${r.title}` : null, r.updated_at ? h("span", { class: "muted" }, ` ${r.updated_at}`) : null));
+  const diffs = hist.diffs.map((d) => h("details", null, h("summary", null, `Revision ${d.from} to ${d.to}`),
+    h("div", { class: "diff", role: "group", "aria-label": `Changes from revision ${d.from} to ${d.to}` }, d.lines.map((ln) => { const r = R.diffRow(ln); return h("div", { class: `diff-line diff-${r.name}` }, r.mark + r.text); }))));
+  return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note), h("ul", { class: "items" }, revs), ...diffs);
+}
+
+function pageExtras(pg) {
+  return [historyBlock(pg.history)];
+}
+
 function bodyNodes(pg) {
   const known = (kind, id) => !(pg.missing || []).some((m) => m.kind === kind && m.id === id);
   let diagrams = 0;
@@ -368,7 +381,7 @@ async function viewWikiPage(kind, id) {
     h("article", { class: "doc" },
       h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title),
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
-      ...pg.sections.map(sectionBlock)),
+      ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": "Page details" }, railBlock("Details", meta), railBlock("Links", pg.links.length ? refList(pg.links) : null), railBlock("Linked from", pg.backlinks.length ? refList(pg.backlinks) : null)))];
 }
 

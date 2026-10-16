@@ -103,6 +103,13 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .teach { max-width: 68ch; }
 .teach p { color: var(--ink-muted); }
 
+/* ---- revision diff (marks, not color alone) ---- */
+.diff { font: 0.8125rem/1.5 var(--mono); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2) 0; margin: 0 0 var(--s3); overflow: auto; }
+.diff-line { white-space: pre-wrap; padding: 0 var(--s3); }
+.diff-add { color: var(--ok); background: var(--accent-soft); }
+.diff-del { color: var(--warn); }
+.diff-gap { color: var(--ink-muted); font-style: italic; }
+
 /* ---- prose (memory content, SKILL.md, ODD documents) ---- */
 .prose { font: 1.0625rem/1.6 var(--serif); }
 .prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose .scroll, .prose hr { margin: 0 0 var(--s4); }

@@ -301,3 +301,42 @@ test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none 
   assert.doesNotMatch(css, /#f7f7f5|cream|beige/i);
   for (const z of ['10', '20', '30', '40', '50', '60']) assert.match(css, new RegExp(`z-index:\\s*(var\\(--z-\\w+\\)|${z})`));
 });
+
+// ---- entity pages (W6-W11) ---------------------------------------------------------------------------------
+test('diffRow, progress and dailyBars are pure and tolerate junk', () => {
+  assert.deepEqual(plain(R.diffRow({ op: '+', text: 'x' })), { mark: '+ ', name: 'add', text: 'x' });
+  assert.deepEqual(plain(R.diffRow({ op: '-', text: 'y' })), { mark: '- ', name: 'del', text: 'y' });
+  assert.equal(R.diffRow({ op: '=', text: '4 unchanged lines' }).name, 'gap');
+  assert.deepEqual(plain(R.diffRow({ op: '?', text: 1 })), { mark: '  ', name: 'same', text: '1' });
+  assert.deepEqual(plain(R.diffRow(null)), { mark: '  ', name: 'same', text: '' });
+  assert.deepEqual(plain(R.progress(2, 3)), { percent: 67, label: '2 of 3 done' });
+  assert.deepEqual(plain(R.progress(0, 0)), { percent: 0, label: '0 of 0 done' });
+  assert.equal(R.progress(9, 3).percent, 100);
+  assert.equal(R.progress('x', -1).label, '0 of 0 done');
+  const bars = plain(R.dailyBars([{ day: 'a', value: 0 }, { day: 'b', value: 5 }, { day: 'c', value: 10 }], 30, 20));
+  assert.deepEqual(bars.map((b) => b.height), [0, 10, 20]);
+  assert.equal(bars[2].y, 0);
+  assert.ok(bars.every((b) => b.x >= 0 && b.x + b.width <= 30));
+  assert.equal(R.dailyBars([{ day: 'a', value: 1 }, { day: 'b', value: 1000000 }], 10, 10)[0].height, 1);
+  assert.deepEqual(plain(R.dailyBars(undefined, 10, 10)), []);
+});
+
+test('a memory page shows the revision-history note when the store keeps only the latest revision', async () => {
+  const { env } = await boot('#/memory/7', { '/api/wiki/page': { ...PAGE, history: { available: false, note: 'This store keeps the latest revision only: overwritten.', revisions: [], diffs: [] } } });
+  const v = view(env);
+  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Revision history'));
+  assert.match(v.textContent, /latest revision only/);
+  assert.equal(tree(v).filter((e) => /diff-line/.test(cls(e))).length, 0);
+});
+
+test('revision history renders the list and diff lines with marks, hostile text stays text', async () => {
+  const history = { available: true, note: '2 earlier revision(s)', revisions: [{ revision: 1, title: 'v1', updated_at: 'a' }, { revision: 2, title: XSS, updated_at: 'b' }],
+    diffs: [{ from: 1, to: 2, lines: [{ op: ' ', text: 'one' }, { op: '-', text: 'two' }, { op: '+', text: XSS }, { op: '=', text: '4 unchanged lines' }] }] };
+  const { env } = await boot('#/memory/7', { '/api/wiki/page': { ...PAGE, history } });
+  const v = view(env);
+  const lines = tree(v).filter((e) => /diff-line/.test(cls(e)));
+  assert.deepEqual(lines.map((l) => l.textContent), ['  one', '- two', `+ ${XSS}`, '... 4 unchanged lines']);
+  assert.deepEqual(lines.map((l) => cls(l).replace('diff-line ', '')), ['diff-same', 'diff-del', 'diff-add', 'diff-gap']);
+  assert.match(v.textContent, /Revision 1 to 2/);
+  assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
+});
