@@ -83,5 +83,36 @@
     return `${d < 0 ? "-" : "+"}${Math.abs(d * 100).toFixed(1)} pp`;
   }
 
-  globalThis.AmautaRoute = { KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  // Settings editor (pure). `current` and `draft` have the shape of GET /api/settings `current`.
+  const SETTING_LABELS = { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" };
+  const MODULE_NAMES = ["sdd", "rea", "context7", "impeccable", "archify"];
+  function settingsChanges(current, draft) {
+    const out = [];
+    for (const key of Object.keys(SETTING_LABELS)) if (draft[key] !== current[key]) out.push({ key, label: SETTING_LABELS[key], from: current[key], to: draft[key] });
+    for (const name of MODULE_NAMES) if ((draft.modules || {})[name] !== (current.modules || {})[name]) out.push({ key: `module:${name}`, label: `Module ${name}`, from: current.modules[name], to: draft.modules[name] });
+    return out;
+  }
+  // Request body for preview: only what changed (the server keeps every other value), plus repair when asked.
+  function settingsBody(current, draft, repair) {
+    const body = {};
+    const modules = {};
+    for (const c of settingsChanges(current, draft)) {
+      if (c.key.startsWith("module:")) modules[c.key.slice(7)] = c.to;
+      else body[c.key] = c.to;
+    }
+    if (Object.keys(modules).length) body.modules = modules;
+    if (repair) body.repair = true;
+    return body;
+  }
+  // What to tell the person after a failed write: the next step, and whether a fresh preview fixes it.
+  function settingsAdvice(status) {
+    if (status === 403) return { text: "The portal refused the request. Reload this page (it gets a new session token) and try again.", again: false };
+    if (status === 409) return { text: "Something changed since you previewed, or another change is running. Preview again to see the current plan.", again: true };
+    if (status === 400) return { text: "The preview is no longer valid (used or older than 5 minutes). Preview again.", again: true };
+    if (status === 413 || status === 415) return { text: "The portal could not accept that request. Reload the page and try again.", again: false };
+    if (status === 502 || status === 503 || status === 504) return { text: "The installer did not finish. Nothing was reported as changed; run amauta status in a terminal, then try again or run amauta install there.", again: false };
+    return { text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
+  }
+
+  globalThis.AmautaRoute = { settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

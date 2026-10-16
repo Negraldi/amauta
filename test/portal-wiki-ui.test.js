@@ -66,6 +66,7 @@ const PAGE = {
 };
 const routes = () => ({
   '/api/wiki/page': PAGE,
+  '/api/settings': { installed: true, current: { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } }, allowed: {}, undo: { available: false } },
   '/api/wiki/recent': { items: [{ kind: 'memory', id: '7', title: XSS, ts: '2026-10-02T10:00:00Z', what: 'memory saved' }, { kind: 'session', id: 's1', title: 'alpha · s1', ts: '2026-10-01T10:00:00Z', what: 'session, 2 messages' }] },
   '/api/wiki/search': { q: 'x', groups: [
     { kind: 'skill', count: 1, items: [{ kind: 'skill', id: 'work-unit-commits', title: 'work-unit-commits', snippet: '1 calls' }] },
@@ -142,12 +143,12 @@ test('an unknown page shows a teaching not-found state, not an error panel', asy
   assert.ok(!/^Error/.test(v.textContent));
 });
 
-test('unknown routes and not-yet-built pages render designed placeholders', async () => {
+test('unknown routes render a designed placeholder and the settings route renders the editor', async () => {
   let { env } = await boot('#/bogus/1');
   assert.match(view(env).textContent, /not a wiki page/i);
   ({ env } = await boot('#/settings'));
   assert.match(view(env).textContent, /Settings/);
-  assert.match(view(env).textContent, /preview/i);
+  assert.match(view(env).textContent, /Preview changes/);
   assert.equal(env.calls.filter((c) => String(c.url).startsWith('/api/wiki/page')).length, 0);
 });
 

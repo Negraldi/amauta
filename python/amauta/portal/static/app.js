@@ -489,8 +489,156 @@ async function viewFeatures() {
 
 async function viewGraph() { return [h("h1", null, "Graph"), await graphifyPanel()]; }
 
-function viewSettings() {
-  return [teach("Settings", "The settings editor is not built yet. It will edit a closed list of harness options (persona, review mode, telemetry, optional modules), always with a preview of the change before anything is written.", "Until then, change options by running amauta install in a terminal.")];
+// ---- Settings editor: a closed list of options, always preview -> confirm -> apply, with undo ----------------------------------------
+const SETTING_OPTIONS = [
+  ["persona", "Persona", [["gentleman", "Gentleman"], ["neutral", "Neutral"]], "How Claude talks to you: gentleman is warm and mentoring, neutral is plain and direct. Applying swaps the installed output style and the persona section of CLAUDE.md."],
+  ["review_mode", "Review mode", [["off", "Off"], ["on", "On"]], "On: after each commit amauta assesses the risk of the change and may ask for a review before you go on. Off: no review reminders."],
+  ["telemetry", "Telemetry", [["on", "On"], ["off", "Off"]], "On: hooks record which tools ran, how long they took and how big they were, into your own local database (never content, never sent anywhere). Off: those hooks are removed."],
+];
+const SETTING_MODULES = [
+  ["sdd", "Spec-driven development (SDD)", "Skills, agents and /amauta-sdd-* commands for planned changes, plus a safety hook that checks sdd agents before they start."],
+  ["rea", "Reverse engineering (rea)", "Registers the rea MCP server in Claude Code so it can inspect binaries and packaged apps."],
+  ["context7", "Library docs (context7)", "Registers the context7 MCP server so Claude can look up current library documentation."],
+  ["impeccable", "Frontend design (impeccable)", "Installs the design skill and downloads its pinned engine with npm (needs the network once)."],
+  ["archify", "Architecture diagrams (archify)", "Installs the diagram skill (runs offline). The Harness page uses it to draw the architecture."],
+];
+const setDisabled = (el, on) => { if (on) el.setAttribute("disabled", ""); else el.removeAttribute("disabled"); };
+
+async function postJson(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Portal-Token": token, Accept: "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+function planBlock(res) {
+  const p = res.plan || {}, files = p.files || [], removed = p.removed || [], skipped = p.skipped || [];
+  const list = (title, items) => items.length ? h("details", null, h("summary", null, `${title} (${items.length})`), h("ul", { class: "plain-list" }, items.slice(0, 40).map((f) => h("li", null, h("code", null, f))), items.length > 40 ? h("li", { class: "muted" }, `and ${items.length - 40} more`) : null)) : null;
+  return h("div", { class: "plan" },
+    res.changes.length ? h("ul", { class: "plain-list" }, res.changes.map((c) => h("li", null, `${settingLabel(c.key)}: ${c.from} → ${c.to}`)))
+      : h("p", null, res.repair ? "No option changes. Repair re-applies the current settings." : "No option changes."),
+    h("p", null, `${files.length} file(s) written, ${removed.length} removed, ${skipped.length} kept because you edited them.`),
+    p.changed === false ? h("p", { class: "muted" }, "Everything is already in place, so applying changes nothing.") : null,
+    p.impeccable && p.impeccable.engine === "would-install" ? h("p", null, "npm will download the pinned impeccable engine.") : null,
+    list("Files written", files), list("Files removed", removed), list("Kept because you edited them", skipped));
+}
+function settingLabel(key) {
+  if (key.startsWith("module:")) return `Module ${key.slice(7)}`;
+  return { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" }[key] || key;
+}
+
+async function viewSettings() {
+  let info = await api("settings");
+  let draft = null;
+  const root = h("div", { class: "settings" });
+  const formBox = h("div", null), out = h("div", { class: "settings-out", "aria-live": "polite" });
+  const marks = new Map();
+  let previewBtn = null, repairBtn = null;
+  const copy = (c) => ({ ...c, modules: { ...c.modules } });
+
+  const refreshMarks = () => {
+    const changes = R.settingsChanges(info.current, draft);
+    for (const [key, el] of marks) { const c = changes.find((x) => x.key === key); el.textContent = c ? `◆ changed, was ${c.from}` : ""; }
+    if (previewBtn) setDisabled(previewBtn, changes.length === 0);
+  };
+  const option = (key, id, label, choices, value, help) => {
+    const mark = h("span", { class: "changed" });
+    marks.set(key, mark);
+    const select = h("select", { id, "aria-describedby": `${id}-help` }, choices.map(([v, l]) => h("option", { value: v, selected: v === value }, l)));
+    select.value = value;
+    select.addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (key.startsWith("module:")) draft.modules[key.slice(7)] = v; else draft[key] = v;
+      refreshMarks();
+    });
+    return h("div", { class: "option" }, h("label", { for: id }, label), select, h("span", { class: "current" }, `now ${value}`), mark, h("p", { id: `${id}-help`, class: "option-help muted" }, help));
+  };
+  const buildForm = () => {
+    draft = copy(info.current);
+    marks.clear();
+    previewBtn = h("button", { type: "button", disabled: true }, "Preview changes");
+    previewBtn.addEventListener("click", () => runPreview(false));
+    repairBtn = h("button", { type: "button" }, "Preview repair");
+    repairBtn.addEventListener("click", () => runPreview(true));
+    formBox.replaceChildren(...[
+      info.installed ? null : h("p", { class: "notice" }, "amauta is not installed yet. Previewing and applying here runs the installer for the first time."),
+      h("div", { class: "options" },
+        ...SETTING_OPTIONS.map(([key, label, choices, help]) => option(key, `set-${key.replace("_", "-")}`, label, choices, info.current[key], help)),
+        h("h2", null, "Optional modules"),
+        ...SETTING_MODULES.map(([name, label, help]) => option(`module:${name}`, `set-module-${name}`, label, [["off", "Off"], ["on", "On"]], info.current.modules[name], help))),
+      h("div", { class: "actions" }, previewBtn),
+      h("section", { class: "repair" }, h("h2", null, "Reinstall / repair"),
+        h("p", { class: "muted" }, "Re-applies the current settings: restores missing or outdated files that amauta installed. Files you edited are kept."), h("div", { class: "actions" }, repairBtn))].filter(Boolean));
+    refreshMarks();
+  };
+
+  const busy = (text) => { out.replaceChildren(h("p", { role: "status", class: "muted" }, text)); };
+  const fail = (res, retry) => {
+    const adv = R.settingsAdvice(res.status);
+    out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${(res.data && res.data.error) || `Request failed (${res.status})`}`),
+      res.data && res.data.detail ? h("p", { class: "muted" }, h("code", null, res.data.detail)) : null, h("p", null, adv.text),
+      adv.again ? (() => { const b = h("button", { type: "button" }, "Preview again"); b.addEventListener("click", () => retry()); return b; })() : null));
+  };
+  const askConfirm = (text, yes, onYes, onNo) => {
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, "Go back");
+    ok.addEventListener("click", onYes); no.addEventListener("click", onNo);
+    return h("div", { class: "confirm", role: "group", "aria-label": "Confirm" }, h("p", null, text), h("div", { class: "actions" }, ok, no));
+  };
+
+  async function runPreview(repair) {
+    const body = R.settingsBody(info.current, draft, repair);
+    setDisabled(previewBtn, true); setDisabled(repairBtn, true);
+    busy("Checking what would change. Nothing is written yet.");
+    let res;
+    try { res = await postJson("/api/settings/preview", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    setDisabled(repairBtn, false); refreshMarks();
+    if (!res.ok) return fail(res, () => runPreview(repair));
+    showPlan(res.data, repair);
+  }
+  function showPlan(plan, repair) {
+    const confirmBox = h("div", null);
+    const apply = h("button", { type: "button", class: "primary" }, "Apply changes");
+    apply.addEventListener("click", () => {
+      setDisabled(apply, true);
+      confirmBox.replaceChildren(askConfirm("This changes your Claude Code configuration. A backup is made first and you can undo it from here.", "Yes, apply now", () => runApply(plan), () => { setDisabled(apply, false); confirmBox.replaceChildren(); }));
+    });
+    const cancel = h("button", { type: "button" }, "Discard preview");
+    cancel.addEventListener("click", () => out.replaceChildren());
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, "Preview: what would change"), planBlock(plan), h("p", { class: "muted" }, `This preview is valid for ${Math.round((plan.expires_in || 300) / 60)} minutes.`), h("div", { class: "actions" }, apply, cancel), confirmBox));
+  }
+  async function runApply(plan) {
+    busy("Applying. This can take a while when a module downloads something.");
+    let res;
+    try { res = await postJson("/api/settings/apply", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runPreview(false));
+    const d = res.data;
+    const undo = d.undo_available ? h("button", { type: "button" }, "Undo this change") : null;
+    const undoBox = h("div", null);
+    if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); undoBox.replaceChildren(askConfirm(`Restore the files from backup ${d.backup}? Anything changed since then in those files is lost.`, "Yes, undo", runUndo, () => { setDisabled(undo, false); undoBox.replaceChildren(); })); });
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Applied."),
+      h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`), d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
+      d.skipped.length ? h("p", { class: "muted" }, `${d.skipped.length} file(s) you edited were kept.`) : null,
+      d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, `▲ The impeccable engine was not installed: ${d.impeccable.detail || "npm failed"}. Run Reinstall / repair to retry.`) : null,
+      h("div", { class: "actions" }, undo), undoBox));
+    await reload();
+  }
+  async function runUndo() {
+    busy("Restoring the backup.");
+    let res;
+    try { res = await postJson("/api/settings/undo", { confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return fail(res, () => runPreview(false));
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Undone."), h("p", null, `✓ Restored ${res.data.restored.length} file(s) from backup ${res.data.backup}.`),
+      h("p", { class: "muted" }, "If the change had downloaded an npm engine, run Reinstall / repair to bring it back.")));
+    await reload();
+  }
+  async function reload() {
+    try { info = await api("settings"); buildForm(); } catch (_) { /* the page keeps what it shows */ }
+  }
+
+  buildForm();
+  root.append(h("h1", null, "Settings"),
+    h("p", { class: "muted" }, "A short, closed list of harness options. Every change is previewed first, needs your confirmation, makes a backup and can be undone. Nothing else about Claude Code is editable here."),
+    formBox, out);
+  return [root];
 }
 
 // Home: recent activity is the page; spending and harness health sit in the rail as plain text and a small table (no metric tiles).
