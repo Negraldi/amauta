@@ -5,7 +5,7 @@ import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
 import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
-import { createBackup } from '../core/backup.js';
+import { createBackup, restoreBackup } from '../core/backup.js';
 import { resolveTargets } from './paths.js';
 import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
 import {
@@ -23,6 +23,7 @@ import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.
 import { graphifyStatus, lastHookError } from '../graphify/probe.js';
 
 export const STATE_SCHEMA = 'amauta.state/v1';
+const RDD_MODES = ['on', 'off'];
 const COMPONENTS = ['claude-md', 'output-style', 'skills', 'agents', 'settings', 'mcp'];
 const STYLE_NAMES = ['Gentleman', 'Neutral'];
 /** Always-on CLAUDE.md budget (chars across the blocks amauta installed). */
@@ -208,14 +209,17 @@ async function plan(opts) {
 
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
   const telemetry = opts.telemetry !== false;
-  const sdd = opts.withSdd === true || prev?.sdd === true; // optional module; sticky until uninstall
-  const impeccable = opts.withImpeccable === true || prev?.impeccable === true; // optional design skill + pinned npm engine; sticky too
-  const archify = opts.withArchify === true || prev?.archify === true; // optional diagram skill (pure Node, vendored); sticky too
+  // Optional modules are sticky (an absent flag keeps the earlier choice); an explicit `false` (--without-*) turns one off.
+  const sticky = (flag, key) => (flag === false ? false : flag === true || prev?.[key] === true);
+  const sdd = sticky(opts.withSdd, 'sdd'); // optional module
+  const impeccable = sticky(opts.withImpeccable, 'impeccable'); // optional design skill + pinned npm engine
+  const archify = sticky(opts.withArchify, 'archify'); // optional diagram skill (pure Node, vendored)
+  if (opts.rddMode !== undefined && !RDD_MODES.includes(opts.rddMode)) throw new Error(`unknown review mode: ${opts.rddMode} (expected on or off)`);
   const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
   // Opt-in MCP servers, sticky like sdd. A state that predates the opt-in (no key at all) registered both servers by
   // default: keep each one that is still exactly what we wrote (carry-over); an edited entry is the user's.
-  const optIn = (flag, key) => flag === true || prev?.[key] === true || (prev !== null && prev?.[key] === undefined && isOurs(currentServers, prev, key));
+  const optIn = (flag, key) => flag !== false && (flag === true || prev?.[key] === true || (prev !== null && prev?.[key] === undefined && isOurs(currentServers, prev, key)));
   const rea = optIn(opts.withRea, 'rea');
   const context7 = optIn(opts.withContext7, 'context7');
   const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
@@ -240,6 +244,17 @@ async function plan(opts) {
       continue;
     }
     managedFiles[rel] = sha256(data);
+  }
+  // Managed files this install no longer renders (an optional module turned off, or a file a newer version dropped):
+  // removed only while byte-identical to what we wrote; an edited one is the user's and stays.
+  const removes = [];
+  for (const [rel, hash] of Object.entries(prev?.managed_files ?? {})) {
+    if (rendered.has(rel)) continue;
+    const file = abs(t.claudeHome, rel);
+    const buf = await readOrNull(file);
+    if (buf === null) continue;
+    if (sha256(buf) === hash) removes.push({ rel, path: file });
+    else skipped.push(rel);
   }
 
   // CLAUDE.md sections.
@@ -315,6 +330,15 @@ async function plan(opts) {
     ...(claudeJsonIn.existed ? [] : [t.claudeJson]),
   ];
 
+  const rddMode = opts.rddMode ?? prev?.rdd_mode ?? 'off';
+  const rddChanged = prev !== null && opts.rddMode !== undefined && opts.rddMode !== (prev.rdd_mode ?? 'off');
+  const stateChanges = {};
+  if (prev !== null) {
+    const seen = { persona, telemetry, sdd, rea, impeccable, archify, context7, rdd_mode: rddMode };
+    const was = { persona: prev.persona, telemetry: prev.telemetry === true, sdd: prev.sdd === true, rea: prev.rea === true, impeccable: prev.impeccable === true, archify: prev.archify === true, context7: prev.context7 === true, rdd_mode: prev.rdd_mode ?? 'off' };
+    for (const [k, v] of Object.entries(seen)) if (was[k] !== v && !(k === 'rea' && prev.rea === undefined && v === was.rea)) stateChanges[k] = { from: was[k], to: v };
+  }
+
   const makeState = (lastBackup) => ({
     schema: STATE_SCHEMA,
     version: packageVersion(),
@@ -324,7 +348,8 @@ async function plan(opts) {
     components: COMPONENTS,
     persona,
     model_assignments: assignments,
-    rdd_mode: prev?.rdd_mode ?? 'off',
+    rdd_mode: rddMode,
+    ...(rddChanged ? { rdd_mode_recorded_at: new Date().toISOString() } : prev?.rdd_mode_recorded_at ? { rdd_mode_recorded_at: prev.rdd_mode_recorded_at } : {}),
     last_backup: lastBackup ?? prev?.last_backup ?? null,
     managed_files: managedFiles,
     claude_md_sections: sections.map((s) => s.id),
@@ -345,35 +370,54 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, skipped, makeState, impeccable, manifest };
+  return { t, prev, writes: real, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas: prev?.impeccable === true };
 }
 
 export async function install(opts = {}) {
-  const { t, prev, writes, skipped, makeState, impeccable, manifest } = await plan(opts);
+  const { t, prev, writes, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas } = await plan(opts);
   const files = writes.map((w) => w.rel);
+  const removed = removes.map((r) => r.rel);
   const wanted = manifest.impeccable?.engine.version;
+  const touches = writes.length > 0 || removes.length > 0 || rddChanged;
   if (opts.dryRun) {
-    const dry = { dryRun: true, changed: writes.length > 0, files, skipped, backup: null };
+    const dry = { dryRun: true, changed: touches, files, removed, skipped, state_changes: stateChanges, backup: null };
     if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
     return dry;
   }
 
   const statePath = statePathOf(t.stateDir);
   let backup = null;
-  if (writes.length > 0) {
-    ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), statePath]));
+  if (touches) {
+    ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), ...removes.map((r) => r.path), statePath]));
     for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
+    for (const r of removes) {
+      await rm(r.path, { force: true });
+      await pruneEmptyDirs(path.dirname(r.path), t.claudeHome);
+    }
   }
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
-  const result = { dryRun: false, changed: writes.length > 0 || stateChanged || !prev, files, skipped, backup };
+  const result = { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, state_changes: stateChanges, backup };
+  if (impeccableWas && !impeccable) await removeEngine(t.stateDir);
   if (impeccable) {
     // After the state is written, so a failed or offline npm run is retried by the next install.
     result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: wanted, searchPath: opts.searchPath });
     if (result.impeccable.engine === 'installed') result.changed = true;
   }
   return result;
+}
+
+const BACKUP_ID = /^\d{8}T\d{6}Z(-\d{3})?$/;
+
+/** Restore one installer backup by id (its directory name under <stateDir>/backups); the id is matched strictly, never joined as a path. */
+export async function restore(opts = {}) {
+  const t = resolveTargets(opts);
+  if (typeof opts.backup !== 'string' || !BACKUP_ID.test(opts.backup)) throw new Error(`invalid backup id: ${String(opts.backup)} (expected a name like 20261016T101500Z)`);
+  const dir = path.join(t.stateDir, 'backups', opts.backup);
+  if ((await statOrNull(dir)) === null) throw new Error(`no such backup: ${opts.backup}`);
+  const manifest = await restoreBackup(dir);
+  return { backup: opts.backup, restored: manifest.entries.map((e) => e.original_path) };
 }
 
 async function pruneEmptyDirs(start, stop) {

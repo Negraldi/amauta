@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { install, uninstall, status } from './installer.js';
+import { install, uninstall, status, restore } from './installer.js';
 
 const OPTIONS = {
   'claude-home': { type: 'string' },
@@ -14,11 +14,26 @@ const OPTIONS = {
   'with-impeccable': { type: 'boolean', default: false },
   'with-archify': { type: 'boolean', default: false },
   'with-context7': { type: 'boolean', default: false },
+  'without-sdd': { type: 'boolean', default: false },
+  'without-rea': { type: 'boolean', default: false },
+  'without-impeccable': { type: 'boolean', default: false },
+  'without-archify': { type: 'boolean', default: false },
+  'without-context7': { type: 'boolean', default: false },
+  'review-mode': { type: 'string' },
+  json: { type: 'boolean', default: false }, // install and restore: print the result as one JSON object
+  backup: { type: 'string' }, // restore only: the backup id
   deep: { type: 'boolean', default: false }, // status only: also probe the graphify [sql] extractor
 };
 
 function parse(args) {
   const { values } = parseArgs({ args, options: OPTIONS, allowPositionals: false, strict: true });
+  // true = --with-x, false = --without-x, undefined = keep what a previous install chose
+  const tri = (name) => {
+    if (values[`with-${name}`] && values[`without-${name}`]) throw new Error(`--with-${name} and --without-${name} cannot be combined`);
+    return values[`with-${name}`] ? true : values[`without-${name}`] ? false : undefined;
+  };
+  const reviewMode = values['review-mode'];
+  if (reviewMode !== undefined && reviewMode !== 'on' && reviewMode !== 'off') throw new Error(`--review-mode must be on or off (got ${reviewMode})`);
   return {
     claudeHome: values['claude-home'],
     claudeJson: values['claude-json'],
@@ -27,11 +42,14 @@ function parse(args) {
     force: values.force,
     persona: values.persona,
     telemetry: !values['no-telemetry'],
-    withSdd: values['with-sdd'] ? true : undefined, // absent keeps what a previous install chose
-    withRea: values['with-rea'] ? true : undefined,
-    withImpeccable: values['with-impeccable'] ? true : undefined,
-    withArchify: values['with-archify'] ? true : undefined,
-    withContext7: values['with-context7'] ? true : undefined,
+    withSdd: tri('sdd'),
+    withRea: tri('rea'),
+    withImpeccable: tri('impeccable'),
+    withArchify: tri('archify'),
+    withContext7: tri('context7'),
+    rddMode: reviewMode,
+    json: values.json,
+    backup: values.backup,
     deep: values.deep,
   };
 }
@@ -54,9 +72,14 @@ const guard = (fn) => async (args, io) => {
 
 async function runInstall(opts, io) {
   const r = await install(opts);
+  if (opts.json) {
+    io.stdout.write(`${JSON.stringify(r)}\n`);
+    return r.impeccable?.engine === 'failed' ? 1 : 0;
+  }
   if (r.dryRun) {
     io.stdout.write(`amauta: dry run, ${r.files.length} file(s) would be written\n`);
     for (const f of r.files) io.stdout.write(`  ${f}\n`);
+    for (const f of r.removed) io.stdout.write(`  remove ${f}\n`);
   } else if (r.changed) {
     io.stdout.write(`amauta: installed (${r.files.length} file(s) written)\n`);
     if (r.backup) io.stdout.write(`  backup: ${r.backup}\n`);
@@ -70,6 +93,16 @@ async function runInstall(opts, io) {
     return 1;
   }
   if (eng) io.stdout.write(`amauta: impeccable engine ${eng.version} ${eng.engine === 'would-install' ? 'would be installed with npm' : eng.engine}\n`);
+  return 0;
+}
+
+async function runRestore(opts, io) {
+  const r = await restore(opts);
+  if (opts.json) io.stdout.write(`${JSON.stringify(r)}\n`);
+  else {
+    io.stdout.write(`amauta: restored backup ${r.backup} (${r.restored.length} file(s))\n`);
+    for (const f of r.restored) io.stdout.write(`  ${f}\n`);
+  }
   return 0;
 }
 
@@ -102,7 +135,8 @@ async function runStatus(opts, io) {
 }
 
 export function registerInstallCommands(commands) {
-  commands.set('install', { summary: 'Install amauta into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable --with-archify)', run: guard(runInstall) });
+  commands.set('install', { summary: 'Install amauta into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
+  commands.set('restore', { summary: 'Restore an installer backup by id (--backup <id> --claude-home --claude-json --state-dir --json)', run: guard(runRestore) });
   commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content', run: guard(runUninstall) });
   commands.set('status', { summary: 'Show what is installed and what is missing (--deep also probes the graphify SQL extractor)', run: guard(runStatus) });
 }
