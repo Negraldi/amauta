@@ -394,8 +394,16 @@ function nodeDiagramBlock(diagram) {
     diagram.truncated ? h("p", { class: "muted" }, `Showing the nearest ${R.NODE_CAP} of ${fmt(diagram.nodes)} nodes.`) : null);
 }
 
+// ODD feature: tasks grouped by phase in a grid (shape + word + class carry the status); long documents are capped server-side.
+function taskDiagramBlock(pg) {
+  const d = pg.diagram;
+  if (pg.kind !== "feature" || !d || !d.source) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Task grid"), diagramBox(d.source, "Tasks of this feature grouped by phase and status"),
+    d.tasks > d.shown ? h("p", { class: "muted" }, `Showing the first ${d.shown} of ${fmt(d.tasks)} tasks.`) : null);
+}
+
 function pageExtras(pg) {
-  return [usageBlock(pg.usage), historyBlock(pg.history), commitsBlock(pg.commits), nodeDiagramBlock(pg.diagram)];
+  return [usageBlock(pg.usage), historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
 }
 
 function bodyNodes(pg) {

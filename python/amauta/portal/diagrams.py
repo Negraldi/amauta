@@ -23,6 +23,13 @@ def label(text, limit: int = LABEL_LIMIT) -> str:
     return '"' + "".join(_ENTITIES.get(c, c) for c in s) + '"'
 
 
+def soft(text, limit: int = LABEL_LIMIT) -> str:
+    """Like label() but syntax characters become spaces instead of entity codes (mermaid 11 shows some entity codes literally in subgraph
+    titles and shaped nodes), so a backtick or bracket in a task title never garbles the drawing."""
+    s = "".join(" " if c in _ENTITIES else c for c in str(text if text is not None else ""))
+    return label(s, limit)
+
+
 class _Builder:
     def __init__(self, direction="LR"):
         self.lines = [f"flowchart {direction}"]
@@ -52,6 +59,7 @@ _STYLE = {
     "group": "classDef group fill:#eeeeea,stroke:#62666d,color:#1d1f23",
     "done": "classDef done fill:#cdeedd,stroke:#2f9e6f,color:#1d1f23",
     "pending": "classDef pending fill:#ffe3c2,stroke:#d9822b,color:#1d1f23",
+    "blocked": "classDef blocked fill:#fbd5d5,stroke:#b42318,stroke-width:3px,stroke-dasharray:4 2,color:#1d1f23",
     "start": "classDef start fill:#dbe7ff,stroke:#2457c5,stroke-width:3px,color:#1d1f23",
 }
 
@@ -92,21 +100,63 @@ def architecture(hs: dict, state_dir) -> str | None:
 
 
 def _task_name(title: str) -> str:
-    m = re.match(r"\W*(T\d+[a-z]*)\b", title)
+    m = re.match(r"\W*([A-Z]{1,3}\d+[a-z]*)\b", title)
     return m.group(1) if m else title
 
 
+MAX_TASKS = 60  # task nodes drawn per diagram; the rest is one "N more" node
+GRID_COLUMNS = 6  # task nodes per row inside a phase
+_SHAPES = {"done": "([{}])", "pending": "[{}]", "blocked": "{{{{{}}}}}"}  # stadium, rectangle, hexagon
+_WORDS = {"done": "✓ done", "pending": "○ pending", "blocked": "! blocked"}
+
+
+def _task_status(t: dict) -> str:
+    return "done" if t.get("done") else "blocked" if t.get("blocked") else "pending"
+
+
 def odd_progress(name: str, tasks: list) -> str | None:
-    """One feature document: a fan of task nodes, green when done, orange when pending."""
+    """One feature document as a grid: a summary node, then one subgraph per phase heading (or a single "Tasks" group) with the tasks in rows
+    of GRID_COLUMNS. No task is connected to a hub: invisible links only build the rows and stack the groups. Status is carried by node
+    shape (stadium = done, rectangle = pending, hexagon = blocked), by a word in the label and by a class, never by color alone."""
     if not tasks:
         return None
     done = sum(1 for t in tasks if t.get("done"))
-    b = _Builder("LR")
-    root = b.node(f"{name}: {done}/{len(tasks)} done", "root", limit=80)
-    for t in tasks[:MAX_ITEMS]:
-        b.edge(root, b.node(_task_name(str(t.get("title", ""))), "done" if t.get("done") else "pending", limit=30))
-    if len(tasks) > MAX_ITEMS:
-        b.edge(root, b.node(f"{len(tasks) - MAX_ITEMS} more tasks", "group"))
+    blocked = sum(1 for t in tasks if _task_status(t) == "blocked")
+    b = _Builder("TB")
+    head = f"{name}: {done}/{len(tasks)} done" + (f", {blocked} blocked" if blocked else "")
+    b.lines.append(f"  s0([{soft(head, 80)}])")
+    b.classes["root"] = ["s0"]
+    groups: dict = {}
+    for t in tasks[:MAX_TASKS]:
+        groups.setdefault(t.get("phase") or None, []).append(t)
+    rest = tasks[MAX_TASKS:]
+    chain = ["s0"]
+    for gi, (phase, items) in enumerate(groups.items()):
+        b.lines.append(f"  subgraph p{gi}[{soft(phase or 'Tasks', 70)}]")
+        b.lines.append("    direction LR")
+        nodes = []
+        for t in items:
+            st = _task_status(t)
+            nid = f"n{b.n}"
+            b.n += 1
+            text = f"{_task_name(str(t.get('title', '')))[:30]} {_WORDS[st]}"
+            b.lines.append(f"    {nid}{_SHAPES[st].format(soft(text, 50))}")
+            b.classes.setdefault(st, []).append(nid)
+            nodes.append(nid)
+        if gi == len(groups) - 1 and rest:
+            nid = f"n{b.n}"
+            b.n += 1
+            more = f"{len(rest)} more tasks ({sum(1 for t in rest if t.get('done'))} done)"
+            b.lines.append(f"    {nid}[{label(more, 40)}]")
+            b.classes.setdefault("group", []).append(nid)
+            nodes.append(nid)
+        for r in range(0, len(nodes), GRID_COLUMNS):
+            row = nodes[r:r + GRID_COLUMNS]
+            if len(row) > 1:
+                b.lines.append("    " + " ~~~ ".join(row))
+        b.lines.append("  end")
+        chain.append(f"p{gi}")
+    b.lines.append("  " + " ~~~ ".join(chain))
     return b.render(_styles(b))
 
 

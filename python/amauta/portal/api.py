@@ -14,7 +14,7 @@ from ..graph import query as graph_query
 from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import ingest
-from . import diagrams
+from . import diagrams, wikifeature
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
@@ -469,7 +469,7 @@ class Portal:
                     text = f.read_text(errors="replace")[:MAX_TEXT]
                 except OSError:
                     continue
-                tasks = [{"done": m.group(1).lower() == "x", "title": m.group(2).strip()[:160]} for m in re.finditer(r"^- \[( |x|X)\] (.+)$", text, re.M)]
+                tasks = wikifeature.parse_tasks(text)
                 docs.append({"name": f.name, "done": sum(t["done"] for t in tasks), "total": len(tasks), "tasks": tasks})
             repos.append({"repo": repo.name, "documents": docs})
         return {"repos": repos}

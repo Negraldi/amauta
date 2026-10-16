@@ -7,6 +7,8 @@ import re
 import subprocess
 import time
 
+from . import diagrams
+
 MAX_HASHES = 60
 GIT_TIMEOUT = 5
 BUDGET = 10.0
@@ -68,3 +70,40 @@ def commits(repo, text):
 def progress(tasks):
     done = sum(1 for d, _ in tasks if d)
     return {"done": done, "total": len(tasks), "percent": round(100 * done / len(tasks)) if tasks else 0}
+
+
+_TASK = re.compile(r"^- \[( |x|X|!)\] (.+)$")
+_HEADING = re.compile(r"^#{2,6}\s+(.+?)\s*#*$")
+_BLOCKED = re.compile(r"\bblocked\b", re.I)
+TITLE_LIMIT = 160
+
+
+def parse_tasks(text):
+    """Checklist items of a feature document: {done, blocked, title, phase}. A phase is the nearest preceding markdown heading (level 2+) or
+    bare line directly above a checklist item (like "F1 Wiki shell"); a document with a single phase is not grouped. `[!]` or the word
+    "blocked" in an open item marks it blocked."""
+    lines = (text or "").splitlines()
+    items, phase = [], None
+    for i, raw in enumerate(lines):
+        line = raw.rstrip()
+        m = _TASK.match(line)
+        if m:
+            title = m.group(2).strip()[:TITLE_LIMIT]
+            done = m.group(1) in "xX"
+            items.append({"done": done, "blocked": not done and (m.group(1) == "!" or bool(_BLOCKED.search(title))), "title": title, "phase": phase})
+            continue
+        h = _HEADING.match(line)
+        if h:
+            phase = h.group(1).strip()[:80]
+        elif line.strip() and len(line) <= 70 and not line.startswith(("-", "*", ">", "|", "`", " ", "\t", "#")) and i + 1 < len(lines) and _TASK.match(lines[i + 1].rstrip()):
+            phase = line.strip()
+    if len({t["phase"] for t in items}) <= 1:  # one phase (or none) is not a grouping
+        for t in items:
+            t["phase"] = None
+    return items
+
+
+def task_diagram(name, tasks):
+    """{source, tasks, shown} for the Mermaid grid of a document's tasks, or None when it has none."""
+    src = diagrams.odd_progress(name, tasks)
+    return {"source": src, "tasks": len(tasks), "shown": min(len(tasks), diagrams.MAX_TASKS)} if src else None

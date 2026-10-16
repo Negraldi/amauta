@@ -77,26 +77,74 @@ class ArchitectureTest(unittest.TestCase):
 
 
 class OddTest(unittest.TestCase):
-    def test_done_and_pending_classes(self):
-        tasks = [{"done": True, "title": "T1 Done thing"}, {"done": False, "title": "T2 Open thing"}, {"done": True, "title": "plain title without id"}]
-        src = diagrams.odd_progress("feat.md", tasks)
-        self.assertTrue(src.startswith("flowchart "))
-        self.assertIn("2/3", src)
-        self.assertRegex(src, r"class n\d+(,n\d+)* done")
-        self.assertRegex(src, r"class n\d+ pending")
-        self.assertIn("T2", src)
-        self.assertNotIn("Open thing", src)
+    @staticmethod
+    def tasks(n, phases=1, **extra):
+        return [{"done": i % 3 == 0, "blocked": False, "phase": f"F{i * phases // max(n, 1)} Phase {i * phases // max(n, 1)}" if phases > 1 else None,
+                 "title": f"T{i} Thing {i}", **extra} for i in range(n)]
 
-    def test_cap_and_hostile_titles(self):
-        tasks = [{"done": i % 2 == 0, "title": HOSTILE[i % len(HOSTILE)]} for i in range(200)]
+    def test_status_by_shape_label_and_class_not_color_alone(self):
+        tasks = [{"done": True, "title": "T1 Done thing"}, {"done": False, "title": "T2 Open thing"},
+                 {"done": False, "blocked": True, "title": "T3 Stuck thing"}, {"done": True, "title": "plain title without id"}]
+        src = diagrams.odd_progress("feat.md", tasks)
+        self.assertTrue(src.startswith("flowchart TB"))
+        self.assertIn("2/4", src)
+        self.assertRegex(src, r'n\d+\(\["T1 [^"]*done[^"]*"\]\)')      # done: stadium + word
+        self.assertRegex(src, r'n\d+\["T2 [^"]*pending[^"]*"\]')         # pending: rectangle + word
+        self.assertRegex(src, r'n\d+\{\{"T3 [^"]*blocked[^"]*"\}\}')    # blocked: hexagon + word
+        for cls in ("done", "pending", "blocked"):
+            self.assertRegex(src, rf"class n\d+(,n\d+)* {cls}")
+        self.assertNotIn("Open thing", src)  # only the task id is drawn
+
+    def test_no_single_fan_out_node(self):
+        src = diagrams.odd_progress("feat.md", self.tasks(34))
+        self.assertNotRegex(src, r"\bn\d+ -->")
+        self.assertNotIn("-->", src)
+
+    def test_one_subgraph_per_phase_in_a_grid_of_rows(self):
+        src = diagrams.odd_progress("feat.md", self.tasks(34, phases=3))
+        self.assertEqual(len(re.findall(r"^\s*subgraph p\d+\[", src, re.M)), 3)
+        self.assertIn("F0 Phase 0", src)
+        self.assertEqual(src.count("direction LR"), 3)
+        self.assertGreaterEqual(len(re.findall(r"~~~", src)), 20)  # invisible links build the rows
+        rows = [len(m.split("~~~")) for m in re.findall(r"^\s*(n\d+(?: ~~~ n\d+)+)\s*$", src, re.M)]
+        self.assertTrue(rows and max(rows) <= diagrams.GRID_COLUMNS)
+
+    def test_a_document_without_phases_is_a_single_group_of_rows(self):
+        src = diagrams.odd_progress("feat.md", self.tasks(34))
+        self.assertEqual(len(re.findall(r"^\s*subgraph ", src, re.M)), 1)
+        self.assertEqual(len(re.findall(r"^\s*n\d+[\[({]", src, re.M)), 34)
+
+    def test_sizes_0_1_34_200(self):
+        self.assertIsNone(diagrams.odd_progress("x.md", []))
+        one = diagrams.odd_progress("x.md", self.tasks(1))
+        self.assertEqual(len(re.findall(r"^\s*n\d+[\[({]", one, re.M)), 1)
+        self.assertNotIn("more", one)
+        big = diagrams.odd_progress("x.md", self.tasks(34, phases=4))
+        self.assertEqual(len(re.findall(r"^\s*n\d+[\[({]", big, re.M)), 34)
+        huge = diagrams.odd_progress("x.md", self.tasks(200, phases=8))
+        self.assertLessEqual(len(re.findall(r"^\s*n\d+[\[({]", huge, re.M)), diagrams.MAX_TASKS + 1)
+        self.assertIn(f"{200 - diagrams.MAX_TASKS} more", huge)
+        self.assertLessEqual(len(huge.splitlines()), 8 * diagrams.MAX_TASKS)
+
+    def test_hostile_titles_phases_and_names(self):
+        tasks = [{"done": i % 2 == 0, "blocked": i % 5 == 0, "phase": HOSTILE[i % len(HOSTILE)], "title": HOSTILE[(i + 3) % len(HOSTILE)]} for i in range(60)]
         src = diagrams.odd_progress(HOSTILE[0], tasks)
-        self.assertLessEqual(len(re.findall(r"^\s*n\d+\[", src, re.M)), diagrams.MAX_ITEMS + 2)
-        self.assertIn("more", src)
         self.assertNotIn("alert(1)\n", src)
         self.assertNotIn("<img", src)
+        for line in body_lines(src):
+            self.assertFalse(re.match(r"\s*click\b", line), line)
+        self.assertEqual(len(re.findall(r"^\s*end\s*$", src, re.M)), len(re.findall(r"^\s*subgraph ", src, re.M)))
+        ids = re.findall(r"^\s*(n\d+)[\[({]", src, re.M)
+        self.assertEqual(len(ids), len(set(ids)))
 
-    def test_empty_document_has_no_diagram(self):
-        self.assertIsNone(diagrams.odd_progress("x.md", []))
+    def test_syntax_characters_become_spaces_not_entity_codes_in_the_grid(self):
+        src = diagrams.odd_progress("a`b.md", [{"done": True, "title": "`code` [x] (y)", "phase": "P `1` <b>"}, {"done": False, "title": "W2 ok", "phase": "P2"}])
+        self.assertNotRegex(src, r"#\d+;")
+        self.assertIn("W2 ○ pending", src)
+
+    def test_old_tuple_free_task_dicts_still_work(self):
+        src = diagrams.odd_progress("x.md", [{"done": True, "title": "T1"}])
+        self.assertIn("1/1", src)
 
 
 class GraphTest(unittest.TestCase):

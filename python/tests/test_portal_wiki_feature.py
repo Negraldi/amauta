@@ -116,3 +116,64 @@ class NodePageTest(WikiBase):
         c.close()
         d = self.page("node", "repo::hub")["diagram"]
         self.assertLessEqual(d["source"].count("-->"), 40)
+
+
+class ParseTasksTest(unittest.TestCase):
+    DOC = """# Feature
+
+## Tasks
+
+F0 Design (impeccable)
+- [x] W1 first
+- [ ] W2 second
+
+F1 Wiki shell
+- [x] W3 third
+- [ ] W4 blocked by the user, BLOCKED on review
+- [!] W5 explicit mark
+
+### Later work
+- [ ] W6 under a markdown heading
+
+## Notes
+- [ ] not a task heading but still a checkbox
+"""
+
+    def test_phase_from_bare_lines_and_markdown_headings_and_blocked_marks(self):
+        t = wikifeature.parse_tasks(self.DOC)
+        self.assertEqual([x["title"][:2] for x in t], ["W1", "W2", "W3", "W4", "W5", "W6", "no"])
+        self.assertEqual([x["phase"] for x in t], ["F0 Design (impeccable)"] * 2 + ["F1 Wiki shell"] * 3 + ["Later work", "Notes"])
+        self.assertEqual([x["done"] for x in t], [True, False, True, False, False, False, False])
+        self.assertEqual([x["blocked"] for x in t], [False, False, False, True, True, False, False])
+
+    def test_a_doc_without_headings_has_no_phase_and_the_generic_heading_is_ignored_when_alone(self):
+        t = wikifeature.parse_tasks("- [x] a\n- [ ] b\n")
+        self.assertEqual([x["phase"] for x in t], [None, None])
+        t = wikifeature.parse_tasks("## Tasks\n- [x] a\n- [ ] b\n")
+        self.assertEqual([x["phase"] for x in t], [None, None])  # a single phase is no grouping
+
+    def test_titles_are_capped_and_prose_lines_are_not_phases(self):
+        t = wikifeature.parse_tasks("Some prose sentence that ends here.\n- [ ] " + "x" * 400 + "\n")
+        self.assertEqual(len(t[0]["title"]), 160)
+        self.assertIsNone(t[0]["phase"])
+
+
+class FeatureDiagramTest(WikiBase):
+    def doc(self, text):
+        (self.f["repo"] / "odd" / "tasks" / "feat.md").write_text(text)
+
+    def test_feature_page_has_a_grouped_diagram_source(self):
+        self.doc("# F\n\nP1 First\n- [x] T1 a\n- [ ] T2 b\n\nP2 Second\n- [!] T3 c\n")
+        d = self.page("feature", "feat")["diagram"]
+        self.assertEqual((d["tasks"], d["shown"]), (3, 3))
+        self.assertEqual(d["source"].count("subgraph "), 2)
+        self.assertIn("blocked", d["source"])
+
+    def test_no_tasks_means_no_diagram(self):
+        self.doc("# F\n\njust text\n")
+        self.assertIsNone(self.page("feature", "feat")["diagram"])
+
+    def test_diagrams_endpoint_uses_the_same_groups(self):
+        self.doc("# F\n\nP1 First\n- [x] T1 a\n\nP2 Second\n- [ ] T2 b\n")
+        docs = [d for d in self.get("/api/diagrams")["odd"] if d["document"] == "feat.md"]
+        self.assertEqual(docs[0]["source"].count("subgraph "), 2)

@@ -167,12 +167,14 @@ def _feature_page(portal, ident, q):
         text = f.read_text(errors="replace")[:MAX_TEXT]
     except OSError:
         raise NotFound() from None
-    tasks = [(m.group(1).lower() == "x", m.group(2).strip()[:160]) for m in re.finditer(r"^- \[( |x|X)\] (.+)$", text, re.M)]
+    parsed = wikifeature.parse_tasks(text)
+    tasks = [(t["done"], t["title"]) for t in parsed]
     title = next((m.group(1).strip() for m in re.finditer(r"^# (.+)$", text, re.M)), ident)
     pg = _blank("feature", ident, title, strip_title_h1(text, title))
     pg["meta"] = _meta(("Repository", repo.name), ("File", f.name), ("Tasks done", f"{sum(d for d, _ in tasks)} of {len(tasks)}"), ("Modified", _mtime(f)))
     pg["sections"] = [{"heading": "Tasks", "items": [_item(t, "done" if d else "pending") for d, t in tasks]}] if tasks else []
     pg["progress"] = wikifeature.progress(tasks)
+    pg["diagram"] = wikifeature.task_diagram(f.name, parsed)
     pg["commits"] = wikifeature.commits(repo, text)
     pg["links"], pg["missing"] = _wikilink_links(portal, text)
     pg["links"] += _feature_memories(portal, ident)
