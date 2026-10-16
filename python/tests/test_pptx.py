@@ -81,6 +81,21 @@ class PptxToMarkdownTest(unittest.TestCase):
             z.writestr("ppt/slides/slide1.xml", '<!DOCTYPE x [<!ENTITY a "boom">]><p:sld xmlns:p="p" xmlns:a="a"><a:t>&a;</a:t></p:sld>')
         self.assertIsNone(pptx.pptx_to_markdown(evil))
 
+    def test_a_corrupt_deflate_member_yields_none_instead_of_raising(self):
+        src = make_pptx(self.dir / "src.pptx")
+        p = self.dir / "torn.pptx"
+        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(p, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                zout.writestr(item.filename, zin.read(item.filename))
+        data = bytearray(p.read_bytes())
+        with zipfile.ZipFile(p) as z:
+            info = z.getinfo("ppt/slides/slide1.xml")
+        start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+        for i in range(start, start + min(info.compress_size, 64)):
+            data[i] ^= 0xFF  # garble the compressed bytes: zipfile raises zlib.error, not BadZipFile
+        p.write_bytes(bytes(data))
+        self.assertIsNone(pptx.pptx_to_markdown(p))
+
     def test_oversized_member_is_refused(self):
         big = self.dir / "big.pptx"
         with zipfile.ZipFile(big, "w", zipfile.ZIP_DEFLATED) as z:

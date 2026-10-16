@@ -18,6 +18,7 @@ import re
 import stat
 import unicodedata
 import zipfile
+import zlib
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -127,7 +128,7 @@ def pptx_to_markdown(path: Path) -> str | None:
             if not blocks:
                 return None
             return f"# {path.stem}\n\n" + "\n\n".join(blocks) + "\n"
-    except (zipfile.BadZipFile, _Bad, OSError, RuntimeError, ValueError, NotImplementedError):
+    except (zipfile.BadZipFile, zlib.error, EOFError, _Bad, OSError, RuntimeError, ValueError, NotImplementedError):
         return None
 
 
