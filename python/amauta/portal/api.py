@@ -497,6 +497,19 @@ class Portal:
             return {"source": diagrams.graph_neighborhood(g), "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": g["truncated"]}
         return self._graph_call(build)
 
+    # ---- wiki (page schema, recent changes, search) live in wiki.py; imported lazily because wiki.py imports this module ----
+    def wiki_page(self, q):
+        from . import wiki
+        return wiki.page(self, q)
+
+    def wiki_recent(self, q):
+        from . import wiki
+        return wiki.recent(self, q)
+
+    def wiki_search(self, q):
+        from . import wiki
+        return wiki.search(self, q)
+
     # ---- the only write ---------------------------------------------------------------------
     def refresh(self):
         if not self._refresh_lock.acquire(blocking=False):
@@ -541,4 +554,5 @@ _ROUTES = {
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/odd": "odd", "/api/diagrams": "diagrams", "/api/graph/diagram": "graph_diagram",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search",
 }
