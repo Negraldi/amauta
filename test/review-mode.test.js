@@ -30,7 +30,7 @@ test('clone-local off wins over global on; clone enable clears it; status is rea
   await setMode('on', { stateDir });
   const s = await setMode('off', { scope: 'clone', cwd: repo.dir, stateDir });
   assert.deepEqual([s.effective, s.source, s.clone, s.global], ['off', 'clone', 'off', 'on']);
-  assert.equal((await readFile(path.join(repo.dir, '.git', 'gentle-lite-rdd-mode'), 'utf8')).trim(), 'off');
+  assert.equal((await readFile(path.join(repo.dir, '.git', 'amauta-rdd-mode'), 'utf8')).trim(), 'off');
   const before = await readFile(path.join(stateDir, 'state.json'), 'utf8');
   await modeStatus({ cwd: repo.dir, stateDir });
   assert.equal(await readFile(path.join(stateDir, 'state.json'), 'utf8'), before);

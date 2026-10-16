@@ -72,12 +72,12 @@ export async function codegraphInit({ cwd = process.cwd(), searchPath, home, tmp
   try {
     root = await checkProjectDir(cwd, { ...(home ? { home } : {}), ...(tmpRoots ? { tmpRoots } : {}) });
   } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
   const exe = await findOnPath('codegraph', searchPath);
   if (!exe) {
-    io.stderr.write(`gentle-lite: ${CODEGRAPH_HINT}\n`);
+    io.stderr.write(`amauta: ${CODEGRAPH_HINT}\n`);
     return 1;
   }
   return new Promise((resolve) => {
@@ -85,7 +85,7 @@ export async function codegraphInit({ cwd = process.cwd(), searchPath, home, tmp
       if (stdout) io.stdout.write(stdout);
       if (stderr) io.stderr.write(stderr);
       if (err) {
-        io.stderr.write(`gentle-lite: codegraph init failed: ${err.message}\n`);
+        io.stderr.write(`amauta: codegraph init failed: ${err.message}\n`);
         resolve(typeof err.code === 'number' ? err.code : 1);
       } else {
         resolve(0);
@@ -102,7 +102,7 @@ async function run(args, io) {
   try {
     ({ values } = parseArgs({ args: rest, options: OPTIONS, allowPositionals: false, strict: true }));
   } catch (err) {
-    io.stderr.write(`gentle-lite: ${err.message}\n`);
+    io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
   const cwd = path.resolve(values.cwd ?? process.cwd());
@@ -113,7 +113,7 @@ async function run(args, io) {
     if (s.hint) io.stdout.write(`${s.hint}\n`);
     return 0;
   }
-  io.stderr.write('gentle-lite: usage: gentle-lite codegraph <init|status> [--cwd DIR]\n');
+  io.stderr.write('amauta: usage: amauta codegraph <init|status> [--cwd DIR]\n');
   return 1;
 }
 

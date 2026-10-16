@@ -41,7 +41,7 @@ const entry = (command, matcher = '') => ({ matcher, hooks: [{ type: 'command', 
 
 test('mergeHooks appends entries and keeps user hooks', () => {
   const settings = { hooks: { Stop: [entry('user-hook')] }, other: 1 };
-  const out = mergeHooks(settings, { Stop: [entry('gentle-lite hook review-stop')], SessionStart: [entry('gentle-lite hook review-stop', 'startup')] });
+  const out = mergeHooks(settings, { Stop: [entry('amauta hook review-stop')], SessionStart: [entry('amauta hook review-stop', 'startup')] });
   assert.equal(out.hooks.Stop.length, 2);
   assert.equal(out.hooks.Stop[0].hooks[0].command, 'user-hook');
   assert.equal(out.hooks.SessionStart.length, 1);
@@ -49,7 +49,7 @@ test('mergeHooks appends entries and keeps user hooks', () => {
 });
 
 test('mergeHooks is idempotent on identical commands', () => {
-  const add = { Stop: [entry('gentle-lite hook review-stop')] };
+  const add = { Stop: [entry('amauta hook review-stop')] };
   const once = mergeHooks({}, add);
   assert.deepEqual(mergeHooks(once, add), once);
 });
@@ -67,18 +67,18 @@ test('mergeHooks tolerates a non-array event value by refusing to overwrite', ()
 test('removeHooksByCommandPrefix removes only matching commands', () => {
   const settings = {
     hooks: {
-      Stop: [entry('user-hook'), entry('gentle-lite hook review-stop')],
-      UserPromptSubmit: [entry('gentle-lite hook skill-registry')],
+      Stop: [entry('user-hook'), entry('amauta hook review-stop')],
+      UserPromptSubmit: [entry('amauta hook skill-registry')],
     },
   };
-  const out = removeHooksByCommandPrefix(settings, 'gentle-lite ');
+  const out = removeHooksByCommandPrefix(settings, 'amauta ');
   assert.deepEqual(out.hooks, { Stop: [entry('user-hook')] });
 });
 
 test('removeHooksByCommandPrefix splits mixed entries and drops empty hooks key', () => {
-  const mixed = { matcher: '', hooks: [{ type: 'command', command: 'keep' }, { type: 'command', command: 'gentle-lite x' }] };
-  const out = removeHooksByCommandPrefix({ hooks: { Stop: [mixed] } }, 'gentle-lite ');
+  const mixed = { matcher: '', hooks: [{ type: 'command', command: 'keep' }, { type: 'command', command: 'amauta x' }] };
+  const out = removeHooksByCommandPrefix({ hooks: { Stop: [mixed] } }, 'amauta ');
   assert.deepEqual(out.hooks.Stop[0].hooks, [{ type: 'command', command: 'keep' }]);
-  const only = removeHooksByCommandPrefix({ a: 1, hooks: { Stop: [entry('gentle-lite x')] } }, 'gentle-lite ');
+  const only = removeHooksByCommandPrefix({ a: 1, hooks: { Stop: [entry('amauta x')] } }, 'amauta ');
   assert.deepEqual(only, { a: 1 });
 });

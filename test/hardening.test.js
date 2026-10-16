@@ -11,7 +11,7 @@ import { makeRepo, git } from './helpers/repo.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const server = path.join(root, 'src', 'mcp', 'server.js');
-const bin = path.join(root, 'bin', 'gentle-lite.js');
+const bin = path.join(root, 'bin', 'amauta.js');
 const exists = (p) => stat(p).then(() => true, () => false);
 const tmp = (p) => mkdtemp(path.join(os.tmpdir(), p));
 

@@ -4,7 +4,7 @@ import { writeFileAtomic } from '../core/fsatomic.js';
 import { gitOrNull } from '../util/git.js';
 import { resolveTargets } from '../install/paths.js';
 
-export const CLONE_FILE = 'gentle-lite-rdd-mode';
+export const CLONE_FILE = 'amauta-rdd-mode';
 
 async function readState(stateDir) {
   const text = await readFile(path.join(stateDir, 'state.json'), 'utf8').catch((err) => {

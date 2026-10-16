@@ -17,7 +17,7 @@ test('createBackup copies files and writes a manifest', async () => {
   await chmod(a, 0o600);
   const { dir, manifest } = await createBackup(state, [a, missing]);
   assert.ok(dir.startsWith(path.join(state, 'backups')));
-  assert.equal(manifest.schema, 'gentle-lite.backup/v1');
+  assert.equal(manifest.schema, 'amauta.backup/v1');
   assert.ok(!Number.isNaN(Date.parse(manifest.created_at)));
   assert.equal(manifest.entries.length, 2);
   const [ea, em] = manifest.entries;
@@ -73,7 +73,7 @@ test('listBackups returns newest first and tolerates no backups dir', async () =
   const b2 = await createBackup(state, [f], { now: new Date('2026-01-02T00:00:00Z') });
   const list = await listBackups(state);
   assert.deepEqual(list.map((b) => b.dir), [b2.dir, b1.dir]);
-  assert.equal(list[0].manifest.schema, 'gentle-lite.backup/v1');
+  assert.equal(list[0].manifest.schema, 'amauta.backup/v1');
   await rm(d, { recursive: true });
 });
 

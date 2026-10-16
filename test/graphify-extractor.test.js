@@ -52,7 +52,7 @@ test('install renders tools: Read and model: haiku unchanged; status tracks it; 
     assert.equal(fm.model, 'haiku');
     assert.equal(fm.name, 'graphify-extractor');
     assert.ok(!text.includes('{{') && !text.includes('mcp__'), text);
-    assert.ok(!text.includes('gentle-lite:'), 'no footer sections (they describe tools it does not have)');
+    assert.ok(!text.includes('amauta:'), 'no footer sections (they describe tools it does not have)');
     const s = await status(t.opts());
     assert.ok(s.items.find((i) => i.name === 'file agents/graphify-extractor.md')?.ok, 'status tracks the agent');
     await install(t.opts()); // idempotent, tools allowlist survives a second run

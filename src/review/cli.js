@@ -19,7 +19,7 @@ function guard(spec, fn) {
       const { values, positionals } = parseArgs({ args, options: { ...COMMON, ...spec }, allowPositionals: true, strict: true });
       return (await fn(values, positionals, io)) ?? 0;
     } catch (err) {
-      io.stderr.write(`gentle-lite: ${err.message}\n`);
+      io.stderr.write(`amauta: ${err.message}\n`);
       return 1;
     }
   };
@@ -45,7 +45,7 @@ const registry = guard(
       for (const s of (await collectSkills(cwd, claudeHome)).skills) io.stdout.write(`${s.name}\t${s.scope}\t${s.path}\n`);
       return 0;
     }
-    throw new Error('usage: gentle-lite skill-registry <refresh|list> [--cwd] [--quiet] [--no-gitignore] [--force]');
+    throw new Error('usage: amauta skill-registry <refresh|list> [--cwd] [--quiet] [--no-gitignore] [--force]');
   },
 );
 
@@ -66,7 +66,7 @@ const reviewMode = async (v, [action], io) => {
     io.stdout.write(`receipt-driven development: ${s.effective} (decided by ${s.source})\n  global: ${s.global}\n  clone-local: ${s.clone}\n`);
     return;
   }
-  if (action !== 'enable' && action !== 'disable') throw new Error('usage: gentle-lite review mode <enable|disable|status> [--scope global|clone] [--cwd]');
+  if (action !== 'enable' && action !== 'disable') throw new Error('usage: amauta review mode <enable|disable|status> [--scope global|clone] [--cwd]');
   const s = await setMode(action === 'enable' ? 'on' : 'off', opts);
   io.stdout.write(`receipt-driven development: ${s.effective} (decided by ${s.source})\n`);
 };
@@ -76,7 +76,7 @@ const review = guard(
   async (v, [sub, action], io) => {
     if (sub === 'assess') return reviewAssess(v, io);
     if (sub === 'mode') return reviewMode(v, [action], io);
-    throw new Error('usage: gentle-lite review <assess|mode>');
+    throw new Error('usage: amauta review <assess|mode>');
   },
 );
 

@@ -9,7 +9,7 @@ import { install, uninstall, status } from '../src/install/installer.js';
 import { findOnPath, checkProjectDir, codegraphInit, codegraphStatus, CODEGRAPH_HINT } from '../src/codegraph/index.js';
 import { main } from '../src/cli.js';
 
-const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'gentle-lite.js');
+const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
 const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
 const HOOK = 'codegraph prompt-hook';

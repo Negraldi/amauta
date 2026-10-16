@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, stat, copyFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { writeFileAtomic } from './fsatomic.js';
 
-export const BACKUP_SCHEMA = 'gentle-lite.backup/v1';
+export const BACKUP_SCHEMA = 'amauta.backup/v1';
 
 const stamp = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
 // Only a missing path counts as "did not exist"; any other failure (EACCES, ENOTDIR, ELOOP...)
@@ -114,7 +114,7 @@ export async function listBackups(stateDir) {
     try {
       out.push({ dir, manifest: await readManifest(dir) });
     } catch {
-      // not a gentle-lite backup; ignore
+      // not a amauta backup; ignore
     }
   }
   return out;
