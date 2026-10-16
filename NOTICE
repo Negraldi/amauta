@@ -22,6 +22,22 @@ are renamed /gentle-sdd-* -> /amauta-sdd-*, calls to the compiled `gentle-ai sdd
 commands point at amauta.sdd, and the native archive composer section is
 replaced by a manual-composition note.
 
+The optional design skill assets/skills/impeccable/ is vendored from impeccable, which is
+distributed under the Apache License, Version 2.0 (full text in
+assets/skills/impeccable/LICENSE):
+
+  Project:  pbakaus/impeccable
+  URL:      https://github.com/pbakaus/impeccable
+  Tag:      skill-v3.9.1 (path .claude/skills/impeccable)
+  Commit:   44c27a72af98394c32691ba79358811bff86bde6
+  Engine:   impeccable@3.6.1 from npm (installed on demand with --with-impeccable, not vendored)
+
+Changes made by amauta: the project-local skill paths in the markdown were replaced by
+placeholders resolved at install time; the `pin`, `unpin` and `hooks` commands and their scripts
+(pin.mjs, hook*.mjs, reference/hooks.md) were removed; the once-a-day update check in
+scripts/context.mjs was disabled; the `allowed-tools` frontmatter was dropped. Everything else is
+as upstream published it.
+
 The skills cpp-testing, python-testing, node-testing, r-testing, tabular-data and
 doc-formats are original to amauta (MIT, see LICENSE), not vendored.
 

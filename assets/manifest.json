@@ -177,5 +177,20 @@
     ],
     "agentsDir": "sdd/agents",
     "commandsDir": "sdd/commands"
+  },
+  "impeccable": {
+    "note": "optional, installed with --with-impeccable; pure-JavaScript 3.x line of the impeccable design skill (Apache-2.0) plus its pinned npm CLI engine",
+    "skillDir": "skills/impeccable",
+    "engine": {
+      "package": "impeccable",
+      "version": "3.6.1"
+    },
+    "upstream": {
+      "repo": "pbakaus/impeccable",
+      "tag": "skill-v3.9.1",
+      "commit": "44c27a72af98394c32691ba79358811bff86bde6",
+      "path": ".claude/skills/impeccable",
+      "license": "Apache-2.0"
+    }
   }
 }
