@@ -36,7 +36,7 @@ test('skill-registry hook writes the registry for the payload cwd and prints not
   await mkdir(path.join(project, '.atl'), { recursive: true }); // project opted in
   await writeFile(path.join(project, 'package.json'), '{}');
   const r = run(['hook', 'skill-registry'], JSON.stringify({ cwd: project, hook_event_name: 'UserPromptSubmit', session_id: 't' }), {
-    GENTLE_LITE_CLAUDE_HOME: claudeHome,
+    AMAUTA_CLAUDE_HOME: claudeHome,
   });
   assert.equal(r.status, 0);
   assert.equal(r.stdout, '');
@@ -50,7 +50,7 @@ test('skill-registry hook never creates .atl in a project that did not opt in', 
   const project = path.join(root, 'proj');
   await mkdir(project);
   await writeFile(path.join(project, 'package.json'), '{}');
-  const r = run(['hook', 'skill-registry'], JSON.stringify({ cwd: project }), { GENTLE_LITE_CLAUDE_HOME: path.join(root, 'claude') });
+  const r = run(['hook', 'skill-registry'], JSON.stringify({ cwd: project }), { AMAUTA_CLAUDE_HOME: path.join(root, 'claude') });
   assert.equal(r.status, 0);
   assert.ok(!(await exists(path.join(project, '.atl'))));
   await rm(root, { recursive: true });

@@ -29,7 +29,7 @@ export function buildPortalSpawn(args, env = process.env) {
   return {
     command: 'python3',
     args: out,
-    env: { ...env, PYTHONPATH: env.PYTHONPATH ? `${pythonPath}${path.delimiter}${env.PYTHONPATH}` : pythonPath, GENTLE_LITE_STATE_DIR: targets.stateDir },
+    env: { ...env, PYTHONPATH: env.PYTHONPATH ? `${pythonPath}${path.delimiter}${env.PYTHONPATH}` : pythonPath, AMAUTA_STATE_DIR: targets.stateDir },
   };
 }
 

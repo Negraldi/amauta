@@ -126,7 +126,7 @@ class Portal:
         where, args = self._range(q)
         conn = self._usage_conn()
         out = {"available": False, "totals": {}, "daily": [], "models": [], "cache_hit_ratio": None,
-               "events": 0, "dropped_events": housekeeping.dropped({"GENTLE_LITE_STATE_DIR": str(self.cfg.state_dir)})}
+               "events": 0, "dropped_events": housekeeping.dropped({"AMAUTA_STATE_DIR": str(self.cfg.state_dir)})}
         if conn is None:
             return out
         try:

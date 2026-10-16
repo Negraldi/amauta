@@ -77,7 +77,7 @@ test('review_assess and review_mode_status run against a temp repo', async () =>
       call(1, 'review_assess', { cwd: repo.dir, base_ref: 'HEAD~1', committed_only: true }),
       call(2, 'review_mode_status', { cwd: repo.dir }),
     ],
-    { GENTLE_LITE_STATE_DIR: stateDir },
+    { AMAUTA_STATE_DIR: stateDir },
   );
   assert.equal(payload(res[0]).risk, 'high');
   assert.equal(payload(res[0]).review_due, true);
@@ -94,7 +94,7 @@ test('skill_registry_refresh writes the registry for a project', async () => {
   await writeFile(path.join(home, 'skills', 'foo', 'SKILL.md'), '---\nname: foo\ndescription: d\n---\n');
   await mkdir(project);
   await writeFile(path.join(project, 'package.json'), '{}');
-  const [res] = await exchange([call(1, 'skill_registry_refresh', { cwd: project })], { GENTLE_LITE_CLAUDE_HOME: home });
+  const [res] = await exchange([call(1, 'skill_registry_refresh', { cwd: project })], { AMAUTA_CLAUDE_HOME: home });
   const out = payload(res);
   assert.equal(out.status, 'refreshed');
   assert.equal(out.count, 1);

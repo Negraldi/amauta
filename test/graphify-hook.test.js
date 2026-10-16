@@ -70,7 +70,7 @@ test('install creates an executable post-commit hook with only the marked block'
   assert.match(text, /gentle-lite-graphify\.lock/);
   assert.ok(text.includes(path.join(t.state, 'graphify-hook.log')), 'failures are logged under the state dir');
   assert.match(text, new RegExp(`PYTHONPATH='?${path.join(repoRoot, 'python').replaceAll('/', '\\/')}'? .*python3 -P -m amauta\\.graph sync --repo`));
-  assert.ok(text.includes(`GENTLE_LITE_STATE_DIR=${t.state}`));
+  assert.ok(text.includes(`AMAUTA_STATE_DIR=${t.state}`));
   assert.match(text, /\) >\/dev\/null 2>&1 &\n/);
   await t.cleanup();
 });

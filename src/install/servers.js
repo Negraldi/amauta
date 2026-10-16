@@ -8,7 +8,7 @@ export const memoryServer = (stateDir) => ({
   type: 'stdio',
   command: 'python3',
   args: ['-P', '-m', 'amauta.memory', 'serve'],
-  env: { PYTHONPATH: PYTHON_PATH, GENTLE_LITE_STATE_DIR: stateDir },
+  env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir },
 });
 
 /**
@@ -48,7 +48,7 @@ const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'St
 const pythonHook = (stateDir, module, timeout) => ({
   type: 'command',
   timeout,
-  command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`GENTLE_LITE_STATE_DIR=${stateDir}`), `python3 -P -m ${module} hook`].join(' '),
+  command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`AMAUTA_STATE_DIR=${stateDir}`), `python3 -P -m ${module} hook`].join(' '),
 });
 const telemetryHook = (stateDir) => pythonHook(stateDir, 'amauta.telemetry', 5);
 /** Transcript usage ingestion: only after a turn or subagent ends. */

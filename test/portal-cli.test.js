@@ -13,7 +13,7 @@ test('builds python3 -P -m amauta.portal with PYTHONPATH and forwarded options',
   assert.equal(r.command, 'python3');
   assert.deepEqual(r.args, ['-P', '-m', 'amauta.portal', '--port', '9001', '--claude-home', '/c/.claude', '--engram-db', '/e.db', '--repo', path.resolve('.'), '--repo', '/abs/r']);
   assert.equal(r.env.PYTHONPATH, `${path.join(repo, 'python')}${path.delimiter}/old`);
-  assert.equal(r.env.GENTLE_LITE_STATE_DIR, '/s');
+  assert.equal(r.env.AMAUTA_STATE_DIR, '/s');
   assert.equal(r.env.PATH, '/bin');
 });
 
@@ -21,9 +21,9 @@ test('defaults: no forwarded options, state dir derived like the installer', () 
   const r = buildPortalSpawn([], { HOME: '/h' });
   assert.deepEqual(r.args, ['-P', '-m', 'amauta.portal']);
   assert.equal(r.env.PYTHONPATH, path.join(repo, 'python'));
-  assert.ok(r.env.GENTLE_LITE_STATE_DIR.endsWith('.gentle-lite'));
+  assert.ok(r.env.AMAUTA_STATE_DIR.endsWith('.gentle-lite'));
   const sandbox = buildPortalSpawn(['--claude-home', '/x/.claude'], {});
-  assert.equal(sandbox.env.GENTLE_LITE_STATE_DIR, path.join('/x/.claude', '.gentle-lite'));
+  assert.equal(sandbox.env.AMAUTA_STATE_DIR, path.join('/x/.claude', '.gentle-lite'));
 });
 
 test('there is no way to pass a host', async () => {

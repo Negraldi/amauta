@@ -38,7 +38,7 @@ confirm() {
 
 # Never leave a name in the environment that would redirect gentle-lite away from $HOME.
 isolate_to_home() {
-  unset GENTLE_LITE_CLAUDE_HOME GENTLE_LITE_CLAUDE_JSON GENTLE_LITE_STATE_DIR
+  unset AMAUTA_CLAUDE_HOME AMAUTA_CLAUDE_JSON AMAUTA_STATE_DIR
 }
 
 need_cmd() { command -v "$1" >/dev/null 2>&1; }

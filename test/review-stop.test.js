@@ -12,7 +12,7 @@ async function setup({ mode = 'on' } = {}) {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), 'gl-stop-'));
   const repo = await makeRepo({ 'README.md': '# x\n', 'lib/a.js': 'a\n' });
   if (mode) await setMode(mode, { stateDir });
-  const env = { GENTLE_LITE_STATE_DIR: stateDir };
+  const env = { AMAUTA_STATE_DIR: stateDir };
   const fire = (event, extra = {}) =>
     reviewStop({ hook_event_name: event, session_id: 's1', cwd: repo.dir, ...extra }, env);
   return { stateDir, repo, fire, cleanup: () => Promise.all([rm(stateDir, { recursive: true }), rm(repo.dir, { recursive: true })]) };
@@ -87,7 +87,7 @@ test('resume and compact keep the baseline; startup and clear rebaseline', async
 test('a non-git cwd writes no baseline; a repo with no commits yet does', async () => {
   const t = await setup();
   const plain = await mkdtemp(path.join(os.tmpdir(), 'gl-plain-'));
-  const env = { GENTLE_LITE_STATE_DIR: t.stateDir };
+  const env = { AMAUTA_STATE_DIR: t.stateDir };
   await reviewStop({ hook_event_name: 'SessionStart', session_id: 'plain', cwd: plain }, env);
   assert.deepEqual(await readdir(path.join(t.stateDir, 'review-stop')).catch(() => []), []);
 

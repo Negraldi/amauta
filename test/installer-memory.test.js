@@ -34,7 +34,7 @@ const memoryEntry = (t) => ({
   type: 'stdio',
   command: 'python3',
   args: ['-P', '-m', 'amauta.memory', 'serve'],
-  env: { PYTHONPATH: path.join(repo, 'python'), GENTLE_LITE_STATE_DIR: t.stateDir },
+  env: { PYTHONPATH: path.join(repo, 'python'), AMAUTA_STATE_DIR: t.stateDir },
 });
 const telemetryCommands = (settings) =>
   Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /amauta\.telemetry hook/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
@@ -48,7 +48,7 @@ test('usage hook is registered for Stop and SubagentStop only, same form as tele
   const found = usageCommands(await t.settings());
   assert.deepEqual(found.map((f) => f.event).sort(), ['Stop', 'SubagentStop']);
   for (const f of found) {
-    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} GENTLE_LITE_STATE_DIR=${t.stateDir} python3 -P -m amauta.usage hook`);
+    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} AMAUTA_STATE_DIR=${t.stateDir} python3 -P -m amauta.usage hook`);
     assert.equal(f.matcher, '');
   }
   assert.ok((await status(t.opts())).ok);
@@ -131,7 +131,7 @@ test('telemetry hooks are registered for five events, marked, and removed by uni
   const found = telemetryCommands(settings);
   assert.deepEqual(found.map((f) => f.event).sort(), [...EVENTS].sort());
   for (const f of found) {
-    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} GENTLE_LITE_STATE_DIR=${t.stateDir} python3 -P -m amauta.telemetry hook`);
+    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} AMAUTA_STATE_DIR=${t.stateDir} python3 -P -m amauta.telemetry hook`);
     assert.equal(f.matcher, '');
   }
   assert.equal((await t.state()).telemetry, true);
@@ -160,8 +160,8 @@ test('paths with spaces are shell-quoted in the telemetry hook command', async (
   const t = await sandbox({ stateName: 'my state' });
   await install(t.opts());
   const [{ command }] = telemetryCommands(await t.settings());
-  assert.ok(command.includes(`'GENTLE_LITE_STATE_DIR=${t.stateDir}'`), command);
-  const sh = spawnSync('sh', ['-c', command.replace('python3 -P -m amauta.telemetry hook', 'printenv GENTLE_LITE_STATE_DIR')], { encoding: 'utf8' });
+  assert.ok(command.includes(`'AMAUTA_STATE_DIR=${t.stateDir}'`), command);
+  const sh = spawnSync('sh', ['-c', command.replace('python3 -P -m amauta.telemetry hook', 'printenv AMAUTA_STATE_DIR')], { encoding: 'utf8' });
   assert.equal(sh.stdout.trim(), t.stateDir);
   await t.cleanup();
 });

@@ -12,9 +12,9 @@ const run = (args, env) => spawnSync(process.execPath, [bin, ...args], { encodin
 test('install/status/uninstall via CLI honour the environment variables', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cli-'));
   const env = {
-    GENTLE_LITE_CLAUDE_HOME: path.join(root, 'claude'),
-    GENTLE_LITE_CLAUDE_JSON: path.join(root, 'c.json'),
-    GENTLE_LITE_STATE_DIR: path.join(root, 'state'),
+    AMAUTA_CLAUDE_HOME: path.join(root, 'claude'),
+    AMAUTA_CLAUDE_JSON: path.join(root, 'c.json'),
+    AMAUTA_STATE_DIR: path.join(root, 'state'),
   };
   let r = run(['status'], env);
   assert.equal(r.status, 1);
@@ -57,7 +57,7 @@ test('help lists install, uninstall and status', () => {
 
 test('status prints the per-block CLAUDE.md size report', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cli3-'));
-  const env = { GENTLE_LITE_CLAUDE_HOME: path.join(root, 'claude'), GENTLE_LITE_CLAUDE_JSON: path.join(root, 'c.json'), GENTLE_LITE_STATE_DIR: path.join(root, 'state') };
+  const env = { AMAUTA_CLAUDE_HOME: path.join(root, 'claude'), AMAUTA_CLAUDE_JSON: path.join(root, 'c.json'), AMAUTA_STATE_DIR: path.join(root, 'state') };
   assert.equal(run(['install'], env).status, 0);
   const r = run(['status'], env);
   assert.match(r.stdout, /CLAUDE\.md: \d+ chars \(budget 20000\)/);

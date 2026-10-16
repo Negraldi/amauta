@@ -119,7 +119,7 @@ class ServerTest(unittest.TestCase):
 class StdioTest(unittest.TestCase):
     def test_python_dash_m_serve_over_stdio(self):
         with tempfile.TemporaryDirectory() as state:
-            env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": state}
+            env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": state}
             lines = [
                 rpc(1, "initialize", {"protocolVersion": "2025-06-18"}),
                 {"jsonrpc": "2.0", "method": "notifications/initialized"},

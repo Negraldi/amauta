@@ -16,9 +16,9 @@ test('defaults point at the home directory', () => {
 
 test('env variables override defaults and flags override env', () => {
   const env = {
-    GENTLE_LITE_CLAUDE_HOME: '/e/home',
-    GENTLE_LITE_CLAUDE_JSON: '/e/c.json',
-    GENTLE_LITE_STATE_DIR: '/e/state',
+    AMAUTA_CLAUDE_HOME: '/e/home',
+    AMAUTA_CLAUDE_JSON: '/e/c.json',
+    AMAUTA_STATE_DIR: '/e/state',
   };
   assert.deepEqual(resolveTargets({}, env, HOME), { claudeHome: '/e/home', claudeJson: '/e/c.json', stateDir: '/e/state' });
   assert.equal(resolveTargets({ claudeHome: '/f/home' }, env, HOME).claudeHome, '/f/home');

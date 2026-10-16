@@ -174,7 +174,7 @@ class Base(unittest.TestCase):
         self.repo.mkdir()
         self.log = Path(self.tmp.name) / "fake.log"
         self.state = Path(self.tmp.name) / "state"
-        patcher = mock.patch.dict(os.environ, {"FAKE_GRAPHIFY_LOG": str(self.log), "GENTLE_LITE_STATE_DIR": str(self.state)})
+        patcher = mock.patch.dict(os.environ, {"FAKE_GRAPHIFY_LOG": str(self.log), "AMAUTA_STATE_DIR": str(self.state)})
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -510,7 +510,7 @@ class RealGraphifyTest(unittest.TestCase):
         (self.repo / "schema.sql").write_text("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT UNIQUE);\nCREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, total INTEGER);\n")
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
         self.state = Path(self.tmp.name) / "state"
-        patcher = mock.patch.dict(os.environ, {"GENTLE_LITE_STATE_DIR": str(self.state), "GRAPHIFY_QUERY_LOG_DISABLE": "1"})
+        patcher = mock.patch.dict(os.environ, {"AMAUTA_STATE_DIR": str(self.state), "GRAPHIFY_QUERY_LOG_DISABLE": "1"})
         patcher.start()
         self.addCleanup(patcher.stop)
 

@@ -20,7 +20,7 @@ SECRET = "TOP-SECRET-PROMPT-TEXT-12345"
 
 
 def run_cli(state, *args, stdin=""):
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": str(state)}
     return subprocess.run([sys.executable, "-m", "amauta.telemetry", *args], input=stdin, capture_output=True, text=True, env=env, timeout=30)
 
 
@@ -82,11 +82,11 @@ class HookTest(unittest.TestCase):
         conn.close()
         with mock.patch("subprocess.run", side_effect=AssertionError("no subprocess on the hot path")), \
                 mock.patch("subprocess.Popen", side_effect=AssertionError("no subprocess on the hot path")):
-            thook.record({"session_id": "s", "hook_event_name": "Stop", "cwd": "/a/b"}, 10, env={"GENTLE_LITE_STATE_DIR": str(self.state)})
+            thook.record({"session_id": "s", "hook_event_name": "Stop", "cwd": "/a/b"}, 10, env={"AMAUTA_STATE_DIR": str(self.state)})
         self.assertEqual(events(self.state)[0]["project"], "b")
 
     def test_values_are_bounded(self):
-        thook.record({"session_id": "s" * 500, "hook_event_name": "E" * 500, "cwd": "/x", "tool_name": "t" * 500}, 1, env={"GENTLE_LITE_STATE_DIR": str(self.state)})
+        thook.record({"session_id": "s" * 500, "hook_event_name": "E" * 500, "cwd": "/x", "tool_name": "t" * 500}, 1, env={"AMAUTA_STATE_DIR": str(self.state)})
         e = events(self.state)[0]
         self.assertLessEqual(len(e["session_id"]), 128)
         self.assertLessEqual(len(e["event"]), 64)
@@ -98,7 +98,7 @@ class DroppedAndRetentionTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.state = Path(self.tmp.name) / "state"
-        self.env = {"GENTLE_LITE_STATE_DIR": str(self.state)}
+        self.env = {"AMAUTA_STATE_DIR": str(self.state)}
         self.conn = mstore.connect(self.state / "memory.db")
         self.addCleanup(self.conn.close)
 
@@ -123,7 +123,7 @@ class DroppedAndRetentionTest(unittest.TestCase):
         self.assertEqual(housekeeping.dropped(self.env), 0)
         blocker = Path(self.tmp.name) / "f"
         blocker.write_text("x")
-        housekeeping.count_dropped({"GENTLE_LITE_STATE_DIR": str(blocker / "inside")})  # must not raise
+        housekeeping.count_dropped({"AMAUTA_STATE_DIR": str(blocker / "inside")})  # must not raise
 
     def test_prune_removes_only_old_events(self):
         self.add_event(100)

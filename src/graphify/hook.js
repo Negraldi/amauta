@@ -68,7 +68,7 @@ export function hookBlock({ stateDir }) {
     '      else note "graphify update failed: $out"; fi',
     '    fi',
     '    if [ -f graphify-out/graph.json ]; then',
-    `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} GENTLE_LITE_STATE_DIR=${shellQuote(stateDir)} python3 -P -m amauta.graph sync --repo .\${pend:+ --semantic-pending $pend} 2>&1)" || note "graph sync failed: $out"`,
+    `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} AMAUTA_STATE_DIR=${shellQuote(stateDir)} python3 -P -m amauta.graph sync --repo .\${pend:+ --semantic-pending $pend} 2>&1)" || note "graph sync failed: $out"`,
     '    fi',
     '    release; trap - EXIT',
     '    [ -e "$LOCK.pending" ] || break',

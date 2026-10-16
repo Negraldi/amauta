@@ -201,7 +201,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
     const { [KEY_VAR]: _omit, ...clean } = env;
     const sync = await capture('python3', ['-P', '-m', 'amauta.graph', 'sync', '--repo', root, '--semantic-model', chosen], {
       cwd: root,
-      env: { ...clean, PYTHONPATH: path.join(packageRoot, 'python'), GENTLE_LITE_STATE_DIR: resolveTargets({ stateDir }).stateDir },
+      env: { ...clean, PYTHONPATH: path.join(packageRoot, 'python'), AMAUTA_STATE_DIR: resolveTargets({ stateDir }).stateDir },
       secret: key,
       timeoutMs: 120000,
       children,

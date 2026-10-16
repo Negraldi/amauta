@@ -16,7 +16,7 @@ SECRET = "TOP-SECRET-TRANSCRIPT-TEXT-98765"
 
 
 def run_cli(state, *args, stdin=""):
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": str(state)}
     return subprocess.run([sys.executable, "-P", "-m", "amauta.usage", *args], input=stdin, capture_output=True, text=True, env=env, timeout=60)
 
 
@@ -320,7 +320,7 @@ class HookTest(Base):
         (evil / "amauta").mkdir(parents=True)
         marker = self.root / "pwned"
         (evil / "amauta" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').write('x')\n")
-        env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(self.state)}
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": str(self.state)}
         subprocess.run([sys.executable, "-P", "-m", "amauta.usage", "hook"], input="{}", capture_output=True, text=True, env=env, cwd=evil, timeout=30)
         self.assertFalse(marker.exists())
 

@@ -83,7 +83,7 @@ before(async () => {
   await writeFile(path.join(fakeBin, 'codegraph'), '#!/bin/sh\nexit 0\n');
   await chmod(path.join(fakeBin, 'codegraph'), 0o755);
   pathEnv = `${fakeBin}${path.delimiter}${process.env.PATH}`;
-  env = { ...process.env, HOME: home, PATH: pathEnv, GENTLE_LITE_CLAUDE_HOME: claudeHome, GENTLE_LITE_CLAUDE_JSON: claudeJson, GENTLE_LITE_STATE_DIR: stateDir };
+  env = { ...process.env, HOME: home, PATH: pathEnv, AMAUTA_CLAUDE_HOME: claudeHome, AMAUTA_CLAUDE_JSON: claudeJson, AMAUTA_STATE_DIR: stateDir };
   project = await makeRepo({ 'README.md': '# e2e project\n', 'package.json': '{}\n' });
   await project.write('odd/tasks/demo.md', '# Demo\n\n- [x] T1 first\n- [ ] T2 second\n');
   project.commit('add tasks');

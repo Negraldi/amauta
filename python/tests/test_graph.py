@@ -43,7 +43,7 @@ def write_graph(repo, data=None, key="links"):
 
 
 def run_cli(state, *args, cwd=None):
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "GENTLE_LITE_STATE_DIR": str(state)}
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": str(state)}
     return subprocess.run([sys.executable, "-P", "-m", "amauta.graph", *args], capture_output=True, text=True, env=env, cwd=cwd, timeout=60)
 
 
