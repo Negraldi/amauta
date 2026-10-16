@@ -43,13 +43,15 @@ odd/tasks/           feature documents
 ```
 amauta --help
 amauta version
-amauta install   [--claude-home DIR] [--claude-json FILE] [--state-dir DIR] [--dry-run]
+amauta install   [--claude-home DIR] [--claude-json FILE] [--state-dir DIR] [--dry-run] [--json]
+                 [--with-sdd|rea|context7|impeccable|archify] [--without-<module>] [--review-mode on|off]
+amauta restore   --backup ID [same dirs] [--json]    # undo an install from its backup (ids: YYYYMMDDTHHMMSSZ)
 amauta uninstall [same options]
 amauta status    [same options]
 ```
 
 ```
-amauta portal    [--port N] [--repo DIR]...      # read-only control portal
+amauta portal    [--port N] [--repo DIR]...      # local wiki portal (read-mostly)
 amauta portal launch [--idle-exit S]             # app window (Chrome --app), stops the server when closed
 amauta portal install-launcher [--remove]        # desktop entry (menu launcher), separate from `amauta install`
 amauta codegraph init|status [--cwd DIR]
@@ -158,33 +160,100 @@ Ingestion is incremental through `ingest_state` (byte offset; a shrunk or rewrit
 PYTHONPATH=python python3 -P -m amauta.usage backfill [--claude-home ~/.claude]
 ```
 
-## Control portal (read-only)
+## Control portal (local wiki)
+
+A local wiki over everything the harness knows: memories, skills, tools, MCP servers, sessions, ODD features and code-graph nodes,
+each a linked page with backlinks. Stdlib Python server plus a vanilla JS single-page UI; no CDN, no network, binds `127.0.0.1` only.
 
 ```
-PYTHONPATH=python python3 -P -m amauta.portal [--port 8765] [--claude-home DIR] [--engram-db FILE] [--repo DIR]...
+amauta portal [--port 8765] [--repo DIR]... [--claude-home DIR] [--engram-db FILE] [--idle-exit S]
+amauta portal launch [--idle-exit S]       # opens an app window (Chrome --app) and stops the server when it closes
+amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta install`
 ```
 
-`amauta portal [--port N] [--repo DIR]...` starts the same thing from the CLI (it sets `PYTHONPATH` and the state dir).
+(`PYTHONPATH=python python3 -P -m amauta.portal ...` is the same server without the CLI wrapper.)
 
-**App launcher.** `amauta portal launch` behaves like a web app: it picks a free port on 127.0.0.1, starts the portal detached
-(log in `<state>/portal/portal.log`, run file `<state>/portal/run.json`), and opens Google Chrome/Chromium (`google-chrome`,
-`google-chrome-stable`, `chromium`, `chromium-browser`, or `AMAUTA_BROWSER`) as `--app=` window with its own profile
-(`<state>/portal/browser-profile`, class `amauta-portal`). When that window closes the server gets SIGTERM (SIGKILL after 5 s)
-unless another launcher is still attached; a second launch reuses the running server. Without a Chromium-family browser it
-falls back to `xdg-open`. The page sends a heartbeat every 10 s, and a server started by `launch` (`--idle-exit`, default 30 s)
-exits by itself once the heartbeats stop; plain `amauta portal` runs until stopped. `amauta portal install-launcher` writes
-`~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) pointing at
-this checkout's `bin/amauta.js` and the vendored icon; `--remove` deletes it. It is not part of `amauta install`, which only
-manages Claude Code configuration. The portal also ships a web app manifest (`/static/manifest.webmanifest`).
-Views: Overview (tokens per day stacked by input/output/cache read/cache write, model split, cache hit ratio, sessions
-per day, dropped-telemetry counter, optional cost estimate), Usage (skills, tools, MCP servers/tools, subagent types;
-sortable), Sessions (per project/session, project and date filters), Memories (own DB with FTS, engram DB read-only,
-Claude file memories, graph memory of each `--repo`: stats, node search, neighbors), Harness (state.json, hooks, MCP servers, RDD mode, `odd/tasks` progress), Diagrams (see below).
-JSON API plus a single-page UI, stdlib only, no CDN. It binds `127.0.0.1` only (there is no host option), checks the
-`Host` header against DNS rebinding, serves a strict CSP (scripts from this origin only, no eval, nothing loaded from or sent to another origin; inline styles are allowed because Mermaid writes them into its SVG) and opens every database with
-`mode=ro` (never created, never migrated). The only write is the "Refresh usage" button, `POST /api/refresh`, which runs
-the usage backfill and needs the per-process token embedded in the page plus a same-origin check. Hook command text and
-MCP `args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
+### Routes
+
+| Route | Page |
+|---|---|
+| `#/` | Home: recent activity by day; rail with spending, skill-impact ranking, harness health |
+| `#/memory[/id-or-topic_key]` | Memory: text, derived links and backlinks, same-topic rows, related graph nodes |
+| `#/skill\|tool\|mcp[/name]` | Rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
+| `#/session[/id]` | Skills, tools, subagents, tokens and memories of one session |
+| `#/feature[/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
+| `#/node[/repo::id]` | Graph node, grouped neighbours, neighbourhood diagram |
+| `#/usage` | Token charts, model split, cache hit ratio, cost estimate (Range and Project filters live here) |
+| `#/harness`, `#/diagrams` | Install state and architecture diagram; Mermaid diagrams (see below) |
+| `#/lint` | Review candidates (see below) |
+| `#/settings` | Guarded settings editor (see below) |
+
+Search with `Ctrl+K` or `/`: one query across memories (FTS5), skills, tools, MCP servers, sessions, features, tasks and graph nodes.
+Memory links are derived, because the store keeps no relation table: `[[wikilinks]]` (`[[topic]]`, `[[kind:id|label]]`), the `topic_key`
+hierarchy, whole-word mentions (12+ characters) and graph labels. The store keeps only the latest revision of a memory; the page says so.
+All text from memories, repos and graphs is rendered through text nodes by a small markdown subset (no raw HTML), under a strict CSP.
+
+### Lint (`#/lint`, `GET /api/wiki/lint?days=30`)
+
+Counts and links for six checks, all capped and read-only. They are prompts to review, never verdicts.
+
+| Check | Meaning |
+|---|---|
+| Orphan memories | No wikilink, topic neighbour or mention connects them to another page |
+| Possible duplicates | Same or near-identical title under different `topic_key`s (same project) |
+| Possibly superseded | Same type and topic prefix, similar title, a newer save |
+| Installed skills never used | No load in the window (needs usage data) |
+| ODD tasks checked without a commit | No commit hash on the task line or in a progress line naming its id |
+| Wikilinks to missing pages | Target is not a memory, skill, tool, MCP server, session, feature or node |
+
+### Settings editor (`#/settings`)
+
+Changes a closed list of options, and nothing else: persona (`gentleman`/`neutral`), review mode, telemetry, the optional modules
+(`sdd`, `rea`, `context7`, `impeccable`, `archify`) and "reinstall / repair". The portal never edits a harness file itself; every change
+goes through `amauta install`.
+
+1. **Preview** runs `amauta install --dry-run --json` and shows the files that would be written, removed or kept (edited files are kept).
+2. **Apply** needs the one-time token from that preview (valid 5 minutes, bound to the chosen options and the `state.json` hash, one apply
+   at a time) plus an explicit confirmation. The installer backs up first and reports the backup id.
+3. **Undo** restores the newest backup that this portal applied (`amauta restore --backup <id>`); it is refused when `state.json` changed since.
+
+Guards: POST only, JSON only (4 KB cap), per-process token header, `Host` and `Origin` checks, closed schema (unknown keys and values are
+rejected), options reach the installer as argv entries (no shell). Limit: undoing a change that turned `impeccable` off does not bring its
+npm engine back; run reinstall / repair.
+
+### Skill impact (comparative, not causal)
+
+Skill pages and the Home rail compare sessions that loaded a skill with sessions that did not: tool error rate, retries (same tool within
+3 calls after an error), output tokens per turn after the load, test-command failure rate and loaded-but-unused. Every number carries
+`n` and the sessions behind it; a side with fewer than 5 sessions is suppressed ("not enough data"); small differences read "no clear
+difference". **Correlation caveat:** skills are loaded for harder or different tasks, so a worse number is not proof the skill hurts. A per-skill change
+log (sha256 of each installed `SKILL.md` and the git commits touching it) lets you read before and after windows. Telemetry stores outcome
+classes only (ok/error/denied, exit class, "is a test command"), never tool input, output, paths or commands. Opening a skill page records the
+hash of its installed `SKILL.md` (hash and first-seen time, no text) in `memory.db`; that is the one write a page view can cause (the guarded POSTs are listed under Security).
+
+### Archify (harness architecture)
+
+When the optional archify module is installed (`install --with-archify`), `#/harness` draws the architecture with the vendored archify CLI:
+hooks above the hub in lifecycle order, installed assets and state stores beside it, MCP servers below, one line per group. The generated
+JSON uses generated ids and capped labels, is rendered in a temp dir with a scrubbed environment, and is shown in a `sandbox="allow-scripts"`
+iframe from its own route (`/archify/<hash>.html`) under a separate CSP. Without node or the module the page falls back to the Mermaid diagram.
+
+### Launcher
+
+`amauta portal launch` picks a free port on 127.0.0.1, starts the portal detached (log in `<state>/portal/portal.log`, run file
+`<state>/portal/run.json`) and opens Google Chrome/Chromium (`AMAUTA_BROWSER` overrides) as an `--app=` window with its own profile
+(`<state>/portal/browser-profile`). When the window closes the server gets SIGTERM (SIGKILL after 5 s) unless another launcher is still
+attached; a second launch reuses the running server; without a Chromium-family browser it falls back to `xdg-open`. The page sends a
+heartbeat every 10 s and a launched server (`--idle-exit`, default 30 s) exits once the heartbeats stop. `install-launcher` writes
+`~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) with `Terminal=false`.
+
+### Security
+
+The server checks the `Host` header against DNS rebinding, serves a strict CSP (scripts from this origin only, no eval, nothing loaded from or
+sent to another origin; inline styles are allowed because Mermaid writes them into its SVG) and opens every database with `mode=ro` (never
+created, never migrated). Writes are limited to three guarded POST endpoints: Refresh usage (`/api/refresh`, the usage backfill),
+the heartbeat, and the settings editor above; each needs the per-process token and a same-origin check. Hook command text and MCP
+`args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
 (`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens; a missing key counts as 0, a non-numeric or negative value is reported under `invalid_prices` and that model is not costed).
 
 ### Diagrams (Mermaid)
@@ -218,7 +287,7 @@ that breaks them fails the suite.
 ## Safety model
 
 - Hooks fail open (always exit 0, empty stdout = no-op) except the SDD preflight, which fails closed for `sdd-*` agents.
-- Local only: no network code in telemetry/usage/portal; the portal binds `127.0.0.1` and opens databases read-only.
+- Local only: no network code in telemetry/usage/portal; the portal binds `127.0.0.1`, opens databases read-only and writes only through guarded POSTs (see Security above).
 - User content is preserved (hooks, MCP servers, `permissions`, CLAUDE.md text); files are backed up before
   every write and edited managed files are left alone on uninstall unless `--force`.
 - Deliberately absent (unlike gentle-ai): consent envelopes, review receipts/lineage, network telemetry, self-update.
