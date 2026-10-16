@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -24,6 +25,51 @@ def _text(value, limit=128):
 def _project(line: dict, path: Path) -> str:
     cwd = _text(line.get("cwd"), 1024)
     return (os.path.basename(cwd.rstrip("/")) if cwd else "") or path.parent.name
+
+
+# Coarse, content-free outcome classes. Only these labels are stored, never the command, the output or the error text.
+_TEST_COMMAND = re.compile(
+    r"(?:^|[\s;&|(])(?:"
+    r"(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test\b|npx\s+(?:vitest|jest)\b|(?:vitest|jest|pytest|ctest|tox)\b|"
+    r"python3?\s+(?:-\S+\s+)*-m\s+(?:unittest|pytest)\b|node\s+(?:--\S+\s+)*--test\b|cargo\s+(?:nextest\s+run|test)\b|go\s+test\b|"
+    r"Rscript\s+.*(?:testthat|test_dir|devtools::test|test_local|test_file)|(?:mvn|dotnet|make)\s+test\b|gradlew?\s+test\b)")
+_DENIED = ("User rejected tool use", "The user doesn't want to proceed", "Permission for this action was denied", "Request interrupted by user")
+_EXIT = re.compile(r"Exit code (\d{1,3})")
+
+
+def command_class(tool, inp):
+    cmd = inp.get("command") if tool == "Bash" else None
+    return "test" if isinstance(cmd, str) and _TEST_COMMAND.search(cmd[:2000]) else None
+
+
+def _exit_class(code: int) -> str:
+    return "fail" if code == 1 else "misuse" if code == 2 else "missing" if code in (126, 127) else "signal" if code >= 128 else "other"
+
+
+def parse_results(line: dict):
+    """[(call_id, result, exit_class)] for the tool_result items of one user line; result is ok|error|denied."""
+    msg = line.get("message") if isinstance(line, dict) and line.get("type") == "user" else None
+    content = msg.get("content") if isinstance(msg, dict) else None
+    out = []
+    for item in content if isinstance(content, list) else []:
+        if not isinstance(item, dict) or item.get("type") != "tool_result":
+            continue
+        call_id = _text(item.get("tool_use_id"))
+        if not call_id:
+            continue
+        if item.get("is_error") is not True:
+            out.append((call_id, "ok", None))
+            continue
+        body = item.get("content")
+        if isinstance(body, list):
+            body = next((b.get("text") for b in body if isinstance(b, dict) and isinstance(b.get("text"), str)), "")
+        head = body[:300] if isinstance(body, str) else ""
+        if head.startswith(_DENIED):
+            out.append((call_id, "denied", None))
+            continue
+        m = _EXIT.match(head)
+        out.append((call_id, "error", _exit_class(int(m.group(1))) if m else None))
+    return out
 
 
 def parse_assistant(line: dict, path: Path):
@@ -69,7 +115,7 @@ def parse_assistant(line: dict, path: Path):
         agent = _text(inp.get("subagent_type")) if name in ("Agent", "Task") else None
         server = name.split("__")[1] if name.startswith("mcp__") and name.count("__") >= 2 else None
         call_id = _text(item.get("id")) or f"{message_id}#{n}"
-        tools.append((message_id, call_id, session, ts, name, skill, agent, _text(server)))
+        tools.append((message_id, call_id, session, ts, name, skill, agent, _text(server), command_class(name, inp)))
     return usage_row, tools
 
 
@@ -83,9 +129,9 @@ _UPSERT = (
 
 
 def ingest_file(conn, path, max_lines: int | None = None, deadline: float | None = None) -> dict:
-    """Ingest new complete lines of one transcript. Returns {"messages": new usage rows, "tools": new tool rows, "lines": parsed lines}."""
+    """Ingest new complete lines of one transcript. Returns {"messages": new usage rows, "tools": new tool rows, "results": outcomes recorded, "lines": parsed lines}."""
     path = Path(path)
-    stats = {"messages": 0, "tools": 0, "lines": 0}
+    stats = {"messages": 0, "tools": 0, "results": 0, "lines": 0}
     st = path.stat()
     row = conn.execute('SELECT size, mtime, "offset" AS off FROM ingest_state WHERE path = ?', (str(path),)).fetchone()
     offset = row["off"] if row else 0
@@ -154,8 +200,13 @@ def _store(conn, raw: bytes, path: Path, stats: dict) -> None:
         if not existed and conn.total_changes > before:
             stats["messages"] += 1
     for t in tools:
-        cur = conn.execute("INSERT OR IGNORE INTO tool_calls (message_id, call_id, session_id, ts, tool, skill, subagent_type, mcp_server) VALUES (?,?,?,?,?,?,?,?)", t)
-        stats["tools"] += cur.rowcount
+        if conn.execute("SELECT 1 FROM tool_calls WHERE message_id = ? AND call_id = ?", t[:2]).fetchone():
+            conn.execute("UPDATE tool_calls SET cmd_class = ? WHERE message_id = ? AND call_id = ?", (t[8], t[0], t[1]))  # rows from before cmd_class existed
+            continue
+        conn.execute("INSERT INTO tool_calls (message_id, call_id, session_id, ts, tool, skill, subagent_type, mcp_server, cmd_class) VALUES (?,?,?,?,?,?,?,?,?)", t)
+        stats["tools"] += 1
+    for call_id, result, exit_class in parse_results(line):
+        stats["results"] += conn.execute("UPDATE tool_calls SET result = ?, exit_class = ? WHERE call_id = ?", (result, exit_class, call_id)).rowcount
 
 
 def transcript_files(claude_home) -> list[Path]:

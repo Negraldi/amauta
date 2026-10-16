@@ -79,7 +79,7 @@ F3 Diagrams
 - [x] W13 Mermaid ODD diagrams grouped by status, grid layout. (`d1ab71a`; `wikifeature.parse_tasks` reads phases (bare line above a checklist or markdown heading) and blocked (`[!]` or the word); `flowchart TB` with a summary node and one `subgraph` per phase, `direction LR`, rows of 6 built with invisible links, no hub; stadium/rectangle/hexagon + word + class per status; cap 60 + "N more"; feature page `diagram` field and "Task grid" section; checked with real Mermaid 11.17.2 in headless Chrome at 29 (real doc), 200 hostile, 1 tasks: rendered, no garbling; tests for 0, 1, 34, 200 and hostile labels; node 407, python 415, exit 0. Route: delegated direct.)
 
 F6 Skill-impact
-- [ ] W19 Verify what telemetry captures today (tool results, exit codes) and record the evidence here.
+- [x] W19 Verify what telemetry captures today (tool results, exit codes) and record the evidence here. (see "W19 evidence"; migration 6 + `ingest.parse_results`/`command_class`, `python/tests/test_usage_outcome.py`; RED seen (1 failure, 4 errors), then GREEN; npm test exit 0, node 414, python 443. Route: delegated direct (writer trigger: 2+ files).)
 - [ ] W20 Comparative per-skill metrics (error/retry rate after load, tokens per task, test outcomes, loaded-but-unused).
 - [ ] W21 Per-skill change log (git/hash) with before/after metrics.
 - [ ] W22 Skill page section and home ranking, with a correlation-not-causation note.
@@ -99,6 +99,17 @@ F8 Publish and transition
 - [ ] W27 Chained PRs by phase to `main` on GitHub; user merges.
 - [ ] W28 Local update path documented (pull + reinstall keeps sticky flags).
 - [ ] W29 `UPGRADING.md` + `amauta upgrade` (version check, dry-run, confirm, pull, reinstall, status; `--to <tag>` rollback).
+
+## W19 evidence (skill-impact data audit, 2026-10-16, real `~/.amauta/memory.db` read-only, schema v5 before this change)
+
+- Hook events stored: `TELEMETRY_EVENTS` = SessionStart, UserPromptSubmit, PostToolUse, Stop, SubagentStop (`src/install/servers.js`). No PreToolUse and no PostToolUseFailure are registered for telemetry. `events` columns: ts, session_id, event, tool_name, cwd, project, duration_ms, payload_bytes, `ok`. Real data: 347 rows (301 PostToolUse, 15 Stop, 14 SubagentStop, 16 UserPromptSubmit, 1 SessionStart), only from 2026-10-16.
+- `events.ok` is useless for outcomes: 0 of 301 PostToolUse rows have `ok = 0` although the transcripts of the same period contain tool errors. Claude Code's PostToolUse `tool_response` carries stdout/stderr/interrupted for Bash, no `is_error`, and failed calls do not reach PostToolUse at all. The `Skill` PostToolUse row exists (tool_name only, no skill name, no exit info).
+- Skill loads are identifiable only through transcript ingestion: `tool_calls.skill` (from the `Skill` tool_use input) with `ts` (ms precision, assistant message timestamp), `session_id`, `message_id`. Real data: 4,987 tool calls, 25 sessions, 2026-07-02 to 2026-10-16; skills loaded: reverse-engineer-anything 4 calls/3 sessions, impeccable 2/2, artifact-design 2/2, artifact-capabilities 1/1. Every skill is therefore below the n >= 5 sessions floor today.
+- `usage_messages` (one row per assistant message: input/output/cache tokens, model, project, sidechain) gives tokens per assistant turn; 4,935 rows, 25 sessions.
+- Before this change the ingestion read only assistant lines: tool results were NOT captured. Transcripts DO expose them: user lines with `tool_result` items (`tool_use_id`, `content`, `is_error` present only when true). Real data: 142 `is_error:true` across all transcripts (about 3% of calls). Bash failures start their content with `Exit code N` (seen: 1 x50, 2 x15, 127 x9, 144 x8, 143 x4, 255, 234); user-side refusals are errors with fixed phrases ("User rejected tool use", "The user doesn't want to proceed...", "Permission for this action was denied...", "Request interrupted by user"). `toolUseResult` is an object for Bash (stdout, stderr, interrupted, returnCodeInterpretation) but not needed.
+- Test commands: only `tool_use.input.command` shows them, and the old ingestion stored no input. A coarse boolean class is enough.
+- Retries: a true retry (same tool + same target) needs the target (path or command). Storing it, even hashed, would leak low-entropy content, so the retries metric is a proxy without target: a failed call followed by another call of the same tool within the next 3 calls of the session.
+- Telemetry change (privacy-preserving, migration 6, `ingest.py`): `tool_calls` gains `result` (`ok` | `error` | `denied`, NULL when no result line was seen), `exit_class` (Bash errors only: `fail` = 1, `misuse` = 2, `missing` = 126/127, `signal` >= 128, `other`), `cmd_class` (`test` when a Bash command matches a test runner, else NULL), plus an index on `call_id`. Migration 6 clears `ingest_state` once so the next backfill/portal Refresh re-reads transcripts and fills the history (inserts are idempotent). Never stored: tool input, output, error text, file paths or commands (a test pins that a secret string never reaches the DB files). The hook path is unchanged (transcripts cover outcomes), so hooks stay fail-open and bounded.
 
 ## Acceptance criteria
 
