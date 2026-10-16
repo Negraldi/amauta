@@ -1,11 +1,11 @@
 {
-  "name": "gentle-lite",
+  "name": "amauta",
   "version": "0.1.0",
   "description": "A small Node/Python harness for Claude Code, modelled on gentle-ai.",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "gentle-lite": "bin/gentle-lite.js"
+    "amauta": "bin/amauta.js"
   },
   "engines": {
     "node": ">=22"

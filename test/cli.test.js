@@ -6,15 +6,15 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const bin = path.join(root, 'bin', 'gentle-lite.js');
+const bin = path.join(root, 'bin', 'amauta.js');
 const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const run = (...args) => spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8' });
 
 test('package.json declares the bin, engines and scripts', () => {
-  assert.equal(pkg.name, 'gentle-lite');
+  assert.equal(pkg.name, 'amauta');
   assert.equal(pkg.type, 'module');
-  assert.equal(pkg.bin['gentle-lite'], 'bin/gentle-lite.js');
+  assert.equal(pkg.bin['amauta'], 'bin/amauta.js');
   assert.equal(pkg.engines.node, '>=22');
   assert.match(pkg.scripts.test, /node --test/);
   assert.match(pkg.scripts.test, /unittest/);
@@ -23,7 +23,7 @@ test('package.json declares the bin, engines and scripts', () => {
 test('--help prints usage and the command list, exit 0', () => {
   const r = run('--help');
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /Usage: gentle-lite/);
+  assert.match(r.stdout, /Usage: amauta/);
   assert.match(r.stdout, /Commands:/);
   assert.match(r.stdout, /version/);
 });
@@ -31,7 +31,7 @@ test('--help prints usage and the command list, exit 0', () => {
 test('no arguments behaves like --help', () => {
   const r = run();
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /Usage: gentle-lite/);
+  assert.match(r.stdout, /Usage: amauta/);
 });
 
 test('version prints the package version', () => {

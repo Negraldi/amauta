@@ -13,7 +13,7 @@ import { registerGraphifyCommands } from './graphify/hook.js';
 export const commands = new Map();
 
 commands.set('version', {
-  summary: 'Print the gentle-lite version',
+  summary: 'Print the amauta version',
   run: (_args, io) => {
     io.stdout.write(`${packageVersion()}\n`);
     return 0;
@@ -24,7 +24,7 @@ export function helpText() {
   const rows = [...commands.entries()]
     .map(([name, c]) => `  ${name.padEnd(16)}${c.summary}`)
     .join('\n');
-  return `Usage: gentle-lite <command> [options]\n\nCommands:\n${rows}\n\nRun \`gentle-lite --help\` to show this text.\n`;
+  return `Usage: amauta <command> [options]\n\nCommands:\n${rows}\n\nRun \`amauta --help\` to show this text.\n`;
 }
 
 commands.set('hook', {
@@ -50,7 +50,7 @@ export async function main(argv, io = { stdout: process.stdout, stderr: process.
   }
   const cmd = commands.get(name);
   if (!cmd) {
-    io.stderr.write(`gentle-lite: unknown command: ${name}\nRun \`gentle-lite --help\` for usage.\n`);
+    io.stderr.write(`amauta: unknown command: ${name}\nRun \`amauta --help\` for usage.\n`);
     return 1;
   }
   return (await cmd.run(rest, io)) ?? 0;
