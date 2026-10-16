@@ -340,3 +340,19 @@ test('revision history renders the list and diff lines with marks, hostile text 
   assert.match(v.textContent, /Revision 1 to 2/);
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
+
+test('a skill page draws usage over time as bars with a text summary, or says nothing was recorded', async () => {
+  const daily = Array.from({ length: 30 }, (_, i) => ({ day: `2026-09-${String(i + 1).padStart(2, '0')}`, value: i === 29 ? 3 : 0 }));
+  let { env } = await boot('#/skill/work-unit-commits', { '/api/wiki/page': { ...PAGE, kind: 'skill', id: 'work-unit-commits', usage: { daily, days: 30 } } });
+  const v = view(env);
+  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Usage over time'));
+  assert.match(v.textContent, /3 calls in the 30 days up to 2026-09-30/);
+  const rects = tree(v).filter((e) => e.tagName === 'rect');
+  assert.equal(rects.length, 30);
+  assert.ok(rects.every((r) => Number.isFinite(Number(r.getAttribute('height')))));
+  const svgEl = tree(v).find((e) => e.tagName === 'svg');
+  assert.match(svgEl.getAttribute('aria-label'), /Calls per day/);
+  ({ env } = await boot('#/skill/idle', { '/api/wiki/page': { ...PAGE, kind: 'skill', id: 'idle', usage: { daily: [], days: 30 } } }));
+  assert.match(view(env).textContent, /No calls recorded yet/);
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'rect').length, 0);
+});

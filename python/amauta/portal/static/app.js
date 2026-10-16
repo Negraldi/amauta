@@ -358,8 +358,22 @@ function historyBlock(hist) {
   return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note), h("ul", { class: "items" }, revs), ...diffs);
 }
 
+// Calls per day as small bars; the title text and a sentence carry the numbers, so color and shape are never the only signal.
+function usageBlock(usage) {
+  if (!usage) return null;
+  const total = usage.daily.reduce((a, d) => a + d.value, 0);
+  const last = usage.daily.length ? usage.daily[usage.daily.length - 1].day : "";
+  if (!total) return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, "No calls recorded yet."));
+  const W = 360, H = 60;
+  const bars = R.dailyBars(usage.daily, W, H);
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": `Calls per day over the ${usage.days} days up to ${last}` },
+    ...bars.map((b) => svg("g", null, svg("title", null, `${b.day}: ${b.value} calls`), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
+    svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, bars[0].day.slice(5)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, last.slice(5)));
+  return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, `${fmt(total)} calls in the ${usage.days} days up to ${last}.`), h("div", { class: "spark" }, root));
+}
+
 function pageExtras(pg) {
-  return [historyBlock(pg.history)];
+  return [usageBlock(pg.usage), historyBlock(pg.history)];
 }
 
 function bodyNodes(pg) {

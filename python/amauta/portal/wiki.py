@@ -9,7 +9,8 @@ from __future__ import annotations
 import re
 from ..graph import query as graph_query
 from .api import MAX_TEXT, BadRequest, NotFound, _int, _str, has_table, columns
-from . import wikimem, wikisess
+from . import wikimem, wikisess, wikiusage
+from .wikiusage import USAGE_COLUMN as _USAGE_COLUMN
 from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime, _ref, strip_title_h1
 
 MAX_ID = 512
@@ -102,6 +103,10 @@ def _memory_page(portal, ident, q):
         pg["links"] = _dedupe(pg["links"] + parents + wikimem.siblings(conn, d) + said)
         pg["backlinks"] = _dedupe(_memory_backlinks(conn, d) + children + said_by)
         pg["links"] += wikimem.related_nodes(portal, f"{d.get('title') or ''}\n{d['content']}")
+        sid = d.get("session_id")
+        title = wikiusage.session_title(portal, sid) if sid else None
+        if title:
+            pg["links"].append(_ref("session", sid, title))
         pg["history"] = wikimem.history(conn, d)
         pg["sections"] = _same_topic(conn, d)
         return pg
@@ -136,97 +141,6 @@ def _memory_title(portal, ident):
     try:
         row = _find_memory(conn, ident)
         return row["title"] if row else None
-    finally:
-        conn.close()
-
-
-# ---- skills, tools, MCP servers, sessions (usage tables) ----------------------------------------------------
-_USAGE_COLUMN = {"skill": "c.skill", "tool": "c.tool", "mcp": "c.mcp_server"}
-
-
-def _usage_conn(portal):
-    conn = portal._usage_conn()
-    if conn is None:
-        raise NotFound()
-    return conn
-
-
-def _session_label(conn, portal, session_id):
-    r = conn.execute("SELECT count(*) n, max(u.project) project, max(u.model) model, min(u.ts) first_ts FROM usage_messages u WHERE u.session_id = ?", (session_id,)).fetchone()
-    return wikisess.label(portal, session_id, r["project"], r["model"], r["n"], r["first_ts"])
-
-
-def _session_ref(conn, portal, r):
-    return _ref("session", r["session_id"], _session_label(conn, portal, r["session_id"]))
-
-
-def _session_rows(conn, where, args):
-    return conn.execute(
-        f"SELECT c.session_id, count(*) n, max(c.ts) last_ts, (SELECT max(u.project) FROM usage_messages u WHERE u.session_id = c.session_id) project "
-        f"FROM tool_calls c WHERE {where} GROUP BY c.session_id ORDER BY last_ts DESC LIMIT {LINK_CAP}", args).fetchall()
-
-
-def _usage_page(kind):
-    col = _USAGE_COLUMN[kind]
-
-    def build(portal, ident, q):
-        conn = _usage_conn(portal)
-        try:
-            t = conn.execute(f"SELECT count(*) n, count(DISTINCT c.session_id) sessions, min(c.ts) first_ts, max(c.ts) last_ts FROM tool_calls c WHERE {col} = ?", (ident,)).fetchone()
-            if not t["n"]:
-                raise NotFound()
-            pg = _blank(kind, ident, ident)
-            pg["meta"] = _meta(("Calls", t["n"]), ("Sessions", t["sessions"]), ("First used", t["first_ts"]), ("Last used", t["last_ts"]))
-            pg["backlinks"] = [_session_ref(conn, portal, r) for r in _session_rows(conn, f"{col} = ?", (ident,))]
-            if kind == "mcp":
-                tools = conn.execute("SELECT c.tool name, count(*) n FROM tool_calls c WHERE c.mcp_server = ? GROUP BY c.tool ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
-                pg["links"] = [_ref("tool", r["name"]) for r in tools]
-                pg["sections"] = [{"heading": "Tools of this server", "items": [_item(r["name"], f"{r['n']} calls", "tool", r["name"]) for r in tools]}]
-            if kind == "tool":
-                server = conn.execute("SELECT c.mcp_server FROM tool_calls c WHERE c.tool = ? AND c.mcp_server IS NOT NULL LIMIT 1", (ident,)).fetchone()
-                if server:
-                    pg["links"] = [_ref("mcp", server[0])]
-            return pg
-        finally:
-            conn.close()
-    return build
-
-
-def _session_page(portal, ident, q):
-    conn = _usage_conn(portal)
-    try:
-        cw = "u.cache_write_5m + u.cache_write_1h"
-        t = conn.execute(
-            f"SELECT count(*) messages, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, max(u.model) model, sum(u.input) input, sum(u.output) output, "
-            f"sum(u.cache_read) cache_read, sum({cw}) cache_write FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()
-        if not t["messages"]:
-            raise NotFound()
-        pg = _blank("session", ident, wikisess.label(portal, ident, t["project"], t["model"], t["messages"], t["first_ts"]))
-        pg["meta"] = _meta(("Project", t["project"]), ("Model", t["model"]), ("First message", t["first_ts"]), ("Last message", t["last_ts"]), ("Messages", t["messages"]),
-                           ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
-        for heading, kind, col, cond in (("Skills", "skill", "c.skill", "c.skill IS NOT NULL"), ("Tools", "tool", "c.tool", "1=1"),
-                                         ("MCP servers", "mcp", "c.mcp_server", "c.mcp_server IS NOT NULL"), ("Subagent types", None, "c.subagent_type", "c.subagent_type IS NOT NULL")):
-            rows = conn.execute(f"SELECT {col} name, count(*) n FROM tool_calls c WHERE c.session_id = ? AND {cond} GROUP BY name ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
-            if rows:
-                pg["sections"].append({"heading": heading, "items": [_item(r["name"], f"{r['n']} calls", kind, r["name"] if kind else None) for r in rows]})
-                if kind in ("skill", "mcp"):
-                    pg["links"] += [_ref(kind, r["name"]) for r in rows][:LINK_CAP]
-        pg["backlinks"] = _session_memories(portal, ident)
-        return pg
-    finally:
-        conn.close()
-
-
-def _session_memories(portal, session_id):
-    """Memories saved during this session (the hooks use the same session id)."""
-    source, conn = portal._memory_conn({})
-    if conn is None:
-        return []
-    try:
-        if not has_table(conn, "observations") or "session_id" not in columns(conn, "observations"):
-            return []
-        rows = conn.execute(f"SELECT o.id, o.title FROM observations o WHERE o.session_id = ? AND {_live(conn)} ORDER BY o.updated_at DESC LIMIT {LINK_CAP}", (session_id,)).fetchall()
-        return [_ref("memory", r["id"], r["title"]) for r in rows]
     finally:
         conn.close()
 
@@ -314,30 +228,6 @@ def _node_page(portal, ident, q):
 
 
 # ---- light existence checks (wikilink targets, search) --------------------------------------------------------
-def _usage_title(kind):
-    col = _USAGE_COLUMN[kind]
-
-    def title(portal, ident):
-        conn = portal._usage_conn()
-        if conn is None:
-            return None
-        try:
-            return ident if conn.execute(f"SELECT 1 FROM tool_calls c WHERE {col} = ? LIMIT 1", (ident,)).fetchone() else None
-        finally:
-            conn.close()
-    return title
-
-
-def _session_title(portal, ident):
-    conn = portal._usage_conn()
-    if conn is None:
-        return None
-    try:
-        return _session_label(conn, portal, ident) if conn.execute("SELECT 1 FROM usage_messages WHERE session_id = ? LIMIT 1", (ident,)).fetchone() else None
-    finally:
-        conn.close()
-
-
 def _feature_title(portal, ident):
     return ident if _find_feature(portal, ident) else None
 
@@ -357,10 +247,10 @@ def _node_title(portal, ident):
         conn.close()
 
 
-_PAGES = {"memory": _memory_page, "skill": _usage_page("skill"), "tool": _usage_page("tool"), "mcp": _usage_page("mcp"),
-          "session": _session_page, "feature": _feature_page, "node": _node_page}
-_TITLES = {"memory": _memory_title, "skill": _usage_title("skill"), "tool": _usage_title("tool"), "mcp": _usage_title("mcp"),
-           "session": _session_title, "feature": _feature_title, "node": _node_title}
+_PAGES = {"memory": _memory_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiusage.usage_page("mcp"),
+          "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page}
+_TITLES = {"memory": _memory_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiusage.usage_title("mcp"),
+           "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title}
 
 
 # ---- recent changes -------------------------------------------------------------------------------------------

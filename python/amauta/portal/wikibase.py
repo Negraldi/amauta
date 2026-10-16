@@ -47,7 +47,7 @@ def strip_title_h1(body, title):
     if not body:
         return body
     m = re.match(r"\s*# +(.+?)[ \t]*(?:\r?\n|$)", body)
-    norm = lambda t: _FEATURE_PREFIX.sub("", str(t).strip()).strip().lower()  # noqa: E731
+    norm = lambda t: re.sub(r"[-_\s]+", " ", _FEATURE_PREFIX.sub("", str(t).strip())).strip().lower()  # noqa: E731
     if m and norm(m.group(1)) == norm(title):
         return body[m.end():].lstrip("\r\n")
     return body
