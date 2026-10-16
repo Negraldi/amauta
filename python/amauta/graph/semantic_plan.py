@@ -32,7 +32,7 @@ from pathlib import Path
 
 from .. import paths
 from ..memory import store as mstore
-from . import sync
+from . import pptx, sync
 from .lock import LockHeld, graphify_lock
 
 DEFAULT_MODEL = "claude-haiku-5-5"
@@ -92,7 +92,7 @@ if op == "inputs":
     from graphify.cache import check_semantic_cache
     root = Path(payload["repo"])
     found = detect(root)["files"]
-    files = sorted({str(Path(f)) for kind in payload["kinds"] for f in found.get(kind, [])})
+    files = sorted({str(Path(f)) for kind in payload["kinds"] for f in found.get(kind, [])} | {str(Path(f)) for f in payload.get("extra", [])})
     kw = {"mode": payload["mode"]} if payload.get("mode") else {}
     nodes, edges, hyper, uncached = check_semantic_cache(files, root, prompt_file=spec, **kw)
     result = {"package": str(package), "spec": str(spec), "files": files, "uncached": sorted(uncached),
@@ -272,7 +272,10 @@ def cmd_plan(args) -> dict:
         if proc.returncode != 0:
             raise SemanticError(f"graphify update failed ({proc.returncode}): {(proc.stderr or proc.stdout).strip()[-800:]}")
     mode = "deep" if args.deep else None
-    found = run_worker(python, "inputs", {"repo": str(repo), "kinds": list(SEMANTIC_KINDS), "mode": mode})
+    # graphify has no .pptx reader: convert decks to Markdown sidecars (same naming as its docx/xlsx ones) and hand them to the
+    # worker as extra documents, because graphify's detect() ignores anything already sitting in graphify-out/converted.
+    extra = [str(p) for p in pptx.sync_sidecars(repo)]
+    found = run_worker(python, "inputs", {"repo": str(repo), "kinds": list(SEMANTIC_KINDS), "mode": mode, "extra": extra})
     try:
         existing, _ = load_existing(repo)
     except SemanticError:

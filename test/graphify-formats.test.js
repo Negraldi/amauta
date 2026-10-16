@@ -37,11 +37,12 @@ test('non-deep status does not run the interpreter and reports no formats', asyn
 test('deep status reports R, PDF, DOCX and XLSX availability from the launcher interpreter', async () => {
   const t = await sandbox();
   const s = await graphifyStatus({ searchPath: t.bin, deep: true });
-  assert.deepEqual(s.formats, { r: true, pdf: true, docx: true, xlsx: true });
+  assert.deepEqual(s.formats, { r: true, pdf: true, docx: true, xlsx: true, pptx: true });
   assert.match(s.detail, /R: available/);
   assert.match(s.detail, /PDF: available/);
   assert.match(s.detail, /DOCX: available/);
   assert.match(s.detail, /XLSX: available/);
+  assert.match(s.detail, /PPTX: available \(built in, stdlib\)/);
   assert.doesNotMatch(s.detail, /pipx inject/);
   const asked = (await readFile(t.log, 'utf8')).trim();
   for (const m of ['tree_sitter_language_pack', 'pypdf', 'docx', 'openpyxl']) assert.ok(asked.includes(m), m);
@@ -51,7 +52,7 @@ test('deep status reports R, PDF, DOCX and XLSX availability from the launcher i
 test('deep status names the exact pipx command for each missing format', async () => {
   const t = await sandbox({ missing: ['tree_sitter_language_pack', 'openpyxl'] });
   const s = await graphifyStatus({ searchPath: t.bin, deep: true });
-  assert.deepEqual(s.formats, { r: false, pdf: true, docx: true, xlsx: false });
+  assert.deepEqual(s.formats, { r: false, pdf: true, docx: true, xlsx: false, pptx: true });
   assert.match(s.detail, /R: NOT available/);
   assert.match(s.detail, /XLSX: NOT available/);
   assert.match(s.detail, /pipx inject graphifyy tree-sitter-language-pack/);
@@ -62,8 +63,9 @@ test('deep status names the exact pipx command for each missing format', async (
 test('deep status says unknown when the launcher shebang is not a python path', async () => {
   const t = await sandbox({ shebang: 'sh' });
   const s = await graphifyStatus({ searchPath: t.bin, deep: true });
-  assert.deepEqual(s.formats, { r: null, pdf: null, docx: null, xlsx: null });
+  assert.deepEqual(s.formats, { r: null, pdf: null, docx: null, xlsx: null, pptx: true });
   assert.match(s.detail, /R: unknown/);
   assert.match(s.detail, /XLSX: unknown/);
+  assert.match(s.detail, /PPTX: available/);
   await t.cleanup();
 });

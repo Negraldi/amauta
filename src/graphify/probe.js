@@ -9,6 +9,8 @@ const R_INJECT = 'pipx inject graphifyy tree-sitter-language-pack';
 export const GRAPHIFY_HINT = `graphify not found on PATH. Install it with: ${EXTRAS_INSTALL} then ${R_INJECT} (optional code graph; the hook and \`graphify semantic\` need it; the extras add SQL, PDF, Word and Excel, the inject adds R)`;
 const SQL_HINT = 'reinstall with: pipx install --force "graphifyy[sql,anthropic,pdf,office]"';
 const FORMAT_MODULES = [['r', 'R', 'tree_sitter_language_pack'], ['pdf', 'PDF', 'pypdf'], ['docx', 'DOCX', 'docx'], ['xlsx', 'XLSX', 'openpyxl']];
+// .pptx is converted by amauta itself (Python stdlib zipfile + xml), so it does not depend on graphify's extras.
+const BUILT_IN = { pptx: true };
 const PROBE_CODE = 'import importlib.util as u, sys\nfor m in sys.argv[1:]:\n    try:\n        ok = u.find_spec(m) is not None\n    except Exception:\n        ok = False\n    print(m, "ok" if ok else "missing")';
 
 const run = (exe, args, opts = {}) => new Promise((resolve) => {
@@ -44,17 +46,18 @@ async function launcherPython(exe) {
 
 /** Per-format availability (R, PDF, DOCX, XLSX): an import probe with graphify's own interpreter; every value is null when it cannot be probed. */
 async function formatSupport(exe) {
-  const unknown = Object.fromEntries(FORMAT_MODULES.map(([k]) => [k, null]));
+  const unknown = { ...Object.fromEntries(FORMAT_MODULES.map(([k]) => [k, null])), ...BUILT_IN };
   const py = await launcherPython(exe);
   if (!py) return unknown;
   const r = await run(py, ['-I', '-c', PROBE_CODE, ...FORMAT_MODULES.map((f) => f[2])], { timeout: 20000 });
   if (!r.ok) return unknown;
   const seen = Object.fromEntries(r.stdout.split('\n').map((l) => l.trim().split(' ')).filter((p) => p.length === 2));
-  return Object.fromEntries(FORMAT_MODULES.map(([k, , mod]) => [k, seen[mod] === 'ok' ? true : seen[mod] === 'missing' ? false : null]));
+  return { ...Object.fromEntries(FORMAT_MODULES.map(([k, , mod]) => [k, seen[mod] === 'ok' ? true : seen[mod] === 'missing' ? false : null])), ...BUILT_IN };
 }
 
 function formatsText(formats) {
   const parts = FORMAT_MODULES.map(([k, label]) => `${label}: ${formats[k] === null ? 'unknown' : formats[k] ? 'available' : 'NOT available'}`);
+  parts.push('PPTX: available (built in, stdlib)');
   const fixes = [];
   if (formats.r === false) fixes.push(R_INJECT);
   if (['pdf', 'docx', 'xlsx'].some((k) => formats[k] === false)) fixes.push(`pipx install --force "graphifyy[sql,anthropic,pdf,office]"`);
