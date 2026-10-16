@@ -12,6 +12,7 @@ const OPTIONS = {
   'with-sdd': { type: 'boolean', default: false },
   'with-rea': { type: 'boolean', default: false },
   'with-impeccable': { type: 'boolean', default: false },
+  'with-archify': { type: 'boolean', default: false },
   'with-context7': { type: 'boolean', default: false },
   deep: { type: 'boolean', default: false }, // status only: also probe the graphify [sql] extractor
 };
@@ -29,6 +30,7 @@ function parse(args) {
     withSdd: values['with-sdd'] ? true : undefined, // absent keeps what a previous install chose
     withRea: values['with-rea'] ? true : undefined,
     withImpeccable: values['with-impeccable'] ? true : undefined,
+    withArchify: values['with-archify'] ? true : undefined,
     withContext7: values['with-context7'] ? true : undefined,
     deep: values.deep,
   };
@@ -100,7 +102,7 @@ async function runStatus(opts, io) {
 }
 
 export function registerInstallCommands(commands) {
-  commands.set('install', { summary: 'Install amauta into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable)', run: guard(runInstall) });
+  commands.set('install', { summary: 'Install amauta into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable --with-archify)', run: guard(runInstall) });
   commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content', run: guard(runUninstall) });
   commands.set('status', { summary: 'Show what is installed and what is missing (--deep also probes the graphify SQL extractor)', run: guard(runStatus) });
 }

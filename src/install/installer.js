@@ -16,6 +16,7 @@ import {
 } from './templating.js';
 import { desiredHooks, desiredMcpServers, isAmautaHook, shellQuote } from './servers.js';
 import { renderSddFiles } from './sdd.js';
+import { renderArchifyFiles, archifyCli } from './archify.js';
 import { engineVersion, ensureEngine, removeEngine, renderImpeccableFiles } from './impeccable.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
@@ -141,7 +142,7 @@ export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'pytho
 }
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
-async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable }) {
+async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable, archify }) {
   const files = new Map();
   files.set(manifest.outputStyleTarget, await readAssetBuffer(manifest.personas[persona].outputStyle));
 
@@ -170,6 +171,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
   }
   if (sdd) for (const [rel, data] of await renderSddFiles(manifest, { assignments, engramPrefix, footers })) files.set(rel, data);
   if (impeccable) for (const [rel, data] of await renderImpeccableFiles(manifest, impeccable)) files.set(rel, data);
+  if (archify) for (const [rel, data] of await renderArchifyFiles(manifest)) files.set(rel, data);
   return files;
 }
 
@@ -208,6 +210,7 @@ async function plan(opts) {
   const telemetry = opts.telemetry !== false;
   const sdd = opts.withSdd === true || prev?.sdd === true; // optional module; sticky until uninstall
   const impeccable = opts.withImpeccable === true || prev?.impeccable === true; // optional design skill + pinned npm engine; sticky too
+  const archify = opts.withArchify === true || prev?.archify === true; // optional diagram skill (pure Node, vendored); sticky too
   const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
   // Opt-in MCP servers, sticky like sdd. A state that predates the opt-in (no key at all) registered both servers by
@@ -222,7 +225,7 @@ async function plan(opts) {
   const managedFiles = {};
 
   // Managed files (output style, skills, agents).
-  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable: impeccable ? { claudeHome: t.claudeHome, stateDir: t.stateDir } : null });
+  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable: impeccable ? { claudeHome: t.claudeHome, stateDir: t.stateDir } : null, archify });
   for (const [rel, data] of rendered) {
     const file = abs(t.claudeHome, rel);
     const existing = await readOrNull(file);
@@ -333,6 +336,7 @@ async function plan(opts) {
     telemetry,
     sdd,
     impeccable,
+    archify,
     rea,
     context7,
     codegraph_hook_added: codegraphHookAdded,
@@ -503,6 +507,11 @@ export async function status(opts = {}) {
     const want = (await loadManifest()).impeccable?.engine.version;
     const have = await engineVersion(t.stateDir);
     add('impeccable engine', have !== null && have === want, have === null ? 'missing (run: amauta install)' : have === want ? `${have} (${t.stateDir}/impeccable)` : `version ${have}, expected ${want} (run: amauta install)`);
+  }
+  if (state.archify === true) {
+    const cli = archifyCli(t.claudeHome);
+    const ok = (await statOrNull(cli)) !== null;
+    add('archify skill', ok, ok ? cli : `missing ${cli} (run: amauta install)`);
   }
   add('outputStyle', STYLE_NAMES.includes(settings.outputStyle), String(settings.outputStyle ?? 'unset'));
 

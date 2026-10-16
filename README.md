@@ -22,7 +22,7 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety)
 | Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
 | MCP servers | `engram` (our Python memory server; `amauta-memory` if you already have another `engram`), `amauta` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `codegraph` (if installed) |
 | Permissions | `ask`: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)` (prefix matches only, `rm -fr` or `sudo rm -rf` get past them). `deny` for `Read` and `Edit` of `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `*.pem`, `*.key`, `secrets/**`. No `defaultMode`, no allow entries |
-| Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--with-impeccable` (design skill, see below), `--no-telemetry` |
+| Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--with-impeccable` (design skill, see below), `--with-archify` (diagram skill, see below), `--no-telemetry` |
 
 ## Layout
 
@@ -270,6 +270,14 @@ node --test test/e2e.test.js   # end-to-end only
 the telemetry/usage rows in `memory.db`, fetches `/api/overview` from the portal on `127.0.0.1`, and finally uninstalls and
 compares the files with their seeds. A fake `codegraph` on `PATH` enables the codegraph hook; nothing touches the real home
 and nothing needs the network.
+
+## Optional diagram skill (`install --with-archify`)
+
+The [archify](https://github.com/tt-a1i/archify) skill (MIT, credited in [NOTICE](NOTICE), commit and checksums in `assets/manifest.json`),
+installed only on request into `~/.claude/skills/archify`. The agent writes typed JSON and `bin/archify.mjs` validates it and renders a
+self-contained HTML diagram (10 diagram types). It is pure Node with no npm dependencies, vendored as upstream published it except for the
+update check, which is permanently off (the skill never touches the network). Sticky until uninstall; `amauta status` checks the CLI is there.
+The portal uses the same CLI to draw the harness architecture on the Harness page when it is installed.
 
 ## Optional design skill (`install --with-impeccable`)
 
