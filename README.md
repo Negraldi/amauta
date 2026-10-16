@@ -22,7 +22,7 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety)
 | Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
 | MCP servers | `engram` (our Python memory server; `amauta-memory` if you already have another `engram`), `amauta` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `codegraph` (if installed) |
 | Permissions | `ask`: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)` (prefix matches only, `rm -fr` or `sudo rm -rf` get past them). `deny` for `Read` and `Edit` of `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `*.pem`, `*.key`, `secrets/**`. No `defaultMode`, no allow entries |
-| Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--no-telemetry` |
+| Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--with-impeccable` (design skill, see below), `--no-telemetry` |
 
 ## Layout
 
@@ -211,7 +211,7 @@ scripts/migrate.sh            # dry run: prints every action, changes nothing
 scripts/migrate.sh --execute  # asks y/N before each phase
 ```
 
-Phases: preflight, backup (`~/amauta-migration/<timestamp>/backup.tar.gz` with sha256), engram memory import, `gentle-ai uninstall --agent claude-code` (gentle-ai asks its own confirmation), disable the `engram@engram` plugin, `amauta install --with-sdd --with-rea --with-context7`, verification. Re-running resumes unfinished phases; after a finished run it does nothing, and after a rollback a new `--execute` starts a NEW run directory (an existing `backup.tar.gz` is never overwritten). The backup directory is `0700` and its files `0600`. gentle-ai's own uninstall prompt runs on your real terminal and is not logged. To undo: `scripts/rollback.sh ~/amauta-migration/<timestamp>` (restores config, only `mcpServers` of `~/.claude.json`, never `~/.claude/projects`; replaced files are moved aside, not deleted; works even if amauta was never installed; the backup directory is kept and marked `rolled-back`). `--assume-yes` exists only for the automated tests.
+Phases: preflight, backup (`~/amauta-migration/<timestamp>/backup.tar.gz` with sha256), engram memory import, `gentle-ai uninstall --agent claude-code` (gentle-ai asks its own confirmation), disable the `engram@engram` plugin, `amauta install --with-sdd --with-rea --with-context7 --with-impeccable`, verification. Re-running resumes unfinished phases; after a finished run it does nothing, and after a rollback a new `--execute` starts a NEW run directory (an existing `backup.tar.gz` is never overwritten). The backup directory is `0700` and its files `0600`. gentle-ai's own uninstall prompt runs on your real terminal and is not logged. To undo: `scripts/rollback.sh ~/amauta-migration/<timestamp>` (restores config, only `mcpServers` of `~/.claude.json`, never `~/.claude/projects`; replaced files are moved aside, not deleted; works even if amauta was never installed; the backup directory is kept and marked `rolled-back`). `--assume-yes` exists only for the automated tests.
 
 ## Tests
 
@@ -228,6 +228,23 @@ node --test test/e2e.test.js   # end-to-end only
 the telemetry/usage rows in `memory.db`, fetches `/api/overview` from the portal on `127.0.0.1`, and finally uninstalls and
 compares the files with their seeds. A fake `codegraph` on `PATH` enables the codegraph hook; nothing touches the real home
 and nothing needs the network.
+
+## Optional design skill (`install --with-impeccable`)
+
+The [impeccable](https://github.com/pbakaus/impeccable) design skill (Apache-2.0, credited in [NOTICE](NOTICE)), installed only on
+request, sticky until `uninstall`, which removes it together with its engine.
+
+- Skill `impeccable` = upstream `skill-v3.9.1`: `craft`, `shape`, `critique`, `audit`, `polish`, `live` and the other design
+  commands. Its helper scripts are plain Node with no npm dependencies and include their own static anti-pattern detector, so the
+  skill works even if the engine install below fails.
+- Engine: `npm install --prefix <state dir>/impeccable impeccable@3.6.1 --omit=optional --ignore-scripts --no-audit --no-fund`
+  (pinned; needs `npm` on PATH and network once). The skill calls it as `node <state dir>/impeccable/node_modules/impeccable/cli/bin/cli.js detect|ignores`.
+  An npm failure keeps the skill installed, prints the reason and exits 1; rerun `amauta install` to retry. `status` reports the engine
+  version and flags a missing or different one.
+- 3.x versus 4.x: impeccable 4.x moved its engine to a Rust binary (about 40 verbs), so it cannot run in a harness with no compiled code
+  of its own. 3.x is the last pure-JavaScript line and therefore lacks what 4.x added. Not in this install: the `pin`, `unpin` and `hooks`
+  commands (they write project hooks that point at a project-local skill copy), URL scanning (needs puppeteer, left out on purpose),
+  self-update (`amauta install` is the update path; the boot script's once-a-day version poll is disabled), and anything specific to 4.x.
 
 ## License
 
