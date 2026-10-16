@@ -42,6 +42,16 @@ echo "claude $*" >> "$STUB_LOG"
 if [ "$2" = "enable" ] && [ -n "\${STUB_ENABLE_REWRITES:-}" ]; then echo '{"rewritten":true}' > "$HOME/.claude/settings.json"; fi
 exit 0
 `;
+// Fake npm: records the call and lays out the pinned engine package, so the real install never reaches the network.
+const NPM_STUB = `#!/usr/bin/env bash
+echo "npm $*" >> "$STUB_LOG"
+prefix=""; prev=""
+for a in "$@"; do [ "$prev" = "--prefix" ] && prefix="$a"; prev="$a"; done
+mkdir -p "$prefix/node_modules/impeccable/cli/bin"
+printf '{"name":"impeccable","version":"3.6.1"}' > "$prefix/node_modules/impeccable/package.json"
+echo '// fake cli' > "$prefix/node_modules/impeccable/cli/bin/cli.js"
+exit 0
+`;
 const PGREP_STUB = `#!/usr/bin/env bash
 exit 1
 `;
@@ -62,6 +72,8 @@ async function fixture() {
   await writeFile(path.join(bin, 'claude'), CLAUDE_STUB);
   await chmod(path.join(bin, 'gentle-ai'), 0o755);
   await chmod(path.join(bin, 'claude'), 0o755);
+  await writeFile(path.join(bin, 'npm'), NPM_STUB);
+  await chmod(path.join(bin, 'npm'), 0o755);
   await writeFile(path.join(bin, 'pgrep'), PGREP_STUB); // a real Claude Code process on this machine must not trigger a prompt
   await chmod(path.join(bin, 'pgrep'), 0o755);
   const sections = ['orchestrator', 'persona', 'skills', 'engram'].map((id) => `<!-- gentle-ai:${id} -->\ntext of ${id}\n<!-- /gentle-ai:${id} -->\n`).join('\n');
@@ -132,10 +144,11 @@ test('migrate.sh without --execute is a dry run: prints the actions and changes 
     for (const phase of ['Phase 0', 'Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Phase 5', 'Phase 6']) assert.match(r.stdout, new RegExp(phase));
     assert.match(r.stdout, /dry run/i);
     assert.match(r.stdout, /gentle-ai uninstall --agent claude-code/);
+    assert.match(r.stdout, /amauta install --with-sdd --with-rea --with-context7 --with-impeccable/);
     assert.doesNotMatch(r.stdout, /--yes/);
     assert.deepEqual(await tree(f.home), before, 'dry run must not touch the fake HOME');
     const stubLog = await readFile(f.log, 'utf8').catch(() => '');
-    assert.doesNotMatch(stubLog, /uninstall|telemetry disable|plugin disable/);
+    assert.doesNotMatch(stubLog, /uninstall|telemetry disable|plugin disable|npm /);
   } finally { await f.cleanup(); }
 });
 
@@ -156,6 +169,8 @@ test('migrate.sh --execute migrates, keeps settings.local.json, then rollback.sh
     assert.match(stubLog, /^gentle-ai telemetry disable$/m);
     assert.match(stubLog, /^gentle-ai uninstall --agent claude-code$/m, 'uninstall must run without --yes');
     assert.match(stubLog, /^claude plugin disable engram@engram --scope user$/m);
+    assert.match(stubLog, /^npm install --prefix \S+\/impeccable impeccable@3\.6\.1 --omit=optional --ignore-scripts --no-audit --no-fund$/m, 'the pinned engine is installed through the stubbed npm');
+    assert.ok((await stat(path.join(f.claude, 'skills', 'impeccable', 'SKILL.md'))).isFile(), 'impeccable skill installed');
 
     const md = await read(f.claude, 'CLAUDE.md');
     assert.doesNotMatch(md, /gentle-ai:/);

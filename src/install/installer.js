@@ -16,6 +16,7 @@ import {
 } from './templating.js';
 import { desiredHooks, desiredMcpServers, isAmautaHook, shellQuote } from './servers.js';
 import { renderSddFiles } from './sdd.js';
+import { engineVersion, ensureEngine, removeEngine, renderImpeccableFiles } from './impeccable.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
 import { graphifyStatus, lastHookError } from '../graphify/probe.js';
@@ -140,7 +141,7 @@ export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'pytho
 }
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
-async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd }) {
+async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable }) {
   const files = new Map();
   files.set(manifest.outputStyleTarget, await readAssetBuffer(manifest.personas[persona].outputStyle));
 
@@ -168,6 +169,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
     files.set(`agents/${agent.name}.md`, Buffer.from(text, 'utf8'));
   }
   if (sdd) for (const [rel, data] of await renderSddFiles(manifest, { assignments, engramPrefix, footers })) files.set(rel, data);
+  if (impeccable) for (const [rel, data] of await renderImpeccableFiles(manifest, impeccable)) files.set(rel, data);
   return files;
 }
 
@@ -205,6 +207,7 @@ async function plan(opts) {
   const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
   const telemetry = opts.telemetry !== false;
   const sdd = opts.withSdd === true || prev?.sdd === true; // optional module; sticky until uninstall
+  const impeccable = opts.withImpeccable === true || prev?.impeccable === true; // optional design skill + pinned npm engine; sticky too
   const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
   // Opt-in MCP servers, sticky like sdd. A state that predates the opt-in (no key at all) registered both servers by
@@ -219,7 +222,7 @@ async function plan(opts) {
   const managedFiles = {};
 
   // Managed files (output style, skills, agents).
-  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd });
+  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable: impeccable ? { claudeHome: t.claudeHome, stateDir: t.stateDir } : null });
   for (const [rel, data] of rendered) {
     const file = abs(t.claudeHome, rel);
     const existing = await readOrNull(file);
@@ -329,6 +332,7 @@ async function plan(opts) {
     memory_server_key: memoryKey,
     telemetry,
     sdd,
+    impeccable,
     rea,
     context7,
     codegraph_hook_added: codegraphHookAdded,
@@ -337,13 +341,18 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, skipped, makeState };
+  return { t, prev, writes: real, skipped, makeState, impeccable, manifest };
 }
 
 export async function install(opts = {}) {
-  const { t, prev, writes, skipped, makeState } = await plan(opts);
+  const { t, prev, writes, skipped, makeState, impeccable, manifest } = await plan(opts);
   const files = writes.map((w) => w.rel);
-  if (opts.dryRun) return { dryRun: true, changed: writes.length > 0, files, skipped, backup: null };
+  const wanted = manifest.impeccable?.engine.version;
+  if (opts.dryRun) {
+    const dry = { dryRun: true, changed: writes.length > 0, files, skipped, backup: null };
+    if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
+    return dry;
+  }
 
   const statePath = statePathOf(t.stateDir);
   let backup = null;
@@ -354,7 +363,13 @@ export async function install(opts = {}) {
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
-  return { dryRun: false, changed: writes.length > 0 || stateChanged || !prev, files, skipped, backup };
+  const result = { dryRun: false, changed: writes.length > 0 || stateChanged || !prev, files, skipped, backup };
+  if (impeccable) {
+    // After the state is written, so a failed or offline npm run is retried by the next install.
+    result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: wanted, searchPath: opts.searchPath });
+    if (result.impeccable.engine === 'installed') result.changed = true;
+  }
+  return result;
 }
 
 async function pruneEmptyDirs(start, stop) {
@@ -454,6 +469,7 @@ export async function uninstall(opts = {}) {
     await pruneEmptyDirs(path.dirname(file), t.claudeHome);
   }
   if (hadState) await rm(statePath, { force: true });
+  if (state?.impeccable === true) await removeEngine(t.stateDir);
   return { changed: true, backup, removed: [...writes.map((w) => w.path), ...deletes], kept };
 }
 
@@ -482,6 +498,11 @@ export async function status(opts = {}) {
     const entry = path.join(repoRoot, 'python', 'amauta', 'sdd', '__main__.py');
     const present = (await statOrNull(entry)) !== null;
     add('sdd module', present, present ? entry : `missing ${entry}`);
+  }
+  if (state.impeccable === true) {
+    const want = (await loadManifest()).impeccable?.engine.version;
+    const have = await engineVersion(t.stateDir);
+    add('impeccable engine', have !== null && have === want, have === null ? 'missing (run: amauta install)' : have === want ? `${have} (${t.stateDir}/impeccable)` : `version ${have}, expected ${want} (run: amauta install)`);
   }
   add('outputStyle', STYLE_NAMES.includes(settings.outputStyle), String(settings.outputStyle ?? 'unset'));
 

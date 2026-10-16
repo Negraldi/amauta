@@ -54,3 +54,29 @@ test('every skill script named in the markdown exists in the vendored tree', asy
     }
   }
 });
+
+test('the vendored boot script never polls the network for skill updates', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const os = await import('node:os');
+  const script = process.env.IMPECCABLE_TEST_CONTEXT_SCRIPT ?? assetPath(`${DIR}/scripts/context.mjs`);
+  const home = await mkdtemp(path.join(os.tmpdir(), 'gl-imp-ctx-'));
+  let hits = 0;
+  const server = createServer((req, res) => { hits += 1; res.setHeader('content-type', 'application/json'); res.end('{"skills":"99.0.0"}'); });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const env = { PATH: process.env.PATH, HOME: home, IMPECCABLE_UPDATE_HOST: `http://127.0.0.1:${server.address().port}`, IMPECCABLE_UPDATE_CACHE: path.join(home, 'cache.json') };
+    // run asynchronously so this process can answer the request if the script makes one
+    const { spawn } = await import('node:child_process');
+    const child = spawn(process.execPath, [script], { cwd: home, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    await new Promise((resolve) => child.on('close', resolve));
+    assert.equal(hits, 0, 'no request to the update host');
+    assert.ok(!out.includes('UPDATE_AVAILABLE'));
+    assert.match(out, /NO_PRODUCT_MD/);
+  } finally {
+    server.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});

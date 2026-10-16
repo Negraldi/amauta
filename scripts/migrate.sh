@@ -196,14 +196,14 @@ fi
 
 # ---------------------------------------------------------------- Phase 5
 if begin_phase 5 "install amauta"; then
-  log "   would run: amauta install --dry-run, then amauta install --with-sdd --with-rea --with-context7"
+  log "   would run: amauta install --dry-run, then amauta install --with-sdd --with-rea --with-context7 --with-impeccable"
   if gate "Show the install plan and install amauta now?"; then
     with_caller_umask "${GL[@]}" install --dry-run
     confirm "Install exactly that?" || {
       log "Stopped at your request. Re-run to resume."
       exit 3
     }
-    with_caller_umask "${GL[@]}" install --with-sdd --with-rea --with-context7
+    with_caller_umask "${GL[@]}" install --with-sdd --with-rea --with-context7 --with-impeccable
     mark_phase 5
   fi
 fi
