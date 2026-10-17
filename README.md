@@ -177,18 +177,27 @@ amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta 
 
 (`PYTHONPATH=python python3 -P -m amauta.portal ...` is the same server without the CLI wrapper.)
 
+Top bar: a theme picker (System, Light, Dark, your custom themes) and an English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`).
+Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true}`, also editable in Settings > Projects) and from the git roots of your sessions; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
+
 ### Routes
 
 | Route | Page |
 |---|---|
 | `#/` | Home: recent activity by day; rail with spending, skill-impact ranking, harness health |
 | `#/memory[/id-or-topic_key]` | Memory: text, derived links and backlinks, same-topic rows, related graph nodes |
-| `#/skill\|tool\|mcp[/name]` | Rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
+| `#/skill` | Catalog of every skill (installed, plugin, project, built into Claude Code), filterable |
+| `#/skill\|tool\|mcp[/name]` | What a skill does, rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
+| `#/component` | Harness wiki catalog: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output styles |
+| `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle/id` | What a component does and when it runs, with the source of each fact (see below) |
 | `#/session[/id]` | Skills, tools, subagents, tokens and memories of one session |
-| `#/feature[/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
+| `#/feature[/project/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
 | `#/node[/repo::id]` | Graph node, grouped neighbours, neighbourhood diagram |
 | `#/usage` | Token charts, model split, cache hit ratio, cost estimate (Range and Project filters live here) |
-| `#/harness`, `#/diagrams` | Install state and architecture diagram; Mermaid diagrams (see below) |
+| `#/harness` | Install state and architecture diagram (`#/diagrams` redirects here) |
+| `#/project[/name]` | Projects (`--repo`, `portal.json`, git roots of your sessions): ODD features with progress, sessions, memories, graph status |
+| `#/themes` | Theme editor: custom light/dark themes with live preview, contrast warnings, import and export |
+| `#/memfile/id` | A Claude file memory (`projects/*/memory/*.md`), read-only |
 | `#/lint` | Review candidates (see below) |
 | `#/settings` | Guarded settings editor (see below) |
 
@@ -199,7 +208,7 @@ All text from memories, repos and graphs is rendered through text nodes by a sma
 
 ### Lint (`#/lint`, `GET /api/wiki/lint?days=30`)
 
-Counts and links for six checks, all capped and read-only. They are prompts to review, never verdicts.
+Counts and links for seven checks, all capped and read-only. They are prompts to review, never verdicts.
 
 | Check | Meaning |
 |---|---|
@@ -209,6 +218,23 @@ Counts and links for six checks, all capped and read-only. They are prompts to r
 | Installed skills never used | No load in the window (needs usage data) |
 | ODD tasks checked without a commit | No commit hash on the task line or in a progress line naming its id |
 | Wikilinks to missing pages | Target is not a memory, skill, tool, MCP server, session, feature or node |
+| Stale explanations | A harness component changed after its explanation note was written, or no longer exists |
+
+### Harness wiki (`#/component`)
+
+Every component of the harness has a page that opens with "What it does" and "When it runs" and names where each fact came from (a file path,
+"Built into Claude Code" or "Usage only"). Facts are rebuilt from the real files on each request (cached for a couple of seconds): hooks from user,
+project and plugin settings, MCP servers from `.claude.json`, `.mcp.json` and plugins, agents, commands and output styles from their folders and plugins,
+plugins from their manifests, built-in tools from a curated English and Spanish catalog, connectors from the server names your sessions called that no local
+config explains. MCP configs show type, command and arguments with secrets masked, and the NAMES of env variables and headers, never their values.
+
+- **Refresh descriptions** (`POST /api/harness/refresh`, optional `{"server": name}`): same guard as the other writes. It starts each configured command-based
+  MCP server (never http, sse or connectors), asks `tools/list` over JSON-RPC (10 s per server, process group killed afterwards, no shell) and caches names,
+  descriptions and parameter names in `<state>/wiki/mcp-tools.json`. Env goes to the process only.
+- **Request explanation** (`POST /api/harness/explain`, `{"kind", "id"}`): queues a request in `<state>/wiki/requests.jsonl`. The portal never calls a model:
+  ask Claude Code to process the wiki explanation requests (shipped skill `amauta-wiki-explain`), which uses
+  `python3 -P -m amauta.portal.wikiexplain list` and `... write --kind K --id I --file note.md`. Notes live in `<state>/wiki/notes/<kind>/` with the
+  hash of the source they were written from; the lint flags notes whose component changed.
 
 ### Settings editor (`#/settings`)
 
@@ -268,8 +294,7 @@ The portal ships a vendored, unmodified Mermaid build (`python/amauta/portal/sta
 (`python/amauta/portal/diagrams.py`): node ids are generated, and every label that comes from a repo, a graph or the install state is quoted and
 entity-escaped (quotes, brackets, backticks, `<`, `>`, newlines, `#`, `;`) and truncated, so a hostile label cannot add nodes or `click` directives. Where it shows:
 
-- Diagrams view: the install architecture (hooks per event, MCP servers, skill and agent counts, state dir; `GET /api/diagrams`) and one task-progress
-  flowchart per `odd/tasks/*.md` (green done, orange pending, capped at 40 tasks).
+- Harness page: the install architecture. Feature and project pages: one task-progress flowchart per `odd/tasks/*.md` (green done, orange pending, capped at 40 tasks). The old Diagrams page is gone; `#/diagrams` redirects to Harness.
 - Memories, graph memory: selecting a node also draws its neighborhood (nearest 30 nodes and up to 30 edges; `GET /api/graph/diagram`).
 - Memories: the portal shows markdown as plain text, and now also draws the first five ```` ```mermaid ```` fences of the selected file or memory below it.
 

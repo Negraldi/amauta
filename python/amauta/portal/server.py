@@ -11,18 +11,27 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, settings as settings_mod
+from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiexplain, wikiprobe
+from . import wikiharness
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
 STATIC = Path(__file__).resolve().parent / "static"
 JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
-STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
+STATIC_FILES = {"app.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
                 "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
 MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
+PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB
+PROJECTS_CONFIG = "/api/projects/config"
+PROBE_PATH = "/api/harness/refresh"
+PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
+EXPLAIN_PATH = "/api/harness/explain"
+EXPLAIN_MAX_BODY = 1024  # {"kind": ..., "id": ...}; ids are at most 200 characters
+THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
+THEMES_WRITES = {"/api/themes": themes_mod.write_theme, "/api/themes/delete": lambda state, body: themes_mod.delete_theme(state, body.get("slug"))}
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
@@ -173,12 +182,20 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", *SETTINGS_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, PROBE_PATH, EXPLAIN_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
         if path in SETTINGS_WRITES:
             return self._settings_write(SETTINGS_WRITES[path])
+        if path == PROJECTS_CONFIG:
+            return self._projects_write()
+        if path in THEMES_WRITES:
+            return self._themes_write(THEMES_WRITES[path])
+        if path == PROBE_PATH:
+            return self._probe_write()
+        if path == EXPLAIN_PATH:
+            return self._explain_write()
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -196,8 +213,8 @@ class Handler(BaseHTTPRequestHandler):
         status, body = self.server.portal.refresh()
         self._json(status, body)
 
-    def _settings_body(self):
-        """Strict JSON body of a settings write: JSON content type, bounded size, an object; None after answering with the error."""
+    def _settings_body(self, limit=SETTINGS_MAX_BODY):
+        """Strict JSON body of a guarded write: JSON content type, bounded size, an object; None after answering with the error."""
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if ctype != "application/json":
             self._json(415, {"error": "Content-Type must be application/json"})
@@ -213,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
         if length < 0:
             self._json(400, {"error": "invalid Content-Length"})
             return None
-        if length > SETTINGS_MAX_BODY:
+        if length > limit:
             self._json(413, {"error": "body too large"})
             return None
         try:
@@ -234,6 +251,53 @@ class Handler(BaseHTTPRequestHandler):
             result = getattr(self.server.settings, action)(body)
         except settings_mod.SettingsError as err:
             return self._json(err.status, err.body())
+        self._json(200, result)
+
+    def _projects_write(self):
+        """Replace portal.json (project paths and the auto-discover switch): same guard and body rules as settings, closed schema, paths checked."""
+        body = self._settings_body(PROJECTS_MAX_BODY)
+        if body is None:
+            return
+        portal = self.server.portal
+        try:
+            projects_mod.write_config(portal.cfg.state_dir, body, portal.cfg.home)
+        except projects_mod.ConfigError as err:
+            return self._json(err.status, {"error": err.message})
+        projects_mod.forget(portal)
+        self._json(200, portal.projects({}))
+
+    def _themes_write(self, action):
+        """Create/update or delete one theme file under `<state_dir>/themes`: same guard and body rules as the other writes, closed schema, slug-only paths."""
+        body = self._settings_body(THEMES_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = action(self.server.portal.cfg.state_dir, body)
+        except themes_mod.ThemeError as err:
+            return self._json(err.status, err.body())
+        self._json(200, result)
+
+    def _probe_write(self):
+        """Ask the configured local stdio MCP servers for their tools (see wikiprobe): same guard and body rules as the other writes, closed schema."""
+        body = self._settings_body(PROBE_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = wikiprobe.refresh(self.server.portal, body)
+        except wikiprobe.ProbeError as err:
+            return self._json(err.status, err.body())
+        self._json(200, result)
+
+    def _explain_write(self):
+        """Queue a request for a written explanation of one component (see wikiexplain): same guard and body rules, closed schema. The portal calls no model."""
+        body = self._settings_body(EXPLAIN_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = wikiexplain.request(self.server.portal, body)
+        except wikiexplain.ExplainError as err:
+            return self._json(err.status, err.body())
+        wikiharness.forget(self.server.portal)
         self._json(200, result)
 
     def _not_allowed(self):

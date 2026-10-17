@@ -25,10 +25,11 @@ class SkillPageTest(SkillBase):
         self.assertTrue(pg["body_md"].startswith("Body text"), pg["body_md"][:40])  # frontmatter and the repeated title heading are gone
         self.assertNotIn("description:", pg["body_md"])
         m = self.labels(pg)
-        self.assertEqual(m["description"], "Plan commits as reviewable work units.")
+        self.assertEqual(pg["summary"]["description"], "Plan commits as reviewable work units.")
+        self.assertNotIn("description", m)  # shown in the summary block, not repeated in the rail
         self.assertEqual(m["version"], "1.2")
         self.assertEqual(m["bad"], fx.XSS)  # raw data
-        self.assertEqual((m["Installed"], m["Calls"]), ("yes", "1"))
+        self.assertEqual((m["Source"], m["Calls"]), ("Your skills", "1"))
         self.assertEqual([(x["kind"], x["id"]) for x in pg["missing"]], [])
 
     def test_installed_but_never_used_skill_still_has_a_page(self):
@@ -40,7 +41,8 @@ class SkillPageTest(SkillBase):
 
     def test_used_but_not_installed_skill_says_so(self):
         pg = self.page("skill", "work-unit-commits")
-        self.assertEqual(self.labels(pg)["Installed"], "no")
+        self.assertNotIn("Installed", self.labels(pg))
+        self.assertTrue(pg["summary"]["builtin"])
         self.assertIsNone(pg["body_md"])
 
     def test_hostile_names_never_read_outside_the_skills_directory(self):
@@ -111,3 +113,16 @@ class SessionPageTest(SkillBase):
 
     def test_sessions_without_saved_memories_have_no_empty_section(self):
         self.assertNotIn("Memories saved in this session", [s["heading"] for s in self.page("session", "s2")["sections"]])
+
+
+class NumberHintTest(SkillBase):
+    def test_meta_and_items_mark_real_numbers_so_the_ui_can_group_digits(self):
+        pg = self.page("skill", "work-unit-commits")
+        by = {m["label"]: m for m in pg["meta"]}
+        self.assertEqual(by["Calls"].get("fmt"), "number")
+        self.assertEqual(by["Sessions"].get("fmt"), "number")
+        self.assertNotIn("fmt", by["Source"])
+        self.assertNotIn("fmt", by["Last used"])  # dates are recognised by shape, never hinted
+        tokens = next(s for s in pg["sections"] if s["heading"].startswith("Tokens"))
+        self.assertEqual(tokens["items"][0].get("fmt"), "number")
+        self.assertNotIn("fmt", tokens["items"][-1])

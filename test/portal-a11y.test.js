@@ -75,7 +75,7 @@ test('the right rail shows from 72rem up and collapses below it; the sidebar col
 // ---- keyboard ---------------------------------------------------------------------------------------------
 test('a skip link is the first focusable element and targets the focusable main region', () => {
   const body = html.slice(html.indexOf('<body>'));
-  assert.match(body, /^<body>\s*<a class="skip" href="#view">/);
+  assert.match(body, /^<body>\s*<a class="skip"[^>]*href="#view">/);
   assert.match(html, /<main id="view" tabindex="-1">/);
   assert.match(css, /\.skip:focus \{ top: /);
 });
@@ -112,14 +112,33 @@ const R = rctx.AmautaRoute;
 
 test('Range and Project filters show on Usage and on list views that read them, never on a page (id) or other routes', () => {
   assert.equal(R.showsFilters({ kind: 'usage', id: '' }), true);
-  for (const kind of ['session', 'skill', 'tool', 'mcp']) {
+  for (const kind of ['session', 'tool', 'mcp']) {
     assert.equal(R.showsFilters({ kind, id: '' }), true, `${kind} list`);
     assert.equal(R.showsFilters({ kind, id: 'x' }), false, `${kind} page`);
   }
-  for (const kind of ['home', 'memory', 'feature', 'node', 'harness', 'diagrams', 'settings', 'lint', 'unknown']) assert.equal(R.showsFilters({ kind, id: '' }), false, kind);
+  for (const kind of ['home', 'memory', 'feature', 'node', 'harness', 'settings', 'lint', 'skill', 'unknown']) assert.equal(R.showsFilters({ kind, id: '' }), false, kind); // the skill catalog has its own filter
 });
 
 test('the shell hides the filter bar through showsFilters, not a hard-coded list', () => {
   assert.match(app, /\$\("filters"\)\.hidden = !R\.showsFilters\(route\);/);
   assert.doesNotMatch(app, /FILTERED/);
+});
+
+// ---- themes: whatever tokens a theme sets, diagrams stay light and focus stays visible ---------------------------------
+test('diagram cards pin their own light tokens, so a dark or custom theme cannot make Mermaid text unreadable', () => {
+  const rule = css.match(/\n\.diagram \{([^}]*)\}/)[1];
+  const pinned = tokensIn(rule);
+  for (const name of ['bg', 'surface', 'ink', 'ink-muted', 'line']) assert.deepEqual(pinned[name], SCHEMES.light[name], `--${name} is pinned to the light value`);
+  assert.match(css, /\.archify-frame \{[^}]*background: oklch\(1 0 0\)/);
+  assert.ok(contrast(pinned.ink, pinned.bg) >= 4.5 && contrast(pinned['ink-muted'], pinned.surface) >= 4.5);
+});
+
+test('forced schemes also set color-scheme so native controls follow the portal theme', () => {
+  assert.match(css, /:root\[data-theme="dark"\] \{ color-scheme: dark; \}/);
+  assert.match(css, /:root\[data-theme="light"\] \{ color-scheme: light; \}/);
+});
+
+test('the focus ring is a 2px accent outline on every element, and the theme editor controls inherit it', () => {
+  assert.match(css, /:focus-visible \{ outline: 2px solid var\(--accent\); outline-offset: 2px; \}/);
+  assert.doesNotMatch(css.replace(/#view \{[^}]*\}/, ''), /outline:\s*(none|0)\b/, 'only the programmatically focused <main> hides its outline');
 });

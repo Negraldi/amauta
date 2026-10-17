@@ -33,7 +33,8 @@ test('parseHash: home by default, legacy tab hashes, raw slashes, bad encodings 
   assert.deepEqual(plain(R.parseHash('#overview')), { kind: 'home', id: '' });
   assert.deepEqual(plain(R.parseHash('#sessions')), { kind: 'session', id: '' });
   assert.deepEqual(plain(R.parseHash('#memories')), { kind: 'memory', id: '' });
-  for (const k of ['usage', 'harness', 'diagrams']) assert.deepEqual(plain(R.parseHash('#' + k)), { kind: k, id: '' });
+  for (const k of ['usage', 'harness']) assert.deepEqual(plain(R.parseHash('#' + k)), { kind: k, id: '' });
+  for (const h of ['#diagrams', '#/diagrams']) assert.deepEqual(plain(R.parseHash(h)), { kind: 'harness', id: '' }, h); // the removed Diagrams page redirects
   assert.deepEqual(plain(R.parseHash('#/memory/arch/widgets')), { kind: 'memory', id: 'arch/widgets' });
   assert.deepEqual(plain(R.parseHash('#/memory/%E0%A4%A')), { kind: 'memory', id: '%E0%A4%A' }); // malformed percent-encoding is kept as is
   assert.equal(R.parseHash('#/nope/1').kind, 'unknown');
@@ -166,11 +167,11 @@ test('hash changes navigate (back and forward re-render from the hash) and deep 
 });
 
 test('existing views stay reachable as pages: legacy hashes, list routes and usage links', async () => {
-  let { env } = await boot('#/skill');
+  let { env } = await boot('#/skill', { '/api/skills': { total: 1, groups: [{ source: 'user', label: 'Your skills', items: [{ id: 'work-unit-commits', source: 'user', description: null, trigger: null, uses: 1, sessions: 1, last_used: 'x' }] }] } });
   const usageLinks = hrefs(view(env));
   assert.ok(usageLinks.includes('#/skill/work-unit-commits'), usageLinks.join(' '));
   ({ env } = await boot('#/feature'));
-  assert.ok(hrefs(view(env)).includes('#/feature/feat'));
+  assert.ok(hrefs(view(env)).includes('#/feature/r%2Ffeat'), 'feature links are project-qualified');
   ({ env } = await boot('#/usage'));
   assert.match(view(env).textContent, /No usage data yet/);  // the old overview stays reachable under #/usage
 });
@@ -180,7 +181,8 @@ test('the sidebar lists every section, marks the current page and shows recent c
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  for (const h of ['#/home', '#/memory', '#/skill', '#/tool', '#/mcp', '#/session', '#/feature', '#/node', '#/harness', '#/usage', '#/diagrams', '#/settings']) assert.ok(byHref[h], h);
+  for (const h of ['#/home', '#/memory', '#/skill', '#/tool', '#/mcp', '#/session', '#/feature', '#/node', '#/harness', '#/usage', '#/settings']) assert.ok(byHref[h], h);
+  assert.equal(byHref['#/diagrams'], undefined, 'no Diagrams entry in the sidebar');
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
   assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
   const recent = env.document.getElementById('recent');
@@ -285,7 +287,7 @@ test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none 
   const css = await read('style.css');
   assert.match(html, /<dialog id="palette"/);
   const order = [...html.matchAll(/<script src="\/static\/([\w.]+)"><\/script>/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['markdown.js', 'wikiroute.js', 'app.js']);
+  assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', 'app.js']);
   assert.match(html, /<main id="view"/);
   assert.match(html, /<nav class="sidebar"[^>]*aria-label/);
   assert.match(css, /@font-face\s*{[^}]*Source Serif 4[^}]*\/static\/fonts\/source-serif-4-latin-400-normal\.woff2/);

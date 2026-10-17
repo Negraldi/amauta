@@ -9,13 +9,13 @@ from __future__ import annotations
 import re
 from ..graph import query as graph_query
 from .api import MAX_TEXT, BadRequest, NotFound, _int, _str, has_table, columns
-from . import diagrams, wikifeature, wikimem, wikisess, wikiusage
+from . import diagrams, wikifeature, wikiharness, wikimem, wikiproject, wikisess, wikiusage
 from .wikiusage import USAGE_COLUMN as _USAGE_COLUMN
 from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime, _ref, strip_title_h1
 
 MAX_ID = 512
 WIKILINK = re.compile(r"\[\[([^\[\]\n]{1,200})\]\]")
-KINDS = ("memory", "skill", "tool", "mcp", "session", "feature", "node")
+KINDS = ("project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node", *wikiharness.NEW_KINDS)
 
 
 # ---- dispatch ----------------------------------------------------------------------------------------------
@@ -109,9 +109,41 @@ def _memory_page(portal, ident, q):
             pg["links"].append(_ref("session", sid, title))
         pg["history"] = wikimem.history(conn, d)
         pg["sections"] = _same_topic(conn, d)
+        if source != "own":
+            _tag_source(pg, source)
         return pg
     finally:
         conn.close()
+
+
+def _tag_source(pg, source):
+    """Memory links on a page read from another store must open that store's page, so they carry its name."""
+    for ref in pg["links"] + pg["backlinks"] + [i for s in pg["sections"] for i in s["items"]]:
+        if ref.get("kind") == "memory":
+            ref["source"] = source
+
+
+def _memfile_page(portal, ident, q):
+    """A Claude file memory (`projects/*/memory/*.md`): read-only, only files the listing itself would show."""
+    root = portal.cfg.claude_home / "projects"
+    found = next((p for p in portal._memory_files() if p.relative_to(root).as_posix() == ident), None)
+    if found is None:
+        raise NotFound()
+    try:
+        st = found.stat()
+        text = found.read_bytes()[:MAX_TEXT].decode("utf-8", "replace")
+    except OSError:
+        raise NotFound() from None
+    pg = _blank("memfile", ident, found.name, text)
+    pg["meta"] = _meta(("Project", found.parent.parent.name), ("Size", st.st_size), ("Modified", _mtime(found)), ("Truncated", "yes" if st.st_size > MAX_TEXT else None))
+    pg["links"], pg["missing"] = _wikilink_links(portal, text)
+    return pg
+
+
+def _memfile_title(portal, ident):
+    root = portal.cfg.claude_home / "projects"
+    found = next((p for p in portal._memory_files() if p.relative_to(root).as_posix() == ident), None)
+    return found.name if found else None
 
 
 def _memory_backlinks(conn, d):
@@ -147,15 +179,28 @@ def _memory_title(portal, ident):
 
 # ---- ODD features -------------------------------------------------------------------------------------------
 def _feature_docs(portal):
-    for repo in portal.cfg.repos:
+    for repo in portal.repos():
         folder = repo / "odd" / "tasks"
         for f in sorted(folder.glob("*.md")) if folder.is_dir() else []:
             if f.is_file() and not f.is_symlink():
                 yield repo, f
 
 
+def feature_id(repo, f):
+    """Features are addressed as `<project>/<feature>`."""
+    return f"{repo.name}/{f.stem}"
+
+
 def _find_feature(portal, ident):
-    return next(((repo, f) for repo, f in _feature_docs(portal) if f.stem == ident), None)
+    """(repo, file) for `project/feature`; a bare `feature` still works while exactly one project has it."""
+    docs = list(_feature_docs(portal))
+    if "/" in ident:
+        project, _, stem = ident.partition("/")
+        if not project or not stem or "/" in stem:
+            return None
+        return next(((repo, f) for repo, f in docs if repo.name == project and f.stem == stem), None)
+    found = [(repo, f) for repo, f in docs if f.stem == ident]
+    return found[0] if len(found) == 1 else None
 
 
 def _feature_page(portal, ident, q):
@@ -170,6 +215,7 @@ def _feature_page(portal, ident, q):
     parsed = wikifeature.parse_tasks(text)
     tasks = [(t["done"], t["title"]) for t in parsed]
     title = next((m.group(1).strip() for m in re.finditer(r"^# (.+)$", text, re.M)), ident)
+    ident = feature_id(repo, f)
     pg = _blank("feature", ident, title, strip_title_h1(text, title))
     pg["meta"] = _meta(("Repository", repo.name), ("File", f.name), ("Tasks done", f"{sum(d for d, _ in tasks)} of {len(tasks)}"), ("Modified", _mtime(f)))
     pg["sections"] = [{"heading": "Tasks", "items": [_item(t, "done" if d else "pending") for d, t in tasks]}] if tasks else []
@@ -177,7 +223,7 @@ def _feature_page(portal, ident, q):
     pg["diagram"] = wikifeature.task_diagram(f.name, parsed)
     pg["commits"] = wikifeature.commits(repo, text)
     pg["links"], pg["missing"] = _wikilink_links(portal, text)
-    pg["links"] += _feature_memories(portal, ident)
+    pg["links"] += _feature_memories(portal, f.stem)
     return pg
 
 
@@ -199,7 +245,7 @@ def _feature_memories(portal, ident):
 # ---- graph nodes --------------------------------------------------------------------------------------------
 def _split_node(portal, ident):
     name, sep, node = ident.partition("::")
-    repo = next((r for r in portal.cfg.repos if sep and r.name == name), None)
+    repo = next((r for r in portal.repos() if sep and r.name == name), None)
     if repo is None or not node:
         raise NotFound()
     return repo, str(repo.resolve()), node
@@ -261,10 +307,10 @@ def _node_title(portal, ident):
         conn.close()
 
 
-_PAGES = {"memory": _memory_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiusage.usage_page("mcp"),
-          "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page}
-_TITLES = {"memory": _memory_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiusage.usage_title("mcp"),
-           "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title}
+_PAGES = {"project": wikiproject.page, "memory": _memory_page, "memfile": _memfile_page, "skill": wikiusage.usage_page("skill"), "tool": wikiharness.merged_page("tool", wikiusage.usage_page("tool")), "mcp": wikiharness.merged_page("mcp", wikiusage.usage_page("mcp")),
+          "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page, **{k: wikiharness.page_builder(k) for k in wikiharness.NEW_KINDS}}
+_TITLES = {"project": wikiproject.title, "memory": _memory_title, "memfile": _memfile_title, "skill": wikiusage.usage_title("skill"), "tool": wikiharness.merged_title("tool", wikiusage.usage_title("tool")), "mcp": wikiharness.merged_title("mcp", wikiusage.usage_title("mcp")),
+           "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title, **{k: wikiharness.title_of(k) for k in wikiharness.NEW_KINDS}}
 
 
 # ---- recent changes -------------------------------------------------------------------------------------------
@@ -304,7 +350,7 @@ def _recent_sessions(portal, limit):
 
 
 def _recent_features(portal):
-    return [{"kind": "feature", "id": f.stem, "title": f.stem, "ts": _mtime(f), "what": "ODD document updated"} for _, f in _feature_docs(portal)]
+    return [{"kind": "feature", "id": feature_id(repo, f), "title": f.stem, "ts": _mtime(f), "what": "ODD document updated"} for repo, f in _feature_docs(portal)]
 
 
 # ---- global search --------------------------------------------------------------------------------------------
@@ -318,8 +364,9 @@ def search(portal, q):
     out = {"q": text, "groups": []}
     if not text:
         return out
-    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", _search_usage("tool")), ("mcp", _search_usage("mcp")),
-                      ("session", _search_sessions), ("feature", _search_features), ("task", _search_tasks), ("node", _search_nodes)):
+    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", wikiharness.merged_search("tool", _search_usage("tool"))), ("mcp", wikiharness.merged_search("mcp", _search_usage("mcp"))),
+                      *[(k, wikiharness.search(k)) for k in wikiharness.NEW_KINDS],
+                      ("session", _search_sessions), ("project", _search_projects), ("feature", _search_features), ("task", _search_tasks), ("node", _search_nodes)):
         rows = fn(portal, text)
         if rows:
             out["groups"].append({"kind": label, "count": len(rows), "items": rows[:per_kind]})
@@ -362,21 +409,26 @@ def _search_sessions(portal, text):
         conn.close()
 
 
+def _search_projects(portal, text):
+    needle = text.lower()
+    return [_hit("project", r.name, r.name, str(r)) for r in portal.repos() if needle in r.name.lower()][:FETCH_CAP]
+
+
 def _search_features(portal, text):
     needle = text.lower()
-    return [_hit("feature", f.stem, f.stem, repo.name) for repo, f in _feature_docs(portal) if needle in f.stem.lower()][:FETCH_CAP]
+    return [_hit("feature", feature_id(repo, f), f.stem, repo.name) for repo, f in _feature_docs(portal) if needle in f.stem.lower()][:FETCH_CAP]
 
 
 def _search_tasks(portal, text):
     needle, out = text.lower(), []
-    for _, f in _feature_docs(portal):
+    for repo, f in _feature_docs(portal):
         try:
             body = f.read_text(errors="replace")[:MAX_TEXT]
         except OSError:
             continue
         for m in re.finditer(r"^- \[( |x|X)\] (.+)$", body, re.M):
             if needle in m.group(2).lower():
-                out.append(_hit("feature", f.stem, m.group(2).strip()[:160], f"{f.stem}, {'done' if m.group(1).lower() == 'x' else 'pending'}"))
+                out.append(_hit("feature", feature_id(repo, f), m.group(2).strip()[:160], f"{f.stem}, {'done' if m.group(1).lower() == 'x' else 'pending'}"))
                 if len(out) >= FETCH_CAP:
                     return out
     return out
@@ -388,7 +440,7 @@ def _search_nodes(portal, text):
         return []
     out = []
     try:
-        for repo in portal.cfg.repos:
+        for repo in portal.repos():
             try:
                 nodes = graph_query.search_nodes(conn, str(repo.resolve()), text, FETCH_CAP)
             except graph_query.QueryError:

@@ -173,7 +173,6 @@ class FeatureDiagramTest(WikiBase):
         self.doc("# F\n\njust text\n")
         self.assertIsNone(self.page("feature", "feat")["diagram"])
 
-    def test_diagrams_endpoint_uses_the_same_groups(self):
+    def test_feature_page_diagram_groups_tasks_by_phase(self):
         self.doc("# F\n\nP1 First\n- [x] T1 a\n\nP2 Second\n- [ ] T2 b\n")
-        docs = [d for d in self.get("/api/diagrams")["odd"] if d["document"] == "feat.md"]
-        self.assertEqual(docs[0]["source"].count("subgraph "), 2)
+        self.assertEqual(self.page("feature", "feat")["diagram"]["source"].count("subgraph "), 2)

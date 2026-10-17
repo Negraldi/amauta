@@ -10,6 +10,7 @@ import { runPortal } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
+process.env.TZ = 'UTC'; // date-times are shown in local time: pin it so the expectations are stable
 const XSS = '<img src=x onerror=alert(1)>';
 const tick = () => new Promise((r) => setTimeout(r, 20));
 
@@ -97,17 +98,6 @@ for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
   });
 }
 
-test('memory detail shows content in a text node', async () => {
-  const env = await boot('#memories');
-  const view = env.document.getElementById('view');
-  const link = tree(view).find((e) => e.tagName === 'button' && e.textContent === XSS && e.className === 'row-link');
-  assert.ok(link, 'memory row link');
-  link.click();
-  await tick();
-  assert.equal(tree(view).filter((e) => e.tagName === 'img').length, 0);
-  assert.ok(tree(view).some((e) => e.tagName === 'pre' && e.textContent === XSS));
-});
-
 test('refresh button POSTs with the page token and nothing else sensitive', async () => {
   const env = await boot();
   env.calls.length = 0;
@@ -153,7 +143,7 @@ test('memories: an unavailable database without facets shows the friendly messag
   });
 });
 
-test('memories: a failing search, detail or file fetch is shown inline and never becomes an unhandled rejection', async () => {
+test('memories: a failing search is shown inline and never becomes an unhandled rejection', async () => {
   await withRoutes({}, '#memories', async (env, rejections) => {
     const view = env.document.getElementById('view');
     delete routes['/api/memories'];
@@ -161,16 +151,7 @@ test('memories: a failing search, detail or file fetch is shown inline and never
     search.click();
     await tick();
     assert.match(view.textContent, /not found/); // the error message from the API is rendered
-    delete routes['/api/memory'];
-    delete routes['/api/memory-file'];
-    routes['/api/memories'] = { source: 'own', available: true, items: [{ id: 1, title: 'T', type: 'note', project: 'p', topic_key: 'k', revision: 1, updated_at: 'u' }], facets: { projects: [], types: [] } };
-    search.click();
-    await tick();
-    tree(view).find((e) => e.tagName === 'button' && e.className === 'row-link' && e.textContent === 'T').click();
-    tree(view).find((e) => e.tagName === 'button' && e.className === 'row-link' && e.textContent === XSS).click();
-    await tick();
     assert.deepEqual(rejections, []);
-    assert.ok(tree(view).some((e) => e.tagName === 'pre' && /not found/.test(e.textContent)));
   });
 });
 
@@ -200,7 +181,7 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
   assert.match(view.textContent, /6 nodes, 4 edges/);
   assert.match(view.textContent, /2 SQL tables/);
   assert.match(view.textContent, /Semantic pass pending: yes/);
-  assert.match(view.textContent, /Last semantic run: 2026-10-12T08:00:00Z \(claude-haiku-5-5\)/);
+  assert.match(view.textContent, /Last semantic run: 2026-10-12 08:00 \(claude-haiku-5-5\)/);
   assert.match(view.textContent, /not mirrored|graphify update|<img/); // the unavailable repo shows its reason as text
   assert.ok(view.textContent.includes('src/a.py'), 'initial node list is loaded');
   env.calls.length = 0;

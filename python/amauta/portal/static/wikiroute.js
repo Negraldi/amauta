@@ -3,29 +3,150 @@
 (function () {
   // kind -> label shown in the sidebar and as the page's kind label
   const KINDS = {
-    home: "Home", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
-    node: "Graph node", harness: "Harness", usage: "Usage", settings: "Settings", diagrams: "Diagrams", lint: "Lint",
+    home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
+    node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint", themes: "Themes",
+    hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
   // Hashes of the previous tabbed portal keep working.
-  const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "diagrams" };
+  const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" }; // the Diagrams page was folded into Harness
 
   function decode(part) {
     try { return decodeURIComponent(part); } catch (_) { return part; }
   }
 
   // "#/memory/arch%2Fwidgets" -> {kind: "memory", id: "arch/widgets"}; "" -> home; unknown kinds -> {kind: "unknown", id: <raw>}.
+  const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
   function parseHash(hash) {
-    const raw = String(hash || "").replace(/^#/, "");
+    const full = String(hash || "").replace(/^#/, "");
+    const qi = full.indexOf("?");
+    const raw = qi < 0 || !full.startsWith("/") ? full : full.slice(0, qi);
+    const query = qi < 0 || !full.startsWith("/") ? "" : full.slice(qi + 1);
     if (raw === "" || raw === "/") return { kind: "home", id: "" };
     if (!raw.startsWith("/")) return LEGACY[raw] ? { kind: LEGACY[raw], id: "" } : { kind: "unknown", id: raw };
-    const [kind, ...rest] = raw.slice(1).split("/");
+    const [first, ...rest] = raw.slice(1).split("/");
+    const kind = first === "diagrams" ? "harness" : first;
+    if (first === "diagrams") return { kind, id: "" };
     if (!Object.prototype.hasOwnProperty.call(KINDS, kind)) return { kind: "unknown", id: raw };
-    return { kind, id: rest.length ? decode(rest.join("/")) : "" };
+    const out = { kind, id: rest.length ? decode(rest.join("/")) : "" };
+    const source = (/(?:^|&)source=([^&]*)/.exec(query) || [])[1];
+    if (out.id && source && SOURCES.includes(source)) out.source = source;
+    return out;
   }
 
-  // The inverse of parseHash: ids are fully percent-encoded so slashes, '#', '?' and '::' survive a round trip.
-  function formatHash(kind, id) {
-    return id ? `#/${kind}/${encodeURIComponent(id)}` : `#/${kind}`;
+  // The inverse of parseHash: ids are fully percent-encoded so slashes, '#', '?' and '::' survive a round trip. A non-default source rides after '?'.
+  function formatHash(kind, id, opts) {
+    const base = id ? `#/${kind}/${encodeURIComponent(id)}` : `#/${kind}`;
+    return id && opts && SOURCES.includes(opts.source) ? `${base}?source=${opts.source}` : base;
+  }
+
+
+  // ---- number and date formatting (one place, used by every page) ----------------------------------------------
+  // Numbers group thousands through Intl (the locale follows the UI language). Dates are ALWAYS YYYY-MM-DD; date-times are
+  // YYYY-MM-DD HH:MM on a 24h clock in the viewer's local time. Anything unusable shows "-", never a raw value.
+  let LOCALE = "en-US";
+  function setLocale(locale) {
+    try { LOCALE = new Intl.NumberFormat(String(locale)).resolvedOptions().locale; } catch (_) { /* keep the previous locale */ }
+    return LOCALE;
+  }
+  function fmtNumber(n) {
+    if (n == null || n === "" || typeof n === "boolean" || typeof n === "object") return "-";
+    const v = Number(n);
+    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { useGrouping: "always" }).format(v) : "-";
+  }
+  // A number with a fixed count of decimals in the UI locale ("1,234.5" or "1.234,5"); a percentage from a ratio (0.125 -> "12.5%" or "12,5 %").
+  function fmtDecimal(n, digits) {
+    if (n == null || n === "" || typeof n === "boolean" || typeof n === "object") return "-";
+    const v = Number(n);
+    const d = digits == null ? 1 : digits;
+    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { useGrouping: "always", minimumFractionDigits: d, maximumFractionDigits: d }).format(v) : "-";
+  }
+  function fmtPercent(r) {
+    const v = Number(r);
+    return r == null || r === "" || typeof r === "boolean" || !Number.isFinite(v) ? "-" : new Intl.NumberFormat(LOCALE, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+  }
+  const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const ISO_DT = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+  const p2 = (n) => String(n).padStart(2, "0");
+  function realDate(y, m, d) {
+    const t = new Date(Date.UTC(y, m - 1, d));
+    return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+  }
+  // The Date a value stands for, or null. A naive "YYYY-MM-DD HH:MM" is read as local time, like the browser does for the T form.
+  function toDate(v) {
+    if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+    if (typeof v === "number") { const d = new Date(v); return Number.isFinite(v) && !Number.isNaN(d.getTime()) ? d : null; }
+    if (typeof v !== "string") return null;
+    const m = ISO_DT.exec(v.trim());
+    if (!m || !realDate(+m[1], +m[2], +m[3]) || +m[4] > 23 || +m[5] > 59 || (m[6] && +m[6] > 59)) return null;
+    const d = new Date(v.trim().replace(" ", "T"));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function fmtDate(v) {
+    if (typeof v === "string") {
+      const m = ISO_DATE.exec(v.trim());
+      if (m) return realDate(+m[1], +m[2], +m[3]) ? v.trim() : "-"; // a calendar date has no time zone: never shifted
+    }
+    const d = toDate(v);
+    return d ? `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` : "-";
+  }
+  function fmtDateTime(v) {
+    if (typeof v === "string" && ISO_DATE.test(v.trim())) return fmtDate(v);
+    const d = toDate(v);
+    return d ? `${fmtDate(d)} ${p2(d.getHours())}:${p2(d.getMinutes())}` : "-";
+  }
+  // Rewrites a value only when the WHOLE string is an ISO date or date-time; every other value is returned untouched.
+  function fmtIso(v) {
+    if (typeof v !== "string") return v;
+    const t = v.trim();
+    if (ISO_DATE.test(t)) return fmtDate(t) === "-" ? v : fmtDate(t);
+    if (ISO_DT.test(t)) { const out = fmtDateTime(t); return out === "-" ? v : out; }
+    return v;
+  }
+  // A page-meta or section value: the server marks numbers with fmt "number"; ISO dates are recognised by shape.
+  function fmtMeta(m) {
+    const v = m && m.value;
+    return m && m.fmt === "number" ? fmtNumber(v) : fmtIso(v);
+  }
+  // Dates and date-times as rendered by fmtDate/fmtDateTime inside any text: splitDates(text) -> [{text, date}] so a page can keep each one in a nowrap span.
+  const DATE_TOKEN = /(?<![\d-])\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?(?![\d-])/g;
+  function splitDates(text) {
+    const s = String(text), out = [];
+    let last = 0;
+    for (const m of s.matchAll(DATE_TOKEN)) {
+      if (m.index > last) out.push({ text: s.slice(last, m.index), date: false });
+      out.push({ text: m[0], date: true });
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) out.push({ text: s.slice(last), date: false });
+    return out;
+  }
+  // A file path (absolute, ~/ or ./): shown as mono text that may break only after a slash.
+  function isPathLike(v) { return typeof v === "string" && /^(?:\/|~\/|\.{1,2}\/)\S+$/.test(v); }
+  // "/a/b" -> ["/", "a", "/", "b"]: the slashes are their own pieces so the page can put a <wbr> after each.
+  function pathSegments(v) { return String(v).split(/(\/)/).filter((p) => p !== ""); }
+  // One unbroken run of characters (path, id, hash): the only text allowed to break anywhere.
+  function isLongToken(v) { return typeof v === "string" && v.length >= 24 && !/\s/.test(v); }
+
+  // Skill catalog filter: a case-insensitive substring over id, description and trigger; groups left empty disappear.
+  function filterSkills(groups, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const out = [];
+    for (const g of Array.isArray(groups) ? groups : []) {
+      const items = (g.items || []).filter((i) => !q || [i.id, i.description, i.trigger].some((t) => String(t || "").toLowerCase().includes(q)));
+      if (items.length) out.push({ ...g, items });
+    }
+    return out;
+  }
+
+  // Component catalog filter: a case-insensitive substring over title, id, description and source; groups left empty disappear.
+  function filterComponents(groups, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const out = [];
+    for (const g of Array.isArray(groups) ? groups : []) {
+      const items = (g.items || []).filter((i) => !q || [i.title, i.id, i.description, i.source, g.kind].some((t) => String(t || "").toLowerCase().includes(q)));
+      if (items.length) out.push({ ...g, items });
+    }
+    return out;
   }
 
   // Search groups -> one flat list (keyboard order) with a header marker before each group.
@@ -68,7 +189,7 @@
   }
 
   // The Range and Project filters belong to the usage views: Usage itself and the list routes that read them (never a single page).
-  const FILTERED_LISTS = ["session", "skill", "tool", "mcp"];
+  const FILTERED_LISTS = ["session", "tool", "mcp"];
   function showsFilters(route) {
     const r = route || {};
     return r.kind === "usage" || (FILTERED_LISTS.includes(r.kind) && !r.id);
@@ -80,14 +201,18 @@
     if (m.verdict === "no clear difference") return { mark: "■", text: "no clear difference", name: "flat" };
     return m.delta < 0 ? { mark: "▼", text: "lower, better", name: "better" } : { mark: "▲", text: "higher, worse", name: "worse" };
   }
-  function fmtMetric(name, v) {
-    if (v == null || !Number.isFinite(Number(v))) return "n/a";
-    return name === "tokens_per_turn" ? `${Math.round(v)} tokens` : `${(v * 100).toFixed(1)}%`;
+  // The unit words (n/a, tokens, pp) come from the caller so the page can show them in its language; the defaults are English.
+  const WORDS = { na: "n/a", tokens: "tokens", pp: "pp" };
+  function fmtMetric(name, v, words) {
+    const w = { ...WORDS, ...words };
+    if (v == null || !Number.isFinite(Number(v))) return w.na;
+    return name === "tokens_per_turn" ? `${fmtNumber(Math.round(v))} ${w.tokens}` : fmtPercent(v);
   }
-  function fmtDelta(name, d) {
+  function fmtDelta(name, d, words) {
+    const w = { ...WORDS, ...words };
     if (d == null || !Number.isFinite(Number(d))) return "";
-    if (name === "tokens_per_turn") return `${d < 0 ? "-" : "+"}${Math.abs(Math.round(d))} tokens`;
-    return `${d < 0 ? "-" : "+"}${Math.abs(d * 100).toFixed(1)} pp`;
+    if (name === "tokens_per_turn") return `${d < 0 ? "-" : "+"}${fmtNumber(Math.abs(Math.round(d)))} ${w.tokens}`;
+    return `${d < 0 ? "-" : "+"}${fmtDecimal(Math.abs(d * 100), 1)} ${w.pp}`;
   }
 
   // Settings editor (pure). `current` and `draft` have the shape of GET /api/settings `current`.
@@ -112,15 +237,16 @@
     return body;
   }
   // What to tell the person after a failed write: the next step, and whether a fresh preview fixes it.
+  // `key` is the i18n key of the same text (the page shows the translated one; `text` is the English reference).
   function settingsAdvice(status) {
-    if (status === 403) return { text: "The portal refused the request. Reload this page (it gets a new session token) and try again.", again: false };
-    if (status === 409) return { text: "Something changed since you previewed, or another change is running. Preview again to see the current plan.", again: true };
-    if (status === 429) return { text: "Too many previews are running at once. Wait a moment and preview again.", again: true };
-    if (status === 400) return { text: "The preview is no longer valid (used or older than 5 minutes). Preview again.", again: true };
-    if (status === 413 || status === 415) return { text: "The portal could not accept that request. Reload the page and try again.", again: false };
-    if (status === 502 || status === 503 || status === 504) return { text: "The installer did not finish. Nothing was reported as changed; run amauta status in a terminal, then try again or run amauta install there.", again: false };
-    return { text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
+    if (status === 403) return { key: "advice.403", text: "The portal refused the request. Reload this page (it gets a new session token) and try again.", again: false };
+    if (status === 409) return { key: "advice.409", text: "Something changed since you previewed, or another change is running. Preview again to see the current plan.", again: true };
+    if (status === 429) return { key: "advice.429", text: "Too many previews are running at once. Wait a moment and preview again.", again: true };
+    if (status === 400) return { key: "advice.400", text: "The preview is no longer valid (used or older than 5 minutes). Preview again.", again: true };
+    if (status === 413 || status === 415) return { key: "advice.413", text: "The portal could not accept that request. Reload the page and try again.", again: false };
+    if (status === 502 || status === 503 || status === 504) return { key: "advice.502", text: "The installer did not finish. Nothing was reported as changed; run amauta status in a terminal, then try again or run amauta install there.", again: false };
+    return { key: "advice.other", text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

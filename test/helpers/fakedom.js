@@ -20,6 +20,12 @@ export class Element extends NodeBase {
   click() { for (const fn of this.listeners.click ?? []) fn({ target: this }); }
   walk(fn) { fn(this); for (const c of this.children) if (c instanceof Element) c.walk(fn); }
 }
+// <html>: attributes plus a CSSOM-style `style` that records custom properties (a theme must only ever arrive through these calls).
+export function makeRoot() {
+  const attrs = {}, props = {};
+  return { attrs, props, setAttribute: (k, v) => { attrs[k] = String(v); }, getAttribute: (k) => attrs[k], removeAttribute: (k) => { delete attrs[k]; },
+    style: { setProperty: (k, v) => { props[k] = String(v); }, removeProperty: (k) => { delete props[k]; } } };
+}
 export function makeEnv(routes) {
   const byId = new Map();
   const token = new Element('meta');
@@ -27,6 +33,7 @@ export function makeEnv(routes) {
   const docListeners = {};
   const document = {
     title: '',
+    documentElement: makeRoot(),
     addEventListener: (type, fn) => { (docListeners[type] ??= []).push(fn); },
     createElement: (t) => new Element(t),
     createElementNS: (ns, t) => new Element(t, ns),

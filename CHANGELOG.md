@@ -2,7 +2,41 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.2.0] - unreleased
+## [0.3.0] - 2026-10-17
+
+### Added
+
+- Skills wiki: `#/skill` lists every skill (installed, plugin, project `.claude/skills` of known projects, and built into Claude Code), grouped by source and filterable. Each skill page opens with "What it does" and "When it triggers", then the full `SKILL.md`; built-in skills say plainly that Claude Code ships them with no local file.
+- Memory rows (own store, Engram read-only, file memories) open their wiki page directly.
+- Projects: discovery from `--repo`, from the `repos` listed in `<state>/portal.json` (`{"repos": [...], "auto_discover": true}`) and, while `auto_discover` is on, from the git roots of your session working directories (existing directories under `$HOME` only). `#/project` lists them and each project page shows its ODD features with progress, sessions, memories and graph status, with a how-to when graph memory is empty. Settings gained a Projects section that adds and removes project paths through a guarded write to `portal.json`. `amauta portal launch` now forwards the configured repos.
+- Themes: a top-bar picker (System, Light, Dark and your own themes), custom theme files in `<state>/themes/*.json` (name, base, validated color tokens only) and an in-portal editor at `#/themes` with live preview, WCAG contrast warnings in words, save, delete, import and export. The theme files API (`GET /api/themes`, guarded `POST /api/themes` and `/api/themes/delete`) is confined to the themes directory.
+- English and Spanish UI: a top-bar language switch for the portal chrome (navigation, headings, labels, buttons, empty states, errors, settings descriptions). The default follows the browser language and the choice is remembered. Memories, `SKILL.md` and ODD documents stay as written; dates are always `YYYY-MM-DD`.
+- Harness wiki (`#/component` and one page per component): hooks, MCP servers, MCP tools, connectors seen in sessions, Claude Code built-in tools (curated English and Spanish catalog), agents, commands, plugins and output styles. Each page says what it does and when it runs and names the source of each fact; MCP configs show env and header names only, never values.
+- Refresh descriptions (`POST /api/harness/refresh`): asks configured local stdio MCP servers for `tools/list` (read-only, 10 s timeout per server, no remote connectors) and caches the result under the state directory.
+- Explanation requests (`POST /api/harness/explain`) queue a request in `<state>/wiki/requests.jsonl`; the new `amauta-wiki-explain` skill processes the queue in a Claude Code session and writes notes with the hash of their source. The portal never calls a model. The lint gained a "Stale explanations" check (seven checks in total).
+
+### Changed
+
+- Numbers are grouped in the language of the UI and dates and date-times are always `YYYY-MM-DD` and `YYYY-MM-DD HH:MM` everywhere (tables, rails, charts, lists), never raw ISO strings.
+- The architecture diagram stays on the Harness page and ODD progress lives on project and feature pages.
+- Hook pages are titled `<Event> (matcher) · <name>` (curated amauta name, else the script file name, else the first command word) instead of a raw command prefix; the full masked command stays on the page.
+- Theme import is one "Import theme file" button that opens a visually hidden file input.
+
+### Fixed
+
+- Skill page rail: values no longer wrap one character per line; numbers and dates are formatted.
+- Dates never break inside the token (sidebar "Recent changes", table cells and rails keep `YYYY-MM-DD` and the time together).
+- Four-digit numbers are grouped in Spanish (`1.766`); the browser's Intl skips the separator for those by default.
+- File paths in the rail break only after a slash, never in the middle of a word.
+- Built-in skills no longer show "Installed: no" with no description.
+- The launcher-started portal knows your projects, so ODD tasks and graph memory are no longer empty.
+- Settings > Projects no longer shows the text "null" after a reload.
+
+### Removed
+
+- The separate Diagrams page and `GET /api/diagrams`: it duplicated other pages. `#/diagrams` redirects to `#/harness`.
+
+## [0.2.0] - 2026-10-16
 
 ### Added
 

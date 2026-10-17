@@ -1,5 +1,35 @@
 # Upgrading
 
+## From 0.2.0 to 0.3.0
+
+```bash
+amauta upgrade --dry-run          # current version, target tag and plan; changes nothing
+amauta upgrade --to v0.3.0        # or plain `amauta upgrade` for the latest tag; add --yes to skip the confirmation
+```
+
+The command, its checks and the manual alternative are the same as in the 0.1.0 to 0.2.0 section below. Start a new Claude Code session afterwards (hooks, skills and MCP servers are read at session start); a portal that is already open keeps the old code until you close and reopen it.
+
+### What changes on disk
+
+- A new skill, `amauta-wiki-explain`, is installed with the harness. Nothing else is added to `~/.claude` that you did not already have.
+- New optional files in the state directory (`~/.amauta` by default), created only when you use the feature: `portal.json` (project paths), `themes/*.json` (custom themes), `wiki/` (cached MCP tool descriptions, explanation requests and notes). The telemetry schema does not change.
+- The desktop launcher does not need reinstalling: its entry runs `amauta portal launch`, which now also passes the repos listed in `portal.json`. Run `amauta portal install-launcher` only if you have never created it.
+
+### Use the new features
+
+- **Projects.** The portal finds projects from `--repo DIR`, from `~/.amauta/portal.json` and, while `auto_discover` is true (the default), from the git roots of your session working directories under `$HOME`. To list them yourself write `{"repos": ["/home/you/code/app"], "auto_discover": true}` (set `auto_discover` to false to use only the listed paths), or add and remove paths in Settings > Projects.
+- **Themes.** Pick System, Light, Dark or a custom theme in the top bar. Create, edit, import and export themes at `#/themes`; they are stored as `~/.amauta/themes/<name>.json`, and you can also drop a valid file there by hand.
+- **Language.** The language switch in the top bar changes the portal chrome between English and Spanish and remembers your choice; the default follows the browser language. Your own text is never translated.
+- **Explanations.** On a component page, "Request explanation" queues a request; "Refresh descriptions" on an MCP server page asks that local server for its tool list. To write the explanations, tell Claude Code: "process the wiki explanation requests". The `amauta-wiki-explain` skill reads the queue (`python3 -P -m amauta.portal.wikiexplain list`), writes a note per component (`... write --kind K --id I --file note.md`) and the portal shows it; the lint flags a note when its component changes.
+
+### Rolling back
+
+```bash
+amauta upgrade --to v0.2.0
+```
+
+Custom themes, `portal.json` and wiki notes stay in the state directory and are ignored by 0.2.0.
+
 ## From 0.1.0 to 0.2.0
 
 Your install is a git clone. Updating means moving that clone to the new release and running `amauta install` again from it. Your sticky choices (persona, optional modules, review mode) are kept.

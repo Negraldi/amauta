@@ -163,7 +163,7 @@ def related_nodes(portal, text):
     conn = portal._graph_conn()
     if conn is None:
         return []
-    names = {str(r.resolve()): r.name for r in portal.cfg.repos}
+    names = {str(r.resolve()): r.name for r in portal.repos()}
     try:
         rows = conn.execute("SELECT repo, id, label FROM graph_nodes WHERE length(label) >= ? ORDER BY length(label) DESC LIMIT ?", (MIN_LABEL, LABELS)).fetchall()
     finally:

@@ -9,7 +9,7 @@ from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 from python.tests.test_portal import ApiBase
 
-EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact"}, "tool": {"usage"}, "mcp": {"usage"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
+EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary"}, "tool": {"usage", "summary", "explain"}, "mcp": {"usage", "summary", "refresh", "explain"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
 PAGE_KEYS = {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"}
 
 
@@ -30,7 +30,7 @@ class PageSchemaTest(WikiBase):
         for kind, ident in (("memory", "1"), ("skill", "work-unit-commits"), ("tool", "Bash"), ("mcp", "engram"), ("session", "s1"), ("feature", "feat"), ("node", key)):
             pg = self.page(kind, ident)
             self.assertEqual(set(pg), PAGE_KEYS | EXTRA_KEYS.get(kind, set()), kind)
-            self.assertEqual((pg["kind"], pg["id"] if kind != "memory" else "1"), (kind, ident), kind)
+            self.assertEqual((pg["kind"], pg["id"] if kind != "memory" else "1"), (kind, "repo/feat" if kind == "feature" else ident), kind)  # features are project-qualified
             for k in ("meta", "links", "backlinks", "sections", "missing"):
                 self.assertIsInstance(pg[k], list, (kind, k))
 
@@ -82,9 +82,9 @@ class UsagePagesTest(WikiBase):
         self.assertEqual((self.meta(skill)["Calls"], self.meta(skill)["Sessions"]), ("1", "1"))
         self.assertEqual([(b["kind"], b["id"]) for b in skill["backlinks"]], [("session", "s1")])
         mcp = self.page("mcp", "engram")
-        self.assertEqual([(x["kind"], x["id"]) for x in mcp["links"]], [("tool", "mcp__engram__mem_save")])
+        self.assertEqual([(x["kind"], x["id"]) for x in mcp["links"]], [("tool", "mcp__engram__mem_save"), ("mcptool", "engram/mem_save")])
         tool = self.page("tool", "mcp__engram__mem_save")
-        self.assertEqual([(x["kind"], x["id"]) for x in tool["links"]], [("mcp", "engram")])
+        self.assertEqual([(x["kind"], x["id"]) for x in tool["links"]], [("mcp", "engram"), ("mcptool", "engram/mem_save")])
         self.assertEqual(self.page("tool", "Bash")["links"], [])
 
     def test_session_page_links_what_it_used(self):
@@ -102,7 +102,7 @@ class UsagePagesTest(WikiBase):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
         self.assertEqual(empty.get("/api/wiki/page", {"kind": "skill", "id": "x"})[0], 404)
         self.assertEqual(empty.get("/api/wiki/recent", {})[1], {"items": []})
-        self.assertEqual(empty.get("/api/wiki/search", {"q": "x"})[1]["groups"], [])
+        self.assertEqual(empty.get("/api/wiki/search", {"q": "zzzz-no-match"})[1]["groups"], [])  # the built-in tool catalog needs no usage data, so a query that matches it would still answer
 
 
 class FeatureAndNodePagesTest(WikiBase):
@@ -155,9 +155,9 @@ class SearchTest(WikiBase):
         self.assertEqual(self.groups("Bash")["tool"]["items"][0]["id"], "Bash")
         self.assertEqual(self.groups("engram")["mcp"]["items"][0]["id"], "engram")
         self.assertEqual(self.groups("alpha")["session"]["items"][0]["id"], "s1")
-        self.assertEqual(self.groups("feat")["feature"]["items"][0]["id"], "feat")
+        self.assertEqual(self.groups("feat")["feature"]["items"][0]["id"], "repo/feat")
         task = self.groups("open thing")["task"]["items"][0]
-        self.assertEqual((task["kind"], task["id"], task["title"]), ("feature", "feat", "T2 Open thing"))
+        self.assertEqual((task["kind"], task["id"], task["title"]), ("feature", "repo/feat", "T2 Open thing"))
         node = self.groups("alp")["node"]["items"][0]
         self.assertEqual((node["kind"], node["id"], node["title"]), ("node", "repo::a", "Alpha"))
 

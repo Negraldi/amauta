@@ -131,3 +131,56 @@ class MemoryRelationsTest(Saver):
         pg = self.page("memory", "Renderer note")
         nodes = [(x["id"], x["title"]) for x in pg["links"] if x["kind"] == "node"]
         self.assertEqual(nodes, [("repo::wr", "WidgetRenderer")])  # "tiny" is too short, "Alpha" only occurs inside "Alphabet"
+
+
+class MemoryFilePageTest(WikiBase):
+    FILE_ID = "-work-alpha/memory/note.md"
+
+    def test_a_file_memory_has_a_read_only_wiki_page(self):
+        pg = self.page("memfile", self.FILE_ID)
+        self.assertEqual((pg["kind"], pg["id"], pg["title"]), ("memfile", self.FILE_ID, "note.md"))
+        self.assertIn(fx.XSS, pg["body_md"])  # raw data; the UI renders text nodes
+        m = {x["label"]: x for x in pg["meta"]}
+        self.assertEqual(m["Project"]["value"], "-work-alpha")
+        self.assertEqual(m["Size"].get("fmt"), "number")
+        self.assertIn("Modified", m)
+        self.assertEqual(set(pg), {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"})
+
+    def test_only_listed_memory_files_can_be_read(self):
+        (self.f["home"] / "secret.md").write_text("LEAK")
+        (self.f["home"] / "projects" / "-work-alpha" / "other.md").write_text("LEAK2")  # not under memory/
+        for ident in ("../../secret.md", "-work-alpha/other.md", "-work-alpha/memory/../other.md", "/etc/passwd", "-work-alpha/memory/nope.md", "x"):
+            self.assertEqual(self.status("/api/wiki/page", kind="memfile", id=ident), 404, ident)
+
+    def test_a_symlinked_memory_file_is_not_served(self):
+        target = self.f["home"] / "secret.md"
+        target.write_text("LEAK")
+        (self.f["home"] / "projects" / "-work-alpha" / "memory" / "link.md").symlink_to(target)
+        self.assertEqual(self.status("/api/wiki/page", kind="memfile", id="-work-alpha/memory/link.md"), 404)
+
+    def test_wikilinks_inside_a_memory_file_resolve(self):
+        (self.f["home"] / "projects" / "-work-alpha" / "memory" / "linky.md").write_text("see [[arch/widgets]] and [[gone-thing]]\n")
+        pg = self.page("memfile", "-work-alpha/memory/linky.md")
+        self.assertEqual([(r["kind"], r["title"]) for r in pg["links"] if r["kind"] == "memory"][0][0], "memory")
+        self.assertEqual([m["id"] for m in pg["missing"]], ["gone-thing"])
+
+
+class EngramPageSourceTest(WikiBase):
+    def test_engram_page_marks_its_memory_links_with_the_source(self):
+        import sqlite3
+        e = sqlite3.connect(self.f["engram"])
+        e.execute("INSERT INTO observations (id, type, title, content, project, scope, topic_key, revision_count, created_at, updated_at) "
+                  "VALUES (2, 'note', 'Pointer', 'see [[bug/frob]]', 'alpha', 'project', 'bug/pointer', 1, '2026-09-03T00:00:00Z', '2026-09-03T00:00:00Z')")
+        e.commit()
+        e.close()
+        pg = self.page("memory", "1", source="engram")
+        self.assertEqual([r["id"] for r in pg["backlinks"]], ["2"])
+        self.assertEqual(pg["title"], "Engram bug")
+        refs = pg["links"] + pg["backlinks"] + [i for s in pg["sections"] for i in s["items"] if i.get("kind") == "memory"]
+        for r in refs:
+            if r["kind"] == "memory":
+                self.assertEqual(r.get("source"), "engram", r)
+
+    def test_own_page_links_carry_no_source(self):
+        for r in self.page("memory", "1")["links"]:
+            self.assertNotIn("source", r)

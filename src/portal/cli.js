@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { spawn as nodeSpawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveTargets } from '../install/paths.js';
@@ -18,6 +19,16 @@ export const OPTIONS = {
   repo: { type: 'string', multiple: true },
 };
 
+/** Project paths listed in `<stateDir>/portal.json` (absolute strings only; the portal validates them again). A missing or broken file lists none. */
+export function configuredRepos(stateDir) {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(stateDir, 'portal.json'), 'utf8'));
+    return Array.isArray(data?.repos) ? data.repos.filter((r) => typeof r === 'string' && path.isAbsolute(r) && !r.includes('\0')) : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Pure: the command, argv and environment used to start the Python portal. */
 export function buildPortalSpawn(args, env = process.env) {
   const { values } = parseArgs({ args, options: OPTIONS, allowPositionals: false, strict: true });
@@ -29,7 +40,9 @@ export function buildPortalSpawn(args, env = process.env) {
   if (values['idle-exit'] !== undefined) out.push('--idle-exit', values['idle-exit']);
   if (values['claude-home'] !== undefined) out.push('--claude-home', values['claude-home']);
   if (values['engram-db'] !== undefined) out.push('--engram-db', values['engram-db']);
-  for (const r of values.repo ?? []) out.push('--repo', path.resolve(r));
+  const repos = new Set((values.repo ?? []).map((r) => path.resolve(r)));
+  for (const r of configuredRepos(targets.stateDir)) repos.add(path.resolve(r));
+  for (const r of repos) out.push('--repo', r);
   const pythonPath = path.join(repoRoot, 'python');
   return {
     command: 'python3',

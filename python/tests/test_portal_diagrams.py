@@ -182,21 +182,9 @@ class GraphTest(unittest.TestCase):
 
 
 class DiagramEndpointsTest(ApiBase):
-    def test_diagrams_endpoint(self):
-        d = self.get("/api/diagrams")
-        self.assertIn("Stop", d["architecture"])
-        self.assertIn("flowchart", d["architecture"])
-        self.assertEqual(d["odd"][0]["document"], "feat.md")
-        self.assertEqual((d["odd"][0]["done"], d["odd"][0]["total"]), (2, 3))
-        self.assertIn("T2", d["odd"][0]["source"])
-        self.assertNotIn("SECRET-USER-HOOK", json.dumps(d))
-
-    def test_diagrams_not_installed(self):
-        p = api.Portal(Config(state_dir=self.root / "none", claude_home=self.root / "none"))
-        status, body = p.get("/api/diagrams", {})
-        self.assertEqual(status, 200)
-        self.assertIsNone(body["architecture"])
-        self.assertEqual(body["odd"], [])
+    def test_the_separate_diagrams_endpoint_is_gone(self):
+        status, _ = self.portal.get("/api/diagrams", {})
+        self.assertEqual(status, 404)
 
     def test_harness_reports_skill_and_agent_counts_from_managed_files(self):
         state = json.loads((self.f["state"] / "state.json").read_text())
@@ -237,6 +225,6 @@ class StaticMermaidTest(ServerBase):
         self.assertIn("script-src 'self'", csp)
 
     def test_diagram_endpoints_are_json_through_the_server(self):
-        status, headers, data = self.request("GET", "/api/diagrams")
+        status, headers, data = self.request("GET", "/api/archify")
         self.assertEqual(status, 200)
-        self.assertIn("architecture", json.loads(data))
+        self.assertIn("fallback", json.loads(data))

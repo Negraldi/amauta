@@ -16,7 +16,9 @@ const ODD = 'flowchart LR\n  n0["feat.md: 1/2 done"]';
 const FENCE = 'A-->B';
 
 const routes = {
-  '/api/diagrams': { architecture: ARCH, odd: [{ repo: 'r', document: 'feat.md', done: 1, total: 2, source: ODD }, { repo: 'r', document: 'other.md', done: 0, total: 1, source: ODD }] },
+  '/api/harness': { installed: true, version: '1', hooks: [], mcp_servers: [], components: [], managed_files: 1, telemetry: true, rdd_mode: 'on', persona: 'neutral' },
+  '/api/archify': { installed: true, available: false, reason: 'no archify', fallback: ARCH },
+  '/api/odd': { repos: [] },
   '/api/memory-files': { items: [{ id: 'a/memory/n.md', name: 'n.md', project: 'a', size: 3, mtime: 'm' }] },
   '/api/memory-file': { id: 'a/memory/n.md', content: `# T\n\n\`\`\`mermaid\n${FENCE}\n\`\`\`\n\n\`\`\`js\nnot mermaid\n\`\`\`\n${HOSTILE}\n`, truncated: false },
   '/api/memories': { source: 'own', available: true, items: [], facets: { projects: [], types: [] } },
@@ -26,8 +28,8 @@ const routes = {
   '/api/graph/diagram': { available: true, source: 'flowchart LR\n  n0["A"]', nodes: 1, edges: 0, truncated: false },
 };
 
-async function boot(hash, { failRender = false } = {}) {
-  const env = makeEnv(routes);
+async function boot(hash, { failRender = false, page } = {}) {
+  const env = makeEnv({ ...routes, ...(page ? { '/api/wiki/page': page } : {}) });
   env.location.hash = hash;
   const log = { init: [], render: [], scripts: [] };
   env.window.mermaid = {
@@ -55,19 +57,27 @@ test('app.js initializes mermaid strictly, without auto-start, from the vendored
   assert.match(await read('index.html'), /<script src="\/static\/app\.js"><\/script>/); // mermaid is not loaded on every page
 });
 
-test('the Diagrams view renders the architecture and the first ODD document, and loads mermaid once', async () => {
-  const { env, log } = await boot('#diagrams');
+test('the Harness page draws the architecture diagram and loads mermaid once', async () => {
+  const { env, log } = await boot('#/harness');
   assert.deepEqual(log.scripts, ['/static/mermaid.min.js']);
   assert.equal(log.init.length, 1);
   assert.equal(log.init[0].securityLevel, 'strict');
   assert.equal(log.init[0].startOnLoad, false);
-  assert.deepEqual(log.render, [ARCH, ODD]); // second document is collapsed: drawn only when opened
+  assert.deepEqual(log.render, [ARCH]);
   assert.equal(log.parsedAs, 'text/html');
-  assert.match(env.document.getElementById('view').textContent, /feat\.md: 1\/2 done/);
+  assert.match(env.document.getElementById('view').textContent, /Architecture/);
+});
+
+test('the separate Diagrams page is gone: old links land on Harness and the page never asks /api/diagrams', async () => {
+  for (const hash of ['#diagrams', '#/diagrams']) {
+    const { env } = await boot(hash);
+    assert.equal(env.calls.some((c) => String(c.url).startsWith('/api/diagrams')), false, hash);
+    assert.ok(env.calls.some((c) => c.url === '/api/harness'), hash);
+  }
 });
 
 test('a failed render shows a one-line warning and the source as text, never as markup', async () => {
-  const { env } = await boot('#diagrams', { failRender: true });
+  const { env } = await boot('#/harness', { failRender: true });
   const text = env.document.getElementById('view').textContent;
   assert.match(text, /Diagram could not be rendered: Parse error on line 2/);
   assert.ok(!text.includes('onerror=alert(1)') || text.includes('flowchart LR')); // only inside the <pre> source / first line of the message
@@ -76,13 +86,13 @@ test('a failed render shows a one-line warning and the source as text, never as 
   assert.ok(pres >= 1);
 });
 
-test('mermaid fences in a displayed memory file are drawn; other fences and prose are not', async () => {
-  const { env, log } = await boot('#memories');
-  const btn = (() => { let found; env.document.getElementById('view').walk((e) => { if (e.tagName === 'button' && e.textContent === 'n.md') found = e; }); return found; })();
-  assert.ok(btn, 'file row not found');
-  btn.click();
-  await tick();
-  assert.deepEqual(log.render, [`${FENCE}\n`]);
+test('mermaid fences in a memory file page are drawn; other fences and prose are not', async () => {
+  const { env, log } = await boot('#/memfile/a%2Fmemory%2Fn.md', { page: { kind: 'memfile', id: 'a/memory/n.md', title: 'n.md', body_md: `# T\n\n\`\`\`mermaid\n${FENCE}\n\`\`\`\n\n\`\`\`js\nnot mermaid\n\`\`\`\n${HOSTILE}\n`, meta: [], links: [], backlinks: [], sections: [], missing: [] } });
+  assert.ok(env.calls.some((c) => String(c.url).startsWith('/api/wiki/page?kind=memfile')));
+  assert.deepEqual(log.render, [FENCE]);
+  let imgs = 0;
+  env.document.getElementById('view').walk((e) => { if (e.tagName === 'img') imgs += 1; });
+  assert.equal(imgs, 0);
 });
 
 test('selecting a graph node also draws its neighborhood diagram', async () => {

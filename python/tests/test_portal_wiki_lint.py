@@ -5,7 +5,7 @@ from python.amauta.portal import api, wikilint
 from python.amauta.portal.config import Config
 from python.tests.test_portal_wiki import WikiBase
 
-IDS = ["orphans", "duplicates", "superseded", "unused_skills", "features_no_commits", "missing_links"]
+IDS = ["orphans", "duplicates", "superseded", "unused_skills", "features_no_commits", "missing_links", "stale_notes"]
 
 
 class LintBase(WikiBase):
@@ -51,7 +51,7 @@ class ShapeTest(LintBase):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
         status, body = empty.get("/api/wiki/lint", {})
         self.assertEqual(status, 200)
-        self.assertEqual([c["count"] for c in body["categories"]], [0] * 6)
+        self.assertEqual([c["count"] for c in body["categories"]], [0] * 7)
 
 
 class OrphanTest(LintBase):
