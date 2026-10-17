@@ -69,3 +69,31 @@ test('defaultSpawn maps a SIGTERM-terminated child to 143 and removes its signal
 test('the removed --graphify option is rejected (graph memory comes from --repo)', () => {
   assert.throws(() => buildPortalSpawn(['--graphify', '/g'], {}), /unknown option/i);
 });
+
+test('configured projects from portal.json are forwarded as --repo, after explicit flags, without duplicates', async () => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const os = await import('node:os');
+  const state = await mkdtemp(path.join(os.tmpdir(), 'amauta-portal-json-'));
+  try {
+    await writeFile(path.join(state, 'portal.json'), JSON.stringify({ repos: ['/proj/one', '/abs/r', 'relative', 7, '/proj/two\0x'], auto_discover: false }));
+    const r = buildPortalSpawn(['--repo', '/abs/r', '--state-dir', state], {});
+    const repos = r.args.flatMap((a, i) => (r.args[i - 1] === '--repo' ? [a] : []));
+    assert.deepEqual(repos, ['/abs/r', '/proj/one'], 'absolute string entries only, explicit flags first, no repeats');
+    // portal launch builds the same arguments, so the launcher-started portal knows the projects without flags
+    const launched = buildPortalSpawn(['--state-dir', state, '--port', '9', '--idle-exit', '30'], {});
+    assert.ok(launched.args.includes('/proj/one'));
+  } finally { await rm(state, { recursive: true, force: true }); }
+});
+
+test('a missing or broken portal.json adds nothing', async () => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const os = await import('node:os');
+  const state = await mkdtemp(path.join(os.tmpdir(), 'amauta-portal-json-'));
+  try {
+    assert.deepEqual(buildPortalSpawn(['--state-dir', state], {}).args, ['-P', '-m', 'amauta.portal']);
+    for (const text of ['not json', '[]', '{"repos": "x"}']) {
+      await writeFile(path.join(state, 'portal.json'), text);
+      assert.deepEqual(buildPortalSpawn(['--state-dir', state], {}).args, ['-P', '-m', 'amauta.portal'], text);
+    }
+  } finally { await rm(state, { recursive: true, force: true }); }
+});

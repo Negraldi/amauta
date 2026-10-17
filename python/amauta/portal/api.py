@@ -96,8 +96,13 @@ class Portal:
             return 500, {"error": "internal error"}
 
     def repos(self):
-        """Every repository the portal knows: --repo values now; config and discovered ones join in later."""
-        return list(self.cfg.repos)
+        """Every repository the portal knows: --repo flags, portal.json and discovered git roots (see projects.py), deduplicated."""
+        from . import projects
+        return list(projects.collect(self)["repos"])
+
+    def projects(self, q):
+        from . import projects
+        return projects.summary(self, q)
 
     # ---- usage ----------------------------------------------------------------------------
     def _usage_conn(self):
@@ -372,7 +377,7 @@ class Portal:
     def _graph_repo(self, q):
         """Only repositories given with --repo can be asked about; the value is matched, never used as a path."""
         wanted = q.get("repo")
-        for repo in self.cfg.repos:
+        for repo in self.repos():
             if wanted == str(repo.resolve()):
                 return wanted
         raise BadRequest("repo must be one of the configured --repo paths (see /api/graphify)")
@@ -381,7 +386,7 @@ class Portal:
         conn = self._graph_conn()
         repos = []
         try:
-            for repo in self.cfg.repos:
+            for repo in self.repos():
                 key = str(repo.resolve())
                 # A version-4 mirror has no semantic columns (the portal never migrates): select what exists, default the rest.
                 have = set(columns(conn, "graph_sync")) if conn is not None else set()
@@ -389,7 +394,7 @@ class Portal:
                 row = conn.execute(f"SELECT graph_mtime, synced_at, nodes, edges{''.join(', ' + c for c in extra)} FROM graph_sync WHERE repo = ?", (key,)).fetchone() if conn is not None else None
                 if row is None:
                     repos.append({"name": repo.name, "path": key, "available": False,
-                                  "reason": "not mirrored yet: run `graphify update .` and `python3 -P -m amauta.graph sync --repo <repo>` (or install the post-commit hook)"})
+                                  "reason": "not mirrored yet: run `amauta graphify hook install --cwd <repo>` (or `graphify update .` then `python3 -P -m amauta.graph sync --repo .`)"})
                 else:
                     repos.append({"name": repo.name, "path": key, "available": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"],
                                   "graph_mtime": datetime.fromtimestamp(row["graph_mtime"] or 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -465,7 +470,7 @@ class Portal:
 
     def odd(self, q):
         repos = []
-        for repo in self.cfg.repos:
+        for repo in self.repos():
             docs = []
             folder = repo / "odd" / "tasks"
             for f in sorted(folder.glob("*.md")) if folder.is_dir() else []:
@@ -474,7 +479,7 @@ class Portal:
                 except OSError:
                     continue
                 tasks = wikifeature.parse_tasks(text)
-                docs.append({"name": f.name, "done": sum(t["done"] for t in tasks), "total": len(tasks), "tasks": tasks})
+                docs.append({"id": f"{repo.name}/{f.stem}", "name": f.name, "done": sum(t["done"] for t in tasks), "total": len(tasks), "tasks": tasks})
             repos.append({"repo": repo.name, "documents": docs})
         return {"repos": repos}
 
@@ -580,5 +585,5 @@ _ROUTES = {
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
-    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills", "/api/projects": "projects",
 }

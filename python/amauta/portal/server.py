@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, settings as settings_mod
+from . import archify, projects as projects_mod, settings as settings_mod
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
@@ -23,6 +23,8 @@ STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.mi
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
 MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
+PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB
+PROJECTS_CONFIG = "/api/projects/config"
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
@@ -173,12 +175,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", *SETTINGS_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *SETTINGS_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
         if path in SETTINGS_WRITES:
             return self._settings_write(SETTINGS_WRITES[path])
+        if path == PROJECTS_CONFIG:
+            return self._projects_write()
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -196,8 +200,8 @@ class Handler(BaseHTTPRequestHandler):
         status, body = self.server.portal.refresh()
         self._json(status, body)
 
-    def _settings_body(self):
-        """Strict JSON body of a settings write: JSON content type, bounded size, an object; None after answering with the error."""
+    def _settings_body(self, limit=SETTINGS_MAX_BODY):
+        """Strict JSON body of a guarded write: JSON content type, bounded size, an object; None after answering with the error."""
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if ctype != "application/json":
             self._json(415, {"error": "Content-Type must be application/json"})
@@ -213,7 +217,7 @@ class Handler(BaseHTTPRequestHandler):
         if length < 0:
             self._json(400, {"error": "invalid Content-Length"})
             return None
-        if length > SETTINGS_MAX_BODY:
+        if length > limit:
             self._json(413, {"error": "body too large"})
             return None
         try:
@@ -235,6 +239,19 @@ class Handler(BaseHTTPRequestHandler):
         except settings_mod.SettingsError as err:
             return self._json(err.status, err.body())
         self._json(200, result)
+
+    def _projects_write(self):
+        """Replace portal.json (project paths and the auto-discover switch): same guard and body rules as settings, closed schema, paths checked."""
+        body = self._settings_body(PROJECTS_MAX_BODY)
+        if body is None:
+            return
+        portal = self.server.portal
+        try:
+            projects_mod.write_config(portal.cfg.state_dir, body, portal.cfg.home)
+        except projects_mod.ConfigError as err:
+            return self._json(err.status, {"error": err.message})
+        projects_mod.forget(portal)
+        self._json(200, portal.projects({}))
 
     def _not_allowed(self):
         self._json(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})

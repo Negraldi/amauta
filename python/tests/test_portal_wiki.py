@@ -30,7 +30,7 @@ class PageSchemaTest(WikiBase):
         for kind, ident in (("memory", "1"), ("skill", "work-unit-commits"), ("tool", "Bash"), ("mcp", "engram"), ("session", "s1"), ("feature", "feat"), ("node", key)):
             pg = self.page(kind, ident)
             self.assertEqual(set(pg), PAGE_KEYS | EXTRA_KEYS.get(kind, set()), kind)
-            self.assertEqual((pg["kind"], pg["id"] if kind != "memory" else "1"), (kind, ident), kind)
+            self.assertEqual((pg["kind"], pg["id"] if kind != "memory" else "1"), (kind, "repo/feat" if kind == "feature" else ident), kind)  # features are project-qualified
             for k in ("meta", "links", "backlinks", "sections", "missing"):
                 self.assertIsInstance(pg[k], list, (kind, k))
 
@@ -155,9 +155,9 @@ class SearchTest(WikiBase):
         self.assertEqual(self.groups("Bash")["tool"]["items"][0]["id"], "Bash")
         self.assertEqual(self.groups("engram")["mcp"]["items"][0]["id"], "engram")
         self.assertEqual(self.groups("alpha")["session"]["items"][0]["id"], "s1")
-        self.assertEqual(self.groups("feat")["feature"]["items"][0]["id"], "feat")
+        self.assertEqual(self.groups("feat")["feature"]["items"][0]["id"], "repo/feat")
         task = self.groups("open thing")["task"]["items"][0]
-        self.assertEqual((task["kind"], task["id"], task["title"]), ("feature", "feat", "T2 Open thing"))
+        self.assertEqual((task["kind"], task["id"], task["title"]), ("feature", "repo/feat", "T2 Open thing"))
         node = self.groups("alp")["node"]["items"][0]
         self.assertEqual((node["kind"], node["id"], node["title"]), ("node", "repo::a", "Alpha"))
 

@@ -137,7 +137,7 @@ def git_commits(portal, skill):
     """Newest commits touching the skill's directory in the first --repo that has one; [] when there is none, git is missing or slow."""
     if not SKILL_NAME.match(skill) or ".." in skill:
         return []
-    for repo in portal.cfg.repos:
+    for repo in portal.repos():
         for base in SKILL_DIRS:
             rel = f"{base}/{skill}"
             if not (repo / rel).is_dir() or not (repo / ".git").exists():
