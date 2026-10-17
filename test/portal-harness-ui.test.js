@@ -123,3 +123,53 @@ test('the connector and MCP tool kinds open as wiki pages', async () => {
     assert.match(view(env).textContent, /What it does/, kind);
   }
 });
+
+// ---- Refresh descriptions -----------------------------------------------------------------------------------------
+const fire = (el, type) => { for (const fn of el.listeners[type] ?? []) fn({ target: el, preventDefault() {} }); };
+const buttons = (el) => tree(el).filter((e) => e.tagName === 'button');
+const labelled = (el, re) => buttons(el).find((b) => re.test(b.textContent));
+
+test('the catalog offers Refresh descriptions only when a local command server is configured', async () => {
+  const none = await boot('#/component', { '/api/harness/components': { ...CATALOG, refresh: { servers: 0 } } });
+  assert.equal(labelled(view(none), /Refresh descriptions/), undefined);
+  const some = await boot('#/component', { '/api/harness/components': { ...CATALOG, refresh: { servers: 2 } } });
+  assert.ok(labelled(view(some), /Refresh descriptions/));
+});
+
+test('Refresh descriptions posts a guarded empty body, lists each server result and reloads the catalog', async () => {
+  const posts = [];
+  const env = await boot('#/component', { '/api/harness/components': { ...CATALOG, refresh: { servers: 2 } },
+    '/api/harness/refresh': async (opts) => { posts.push(opts); return { results: [{ server: 'engram', ok: true, tools: 7 }, { server: 'remote', ok: false, skipped: true }, { server: 'slow', ok: false, error: 'timeout' }], at: '2026-10-16T10:00:00Z' }; } });
+  const before = env.calls.filter((c) => c.url === '/api/harness/components').length;
+  labelled(view(env), /Refresh descriptions/).click();
+  await tick(80);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].method, 'POST');
+  assert.equal(posts[0].headers['X-Portal-Token'], 'TOKEN-123');
+  assert.equal(posts[0].headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(posts[0].body), {});
+  const text = view(env).textContent;
+  assert.match(text, /engram: 7 tools/);
+  assert.match(text, /remote: skipped/);
+  assert.match(text, /slow: timeout/);
+  assert.ok(env.calls.filter((c) => c.url === '/api/harness/components').length > before, 'the catalog is reloaded');
+});
+
+test('an MCP server page refreshes just that server, and a refused refresh says why', async () => {
+  const posts = [];
+  const page = { ...PAGE('mcp', { description: 'A server', trigger: null, when: null, source: 'Your Claude home', path: null, builtin: false, note: null }), refresh: { server: 'engram' } };
+  const env = await boot('#/mcp/engram', { '/api/wiki/page': page, '/api/harness/refresh': async (opts) => { posts.push(JSON.parse(opts.body)); return { __status: 409, error: 'a refresh is already running', code: 'probe.busy' }; } });
+  labelled(view(env), /Refresh descriptions/).click();
+  await tick(80);
+  assert.deepEqual(posts, [{ server: 'engram' }]);
+  assert.match(view(env).textContent, /already running/);
+});
+
+test('in Spanish the refresh button and results are translated', async () => {
+  const env = await boot('#/component', { '/api/harness/components': { ...CATALOG, refresh: { servers: 1 } },
+    '/api/harness/refresh': async () => ({ results: [{ server: 'slow', ok: false, error: 'timeout' }, { server: 'x', ok: false, skipped: true }], at: 'z' }) }, ES);
+  labelled(view(env), /Actualizar descripciones/).click();
+  await tick(80);
+  assert.match(view(env).textContent, /slow: tiempo agotado/);
+  assert.match(view(env).textContent, /x: omitido/);
+});

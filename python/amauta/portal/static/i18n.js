@@ -536,6 +536,13 @@
     "components.none": "No components found.",
     "components.where": "Components come from settings.json, .claude.json, .mcp.json, agents, commands, output-styles and installed plugins.",
     "summary.when": "When it runs:",
+    "refresh.button": "Refresh descriptions",
+    "refresh.busy": "Asking the local MCP servers for their tools...",
+    "refresh.help": "Starts each local command-based MCP server from your configuration, asks it for its tool list and stores the answer. Remote servers and connectors are never contacted.",
+    "refresh.ok": "{server}: {n} tools",
+    "refresh.skipped": "{server}: skipped (not a local command server; nothing was contacted)",
+    "refresh.refused": "The refresh did not run: {reason}",
+    "refresh.serverFailed": "{server}: {error}",
   };
   const es = {
     // advice
@@ -1064,6 +1071,13 @@
     "components.none": "No se encontraron componentes.",
     "components.where": "Los componentes provienen de settings.json, .claude.json, .mcp.json, agents, commands, output-styles y los plugins instalados.",
     "summary.when": "Cuándo se ejecuta:",
+    "refresh.button": "Actualizar descripciones",
+    "refresh.busy": "Consultando las herramientas de los servidores MCP locales...",
+    "refresh.help": "Inicia cada servidor MCP local basado en comando según su configuración, le pide su lista de herramientas y guarda la respuesta. Nunca se contacta a servidores remotos ni a conectores.",
+    "refresh.ok": "{server}: {n} herramientas",
+    "refresh.skipped": "{server}: omitido (no es un servidor local de comando; no se contactó nada)",
+    "refresh.refused": "La actualización no se ejecutó: {reason}",
+    "refresh.serverFailed": "{server}: {error}",
   };
   // English text from the server -> Spanish. Keys are the exact English strings (see the comment at the top).
   const srv = {
@@ -1270,6 +1284,19 @@
     "Tools seen": "Herramientas vistas",
     "Tools refreshed": "Herramientas actualizadas",
     "Refresh error": "Error de actualización",
+    "timeout": "tiempo agotado",
+    "malformed response": "respuesta mal formada",
+    "the server returned an error": "el servidor devolvió un error",
+    "could not start the server": "no se pudo iniciar el servidor",
+    "the server closed the connection": "el servidor cerró la conexión",
+    "response too large": "respuesta demasiado grande",
+    "no such configured server": "no existe ese servidor configurado",
+    "body must be an object with an optional server name": "el cuerpo debe ser un objeto con un nombre de servidor opcional",
+    "server must be a configured server name": "server debe ser el nombre de un servidor configurado",
+    "the wiki cache directory is not a plain directory": "el directorio de caché del wiki no es un directorio normal",
+    "could not create the wiki cache directory": "no se pudo crear el directorio de caché del wiki",
+    "could not write the cache": "no se pudo escribir la caché",
+    "the tool list is too large to cache": "la lista de herramientas es demasiado grande para guardarla en caché",
   };
 
   const dict = { en, es, srv };

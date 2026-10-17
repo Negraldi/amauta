@@ -426,6 +426,12 @@ def source_section(e):
     return {"heading": "Source of these facts", "items": [_item(e.get("path") or e["source"], e["source"])]}
 
 
+def stdio_config(e):
+    """True when the first configuration of a server entry is a local command (the only kind the refresh asks)."""
+    first = (e.get("configs") or [{}])[0].get("facts") or {}
+    return first.get("type") == "stdio" and bool(first.get("command"))
+
+
 def page_from(portal, kind, ident):
     entry = index(portal).get((kind, ident))
     if entry is None:
@@ -437,6 +443,8 @@ def build_page(portal, e):
     entries = index(portal)
     pg = _blank(e["kind"], e["id"], e["title"], e.get("body"))
     pg["summary"] = summary_of(e)
+    if e["kind"] == "mcp" and stdio_config(e):
+        pg["refresh"] = {"server": e["id"]}
     pg["meta"] = e["meta"]
     pg["sections"] = [source_section(e)] + e.get("sections", [])
     pg["links"] = [r for r in (_ref_of(entries, k) for k in e["links"]) if r]
@@ -479,6 +487,7 @@ def groups(portal, q=None):
     """The catalog: every component grouped by kind in a fixed order, each with its one-line description and source."""
     entries = index(portal)
     out, total = [], 0
+    servers = sum(1 for e in entries.values() if e["kind"] == "mcp" and stdio_config(e))
     for kind, label in KINDS:
         items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), **({"i18n": e["i18n"]} if e.get("i18n") else {})}
                  for e in entries.values() if e["kind"] == kind]
@@ -486,7 +495,7 @@ def groups(portal, q=None):
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
             out.append({"kind": kind, "label": label, "items": items})
             total += len(items)
-    return {"groups": out, "total": total}
+    return {"groups": out, "total": total, "refresh": {"servers": servers}}
 
 
 def search(kind):
@@ -515,6 +524,8 @@ def merged_page(kind, usage_builder):
             return pg
         base = build_page(portal, entry)
         pg["summary"] = base["summary"]
+        if "refresh" in base:
+            pg["refresh"] = base["refresh"]
         pg["meta"] = base["meta"] + pg["meta"]
         pg["sections"] = base["sections"] + pg["sections"]
         have = {(r["kind"], r["id"]) for r in pg["links"]}

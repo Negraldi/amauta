@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod
+from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiprobe
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
@@ -25,6 +25,8 @@ MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
 PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB
 PROJECTS_CONFIG = "/api/projects/config"
+PROBE_PATH = "/api/harness/refresh"
+PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
 THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
 THEMES_WRITES = {"/api/themes": themes_mod.write_theme, "/api/themes/delete": lambda state, body: themes_mod.delete_theme(state, body.get("slug"))}
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
@@ -177,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *SETTINGS_WRITES, *THEMES_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, PROBE_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
@@ -187,6 +189,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._projects_write()
         if path in THEMES_WRITES:
             return self._themes_write(THEMES_WRITES[path])
+        if path == PROBE_PATH:
+            return self._probe_write()
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -265,6 +269,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             result = action(self.server.portal.cfg.state_dir, body)
         except themes_mod.ThemeError as err:
+            return self._json(err.status, err.body())
+        self._json(200, result)
+
+    def _probe_write(self):
+        """Ask the configured local stdio MCP servers for their tools (see wikiprobe): same guard and body rules as the other writes, closed schema."""
+        body = self._settings_body(PROBE_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = wikiprobe.refresh(self.server.portal, body)
+        except wikiprobe.ProbeError as err:
             return self._json(err.status, err.body())
         self._json(200, result)
 

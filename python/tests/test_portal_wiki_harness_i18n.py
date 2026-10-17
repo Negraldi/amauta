@@ -1,6 +1,7 @@
 import json
+import unittest
 
-from python.amauta.portal import wikiharness, wikitools
+from python.amauta.portal import wikiharness, wikiprobe, wikitools
 from python.tests.test_portal_i18n import catalog, covered
 from python.tests.test_portal_wiki_tools import ToolsBase
 
@@ -35,3 +36,14 @@ class HarnessTextCatalogTest(ToolsBase):
                 self.assertTrue(covered(pg["summary"]["description"], self.keys), pg["summary"]["description"])
         self.assertEqual(sorted(missing), [])
         json.dumps(pages)
+
+
+class ProbeMessagesTest(unittest.TestCase):
+    def test_every_fixed_message_of_the_refresh_has_a_spanish_entry(self):
+        import re
+        from pathlib import Path
+        src = (Path(wikiprobe.__file__)).read_text()
+        messages = set(re.findall(r'_Fail\(\s*"([^"]+)"', src)) | set(re.findall(r'ProbeError\(\s*"([^"]+)"', src))
+        self.assertGreaterEqual(len(messages), 12, messages)
+        keys = catalog()
+        self.assertEqual(sorted(m for m in messages if not covered(m, keys)), [])

@@ -444,7 +444,7 @@ async function viewWikiPage(kind, id, source) {
   const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m)); return [h("dt", null, ts(m.label)), h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
+      h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary), pg.refresh ? refreshControl(pg.refresh.server) : null,
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), meta), railBlock(t("page.links"), pg.links.length ? refList(pg.links) : null), railBlock(t("page.linkedFrom"), pg.backlinks.length ? refList(pg.backlinks) : null)))];
@@ -477,6 +477,30 @@ const localized = (obj, field) => {
   const es = I.lang() === "es" && obj && obj.i18n && obj.i18n.es && obj.i18n.es[field];
   return es || ts(obj[field]);
 };
+// Refresh descriptions: a guarded POST asks the local command-based MCP servers for their tool lists; one line per server, then the page reloads
+// in place. The result lines are remembered per page so they survive that reload.
+const refreshLines = (res) => h("ul", { class: "plain-list" }, res.map((r) => h("li", null,
+  r.ok ? t("refresh.ok", { server: r.server, n: fmt(r.tools) }) : r.skipped ? t("refresh.skipped", { server: r.server }) : t("refresh.serverFailed", { server: r.server, error: ts(r.error) }))));
+function refreshControl(server) {
+  const key = `${state.route.kind}/${state.route.id}`;
+  const out = h("div", { class: "refresh-results", role: "status", "aria-live": "polite" });
+  if (state.refreshLast && state.refreshLast.key === key) out.append(refreshLines(state.refreshLast.results));
+  const btn = h("button", { type: "button" }, t("refresh.button"));
+  btn.addEventListener("click", async () => {
+    setDisabled(btn, true);
+    out.replaceChildren(h("p", { class: "muted" }, t("refresh.busy")));
+    try {
+      const res = await postJson("/api/harness/refresh", server ? { server } : {});
+      if (!res.ok) { out.replaceChildren(h("p", { class: "warn" }, t("refresh.refused", { reason: ts(res.data.error || t("common.http", { status: res.status })) }))); return; }
+      state.refreshLast = { key, results: res.data.results };
+      out.replaceChildren(refreshLines(res.data.results));
+      render();
+    } catch (err) {
+      out.replaceChildren(h("p", { class: "warn" }, t("refresh.refused", { reason: plainReason(err) })));
+    } finally { setDisabled(btn, false); }
+  });
+  return h("div", { class: "refresh" }, btn, " ", h("span", { class: "muted" }, t("refresh.help")), out);
+}
 const clip = (text) => (text.length > 220 ? `${text.slice(0, 217)}...` : text);
 // Component catalog: every harness component grouped by kind; the filter works on what is already loaded.
 async function viewComponents() {
@@ -494,7 +518,7 @@ async function viewComponents() {
   box.addEventListener("input", paint);
   paint();
   return [h("h1", null, t("nav.component")), h("p", { class: "muted" }, t("components.intro", { n: fmt(cat.total) })),
-    h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("components.where"))])];
+    ...(cat.refresh && cat.refresh.servers ? [refreshControl(null)] : []), h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("components.where"))])];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.
