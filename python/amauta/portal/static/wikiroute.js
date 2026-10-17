@@ -4,7 +4,7 @@
   // kind -> label shown in the sidebar and as the page's kind label
   const KINDS = {
     home: "Home", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
-    node: "Graph node", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint",
+    node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint",
   };
   // Hashes of the previous tabbed portal keep working.
   const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" }; // the Diagrams page was folded into Harness
@@ -14,20 +14,28 @@
   }
 
   // "#/memory/arch%2Fwidgets" -> {kind: "memory", id: "arch/widgets"}; "" -> home; unknown kinds -> {kind: "unknown", id: <raw>}.
+  const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
   function parseHash(hash) {
-    const raw = String(hash || "").replace(/^#/, "");
+    const full = String(hash || "").replace(/^#/, "");
+    const qi = full.indexOf("?");
+    const raw = qi < 0 || !full.startsWith("/") ? full : full.slice(0, qi);
+    const query = qi < 0 || !full.startsWith("/") ? "" : full.slice(qi + 1);
     if (raw === "" || raw === "/") return { kind: "home", id: "" };
     if (!raw.startsWith("/")) return LEGACY[raw] ? { kind: LEGACY[raw], id: "" } : { kind: "unknown", id: raw };
     const [first, ...rest] = raw.slice(1).split("/");
     const kind = first === "diagrams" ? "harness" : first;
     if (first === "diagrams") return { kind, id: "" };
     if (!Object.prototype.hasOwnProperty.call(KINDS, kind)) return { kind: "unknown", id: raw };
-    return { kind, id: rest.length ? decode(rest.join("/")) : "" };
+    const out = { kind, id: rest.length ? decode(rest.join("/")) : "" };
+    const source = (/(?:^|&)source=([^&]*)/.exec(query) || [])[1];
+    if (out.id && source && SOURCES.includes(source)) out.source = source;
+    return out;
   }
 
-  // The inverse of parseHash: ids are fully percent-encoded so slashes, '#', '?' and '::' survive a round trip.
-  function formatHash(kind, id) {
-    return id ? `#/${kind}/${encodeURIComponent(id)}` : `#/${kind}`;
+  // The inverse of parseHash: ids are fully percent-encoded so slashes, '#', '?' and '::' survive a round trip. A non-default source rides after '?'.
+  function formatHash(kind, id, opts) {
+    const base = id ? `#/${kind}/${encodeURIComponent(id)}` : `#/${kind}`;
+    return id && opts && SOURCES.includes(opts.source) ? `${base}?source=${opts.source}` : base;
   }
 
 

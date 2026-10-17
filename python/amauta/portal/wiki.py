@@ -15,7 +15,7 @@ from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime
 
 MAX_ID = 512
 WIKILINK = re.compile(r"\[\[([^\[\]\n]{1,200})\]\]")
-KINDS = ("memory", "skill", "tool", "mcp", "session", "feature", "node")
+KINDS = ("memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node")
 
 
 # ---- dispatch ----------------------------------------------------------------------------------------------
@@ -109,9 +109,41 @@ def _memory_page(portal, ident, q):
             pg["links"].append(_ref("session", sid, title))
         pg["history"] = wikimem.history(conn, d)
         pg["sections"] = _same_topic(conn, d)
+        if source != "own":
+            _tag_source(pg, source)
         return pg
     finally:
         conn.close()
+
+
+def _tag_source(pg, source):
+    """Memory links on a page read from another store must open that store's page, so they carry its name."""
+    for ref in pg["links"] + pg["backlinks"] + [i for s in pg["sections"] for i in s["items"]]:
+        if ref.get("kind") == "memory":
+            ref["source"] = source
+
+
+def _memfile_page(portal, ident, q):
+    """A Claude file memory (`projects/*/memory/*.md`): read-only, only files the listing itself would show."""
+    root = portal.cfg.claude_home / "projects"
+    found = next((p for p in portal._memory_files() if p.relative_to(root).as_posix() == ident), None)
+    if found is None:
+        raise NotFound()
+    try:
+        st = found.stat()
+        text = found.read_bytes()[:MAX_TEXT].decode("utf-8", "replace")
+    except OSError:
+        raise NotFound() from None
+    pg = _blank("memfile", ident, found.name, text)
+    pg["meta"] = _meta(("Project", found.parent.parent.name), ("Size", st.st_size), ("Modified", _mtime(found)), ("Truncated", "yes" if st.st_size > MAX_TEXT else None))
+    pg["links"], pg["missing"] = _wikilink_links(portal, text)
+    return pg
+
+
+def _memfile_title(portal, ident):
+    root = portal.cfg.claude_home / "projects"
+    found = next((p for p in portal._memory_files() if p.relative_to(root).as_posix() == ident), None)
+    return found.name if found else None
 
 
 def _memory_backlinks(conn, d):
@@ -261,9 +293,9 @@ def _node_title(portal, ident):
         conn.close()
 
 
-_PAGES = {"memory": _memory_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiusage.usage_page("mcp"),
+_PAGES = {"memory": _memory_page, "memfile": _memfile_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiusage.usage_page("mcp"),
           "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page}
-_TITLES = {"memory": _memory_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiusage.usage_title("mcp"),
+_TITLES = {"memory": _memory_title, "memfile": _memfile_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiusage.usage_title("mcp"),
            "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title}
 
 

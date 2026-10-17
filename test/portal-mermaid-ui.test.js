@@ -28,8 +28,8 @@ const routes = {
   '/api/graph/diagram': { available: true, source: 'flowchart LR\n  n0["A"]', nodes: 1, edges: 0, truncated: false },
 };
 
-async function boot(hash, { failRender = false } = {}) {
-  const env = makeEnv(routes);
+async function boot(hash, { failRender = false, page } = {}) {
+  const env = makeEnv({ ...routes, ...(page ? { '/api/wiki/page': page } : {}) });
   env.location.hash = hash;
   const log = { init: [], render: [], scripts: [] };
   env.window.mermaid = {
@@ -86,13 +86,13 @@ test('a failed render shows a one-line warning and the source as text, never as 
   assert.ok(pres >= 1);
 });
 
-test('mermaid fences in a displayed memory file are drawn; other fences and prose are not', async () => {
-  const { env, log } = await boot('#memories');
-  const btn = (() => { let found; env.document.getElementById('view').walk((e) => { if (e.tagName === 'button' && e.textContent === 'n.md') found = e; }); return found; })();
-  assert.ok(btn, 'file row not found');
-  btn.click();
-  await tick();
-  assert.deepEqual(log.render, [`${FENCE}\n`]);
+test('mermaid fences in a memory file page are drawn; other fences and prose are not', async () => {
+  const { env, log } = await boot('#/memfile/a%2Fmemory%2Fn.md', { page: { kind: 'memfile', id: 'a/memory/n.md', title: 'n.md', body_md: `# T\n\n\`\`\`mermaid\n${FENCE}\n\`\`\`\n\n\`\`\`js\nnot mermaid\n\`\`\`\n${HOSTILE}\n`, meta: [], links: [], backlinks: [], sections: [], missing: [] } });
+  assert.ok(env.calls.some((c) => String(c.url).startsWith('/api/wiki/page?kind=memfile')));
+  assert.deepEqual(log.render, [FENCE]);
+  let imgs = 0;
+  env.document.getElementById('view').walk((e) => { if (e.tagName === 'img') imgs += 1; });
+  assert.equal(imgs, 0);
 });
 
 test('selecting a graph node also draws its neighborhood diagram', async () => {

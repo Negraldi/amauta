@@ -80,15 +80,9 @@ function diagramBox(source, caption) {
   drawMermaid(source, box);
   return box;
 }
-// Markdown the portal shows as text may hold ```mermaid fences: draw the first few under it.
-function fenceDiagrams(text, into) {
-  const sources = [...String(text).matchAll(/^```mermaid[ \t]*\r?\n([\s\S]*?)^```[ \t]*$/gm)].slice(0, 5).map((m) => m[1]);
-  into.replaceChildren(...sources.map((src, i) => h("div", null, h("div", { class: "muted" }, `Mermaid diagram ${i + 1}`), diagramBox(src, `Mermaid diagram ${i + 1}`))));
-  into.hidden = sources.length === 0;
-}
 
 const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {} };
-const link = (kind, id, label, attrs) => h("a", { href: R.formatHash(kind, id), ...attrs }, label);
+const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value });
 
 function card(label, value, extra) { return h("div", { class: "card" }, h("div", { class: "v" }, value), h("div", { class: "l" }, label), extra); }
@@ -109,7 +103,7 @@ function table(id, columns, rows, onRow) {
     onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } },
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
   const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
-    c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : R.fmtIso(r[c.key]) ?? "-"))));
+    c.href ? h("a", { href: c.href(r) }, r[c.key]) : c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : R.fmtIso(r[c.key]) ?? "-"))));
   return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": "Table, scrollable" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
@@ -203,41 +197,26 @@ function guarded(fn, into) {
   };
 }
 
-function fences(text) { const box = h("div", null); fenceDiagrams(text, box); return box; }
-
-async function showMemory(source, id, into) {
-  const m = await api("memory", { source, id });
-  const hist = m.topic_key ? await api("memory/history", { source, topic_key: m.topic_key, project: m.project }) : { items: [] };
-  into.replaceChildren(
-    h("h2", null, m.title), h("p", null, link("memory", m.id, "Open as wiki page")), h("div", { class: "muted" }, [m.type, m.project, m.topic_key, `rev ${m.revision}`, R.fmtIso(m.updated_at)].filter(Boolean).join(" · ")),
-    h("pre", { class: "text" }, m.content), fences(m.content),
-    hist.items.length > 1 || (hist.items[0] && hist.items[0].revision > 1) ? h("div", null, h("h2", null, "Topic history"), table("hist", [{ key: "id", label: "#", num: true }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }, { key: "deleted_at", label: "Deleted" }], hist.items)) : null);
-}
-
 async function viewMemories() {
-  const detail = h("section", { class: "panel" }, h("p", { class: "muted" }, "Select a memory to read it."));
   const q = h("input", { type: "search", placeholder: "Search memories", "aria-label": "Search memories", value: state.memQuery || "" });
   const type = h("select", { "aria-label": "Type" }, h("option", { value: "" }, "All types"));
   const mine = h("div", null);
+  const source = state.memSource;
   const load = guarded(async () => {
     state.memQuery = q.value;
-    const r = await api("memories", { source: state.memSource, q: q.value, project: $("project").value, type: type.value });
+    const r = await api("memories", { source, q: q.value, project: $("project").value, type: type.value });
     if (r.available && !type.dataset.ready) { r.facets.types.forEach((t) => type.append(h("option", { value: t }, t))); type.dataset.ready = "1"; }
-    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: "Title", link: true }, { key: "type", label: "Type" }, { key: "project", label: "Project" }, { key: "topic_key", label: "Topic" }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }], r.items, guarded((row) => showMemory(state.memSource, row.id, detail), detail)) : empty("No matching memories.")) : empty(state.memSource === "engram" ? "Engram database not found or not compatible." : "Memory database not found."));
+    // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
+    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: "Title", href: (row) => R.formatHash("memory", String(row.id), { source }) }, { key: "type", label: "Type" }, { key: "project", label: "Project" }, { key: "topic_key", label: "Topic" }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }], r.items) : empty("No matching memories.")) : empty(source === "engram" ? "Engram database not found or not compatible." : "Memory database not found."));
   }, mine);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   type.addEventListener("change", load);
   await load();
   const files = await api("memory-files");
-  const fileDetail = h("pre", { class: "text" }, "");
-  fileDetail.hidden = true;
-  const fileFences = h("div", null);
-  fileFences.hidden = true;
   return [
     h("div", { class: "tabs" }, [["own", "amauta memory"], ["engram", "Engram (read-only)"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
     panel("Search", h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, "Search")), mine),
-    detail,
-    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", link: true }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items, guarded(async (f) => { const b = await api("memory-file", { id: f.id }); fileDetail.textContent = b.content; fileDetail.hidden = false; fenceDiagrams(b.content, fileFences); }, fileDetail)) : empty("No file memories found."), fileDetail, fileFences),
+    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items) : empty("No file memories found.")),
     await graphifyPanel(),
   ];
 }
@@ -331,13 +310,13 @@ function teach(title, ...paras) {
   return h("div", { class: "teach" }, h("h1", null, title), ...paras.map((p) => h("p", null, p)), h("p", null, link("home", "", "Back to Home")));
 }
 function refList(refs) {
-  return h("ul", { class: "refs" }, refs.map((r) => h("li", null, link(r.kind, r.id, r.title), h("span", { class: "muted" }, ` ${R.KINDS[r.kind] || r.kind}`))));
+  return h("ul", { class: "refs" }, refs.map((r) => h("li", null, link(r.kind, r.id, r.title, null, r.source), h("span", { class: "muted" }, ` ${R.KINDS[r.kind] || r.kind}`))));
 }
 function railBlock(title, body) { return body ? h("section", { class: "rail-block" }, h("h2", null, title), body) : null; }
 
 function sectionBlock(s) {
   return h("section", { class: "page-section" }, h("h2", null, s.heading), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
-    it.kind && it.id ? link(it.kind, it.id, it.label) : h("span", null, it.label),
+    it.kind && it.id ? link(it.kind, it.id, it.label, null, it.source) : h("span", null, it.label),
     it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${R.fmtMeta(it)}`)))));
 }
 
@@ -443,9 +422,9 @@ function bodyNodes(pg) {
   return MD.toDom(MD.parse(pg.body_md), document, { known, mermaid, headingOffset: 1 });
 }
 
-async function viewWikiPage(kind, id) {
+async function viewWikiPage(kind, id, source) {
   let pg;
-  try { pg = await api("wiki/page", { kind, id }); } catch (err) {
+  try { pg = await api("wiki/page", { kind, id, source }); } catch (err) {
     if (/not found/i.test(String(err.message))) return [teach(`No ${(R.KINDS[kind] || kind).toLowerCase()} page`, `Nothing is stored under ${id}.`, HINTS[kind] || "")];
     throw err;
   }
@@ -738,9 +717,9 @@ async function viewUsagePage() { return [...(await viewOverview()), ...(await vi
 async function renderRoute(route, changed) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
-  if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
+  if (id && ["memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
+  const views = { home: viewHome, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
   return views[kind]();
 }
 
@@ -753,7 +732,7 @@ let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
   const route = state.route;
-  const key = `${route.kind}/${route.id}`;
+  const key = `${route.kind}/${route.id}/${route.source || ""}`;
   const changed = state.shown !== key;
   renderNav(route);
   $("filters").hidden = !R.showsFilters(route);

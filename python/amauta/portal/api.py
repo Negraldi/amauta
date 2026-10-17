@@ -339,7 +339,7 @@ class Portal:
             return []
         out = []
         for p in sorted(root.glob("*/memory/*.md")):
-            if p.is_file() and not p.is_symlink():
+            if p.is_file() and not p.is_symlink() and not p.parent.is_symlink() and not p.parent.parent.is_symlink():
                 out.append(p)
         return out
 
