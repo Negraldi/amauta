@@ -1259,6 +1259,17 @@
     "When you type this slash command.": "Cuando usted escribe este comando de barra.",
     "While this output style is active, for every reply.": "Mientras este estilo de salida está activo, en cada respuesta.",
     "A Claude Code plugin: a bundle that can provide skills, agents, commands, hooks, MCP servers and output styles.": "Un plugin de Claude Code: un paquete que puede aportar skills, agentes, comandos, hooks, servidores MCP y estilos de salida.",
+    "Reported by the server": "Informado por el servidor",
+    "A claude.ai connector (or a server the Claude app provides itself): it has no local configuration, so the portal cannot see its command or settings and never contacts it. What your sessions called is all that is known.": "Un conector de claude.ai (o un servidor que aporta la propia aplicación de Claude): no tiene configuración local, así que el portal no puede ver su comando ni sus ajustes y nunca lo contacta. Solo se sabe lo que llamaron sus sesiones.",
+    "When Claude calls one of its tools during a session.": "Cuando Claude llama a una de sus herramientas durante una sesión.",
+    "When Claude decides the tool fits the task, subject to your permission rules.": "Cuando Claude decide que la herramienta sirve para la tarea, según sus reglas de permisos.",
+    "Seen in your sessions but not in the built-in catalog shipped with amauta.": "Aparece en sus sesiones pero no en el catálogo integrado que incluye amauta.",
+    "Known only from your sessions: no description was reported. Use Refresh descriptions on the Components page for local servers.": "Solo se conoce por sus sesiones: no se informó ninguna descripción. Use Actualizar descripciones en la página Componentes para los servidores locales.",
+    "Server": "Servidor",
+    "Parameters": "Parámetros",
+    "Tools seen": "Herramientas vistas",
+    "Tools refreshed": "Herramientas actualizadas",
+    "Refresh error": "Error de actualización",
   };
 
   const dict = { en, es, srv };

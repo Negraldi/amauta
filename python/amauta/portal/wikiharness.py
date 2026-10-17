@@ -384,16 +384,14 @@ def forget(portal):
 
 def _links(e, entries):
     out = []
+    if e.get("owner"):
+        out.append(e["owner"])
     if e["kind"] == "plugin":
         out += e["provides"]
     if e["kind"] == "agent":
         for t in e.get("tools", []):
             out.append(("mcptool", t[5:].replace("__", "/", 1)) if t.startswith("mcp__") and "__" in t[5:] else ("tool", t))
-    if e["kind"] == "mcp":
-        out += [("mcptool", f"{e['id']}/{t}") for t in e.get("tool_names", [])]
-    if e["kind"] == "mcptool":
-        out.append(("mcp", e["server"]))
-    if e["kind"] == "connector":
+    if e["kind"] in ("mcp", "connector"):
         out += [("mcptool", f"{e['id']}/{t}") for t in e.get("tool_names", [])]
     plugin = e.get("plugin")
     if plugin and e["kind"] != "plugin":
@@ -414,7 +412,10 @@ def _ref_of(entries, key):
 
 
 def summary_of(e):
-    return {"description": e.get("description"), "trigger": None, "when": e.get("when"), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
+    out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
+    if e.get("i18n"):
+        out["i18n"] = e["i18n"]
+    return out
 
 
 def source_section(e):
@@ -440,7 +441,27 @@ def build_page(portal, e):
     pg["sections"] = [source_section(e)] + e.get("sections", [])
     pg["links"] = [r for r in (_ref_of(entries, k) for k in e["links"]) if r]
     pg["backlinks"] = [r for r in (_ref_of(entries, k) for k in e["backlinks"]) if r]
+    if e.get("usage_col") and e.get("usage_name"):
+        _add_usage(portal, pg, e)
     return pg
+
+
+def _add_usage(portal, pg, e):
+    """Daily calls and recent sessions for entries that map to a usage column (MCP tools, connectors)."""
+    from . import wikiusage  # lazy: wikiusage imports wikibase only, but keeps import order simple
+    conn = portal._usage_conn()
+    if conn is None:
+        return
+    try:
+        col, name = e["usage_col"], e["usage_name"]
+        last = conn.execute(f"SELECT max(c.ts) FROM tool_calls c WHERE {col} = ?", (name,)).fetchone()[0]
+        if last is None:
+            return
+        pg["usage"] = {"daily": wikiusage._daily(conn, col, name, last), "days": wikiusage.DAYS}
+        have = {(r["kind"], r["id"]) for r in pg["backlinks"]}
+        pg["backlinks"] += [r for r in wikiusage._session_refs(conn, portal, f"{col} = ?", (name,)) if (r["kind"], r["id"]) not in have]
+    finally:
+        conn.close()
 
 
 def title_of(kind):
@@ -459,7 +480,7 @@ def groups(portal, q=None):
     entries = index(portal)
     out, total = [], 0
     for kind, label in KINDS:
-        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0)}
+        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), **({"i18n": e["i18n"]} if e.get("i18n") else {})}
                  for e in entries.values() if e["kind"] == kind]
         if items:
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
@@ -476,16 +497,20 @@ def search(kind):
     return run
 
 
-def mcp_page(usage_builder):
-    """MCP server page: the usage page (when sessions called it) merged with the configuration facts (when it is configured)."""
+def merged_page(kind, usage_builder):
+    """Usage page (when sessions called it) merged with the harness facts (when the component is configured or catalogued)."""
     def build(portal, ident, q):
-        entry = index(portal).get(("mcp", ident))
+        entry = index(portal).get((kind, ident))
         try:
             pg = usage_builder(portal, ident, q)
         except NotFound:
             if entry is None:
                 raise
             return build_page(portal, entry)
+        if kind == "tool" and ident.startswith("mcp__"):
+            owner = next((e for e in index(portal).values() if e["kind"] == "mcptool" and e.get("usage_name") == ident), None)
+            if owner:
+                pg["links"].append(_ref("mcptool", owner["id"], owner["title"]))
         if entry is None:
             return pg
         base = build_page(portal, entry)
@@ -500,9 +525,9 @@ def mcp_page(usage_builder):
     return build
 
 
-def mcp_title(usage_title):
+def merged_title(kind, usage_title):
     def title(portal, ident):
-        return usage_title(portal, ident) or title_of("mcp")(portal, ident)
+        return usage_title(portal, ident) or title_of(kind)(portal, ident)
     return title
 
 

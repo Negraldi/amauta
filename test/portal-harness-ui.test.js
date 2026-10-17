@@ -23,10 +23,10 @@ const CATALOG = { total: 4, pending: 0, groups: [
   { kind: 'plugin', label: 'Plugins', items: [row('plugin', 'plug', { source: 'Plugin plug' })] },
 ] };
 
-async function boot(hash, over = {}) {
+async function boot(hash, over = {}, extra = {}) {
   const env = makeEnv({ '/api/harness/components': CATALOG, '/api/wiki/recent': { items: [] }, '/api/sessions': { available: false }, ...over });
   env.location.hash = hash;
-  await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  await runPortal(env, { DOMParser: class {}, queueMicrotask, ...extra });
   await tick();
   return env;
 }
@@ -96,4 +96,30 @@ test('a component page with no description shows the plain note', async () => {
   const sm = { description: null, trigger: null, when: null, source: 'Usage only', path: null, builtin: false, note: 'No curated summary for this command: read the command itself.' };
   const env = await boot('#/hook/x', { '/api/wiki/page': PAGE('hook', sm) });
   assert.match(view(env).textContent, /No curated summary for this command/);
+});
+
+const TOOL_SM = { description: 'Runs a shell command.', trigger: null, when: 'To run tests and builds.', source: 'Built into Claude Code', path: null, builtin: true, note: null, i18n: { es: { description: 'Ejecuta un comando de shell.', when: 'Para ejecutar pruebas y compilaciones.' } } };
+const ES = { navigator: { language: 'es-ES' } };
+
+test('a built-in tool page shows its own Spanish text when the language is Spanish and English otherwise', async () => {
+  const es = await boot('#/tool/Bash', { '/api/wiki/page': PAGE('tool', TOOL_SM) }, ES);
+  assert.match(view(es).textContent, /Ejecuta un comando de shell/);
+  assert.match(view(es).textContent, /Para ejecutar pruebas y compilaciones/);
+  assert.doesNotMatch(view(es).textContent, /Runs a shell command/);
+  const en = await boot('#/tool/Bash', { '/api/wiki/page': PAGE('tool', TOOL_SM) });
+  assert.match(view(en).textContent, /Runs a shell command/);
+});
+
+test('the catalog rows of built-in tools use the Spanish description too', async () => {
+  const groups = [{ kind: 'tool', label: 'Built-in tools', items: [row('tool', 'Bash', { source: 'Built into Claude Code', description: 'Runs a shell command.', i18n: { es: { description: 'Ejecuta un comando de shell.' } } })] }];
+  const es = await boot('#/component', { '/api/harness/components': { total: 1, pending: 0, groups } }, ES);
+  assert.match(view(es).textContent, /Ejecuta un comando de shell/);
+  assert.match(view(es).textContent, /Herramientas integradas \(1\)/);
+});
+
+test('the connector and MCP tool kinds open as wiki pages', async () => {
+  for (const kind of ['connector', 'mcptool']) {
+    const env = await boot(`#/${kind}/x`, { '/api/wiki/page': PAGE(kind, { description: 'Some text', trigger: null, when: null, source: 'Usage only', path: null, builtin: false, note: null }) });
+    assert.match(view(env).textContent, /What it does/, kind);
+  }
 });

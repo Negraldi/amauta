@@ -9,7 +9,7 @@ from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 from python.tests.test_portal import ApiBase
 
-EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary"}, "tool": {"usage"}, "mcp": {"usage", "summary"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
+EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary"}, "tool": {"usage", "summary"}, "mcp": {"usage", "summary"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
 PAGE_KEYS = {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"}
 
 
@@ -82,9 +82,9 @@ class UsagePagesTest(WikiBase):
         self.assertEqual((self.meta(skill)["Calls"], self.meta(skill)["Sessions"]), ("1", "1"))
         self.assertEqual([(b["kind"], b["id"]) for b in skill["backlinks"]], [("session", "s1")])
         mcp = self.page("mcp", "engram")
-        self.assertEqual([(x["kind"], x["id"]) for x in mcp["links"]], [("tool", "mcp__engram__mem_save")])
+        self.assertEqual([(x["kind"], x["id"]) for x in mcp["links"]], [("tool", "mcp__engram__mem_save"), ("mcptool", "engram/mem_save")])
         tool = self.page("tool", "mcp__engram__mem_save")
-        self.assertEqual([(x["kind"], x["id"]) for x in tool["links"]], [("mcp", "engram")])
+        self.assertEqual([(x["kind"], x["id"]) for x in tool["links"]], [("mcp", "engram"), ("mcptool", "engram/mem_save")])
         self.assertEqual(self.page("tool", "Bash")["links"], [])
 
     def test_session_page_links_what_it_used(self):
@@ -102,7 +102,7 @@ class UsagePagesTest(WikiBase):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
         self.assertEqual(empty.get("/api/wiki/page", {"kind": "skill", "id": "x"})[0], 404)
         self.assertEqual(empty.get("/api/wiki/recent", {})[1], {"items": []})
-        self.assertEqual(empty.get("/api/wiki/search", {"q": "x"})[1]["groups"], [])
+        self.assertEqual(empty.get("/api/wiki/search", {"q": "zzzz-no-match"})[1]["groups"], [])  # the built-in tool catalog needs no usage data, so a query that matches it would still answer
 
 
 class FeatureAndNodePagesTest(WikiBase):

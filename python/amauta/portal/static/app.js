@@ -472,6 +472,11 @@ async function viewSkillCatalog() {
     h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("skills.where"))])];
 }
 
+// A curated component carries its own Spanish text in `i18n.es`; every other text is the server's English (or the user's own words) run through ts().
+const localized = (obj, field) => {
+  const es = I.lang() === "es" && obj && obj.i18n && obj.i18n.es && obj.i18n.es[field];
+  return es || ts(obj[field]);
+};
 const clip = (text) => (text.length > 220 ? `${text.slice(0, 217)}...` : text);
 // Component catalog: every harness component grouped by kind; the filter works on what is already loaded.
 async function viewComponents() {
@@ -483,7 +488,7 @@ async function viewComponents() {
     const groups = R.filterComponents(cat.groups, box.value);
     list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
       h("ul", { class: "items" }, g.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`),
-        i.description ? h("div", null, clip(ts(i.description))) : null)))))
+        i.description ? h("div", null, clip(localized(i, "description"))) : null)))))
       : [h("p", { class: "muted" }, cat.total ? t("components.noMatch") : t("components.none"))]));
   };
   box.addEventListener("input", paint);
@@ -497,9 +502,9 @@ function summaryBlock(sm) {
   if (!sm) return null;
   return h("section", { class: "page-section summary" }, h("h2", null, t("summary.title")),
     sm.note ? h("p", null, ts(sm.note)) : null,
-    sm.description ? h("p", null, ts(sm.description)) : null,
+    sm.description ? h("p", null, localized(sm, "description")) : null,
     sm.trigger ? h("p", null, h("strong", null, t("summary.trigger") + " "), sm.trigger) : null,
-    sm.when ? h("p", null, h("strong", null, t("summary.when") + " "), ts(sm.when)) : null,
+    sm.when ? h("p", null, h("strong", null, t("summary.when") + " "), localized(sm, "when")) : null,
     h("p", { class: "muted" }, t("summary.source", { source: ts(sm.source) }), sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
 }
 

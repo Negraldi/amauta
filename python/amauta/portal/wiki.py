@@ -307,9 +307,9 @@ def _node_title(portal, ident):
         conn.close()
 
 
-_PAGES = {"project": wikiproject.page, "memory": _memory_page, "memfile": _memfile_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiharness.mcp_page(wikiusage.usage_page("mcp")),
+_PAGES = {"project": wikiproject.page, "memory": _memory_page, "memfile": _memfile_page, "skill": wikiusage.usage_page("skill"), "tool": wikiharness.merged_page("tool", wikiusage.usage_page("tool")), "mcp": wikiharness.merged_page("mcp", wikiusage.usage_page("mcp")),
           "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page, **{k: wikiharness.page_builder(k) for k in wikiharness.NEW_KINDS}}
-_TITLES = {"project": wikiproject.title, "memory": _memory_title, "memfile": _memfile_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiharness.mcp_title(wikiusage.usage_title("mcp")),
+_TITLES = {"project": wikiproject.title, "memory": _memory_title, "memfile": _memfile_title, "skill": wikiusage.usage_title("skill"), "tool": wikiharness.merged_title("tool", wikiusage.usage_title("tool")), "mcp": wikiharness.merged_title("mcp", wikiusage.usage_title("mcp")),
            "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title, **{k: wikiharness.title_of(k) for k in wikiharness.NEW_KINDS}}
 
 
@@ -364,7 +364,7 @@ def search(portal, q):
     out = {"q": text, "groups": []}
     if not text:
         return out
-    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", _search_usage("tool")), ("mcp", wikiharness.merged_search("mcp", _search_usage("mcp"))),
+    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", wikiharness.merged_search("tool", _search_usage("tool"))), ("mcp", wikiharness.merged_search("mcp", _search_usage("mcp"))),
                       *[(k, wikiharness.search(k)) for k in wikiharness.NEW_KINDS],
                       ("session", _search_sessions), ("project", _search_projects), ("feature", _search_features), ("task", _search_tasks), ("node", _search_nodes)):
         rows = fn(portal, text)
