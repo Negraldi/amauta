@@ -290,17 +290,19 @@ function archifyBlock(d) {
 }
 
 async function viewHarness() {
-  const [hs, arch] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false }))]);
+  const [hs, arch, comps] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })), api("harness/components").catch(() => null)]);
   const out = [];
   if (!hs.installed) out.push(panel(t("nav.harnessPage"), empty(t("harness.notInstalled"))));
   else {
     out.push(h("div", { class: "grid" }, card(t("harness.version"), hs.version || "-"), card(t("harness.rdd"), hs.rdd_mode || "-"), card(t("harness.telemetry"), hs.telemetry ? t("common.on") : t("common.off")), card(t("harness.managed"), fmt(hs.managed_files)), card(t("harness.persona"), hs.persona || "-")),
       archifyBlock(arch),
+      ...(comps ? [panel(t("harness.wiki"), h("p", null, t("harness.wikiIntro", { n: fmt(comps.total) }) + " ", link("component", "", t("harness.openComponents")), "."),
+        comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null)] : []),
       panel(t("harness.components"), empty((hs.components || []).join(", ") || t("common.none"))),
       panel(t("harness.hooks"), hs.hooks.length ? table("hooks", [{ key: "event", label: t("col.event") }, { key: "kind", label: t("col.kind") }], hs.hooks) : empty(t("harness.noHooks"))),
       panel(t("nav.mcp"), hs.mcp_servers.length ? table("mcp", [{ key: "name", label: t("col.name") }, { key: "type", label: t("col.type") }, { key: "command", label: t("col.command") }], hs.mcp_servers) : empty(t("common.noneDot"))));
   }
-  return out;
+  return out.filter(Boolean); // archifyBlock is null when the install state is missing
 }
 
 // ---- wiki pages ---------------------------------------------------------------------------------------------
@@ -427,11 +429,11 @@ function pageExtras(pg) {
   return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null, oddDiagramsBlock(pg), projectGraphBlock(pg)];
 }
 
-function bodyNodes(pg) {
+function bodyNodes(pg, text = pg.body_md) {
   const known = (kind, id) => !(pg.missing || []).some((m) => m.kind === kind && m.id === id);
   let diagrams = 0;
   const mermaid = (src) => (++diagrams <= 5 ? diagramBox(src, t("diagram.mermaid")) : h("pre", { class: "code" }, h("code", null, src)));
-  return MD.toDom(MD.parse(pg.body_md), document, { known, mermaid, headingOffset: 1, labels: { missing: (kind, id) => t("md.missing", { kind, id }), table: t("table.label") } });
+  return MD.toDom(MD.parse(text), document, { known, mermaid, headingOffset: 1, labels: { missing: (kind, id) => t("md.missing", { kind, id }), table: t("table.label") } });
 }
 
 async function viewWikiPage(kind, id, source) {
@@ -446,7 +448,7 @@ async function viewWikiPage(kind, id, source) {
     h("article", { class: "doc" },
       h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary), pg.refresh ? refreshControl(pg.refresh.server) : null,
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
-      ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
+      ...pg.sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), meta), railBlock(t("page.links"), pg.links.length ? refList(pg.links) : null), railBlock(t("page.linkedFrom"), pg.backlinks.length ? refList(pg.backlinks) : null)))];
 }
 
@@ -500,6 +502,34 @@ function refreshControl(server) {
     } finally { setDisabled(btn, false); }
   });
   return h("div", { class: "refresh" }, btn, " ", h("span", { class: "muted" }, t("refresh.help")), out);
+}
+// Request explanation: a guarded POST queues a request; Claude Code writes the note later (skill amauta-wiki-explain). The portal never calls a model.
+function explainBlock(pg) {
+  const ex = pg.explain;
+  if (!ex) return null;
+  const out = h("div", { class: "explain-status", role: "status", "aria-live": "polite" });
+  const parts = [];
+  if (ex.note) {
+    parts.push(h("p", { class: "muted" }, t("explain.written", { at: R.fmtDateTime(ex.note.written_at) })), ex.note.stale ? h("p", { class: "warn" }, t("explain.stale")) : null,
+      h("div", { class: "prose" }, bodyNodes(pg, ex.note.body_md)));
+  } else if (!ex.pending) parts.push(h("p", { class: "muted" }, t("explain.none")));
+  if (ex.pending) parts.push(h("p", null, t("explain.requested", { at: R.fmtDateTime(ex.pending.requested_at) })), h("p", { class: "muted" }, t("explain.pendingHelp")));
+  else {
+    const btn = h("button", { type: "button" }, t(ex.note ? "explain.requestNew" : "explain.request"));
+    btn.addEventListener("click", async () => {
+      setDisabled(btn, true);
+      try {
+        const res = await postJson("/api/harness/explain", { kind: pg.kind, id: pg.id });
+        if (res.ok) { render(); return; }
+        out.replaceChildren(h("p", { class: "warn" }, t("explain.refused", { reason: ts(res.data.error || t("common.http", { status: res.status })) })));
+      } catch (err) {
+        out.replaceChildren(h("p", { class: "warn" }, t("explain.refused", { reason: plainReason(err) })));
+      }
+      setDisabled(btn, false);
+    });
+    parts.push(btn);
+  }
+  return h("section", { class: "page-section explain" }, h("h2", null, t("explain.title")), ...parts, out);
 }
 const clip = (text) => (text.length > 220 ? `${text.slice(0, 217)}...` : text);
 // Component catalog: every harness component grouped by kind; the filter works on what is already loaded.

@@ -94,6 +94,7 @@
   ],
   "agentsDir": "claude/agents",
   "skills": [
+    "amauta-wiki-explain",
     "chained-pr",
     "cognitive-doc-design",
     "cpp-testing",

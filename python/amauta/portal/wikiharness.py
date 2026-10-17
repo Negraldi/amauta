@@ -451,7 +451,14 @@ def build_page(portal, e):
     pg["backlinks"] = [r for r in (_ref_of(entries, k) for k in e["backlinks"]) if r]
     if e.get("usage_col") and e.get("usage_name"):
         _add_usage(portal, pg, e)
+    add_explain(portal, pg, e)
     return pg
+
+
+def add_explain(portal, pg, e):
+    from . import wikiexplain  # lazy: wikiexplain imports this module
+    if e["kind"] in wikiexplain.ALLOWED:
+        pg["explain"] = wikiexplain.page_block(portal, e)
 
 
 def _add_usage(portal, pg, e):
@@ -495,7 +502,8 @@ def groups(portal, q=None):
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
             out.append({"kind": kind, "label": label, "items": items})
             total += len(items)
-    return {"groups": out, "total": total, "refresh": {"servers": servers}}
+    from . import wikiexplain
+    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": len(wikiexplain.pending(portal))}
 
 
 def search(kind):
@@ -526,6 +534,7 @@ def merged_page(kind, usage_builder):
         pg["summary"] = base["summary"]
         if "refresh" in base:
             pg["refresh"] = base["refresh"]
+        pg["explain"] = base["explain"]
         pg["meta"] = base["meta"] + pg["meta"]
         pg["sections"] = base["sections"] + pg["sections"]
         have = {(r["kind"], r["id"]) for r in pg["links"]}

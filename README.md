@@ -185,6 +185,8 @@ amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta 
 | `#/memory[/id-or-topic_key]` | Memory: text, derived links and backlinks, same-topic rows, related graph nodes |
 | `#/skill` | Catalog of every skill (installed, plugin, project, built into Claude Code), filterable |
 | `#/skill\|tool\|mcp[/name]` | What a skill does, rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
+| `#/component` | Harness wiki catalog: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output styles |
+| `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle/id` | What a component does and when it runs, with the source of each fact (see below) |
 | `#/session[/id]` | Skills, tools, subagents, tokens and memories of one session |
 | `#/feature[/project/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
 | `#/node[/repo::id]` | Graph node, grouped neighbours, neighbourhood diagram |
@@ -202,7 +204,7 @@ All text from memories, repos and graphs is rendered through text nodes by a sma
 
 ### Lint (`#/lint`, `GET /api/wiki/lint?days=30`)
 
-Counts and links for six checks, all capped and read-only. They are prompts to review, never verdicts.
+Counts and links for seven checks, all capped and read-only. They are prompts to review, never verdicts.
 
 | Check | Meaning |
 |---|---|
@@ -212,6 +214,23 @@ Counts and links for six checks, all capped and read-only. They are prompts to r
 | Installed skills never used | No load in the window (needs usage data) |
 | ODD tasks checked without a commit | No commit hash on the task line or in a progress line naming its id |
 | Wikilinks to missing pages | Target is not a memory, skill, tool, MCP server, session, feature or node |
+| Stale explanations | A harness component changed after its explanation note was written, or no longer exists |
+
+### Harness wiki (`#/component`)
+
+Every component of the harness has a page that opens with "What it does" and "When it runs" and names where each fact came from (a file path,
+"Built into Claude Code" or "Usage only"). Facts are rebuilt from the real files on each request (cached for a couple of seconds): hooks from user,
+project and plugin settings, MCP servers from `.claude.json`, `.mcp.json` and plugins, agents, commands and output styles from their folders and plugins,
+plugins from their manifests, built-in tools from a curated English and Spanish catalog, connectors from the server names your sessions called that no local
+config explains. MCP configs show type, command and arguments with secrets masked, and the NAMES of env variables and headers, never their values.
+
+- **Refresh descriptions** (`POST /api/harness/refresh`, optional `{"server": name}`): same guard as the other writes. It starts each configured command-based
+  MCP server (never http, sse or connectors), asks `tools/list` over JSON-RPC (10 s per server, process group killed afterwards, no shell) and caches names,
+  descriptions and parameter names in `<state>/wiki/mcp-tools.json`. Env goes to the process only.
+- **Request explanation** (`POST /api/harness/explain`, `{"kind", "id"}`): queues a request in `<state>/wiki/requests.jsonl`. The portal never calls a model:
+  ask Claude Code to process the wiki explanation requests (shipped skill `amauta-wiki-explain`), which uses
+  `python3 -P -m amauta.portal.wikiexplain list` and `... write --kind K --id I --file note.md`. Notes live in `<state>/wiki/notes/<kind>/` with the
+  hash of the source they were written from; the lint flags notes whose component changed.
 
 ### Settings editor (`#/settings`)
 

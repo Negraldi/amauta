@@ -173,3 +173,71 @@ test('in Spanish the refresh button and results are translated', async () => {
   assert.match(view(env).textContent, /slow: tiempo agotado/);
   assert.match(view(env).textContent, /x: omitido/);
 });
+
+// ---- Request explanation ------------------------------------------------------------------------------------------
+const SM = { description: 'Reviews code', trigger: null, when: 'When Claude delegates.', source: 'Your Claude home', path: '/home/u/.claude/agents/a.md', builtin: false, note: null };
+const withExplain = (explain, kind = 'agent') => ({ ...PAGE(kind, SM), id: 'my-agent', title: 'my-agent', explain });
+
+test('a component page offers Request explanation, posts kind and id with the token, and then shows it as requested', async () => {
+  const posts = [];
+  let pending = null;
+  const env = await boot('#/agent/my-agent', {
+    '/api/wiki/page': () => withExplain({ pending, note: null }),
+    '/api/harness/explain': async (opts) => { posts.push(opts); pending = { requested_at: '2026-10-16T10:05:00Z' }; return { kind: 'agent', id: 'my-agent', requested_at: '2026-10-16T10:05:00Z', already: false }; } });
+  const btn = labelled(view(env), /Request explanation/);
+  assert.ok(btn);
+  btn.click();
+  await tick(80);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].method, 'POST');
+  assert.equal(posts[0].headers['X-Portal-Token'], 'TOKEN-123');
+  assert.deepEqual(JSON.parse(posts[0].body), { kind: 'agent', id: 'my-agent' });
+  const text = view(env).textContent;
+  assert.match(text, /Explanation requested/);
+  assert.match(text, /2026-10-16 10:05/);
+  assert.equal(labelled(view(env), /Request explanation/), undefined, 'no second request while one is pending');
+});
+
+test('a pending request is shown with what to do next, without a button', async () => {
+  const env = await boot('#/agent/my-agent', { '/api/wiki/page': withExplain({ pending: { requested_at: '2026-10-16T10:05:00Z' }, note: null }) });
+  assert.match(view(env).textContent, /Explanation requested/);
+  assert.match(view(env).textContent, /amauta-wiki-explain/);
+  assert.equal(buttons(view(env)).length, 0);
+});
+
+test('a stored note renders as markdown under Explanation; a stale one says so and offers a new request', async () => {
+  const note = { body_md: '## Details\n\nUses **Read**.\n\n' + XSS, written_at: '2026-10-15T09:00:00Z', stale: false };
+  const fresh = await boot('#/agent/my-agent', { '/api/wiki/page': withExplain({ pending: null, note }) });
+  const text = view(fresh).textContent;
+  assert.ok(tree(view(fresh)).some((e) => e.tagName === 'h2' && e.textContent === 'Explanation'));
+  assert.match(text, /Uses/);
+  assert.match(text, /2026-10-15/);
+  assert.doesNotMatch(text, /out of date/);
+  assert.equal(tree(view(fresh)).filter((e) => e.tagName === 'img').length, 0, 'hostile markdown stays text');
+  assert.ok(labelled(view(fresh), /Request a new explanation/));
+  const stale = await boot('#/agent/my-agent', { '/api/wiki/page': withExplain({ pending: null, note: { ...note, stale: true } }) });
+  assert.match(view(stale).textContent, /changed since this was written/);
+});
+
+test('a refused request says why, and skills or pages without explain show nothing', async () => {
+  const env = await boot('#/agent/my-agent', { '/api/wiki/page': withExplain({ pending: null, note: null }), '/api/harness/explain': async () => ({ __status: 409, error: 'too many pending explanation requests: ask Claude to process them first', code: 'explain.full' }) });
+  labelled(view(env), /Request explanation/).click();
+  await tick(80);
+  assert.match(view(env).textContent, /too many pending/);
+  const plain = await boot('#/skill/s', { '/api/wiki/page': { ...PAGE('skill', SM), explain: undefined } });
+  assert.equal(labelled(view(plain), /Request explanation/), undefined);
+});
+
+test('in Spanish the explanation block is translated', async () => {
+  const env = await boot('#/agent/my-agent', { '/api/wiki/page': withExplain({ pending: { requested_at: '2026-10-16T10:05:00Z' }, note: null }) }, ES);
+  assert.match(view(env).textContent, /Explicación solicitada/);
+  const idle = await boot('#/agent/my-agent', { '/api/wiki/page': withExplain({ pending: null, note: null }) }, ES);
+  assert.ok(labelled(view(idle), /Solicitar explicación/));
+});
+
+test('the Harness page shows how many explanation requests wait and links to the component catalog', async () => {
+  const hs = { installed: true, version: '0.3.0', rdd_mode: 'on', telemetry: true, managed_files: 3, persona: 'neutral', components: [], hooks: [], mcp_servers: [] };
+  const env = await boot('#/harness', { '/api/harness': hs, '/api/archify': { installed: false, available: false, fallback: '' }, '/api/harness/components': { ...CATALOG, pending: 3, refresh: { servers: 0 } } });
+  assert.match(view(env).textContent, /3 explanation requests/);
+  assert.ok(hrefs(view(env)).includes('#/component'));
+});

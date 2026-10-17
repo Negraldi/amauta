@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from .api import _int, has_table
-from . import wiki, wikifeature, wikimem, wikiusage
+from . import wiki, wikiexplain, wikifeature, wikiharness, wikimem, wikiusage
 from .wikibase import _live, _ref
 
 SCAN_CAP = 1500        # memories examined
@@ -303,6 +303,24 @@ def _missing_links(portal, rows, resolver):
                      "A [[link]] whose target is not a memory, skill, tool, MCP server, session, ODD feature or graph node. The renderer shows these as plain muted text.", items)
 
 
+# ---- explanation notes whose component changed -----------------------------------------------------------------------
+STALE_NOTE = "The component changed after this explanation was written: request a new one."
+GONE_NOTE = "The component no longer exists: the note can be deleted."
+
+
+def _stale_notes(portal):
+    index = wikiharness.index(portal)
+    items = []
+    for n in wikiexplain.notes(portal):
+        e = index.get((n["kind"], n["id"]))
+        if e is None:
+            items.append({"kind": n["kind"], "id": n["id"], "title": n["id"], "detail": GONE_NOTE})
+        elif wikiharness.digest(e["material"]) != n["source_hash"]:
+            items.append({**_ref(n["kind"], n["id"], e["title"]), "detail": STALE_NOTE})
+    return _category("stale_notes", "Stale explanations",
+                     "Explanations written for a harness component from its files. Flagged when the component changed afterwards or no longer exists: ask for a new one or delete the note.", items)
+
+
 # ---- entry point -------------------------------------------------------------------------------------------------
 def lint(portal, q):
     days = _int(q, "days", 30, 1, 3650)
@@ -313,5 +331,5 @@ def lint(portal, q):
         if conn is not None:
             conn.close()
     resolver = _Resolver(portal, rows, capped)
-    cats = [_orphans(rows, resolver), _duplicates(rows), _superseded(rows), _unused_skills(portal, days), _features(portal), _missing_links(portal, rows, resolver)]
+    cats = [_orphans(rows, resolver), _duplicates(rows), _superseded(rows), _unused_skills(portal, days), _features(portal), _missing_links(portal, rows, resolver), _stale_notes(portal)]
     return {"window_days": days, "scanned": {"memories": len(rows), "capped": capped}, "categories": cats}

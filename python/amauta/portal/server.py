@@ -11,7 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiprobe
+from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiexplain, wikiprobe
+from . import wikiharness
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
@@ -27,6 +28,8 @@ PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would no
 PROJECTS_CONFIG = "/api/projects/config"
 PROBE_PATH = "/api/harness/refresh"
 PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
+EXPLAIN_PATH = "/api/harness/explain"
+EXPLAIN_MAX_BODY = 1024  # {"kind": ..., "id": ...}; ids are at most 200 characters
 THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
 THEMES_WRITES = {"/api/themes": themes_mod.write_theme, "/api/themes/delete": lambda state, body: themes_mod.delete_theme(state, body.get("slug"))}
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
@@ -179,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, PROBE_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, PROBE_PATH, EXPLAIN_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
@@ -191,6 +194,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._themes_write(THEMES_WRITES[path])
         if path == PROBE_PATH:
             return self._probe_write()
+        if path == EXPLAIN_PATH:
+            return self._explain_write()
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -281,6 +286,18 @@ class Handler(BaseHTTPRequestHandler):
             result = wikiprobe.refresh(self.server.portal, body)
         except wikiprobe.ProbeError as err:
             return self._json(err.status, err.body())
+        self._json(200, result)
+
+    def _explain_write(self):
+        """Queue a request for a written explanation of one component (see wikiexplain): same guard and body rules, closed schema. The portal calls no model."""
+        body = self._settings_body(EXPLAIN_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = wikiexplain.request(self.server.portal, body)
+        except wikiexplain.ExplainError as err:
+            return self._json(err.status, err.body())
+        wikiharness.forget(self.server.portal)
         self._json(200, result)
 
     def _not_allowed(self):

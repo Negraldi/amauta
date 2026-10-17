@@ -543,6 +543,20 @@
     "refresh.skipped": "{server}: skipped (not a local command server; nothing was contacted)",
     "refresh.refused": "The refresh did not run: {reason}",
     "refresh.serverFailed": "{server}: {error}",
+    "explain.title": "Explanation",
+    "explain.request": "Request explanation",
+    "explain.requestNew": "Request a new explanation",
+    "explain.requested": "Explanation requested {at}.",
+    "explain.pendingHelp": "Ask Claude Code to process the wiki explanation requests (the amauta-wiki-explain skill). The portal never writes explanations itself and calls no model.",
+    "explain.written": "Written {at}",
+    "explain.stale": "The component changed since this was written, so the explanation may be out of date.",
+    "explain.none": "No explanation has been written yet.",
+    "explain.refused": "The request was not queued: {reason}",
+    "harness.wiki": "Harness wiki",
+    "harness.wikiIntro": "{n} components have a page that says what they do: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins and output styles.",
+    "harness.openComponents": "Browse all components",
+    "harness.pending.one": "{n} explanation request is waiting for Claude.",
+    "harness.pending.other": "{n} explanation requests are waiting for Claude.",
   };
   const es = {
     // advice
@@ -1078,6 +1092,20 @@
     "refresh.skipped": "{server}: omitido (no es un servidor local de comando; no se contactó nada)",
     "refresh.refused": "La actualización no se ejecutó: {reason}",
     "refresh.serverFailed": "{server}: {error}",
+    "explain.title": "Explicación",
+    "explain.request": "Solicitar explicación",
+    "explain.requestNew": "Solicitar una nueva explicación",
+    "explain.requested": "Explicación solicitada {at}.",
+    "explain.pendingHelp": "Pida a Claude Code que procese las solicitudes de explicación del wiki (la skill amauta-wiki-explain). El portal nunca escribe explicaciones por sí mismo ni llama a ningún modelo.",
+    "explain.written": "Escrita {at}",
+    "explain.stale": "El componente cambió desde que se escribió esto, así que la explicación puede estar desactualizada.",
+    "explain.none": "Aún no se ha escrito ninguna explicación.",
+    "explain.refused": "La solicitud no se puso en cola: {reason}",
+    "harness.wiki": "Wiki del harness",
+    "harness.wikiIntro": "{n} componentes tienen una página que explica qué hacen: hooks, servidores y herramientas MCP, conectores, herramientas integradas, agentes, comandos, plugins y estilos de salida.",
+    "harness.openComponents": "Ver todos los componentes",
+    "harness.pending.one": "{n} solicitud de explicación espera a Claude.",
+    "harness.pending.other": "{n} solicitudes de explicación esperan a Claude.",
   };
   // English text from the server -> Spanish. Keys are the exact English strings (see the comment at the top).
   const srv = {
@@ -1297,6 +1325,17 @@
     "could not create the wiki cache directory": "no se pudo crear el directorio de caché del wiki",
     "could not write the cache": "no se pudo escribir la caché",
     "the tool list is too large to cache": "la lista de herramientas es demasiado grande para guardarla en caché",
+    "Stale explanations": "Explicaciones desactualizadas",
+    "Explanations written for a harness component from its files. Flagged when the component changed afterwards or no longer exists: ask for a new one or delete the note.": "Explicaciones escritas para un componente del harness a partir de sus archivos. Se marcan cuando el componente cambió después o ya no existe: pida una nueva o elimine la nota.",
+    "The component changed after this explanation was written: request a new one.": "El componente cambió después de escribirse esta explicación: solicite una nueva.",
+    "The component no longer exists: the note can be deleted.": "El componente ya no existe: la nota se puede eliminar.",
+    "no such component": "no existe ese componente",
+    "body must be an object with exactly kind and id": "el cuerpo debe ser un objeto con exactamente kind e id",
+    "too many pending explanation requests: ask Claude to process them first": "hay demasiadas solicitudes de explicación pendientes: pida a Claude que las procese primero",
+    "the request queue is a link or not a regular file": "la cola de solicitudes es un enlace o no es un archivo normal",
+    "could not write the request": "no se pudo escribir la solicitud",
+    "the wiki directory is not a plain directory": "el directorio del wiki no es un directorio normal",
+    "could not create the wiki directory": "no se pudo crear el directorio del wiki",
   };
 
   const dict = { en, es, srv };
