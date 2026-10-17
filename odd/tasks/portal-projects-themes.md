@@ -66,8 +66,8 @@ attribution in commits, strict TDD (`npm test`).
 - [x] P2 Skills wiki catalog and skill page summary; built-in skills handled. `37aebfd` (delegated writer; exit 0, node 491 / python 559 tests incl. new files).
 - [x] P3 Memory rows open their wiki pages (own, Engram, file memories). `efd7e45` (delegated writer; exit 0).
 - [x] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed. `a9278fa` `d090621` `1e08ff4` (delegated writer; npm test exit 0, node 510 / python 591, re-run by orchestrator).
-- [ ] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export.
-- [ ] P6 English/Spanish UI switch.
+- [x] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export. `ef0d28d` (server API + theme.js helpers; npm test exit 0, node 525 / python 609) `0c47f7f` (picker, editor, CSS; exit 0, node 548 / python 609). Route: delegated writer; strict TDD, RED seen first for each test file.
+- [x] P6 English/Spanish UI switch. `c814217` (single commit, about 2200 lines because of the dictionaries; npm test exit 0, node 581 / python 614). Route: delegated writer; strict TDD, RED seen first.
 - [ ] P8 Harness wiki: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output
   styles; refresh and request-explanation flows.
 - [ ] P7 Docs, CHANGELOG, version 0.3.0, PR (last).
@@ -93,6 +93,10 @@ attribution in commits, strict TDD (`npm test`).
 - 2026-10-16: scope change from the user applied in `a9278fa`: the Diagrams page and /api/diagrams are removed (`#/diagrams` redirects to Harness; ODD diagrams only on project and feature pages).
 - 2026-10-16: P1-P4 done. Manual check on port 8799 with a temp state dir (copy of memory.db, portal.json listing this repo): /api/projects found 1 project (amauta: config + discovered, 3 features, 63 of 71 tasks, 1 session, 1 memory, graph not mirrored); project page, skill catalog (86 skills), built-in skill page, memory wiki page and memfile page all answered.
 
+- 2026-10-16: P5 done. `GET /api/themes`, guarded `POST /api/themes` and `POST /api/themes/delete` (same guard, closed schema, slug-only paths, no symlinks, 50 theme cap, atomic writes). Top-bar picker (System, Light, Dark, custom) persists in localStorage with a safe fallback; the `#/themes` page edits name, base and the 14 DESIGN.md tokens with live preview, WCAG contrast warnings in words (ink and ink-muted below 4.5:1; accent below 3:1 so the focus ring stays visible), save, delete with confirmation, import and export. Diagram cards pin the light tokens so Mermaid stays readable under any theme. Manual check on port 8793 with a temp state dir: GET list, guarded POST 200, POST without token 403, invalid token value 400 with code `theme.value`, traversal slug 400, delete 200; server stopped.
+- 2026-10-16: P6 done. `static/i18n.js` (en and es dictionaries, `t`, `tn`, `ts`). Server-provided chrome text stays English in Python and is translated by the client through an exact-text catalog (`srv`, `{x}` for variable parts; a Python test pins it against the strings in `python/amauta/portal`); user content is never translated. Switch re-renders the current route, sets `<html lang>`, persists in localStorage (safe fallback), default from `navigator.language`. Dates stay `YYYY-MM-DD`; numbers use the chosen locale. Also fixed a P4 defect found on the way: Settings > Projects passed `null` to `replaceChildren`, which a browser writes as the text "null".
+- Not translated on purpose: Mermaid/archify diagram labels and session titles built by the server (for example "unknown project", "N messages"), which are generated data.
+
 ## Next step
 
-P5 themes writer.
+P8 harness wiki writer (after it, P7 docs, CHANGELOG, version 0.3.0 and the PR).
