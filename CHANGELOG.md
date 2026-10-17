@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-10-17
+
+### Added
+
+- Project paths in `<state>/portal.json` and in Settings may live outside `$HOME` (for example `/mnt/datos/...`). They must be absolute, existing and resolved; `/`, `$HOME` itself and system trees (`/proc`, `/sys`, `/dev`, `/run`, `/etc`, `/usr`, `/bin`, `/sbin`, `/lib*`, `/boot`, `/var`, `/tmp`, `/snap`, `/root`) are refused. Auto-discovery still looks only inside `$HOME`.
+- Components of plugins disabled in `enabledPlugins` (hooks, MCP servers and tools, agents, commands, skills, output styles) are labelled "Plugin disabled: does not run" in pages and catalogs.
+
+### Fixed
+
+- "Refresh descriptions" failed with "response too large" for MCP servers with large tool lists (rea, 170 tools). Limits are now 16 MB per line, 32 MB per response and 500 tools; the cache still keeps only names, capped descriptions and parameter names.
+- `npm test` failed once `~/.amauta/portal.json` listed projects: two portal spawn tests read the real state directory. They no longer do.
+- The test suite left its temporary directories in `/tmp` (about 2,000 directories and 630 MB over three days); they are now removed when each test process exits.
+
 ## [0.3.0] - 2026-10-17
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "amauta",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A small Node/Python harness for Claude Code, modelled on gentle-ai.",
   "type": "module",
   "license": "MIT",
