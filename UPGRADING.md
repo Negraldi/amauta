@@ -1,5 +1,13 @@
 # Upgrading
 
+## From 0.3.0 to 0.3.1
+
+```bash
+amauta upgrade --to v0.3.1
+```
+
+Nothing to migrate. Project paths outside your home directory (for example `/mnt/datos/...`) can now be added in Settings > Projects or in `~/.amauta/portal.json`; open the Harness wiki and press "Refresh descriptions" once to fill MCP servers with large tool lists such as rea. Rollback: `amauta upgrade --to v0.3.0`.
+
 ## From 0.2.0 to 0.3.0
 
 ```bash

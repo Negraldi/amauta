@@ -27,6 +27,8 @@ Bugs and limits found on 2026-10-17 while configuring the user's projects and wr
 
 - 2026-10-17: H1 done; H2-H4 delegated to one writer and done (`0a4e23d`, `a71ea56`, `e3372ff`). `npm test` exit 0 at each commit.
 
+- 2026-10-17: PR #14 merged as `b351522`; release 0.3.1 prepared (version bump, CHANGELOG, UPGRADING).
+
 ## Next step
 
-Update PR #14 (push is the user's decision).
+Merge the 0.3.1 release PR, tag `v0.3.1`, user runs `amauta upgrade --to v0.3.1`.
