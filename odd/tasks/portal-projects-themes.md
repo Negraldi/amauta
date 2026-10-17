@@ -65,7 +65,7 @@ attribution in commits, strict TDD (`npm test`).
 - [x] P1 Rail/meta layout and localized number/date formatting across pages. `4e8cdf7` (route: delegated single writer; strict TDD, RED seen first, npm test exit 0, node 485 / python 549).
 - [x] P2 Skills wiki catalog and skill page summary; built-in skills handled. `37aebfd` (delegated writer; exit 0, node 491 / python 559 tests incl. new files).
 - [x] P3 Memory rows open their wiki pages (own, Engram, file memories). `efd7e45` (delegated writer; exit 0).
-- [ ] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed.
+- [x] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed. `a9278fa` `d090621` `1e08ff4` (delegated writer; npm test exit 0, node 510 / python 591, re-run by orchestrator).
 - [ ] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export.
 - [ ] P6 English/Spanish UI switch.
 - [ ] P8 Harness wiki: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output
