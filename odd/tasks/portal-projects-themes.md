@@ -113,6 +113,8 @@ attribution in commits, strict TDD (`npm test`).
 
 - 2026-10-17: real-browser polish pass fixed in `3cfece0` (strict TDD, RED seen first: 8 new tests failed, then green). Root cause of the ungrouped `1766` was Intl in es (minimum grouping digits), not a missing server `fmt` hint; the server already marks numbers, and a new test pins every numeric meta value. P7: docs and version done; PR pending. npm test exit 0 (node 613 / python 712).
 
+- 2026-10-17: orchestrator browser re-check (temp state, port 8766): dates whole, paths break at slashes, Spanish grouping; hook titles still showed `· [` for an extensionless quoted script and `in=$(cat);` for an inline snippet: fixed inline with TDD (RED seen) in `7e7fc03` and `04aff8b`. One unrelated flaky failure seen once in `test_graphify_lock` (stale-lock race, 0/15 on rerun, untouched by this branch; follow-up task suggested). Final npm test exit 0 (node 613 / python 714).
+
 ## Next step
 
 Open PR to main; user merges; tag v0.3.0.
