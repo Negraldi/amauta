@@ -95,6 +95,10 @@ class Portal:
             traceback.print_exc()  # the diagnostic stays on the server side (stderr), never in the response
             return 500, {"error": "internal error"}
 
+    def repos(self):
+        """Every repository the portal knows: --repo values now; config and discovered ones join in later."""
+        return list(self.cfg.repos)
+
     # ---- usage ----------------------------------------------------------------------------
     def _usage_conn(self):
         conn = ro_connect(self.cfg.db_path)
@@ -520,6 +524,10 @@ class Portal:
         from . import wiki
         return wiki.search(self, q)
 
+    def skills(self, q):
+        from . import wikiskills
+        return wikiskills.catalog(self, q)
+
     def wiki_lint(self, q):
         from . import wikilint
         return wikilint.lint(self, q)
@@ -572,5 +580,5 @@ _ROUTES = {
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
-    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills",
 }

@@ -453,10 +453,42 @@ async function viewWikiPage(kind, id) {
   const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = R.fmtMeta(m); return [h("dt", null, m.label), h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title), progressBlock(pg),
+      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": "Page details" }, railBlock("Details", meta), railBlock("Links", pg.links.length ? refList(pg.links) : null), railBlock("Linked from", pg.backlinks.length ? refList(pg.backlinks) : null)))];
+}
+
+// Skill catalog: every skill the portal can describe, grouped by source; the filter works on what is already loaded.
+async function viewSkillCatalog() {
+  const cat = await api("skills");
+  const list = h("div", null);
+  const box = h("input", { type: "search", placeholder: "Filter skills", "aria-label": "Filter skills", value: state.skillQuery || "" });
+  const paint = () => {
+    state.skillQuery = box.value;
+    const groups = R.filterSkills(cat.groups, box.value);
+    list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${g.label} (${fmt(g.items.length)})`),
+      g.source === "builtin" ? h("p", { class: "muted" }, "Claude Code ships these: there is no local file, so no description is available here.") : null,
+      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link("skill", i.id, i.id),
+        i.description ? h("div", null, i.description) : null,
+        i.trigger ? h("div", { class: "muted" }, `Triggers: ${i.trigger}`) : null,
+        h("div", { class: "muted" }, i.uses ? `${fmt(i.uses)} calls in ${fmt(i.sessions)} sessions, last used ${R.fmtDate(i.last_used)}` : "Not used yet"))))))
+      : [h("p", { class: "muted" }, cat.total ? "No skill matches this filter." : "No skills found.")]));
+  };
+  box.addEventListener("input", paint);
+  paint();
+  return [h("h1", null, "Skills"), h("p", { class: "muted" }, `${fmt(cat.total)} skills: installed by amauta, your own, from plugins, from your projects, and the ones Claude Code ships. Open one to see what it does.`),
+    h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, "Skills live in ~/.claude/skills, in plugins and in each project's .claude/skills.")])];
+}
+
+// "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.
+function summaryBlock(sm) {
+  if (!sm) return null;
+  return h("section", { class: "page-section summary" }, h("h2", null, "What it does"),
+    sm.note ? h("p", null, sm.note) : null,
+    sm.description ? h("p", null, sm.description) : null,
+    sm.trigger ? h("p", null, h("strong", null, "When it triggers: "), sm.trigger) : null,
+    h("p", { class: "muted" }, `Source: ${sm.source}`, sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
 }
 
 async function viewFeatures() {
@@ -708,7 +740,7 @@ async function renderRoute(route, changed) {
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
   if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
+  const views = { home: viewHome, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
   return views[kind]();
 }
 

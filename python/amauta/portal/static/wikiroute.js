@@ -90,6 +90,17 @@
   // One unbroken run of characters (path, id, hash): the only text allowed to break anywhere.
   function isLongToken(v) { return typeof v === "string" && v.length >= 24 && !/\s/.test(v); }
 
+  // Skill catalog filter: a case-insensitive substring over id, description and trigger; groups left empty disappear.
+  function filterSkills(groups, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const out = [];
+    for (const g of Array.isArray(groups) ? groups : []) {
+      const items = (g.items || []).filter((i) => !q || [i.id, i.description, i.trigger].some((t) => String(t || "").toLowerCase().includes(q)));
+      if (items.length) out.push({ ...g, items });
+    }
+    return out;
+  }
+
   // Search groups -> one flat list (keyboard order) with a header marker before each group.
   function flattenResults(groups) {
     const flat = [];
@@ -130,7 +141,7 @@
   }
 
   // The Range and Project filters belong to the usage views: Usage itself and the list routes that read them (never a single page).
-  const FILTERED_LISTS = ["session", "skill", "tool", "mcp"];
+  const FILTERED_LISTS = ["session", "tool", "mcp"];
   function showsFilters(route) {
     const r = route || {};
     return r.kind === "usage" || (FILTERED_LISTS.includes(r.kind) && !r.id);
@@ -184,5 +195,5 @@
     return { text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { setLocale, fmtNumber, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { filterSkills, setLocale, fmtNumber, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

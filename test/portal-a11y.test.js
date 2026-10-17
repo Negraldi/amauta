@@ -112,11 +112,11 @@ const R = rctx.AmautaRoute;
 
 test('Range and Project filters show on Usage and on list views that read them, never on a page (id) or other routes', () => {
   assert.equal(R.showsFilters({ kind: 'usage', id: '' }), true);
-  for (const kind of ['session', 'skill', 'tool', 'mcp']) {
+  for (const kind of ['session', 'tool', 'mcp']) {
     assert.equal(R.showsFilters({ kind, id: '' }), true, `${kind} list`);
     assert.equal(R.showsFilters({ kind, id: 'x' }), false, `${kind} page`);
   }
-  for (const kind of ['home', 'memory', 'feature', 'node', 'harness', 'settings', 'lint', 'unknown']) assert.equal(R.showsFilters({ kind, id: '' }), false, kind);
+  for (const kind of ['home', 'memory', 'feature', 'node', 'harness', 'settings', 'lint', 'skill', 'unknown']) assert.equal(R.showsFilters({ kind, id: '' }), false, kind); // the skill catalog has its own filter
 });
 
 test('the shell hides the filter bar through showsFilters, not a hard-coded list', () => {

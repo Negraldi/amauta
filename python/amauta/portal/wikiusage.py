@@ -63,23 +63,6 @@ def parse_frontmatter(text):
     return clean, "\n".join(lines[end + 1:]).lstrip("\n")
 
 
-def read_skill(portal, name):
-    """(frontmatter, body, truncated) of the installed skill, or None. The name is a plain directory name, never a path."""
-    if not SKILL_NAME.match(name) or ".." in name:
-        return None
-    path = portal.cfg.claude_home / "skills" / name / "SKILL.md"
-    try:
-        if not path.is_file():
-            return None
-        with path.open("rb") as fh:
-            raw = fh.read(SKILL_BYTES + 1)
-    except OSError:
-        return None
-    truncated = len(raw) > SKILL_BYTES
-    front, body = parse_frontmatter(raw[:SKILL_BYTES].decode("utf-8", "replace"))
-    return front, body, truncated
-
-
 # ---- usage numbers ------------------------------------------------------------------------------------------------
 def _daily(conn, col, ident, last_ts):
     try:
@@ -105,12 +88,24 @@ def _calling_output(conn, col, ident):
     return conn.execute(f"SELECT coalesce(sum(u.output), 0) FROM usage_messages u WHERE u.message_id IN (SELECT c.message_id FROM tool_calls c WHERE {col} = ?)", (ident,)).fetchone()[0]
 
 
+BUILTIN_NOTE = "Built into Claude Code (no local file); description unavailable locally."
+
+
+def _skill_summary(entry):
+    """"What it does": description, trigger, source and path of the skill file; built-ins have no file and say so."""
+    from . import wikiskills
+    if entry is None:
+        return {"description": None, "trigger": None, "source": "Built into Claude Code", "path": None, "builtin": True, "note": BUILTIN_NOTE}
+    return {"description": entry["description"], "trigger": entry["trigger"], "source": wikiskills.label(entry), "path": entry["path"], "builtin": False, "note": None}
+
+
 # ---- skill / tool / mcp page --------------------------------------------------------------------------------------
 def usage_page(kind):
     col = USAGE_COLUMN[kind]
 
     def build(portal, ident, q):
-        skill = read_skill(portal, ident) if kind == "skill" else None
+        from . import wikiskills  # lazy: wikiskills imports this module for parse_frontmatter
+        skill = wikiskills.read(portal, ident) if kind == "skill" else None
         conn = portal._usage_conn()
         try:
             t = conn.execute(f"SELECT count(*) n, count(DISTINCT c.session_id) sessions, min(c.ts) first_ts, max(c.ts) last_ts FROM tool_calls c WHERE {col} = ?", (ident,)).fetchone() if conn is not None else None
@@ -118,12 +113,15 @@ def usage_page(kind):
             if not used and skill is None:
                 raise NotFound()
             pg = _blank(kind, ident, ident)
-            front, body, truncated = skill if skill else ({}, None, False)
-            pg["meta"] = _meta(*([("Installed", "yes" if skill else "no")] if kind == "skill" else []), ("Calls", t["n"] if used else 0), ("Sessions", t["sessions"] if used else 0),
+            entry, front, body, truncated = skill if skill else (None, {}, None, False)
+            if kind == "skill":
+                pg["summary"] = _skill_summary(entry)
+            front = {k: v for k, v in front.items() if k not in ("name", "description")}  # the summary block already shows both
+            pg["meta"] = _meta(*([("Source", wikiskills.label(entry) if entry else "Built into Claude Code")] if kind == "skill" else []), ("Calls", t["n"] if used else 0), ("Sessions", t["sessions"] if used else 0),
                                ("First used", t["first_ts"] if used else None), ("Last used", t["last_ts"] if used else None),
                                ("Output tokens of the calling messages", _calling_output(conn, col, ident) if used else None), *front.items(), ("Truncated", "yes" if truncated else None))
             if skill:
-                pg["body_md"] = strip_title_h1(body, front.get("name") or ident)
+                pg["body_md"] = strip_title_h1(body, entry["name"])
             if used:
                 pg["usage"] = {"daily": _daily(conn, col, ident, t["last_ts"]), "days": DAYS}
                 pg["backlinks"] = _session_refs(conn, portal, f"{col} = ?", (ident,))
@@ -152,7 +150,8 @@ def usage_title(kind):
     col = USAGE_COLUMN[kind]
 
     def title(portal, ident):
-        if kind == "skill" and read_skill(portal, ident) is not None:
+        from . import wikiskills
+        if kind == "skill" and wikiskills.find(portal, ident) is not None:
             return ident
         conn = portal._usage_conn()
         if conn is None:

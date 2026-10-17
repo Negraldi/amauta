@@ -167,7 +167,7 @@ test('hash changes navigate (back and forward re-render from the hash) and deep 
 });
 
 test('existing views stay reachable as pages: legacy hashes, list routes and usage links', async () => {
-  let { env } = await boot('#/skill');
+  let { env } = await boot('#/skill', { '/api/skills': { total: 1, groups: [{ source: 'user', label: 'Your skills', items: [{ id: 'work-unit-commits', source: 'user', description: null, trigger: null, uses: 1, sessions: 1, last_used: 'x' }] }] } });
   const usageLinks = hrefs(view(env));
   assert.ok(usageLinks.includes('#/skill/work-unit-commits'), usageLinks.join(' '));
   ({ env } = await boot('#/feature'));
