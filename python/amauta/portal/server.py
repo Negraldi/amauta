@@ -11,13 +11,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, projects as projects_mod, settings as settings_mod
+from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
 STATIC = Path(__file__).resolve().parent / "static"
 JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
-STATIC_FILES = {"app.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
+STATIC_FILES = {"app.js": JS, "theme.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
                 "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
@@ -25,6 +25,8 @@ MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
 PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB
 PROJECTS_CONFIG = "/api/projects/config"
+THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
+THEMES_WRITES = {"/api/themes": themes_mod.write_theme, "/api/themes/delete": lambda state, body: themes_mod.delete_theme(state, body.get("slug"))}
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
@@ -175,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *SETTINGS_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
@@ -183,6 +185,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._settings_write(SETTINGS_WRITES[path])
         if path == PROJECTS_CONFIG:
             return self._projects_write()
+        if path in THEMES_WRITES:
+            return self._themes_write(THEMES_WRITES[path])
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -252,6 +256,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(err.status, {"error": err.message})
         projects_mod.forget(portal)
         self._json(200, portal.projects({}))
+
+    def _themes_write(self, action):
+        """Create/update or delete one theme file under `<state_dir>/themes`: same guard and body rules as the other writes, closed schema, slug-only paths."""
+        body = self._settings_body(THEMES_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = action(self.server.portal.cfg.state_dir, body)
+        except themes_mod.ThemeError as err:
+            return self._json(err.status, err.body())
+        self._json(200, result)
 
     def _not_allowed(self):
         self._json(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})
