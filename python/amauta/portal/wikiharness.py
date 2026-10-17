@@ -29,6 +29,7 @@ MAX_PLUGIN_DEPTH = 6
 MAX_HOOKS = 400
 MAX_SERVERS = 100
 MAX_LINKS = 60
+PLUGIN_DISABLED = "Plugin disabled: does not run"
 USER_LABEL = "Your Claude home"
 BUILTIN_LABEL = "Built into Claude Code"
 USAGE_LABEL = "Usage only"
@@ -158,6 +159,12 @@ def plugins(portal):
         flag = next((v for k, v in enabled.items() if isinstance(k, str) and k.split("@")[0] == name and isinstance(v, bool)), None)
         out.append({"name": name, "dir": d, "manifest": manifest, "version": str(manifest.get("version") or "")[:40], "enabled": flag, "market": market})
     return out
+
+
+def disabled_plugins(portal):
+    """Names of the plugins that settings.json `enabledPlugins` explicitly sets to false (their components are listed but do not run)."""
+    flags = read_json(portal.cfg.claude_home / "settings.json").get("enabledPlugins")
+    return {k.split("@")[0] for k, v in (flags.items() if isinstance(flags, dict) else []) if isinstance(k, str) and v is False}
 
 
 # ---- hooks --------------------------------------------------------------------------------------------------------
@@ -391,6 +398,13 @@ def index(portal):
     entries = {}
     for e in base:
         entries.setdefault((e["kind"], e["id"]), e)
+    off = disabled_plugins(portal)
+    for e in entries.values():
+        if (e["kind"] == "plugin" and e["id"] in off) or (e["kind"] != "plugin" and e.get("plugin") in off):
+            e["disabled"] = True
+    for e in entries.values():  # tools reported by a server of a disabled plugin
+        if e.get("owner") and entries.get(tuple(e["owner"]), {}).get("disabled"):
+            e["disabled"] = True
     for e in entries.values():
         e["links"] = _links(e, entries)
     back = {}
@@ -440,6 +454,8 @@ def summary_of(e):
     out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
     if e.get("i18n"):
         out["i18n"] = e["i18n"]
+    if e.get("disabled"):
+        out["disabled"], out["status"] = True, PLUGIN_DISABLED
     return out
 
 
@@ -521,7 +537,7 @@ def groups(portal, q=None):
     out, total = [], 0
     servers = sum(1 for e in entries.values() if e["kind"] == "mcp" and stdio_config(e))
     for kind, label in KINDS:
-        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), **({"i18n": e["i18n"]} if e.get("i18n") else {})}
+        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), **({"i18n": e["i18n"]} if e.get("i18n") else {}), **({"disabled": True} if e.get("disabled") else {})}
                  for e in entries.values() if e["kind"] == kind]
         if items:
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))

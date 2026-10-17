@@ -103,15 +103,17 @@ def _plugin_files(root: Path):
 
 def discover(portal):
     """Entries for every skill file found, in group order. Ids: `name`, `plugin:name`, `project/name`."""
+    from . import wikiharness  # lazy: wikiharness imports this module
     found, managed = [], _managed(portal)
     for name, path in _skill_dirs(portal.cfg.claude_home / "skills"):
         found.append(_entry("installed" if name in managed else "user", name, name, path))
-    taken = set()
+    taken, off = set(), None
     for plugin, name, path in _plugin_files(portal.cfg.claude_home / "plugins"):  # cache comes before marketplaces: the first copy wins
         ident = f"{plugin}:{name}"
         if ident not in taken:
             taken.add(ident)
-            found.append(_entry("plugin", ident, name, path, plugin=plugin))
+            off = wikiharness.disabled_plugins(portal) if off is None else off
+            found.append(_entry("plugin", ident, name, path, plugin=plugin, **({"disabled": True} if plugin in off else {})))
     for repo in portal.repos():
         for name, path in _skill_dirs(Path(repo) / ".claude" / "skills"):
             found.append(_entry("project", f"{Path(repo).name}/{name}", name, path, project=Path(repo).name))

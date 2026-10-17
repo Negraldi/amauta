@@ -481,7 +481,7 @@ async function viewSkillCatalog() {
     const groups = R.filterSkills(cat.groups, box.value);
     list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
       g.source === "builtin" ? h("p", { class: "muted" }, t("skills.builtinNote")) : null,
-      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link("skill", i.id, i.id),
+      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link("skill", i.id, i.id), i.disabled ? h("span", { class: "muted" }, ` ${t("components.disabled")}`) : null,
         i.description ? h("div", null, i.description) : null,
         i.trigger ? h("div", { class: "muted" }, t("skills.triggers", { trigger: i.trigger })) : null,
         h("div", { class: "muted" }, i.uses ? t("skills.usage", { calls: fmt(i.uses), sessions: fmt(i.sessions), last: R.fmtDate(i.last_used) }) : t("skills.notUsed")))))))
@@ -560,7 +560,7 @@ async function viewComponents() {
     state.componentQuery = box.value;
     const groups = R.filterComponents(cat.groups, box.value);
     list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
-      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`),
+      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`), i.disabled ? h("span", { class: "muted" }, ` \u00b7 ${t("components.disabled")}`) : null,
         i.description ? h("div", null, clip(localized(i, "description"))) : null)))))
       : [h("p", { class: "muted" }, cat.total ? t("components.noMatch") : t("components.none"))]));
   };
@@ -574,6 +574,7 @@ async function viewComponents() {
 function summaryBlock(sm) {
   if (!sm) return null;
   return h("section", { class: "page-section summary" }, h("h2", null, t("summary.title")),
+    sm.status ? h("p", { class: "muted" }, h("strong", null, ts(sm.status))) : null,
     sm.note ? h("p", null, ts(sm.note)) : null,
     sm.description ? h("p", null, localized(sm, "description")) : null,
     sm.trigger ? h("p", null, h("strong", null, t("summary.trigger") + " "), sm.trigger) : null,
