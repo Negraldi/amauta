@@ -123,3 +123,22 @@ test('the shell hides the filter bar through showsFilters, not a hard-coded list
   assert.match(app, /\$\("filters"\)\.hidden = !R\.showsFilters\(route\);/);
   assert.doesNotMatch(app, /FILTERED/);
 });
+
+// ---- themes: whatever tokens a theme sets, diagrams stay light and focus stays visible ---------------------------------
+test('diagram cards pin their own light tokens, so a dark or custom theme cannot make Mermaid text unreadable', () => {
+  const rule = css.match(/\n\.diagram \{([^}]*)\}/)[1];
+  const pinned = tokensIn(rule);
+  for (const name of ['bg', 'surface', 'ink', 'ink-muted', 'line']) assert.deepEqual(pinned[name], SCHEMES.light[name], `--${name} is pinned to the light value`);
+  assert.match(css, /\.archify-frame \{[^}]*background: oklch\(1 0 0\)/);
+  assert.ok(contrast(pinned.ink, pinned.bg) >= 4.5 && contrast(pinned['ink-muted'], pinned.surface) >= 4.5);
+});
+
+test('forced schemes also set color-scheme so native controls follow the portal theme', () => {
+  assert.match(css, /:root\[data-theme="dark"\] \{ color-scheme: dark; \}/);
+  assert.match(css, /:root\[data-theme="light"\] \{ color-scheme: light; \}/);
+});
+
+test('the focus ring is a 2px accent outline on every element, and the theme editor controls inherit it', () => {
+  assert.match(css, /:focus-visible \{ outline: 2px solid var\(--accent\); outline-offset: 2px; \}/);
+  assert.doesNotMatch(css.replace(/#view \{[^}]*\}/, ''), /outline:\s*(none|0)\b/, 'only the programmatically focused <main> hides its outline');
+});

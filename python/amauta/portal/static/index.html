@@ -31,6 +31,10 @@
         <button id="refresh" type="button">Refresh usage</button>
         <span id="status" role="status"></span>
       </div>
+      <div class="prefs" role="group" aria-label="Appearance">
+        <label>Theme <select id="theme-picker"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <a id="theme-edit" href="#/themes">Edit themes</a>
+      </div>
     </header>
     <main id="view" tabindex="-1"><p class="muted">Loading...</p></main>
   </div>
@@ -39,6 +43,7 @@
   <input id="palette-input" type="search" placeholder="Search memories, skills, tools, sessions, features, nodes" aria-label="Search" aria-controls="palette-results" autocomplete="off" spellcheck="false">
   <div id="palette-results" role="listbox" aria-label="Results"><p class="muted">Type to search. Arrow keys move, Enter opens, Esc closes.</p></div>
 </dialog>
+<script src="/static/theme.js"></script>
 <script src="/static/markdown.js"></script>
 <script src="/static/wikiroute.js"></script>
 <script src="/static/app.js"></script>

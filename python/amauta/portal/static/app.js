@@ -3,12 +3,12 @@
 const token = document.querySelector('meta[name="portal-token"]').content;
 const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
-const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown; // markdown.js and wikiroute.js load first (see index.html)
+const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThis.AmautaTheme; // theme.js, markdown.js and wikiroute.js load first (see index.html)
 const SECTIONS = [
   ["Knowledge", [["home", "Home"], ["project", "Projects"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
   ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"]]],
   ["Spending", [["usage", "Usage"]]],
-  ["Manage", [["lint", "Lint"], ["settings", "Settings"]]],
+  ["Manage", [["lint", "Lint"], ["themes", "Themes"], ["settings", "Settings"]]],
 ];
 const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
 
@@ -81,7 +81,7 @@ function diagramBox(source, caption) {
   return box;
 }
 
-const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {} };
+const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {}, themes: [], themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
 const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value });
 
@@ -726,6 +726,201 @@ async function viewSettings() {
   return [root];
 }
 
+// ---- Themes: picker in the top bar, and the editor page (list, live preview, save, import, export) ----------------------------------
+// A theme reaches the page only through TH.applyChoice / TH.previewTheme (CSSOM custom properties and data-theme). The viewer's choice lives in
+// Browser storage only through TH.storage() (try/catch: the page works without it); the theme files themselves are stored by the server through guarded writes.
+const usableThemes = () => state.themes.filter((t) => !t.error && TH.validateTheme({ name: t.name, base: t.base, tokens: t.tokens }).ok);
+const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((t) => `custom:${t.slug}` === state.themeChoice) ? "system" : state.themeChoice);
+function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); }
+function paintPicker() {
+  const pick = $("theme-picker");
+  pick.replaceChildren(...[["system", "System"], ["light", "Light"], ["dark", "Dark"], ...usableThemes().map((t) => [`custom:${t.slug}`, t.name])].map(([v, l]) => h("option", { value: v }, l)));
+  pick.value = effectiveChoice();
+}
+async function loadThemes() {
+  try { state.themes = (await api("themes")).themes || []; } catch (_) { state.themes = []; }
+  paintPicker();
+  applyTheme();
+}
+function chooseTheme(choice) {
+  state.themeChoice = choice;
+  TH.saveChoice(TH.storage(), choice);
+  applyTheme();
+  if (state.preview) state.preview(); // the editor keeps showing its draft
+  paintPicker();
+}
+
+const THEME_MSG = {
+  "theme.shape": "A theme file is an object with exactly name, base and tokens.",
+  "theme.name": "The name must be 1 to 60 characters without control characters.",
+  "theme.base": "The base must be light or dark.",
+  "theme.token": "Unknown token: {token}.",
+  "theme.value": "{token}: use oklch(L C H) or #rrggbb.",
+  "theme.slug": "The file name is not valid.",
+  "theme.limit": "At most 50 themes are allowed.",
+  "theme.dir": "The themes directory is not a plain directory.",
+  "theme.symlink": "Links are ignored.",
+  "theme.toolarge": "The file is too large.",
+  "theme.json": "The file is not valid JSON.",
+  "theme.unreadable": "The file could not be read.",
+  "theme.notfound": "No such theme.",
+  "theme.write": "The theme could not be written.",
+};
+// A known code gives the plain-language text; an unknown code, or a token-specific one without its token, shows the server's own message.
+function themeMsg(e) {
+  const text = THEME_MSG[e && e.code];
+  return text && (e.token || !text.includes("{token}")) ? text.replace("{token}", e.token || "") : (e && e.error) || "Invalid theme.";
+}
+const MAX_THEME_FILE = 16384;
+
+async function viewThemes() {
+  await loadThemes();
+  const draft = () => state.themeDraft;
+  const rows = {};
+  const root = h("div", { class: "theme-editor" });
+  const listBox = h("div", null), formBox = h("div", null), out = h("div", { class: "settings-out", "aria-live": "polite" });
+  const say = (...kids) => out.replaceChildren(...kids);
+  const warn = (head, extra) => say(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${head}`), extra));
+  const badTokens = () => Object.entries(draft().tokens).filter(([, v]) => !TH.isValidValue(v)).map(([k]) => k);
+  const validTokens = () => Object.fromEntries(Object.entries(draft().tokens).filter(([, v]) => TH.isValidValue(v)).map(([k, v]) => [k, TH.normalizeValue(v)]));
+  const warnBox = h("div", { class: "notice warn", "aria-live": "polite", "data-contrast": "1", hidden: true });
+
+  const refresh = () => {
+    if (!draft()) return;
+    TH.previewTheme(document.documentElement, draft().base, draft().tokens);
+    const w = TH.contrastWarnings(draft().base, draft().tokens);
+    warnBox.hidden = !w.length;
+    warnBox.replaceChildren(...w.map((x) => h("p", null, `▲ Low contrast: ${x.fg} on ${x.bg} is ${x.ratio.toFixed(1)}:1 (needs ${x.min}:1).`)));
+  };
+  state.preview = refresh;
+  const paintRow = (t) => {
+    const r = rows[t], v = draft().tokens[t] || "";
+    const ok = !v || TH.isValidValue(v);
+    r.msg.textContent = ok ? "" : "▲ Invalid value: use oklch(L C H) or #rrggbb.";
+    if (ok) r.text.removeAttribute("aria-invalid"); else r.text.setAttribute("aria-invalid", "true");
+    r.text.setAttribute("placeholder", TH.BASES[draft().base][t]);
+    const shown = TH.toHex(ok && v ? v : TH.BASES[draft().base][t]) || "#000000";
+    r.color.value = shown;
+  };
+  const tokenRow = (t) => {
+    const text = h("input", { type: "text", id: `tok-${t}`, value: draft().tokens[t] || "", "aria-describedby": `tok-${t}-msg`, autocomplete: "off", spellcheck: "false" });
+    const color = h("input", { type: "color", id: `tok-${t}-color`, "aria-label": `${t} color picker` });
+    const msg = h("span", { class: "tok-msg", id: `tok-${t}-msg` });
+    rows[t] = { text, color, msg };
+    text.addEventListener("input", () => { const v = text.value.trim(); if (v) draft().tokens[t] = v; else delete draft().tokens[t]; paintRow(t); refresh(); });
+    color.addEventListener("input", (e) => { text.value = e.target.value; draft().tokens[t] = String(e.target.value).toLowerCase(); paintRow(t); refresh(); });
+    return h("div", { class: "token-row" }, h("label", { for: `tok-${t}` }, t), color, text, msg);
+  };
+
+  const askConfirm = (text, yes, onYes) => {
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, "Go back");
+    ok.addEventListener("click", onYes);
+    no.addEventListener("click", () => paintForm());
+    return h("div", { class: "confirm", role: "group", "aria-label": "Confirm" }, h("p", null, text), h("div", { class: "actions" }, ok, no));
+  };
+  const freeSlug = (base) => {
+    const taken = new Set(state.themes.map((t) => t.slug));
+    if (!taken.has(base)) return base;
+    for (let n = 2; ; n++) { const s = `${base.slice(0, 40 - String(n).length - 1).replace(/-+$/, "")}-${n}`; if (!taken.has(s)) return s; }
+  };
+  const saved = (data, note) => { state.themes = data.themes || []; paintPicker(); paintList(); say(h("p", { role: "status" }, note)); };
+  const failed = (res) => warn(themeMsg(res.data) || `Request failed (${res.status})`, h("p", null, R.settingsAdvice(res.status).text));
+
+  async function save() {
+    const d = draft();
+    if (badTokens().length) return warn("Fix the highlighted values before saving.");
+    const v = TH.validateTheme({ name: d.name, base: d.base, tokens: d.tokens });
+    if (!v.ok) return warn("This theme cannot be saved yet.", h("ul", { class: "plain-list" }, v.errors.map((e) => h("li", null, themeMsg(e)))));
+    const slug = d.isNew ? freeSlug(TH.slugify(d.name)) : d.slug;
+    say(h("p", { role: "status", class: "muted" }, "Saving."));
+    let res;
+    try { res = await postJson("/api/themes", { slug, ...v.theme }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return failed(res);
+    d.slug = slug; d.isNew = false;
+    saved(res.data, "✓ Saved.");
+    paintForm();
+  }
+  async function remove() {
+    const d = draft();
+    say(h("p", { role: "status", class: "muted" }, "Deleting."));
+    let res;
+    try { res = await postJson("/api/themes/delete", { slug: d.slug }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) return failed(res);
+    if (state.themeChoice === `custom:${d.slug}`) chooseTheme("system");
+    state.themeDraft = null; state.preview = null;
+    applyTheme();
+    saved(res.data, "✓ Deleted.");
+    paintForm();
+  }
+  function exportTheme() {
+    const d = draft();
+    const data = { name: d.name.trim() || "Untitled", base: d.base, tokens: validTokens() };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + "\n"], { type: "application/json" }));
+    const a = h("a", { href: url, download: `${d.slug || TH.slugify(d.name)}.json` });
+    if (document.body) document.body.append(a);
+    a.click();
+    if (a.remove) a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function importFile(input) {
+    const file = (input.files || [])[0];
+    if (!file) return;
+    if (file.size > MAX_THEME_FILE) return warn("That file is too large for a theme (16 KB at most).");
+    let data;
+    try { data = JSON.parse(await file.text()); } catch (_) { return warn("The file could not be imported: it is not valid JSON."); }
+    const v = TH.validateTheme(data);
+    input.value = "";
+    if (!v.ok) return warn("The file could not be imported.", h("ul", { class: "plain-list" }, v.errors.map((e) => h("li", null, themeMsg(e)))));
+    state.themeDraft = { slug: null, isNew: true, name: v.theme.name, base: v.theme.base, tokens: { ...v.theme.tokens } };
+    paintForm();
+    say(h("p", { role: "status" }, "Imported. Review the theme, then choose Save theme to keep it."));
+  }
+
+  function paintForm() {
+    for (const k of Object.keys(rows)) delete rows[k];
+    const d = draft();
+    if (!d) { state.preview = null; applyTheme(); formBox.replaceChildren(h("p", { class: "muted" }, "Choose a theme to edit, create a new one, or import a file.")); return; }
+    state.preview = refresh;
+    const name = h("input", { type: "text", id: "theme-name", value: d.name, maxlength: "60", autocomplete: "off" });
+    name.addEventListener("input", () => { d.name = name.value; });
+    const base = h("select", { id: "theme-base" }, h("option", { value: "light" }, "Light"), h("option", { value: "dark" }, "Dark"));
+    base.value = d.base;
+    base.addEventListener("change", (e) => { d.base = e.target.value === "dark" ? "dark" : "light"; for (const t of TH.TOKENS) paintRow(t); refresh(); });
+    const btn = (label, fn, cls) => { const b = h("button", { type: "button", class: cls || false }, label); b.addEventListener("click", fn); return b; };
+    const confirmBox = h("div", null);
+    formBox.replaceChildren(h("section", { class: "theme-form", "aria-label": "Theme editor" },
+      h("h2", null, d.isNew ? "New theme" : `Edit: ${d.name}`),
+      h("div", { class: "field" }, h("label", { for: "theme-name" }, "Name"), name),
+      h("div", { class: "field" }, h("label", { for: "theme-base" }, "Base"), base, h("span", { class: "muted" }, "Tokens left empty use the base theme.")),
+      ...TH.TOKENS.map(tokenRow), warnBox,
+      h("div", { class: "actions" }, btn("Save theme", save, "primary"), btn("Export", exportTheme),
+        d.isNew ? null : btn("Delete theme", () => confirmBox.replaceChildren(askConfirm(`Delete the theme "${d.name}"? Its file is removed.`, "Yes, delete", remove))),
+        btn("Close editor", () => { state.themeDraft = null; paintForm(); })),
+      confirmBox));
+    for (const t of TH.TOKENS) paintRow(t);
+    refresh();
+  }
+  function paintList() {
+    const input = h("input", { type: "file", id: "theme-import", accept: "application/json,.json" });
+    input.addEventListener("change", () => importFile(input));
+    const create = h("button", { type: "button" }, "New theme");
+    create.addEventListener("click", () => { state.themeDraft = { slug: null, isNew: true, name: "", base: "light", tokens: {} }; paintForm(); say(); });
+    listBox.replaceChildren(
+      state.themes.length ? h("ul", { class: "items" }, state.themes.map((t) => t.error
+        ? h("li", null, h("code", null, t.slug), h("p", { class: "warn" }, `▲ Invalid, not applied: ${themeMsg(t)}`))
+        : h("li", null, (() => { const b = h("button", { class: "row-link", type: "button", "data-edit": t.slug }, t.name); b.addEventListener("click", () => { state.themeDraft = { slug: t.slug, isNew: false, name: t.name, base: t.base, tokens: { ...t.tokens } }; paintForm(); say(); }); return b; })(),
+          h("span", { class: "muted" }, ` ${t.base}${state.themeChoice === `custom:${t.slug}` ? ", in use" : ""}`))))
+        : h("p", { class: "muted" }, "No custom themes yet."),
+      h("div", { class: "actions" }, create, h("label", { for: "theme-import" }, "Import a theme file"), input));
+  }
+  paintList();
+  paintForm();
+  root.append(h("h1", null, "Themes"),
+    h("p", { class: "muted" }, "System follows your device, Light and Dark are built in. A custom theme is a small JSON file (a name, a light or dark base, and colors) saved in the themes folder of the amauta state directory. Changes preview on this whole page while you edit; pick a theme from the top bar to use it."),
+    listBox, formBox, out);
+  return [root];
+}
+
 // Home: recent activity is the page; spending and harness health sit in the rail as plain text and a small table (no metric tiles).
 // The server groups by UTC day; the page regroups by the viewer's local day so a time and its heading always agree.
 function localDays(days) {
@@ -796,7 +991,7 @@ async function renderRoute(route, changed) {
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
   if (id && ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
+  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
   return views[kind]();
 }
 
@@ -812,6 +1007,7 @@ async function render() {
   const key = `${route.kind}/${route.id}/${route.source || ""}`;
   const changed = state.shown !== key;
   renderNav(route);
+  if (route.kind !== "themes") { state.preview = null; state.themeDraft = null; applyTheme(); } // leaving the editor ends its preview
   $("filters").hidden = !R.showsFilters(route);
   $("shell").setAttribute("data-nav", "closed");
   $("nav-toggle").setAttribute("aria-expanded", "false");
@@ -936,8 +1132,12 @@ $("refresh").addEventListener("click", async () => {
   } catch (err) { $("status").textContent = "Failed: " + err.message; }
 });
 for (const id of ["days", "project"]) $(id).addEventListener("change", render);
+$("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
 window.addEventListener("hashchange", () => { state.route = R.parseHash(location.hash); render(); });
 state.route = R.parseHash(location.hash);
+applyTheme();
+paintPicker();
+if (state.route.kind !== "themes") loadThemes(); // the editor page loads them itself
 loadRecent();
 loadProjects().then(render);
 // Liveness signal: lets a launcher-started server exit once the window is gone. Failures are silent on purpose.

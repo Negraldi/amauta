@@ -287,7 +287,7 @@ test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none 
   const css = await read('style.css');
   assert.match(html, /<dialog id="palette"/);
   const order = [...html.matchAll(/<script src="\/static\/([\w.]+)"><\/script>/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['markdown.js', 'wikiroute.js', 'app.js']);
+  assert.deepEqual(order, ['theme.js', 'markdown.js', 'wikiroute.js', 'app.js']);
   assert.match(html, /<main id="view"/);
   assert.match(html, /<nav class="sidebar"[^>]*aria-label/);
   assert.match(css, /@font-face\s*{[^}]*Source Serif 4[^}]*\/static\/fonts\/source-serif-4-latin-400-normal\.woff2/);

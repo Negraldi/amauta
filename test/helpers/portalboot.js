@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'python', 'amauta', 'portal', 'static');
-export const SCRIPTS = ['markdown.js', 'wikiroute.js', 'app.js'];
+export const SCRIPTS = ['theme.js', 'markdown.js', 'wikiroute.js', 'app.js'];
 
 export async function runPortal(env, extra = {}) {
   const context = vm.createContext({ ...env, URLSearchParams, console, setTimeout, clearTimeout, setInterval: () => 0, ...extra });
