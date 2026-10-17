@@ -51,14 +51,14 @@
   function fmtNumber(n) {
     if (n == null || n === "" || typeof n === "boolean" || typeof n === "object") return "-";
     const v = Number(n);
-    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE).format(v) : "-";
+    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { useGrouping: "always" }).format(v) : "-";
   }
   // A number with a fixed count of decimals in the UI locale ("1,234.5" or "1.234,5"); a percentage from a ratio (0.125 -> "12.5%" or "12,5 %").
   function fmtDecimal(n, digits) {
     if (n == null || n === "" || typeof n === "boolean" || typeof n === "object") return "-";
     const v = Number(n);
     const d = digits == null ? 1 : digits;
-    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d }).format(v) : "-";
+    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { useGrouping: "always", minimumFractionDigits: d, maximumFractionDigits: d }).format(v) : "-";
   }
   function fmtPercent(r) {
     const v = Number(r);
@@ -107,6 +107,23 @@
     const v = m && m.value;
     return m && m.fmt === "number" ? fmtNumber(v) : fmtIso(v);
   }
+  // Dates and date-times as rendered by fmtDate/fmtDateTime inside any text: splitDates(text) -> [{text, date}] so a page can keep each one in a nowrap span.
+  const DATE_TOKEN = /(?<![\d-])\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?(?![\d-])/g;
+  function splitDates(text) {
+    const s = String(text), out = [];
+    let last = 0;
+    for (const m of s.matchAll(DATE_TOKEN)) {
+      if (m.index > last) out.push({ text: s.slice(last, m.index), date: false });
+      out.push({ text: m[0], date: true });
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) out.push({ text: s.slice(last), date: false });
+    return out;
+  }
+  // A file path (absolute, ~/ or ./): shown as mono text that may break only after a slash.
+  function isPathLike(v) { return typeof v === "string" && /^(?:\/|~\/|\.{1,2}\/)\S+$/.test(v); }
+  // "/a/b" -> ["/", "a", "/", "b"]: the slashes are their own pieces so the page can put a <wbr> after each.
+  function pathSegments(v) { return String(v).split(/(\/)/).filter((p) => p !== ""); }
   // One unbroken run of characters (path, id, hash): the only text allowed to break anywhere.
   function isLongToken(v) { return typeof v === "string" && v.length >= 24 && !/\s/.test(v); }
 
@@ -231,5 +248,5 @@
     return { key: "advice.other", text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

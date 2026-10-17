@@ -99,6 +99,9 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .meta dt { color: var(--ink-muted); min-width: 0; }
 .meta dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 0; }
 .tok { overflow-wrap: anywhere; }
+.date { white-space: nowrap; }
+.path { font-family: var(--mono); font-size: 0.8125rem; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .refs, .items { list-style: none; margin: 0; padding: 0; }
 .refs li, .items li { padding: var(--s1) 0; }
 .items li { border-bottom: 1px solid var(--line); padding: var(--s2) 0; }

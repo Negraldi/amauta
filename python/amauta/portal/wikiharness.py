@@ -175,6 +175,15 @@ def _hooks_in(data, source, path, scope):
     return out
 
 
+_SCRIPT = re.compile(r"[^\s\"'`;&|<>()\[\]=]+\.(?:sh|bash|zsh|py|js|mjs|cjs|ts|rb|pl)(?![\w.])")
+
+
+def _script_name(command):
+    """The basename of the first script path in a hook command ("/a/b/run.sh" -> "run.sh"), or None."""
+    m = _SCRIPT.search(command or "")
+    return m.group(0).rsplit("/", 1)[-1] if m else None
+
+
 def _hook_entry(raw):
     h, event = raw["h"], raw["event"]
     if raw["type"] == "command" or isinstance(h.get("command"), str):
@@ -185,10 +194,11 @@ def _hook_entry(raw):
         command = str(h.get("prompt") or "")[:300]
     timeout = h.get("timeout") if isinstance(h.get("timeout"), (int, float)) and not isinstance(h.get("timeout"), bool) else None
     known = next(((short, what) for needle, short, what in HOOK_SUMMARIES if needle in command), None)
-    short = known[0] if known else (command.split(" ", 1)[0].rsplit("/", 1)[-1] or raw["type"])
+    name = known[0] if known else (_script_name(command) or (command.split() or [raw["type"]])[0].rsplit("/", 1)[-1] or raw["type"])
+    title = f"{event} ({raw['matcher']}) \u00b7 {name}" if raw["matcher"] else f"{event} \u00b7 {name}"
     material = {"event": event, "matcher": raw["matcher"], "type": raw["type"], "command": command, "timeout": timeout, "path": raw["path"]}
     ident = f"{event}:{digest(material)[:8]}"
-    return {"kind": "hook", "id": ident, "title": f"{event}: {known[0] if known else command[:60] or short}", "description": known[1] if known else None,
+    return {"kind": "hook", "id": ident, "title": title, "description": known[1] if known else None,
             "when": EVENT_WHEN.get(event, HOOK_FALLBACK_WHEN), "source": raw["source"], "path": raw["path"], "material": material,
             "note": None if known else "No curated summary for this command: read the command itself.",
             "meta": _meta(("Event", event), ("Matcher", raw["matcher"] or "(all)"), ("Hook type", raw["type"]), ("Command", command), ("Timeout", f"{timeout:g} s" if timeout is not None else None), ("Scope", raw["scope"])),

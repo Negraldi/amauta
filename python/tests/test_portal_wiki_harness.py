@@ -1,4 +1,5 @@
 import json
+import re
 
 from python.tests.test_portal_wiki import WikiBase
 from python.tests.test_portal_wiki_skills import skill
@@ -99,6 +100,43 @@ class HookPageTest(HarnessBase):
         plug = self.page("hook", self.hook_id("UserPromptSubmit", "p.sh"))
         self.assertEqual(plug["summary"]["source"], "Plugin plug")
         self.assertIn("plugin", {r["kind"] for r in plug["backlinks"]})
+
+
+class HookTitleTest(HarnessBase):
+    def titles(self, hooks):
+        path = self.f["home"] / "settings.json"
+        data = json.loads(path.read_text())
+        data["hooks"] = hooks
+        path.write_text(json.dumps(data))
+        return sorted(i["title"] for i in self.items("hook").values())
+
+    def test_titles_are_human_event_dot_name_with_the_matcher_when_present(self):
+        cmd = "[ -f /home/u/.claude/skills/impeccable/scripts/impeccable-hook.sh ] && bash /home/u/.claude/skills/impeccable/scripts/impeccable-hook.sh"
+        got = self.titles({
+            "PostToolUse": [{"matcher": "Edit|Write", "hooks": [{"type": "command", "command": cmd}]}],
+            "Stop": [{"hooks": [{"type": "command", "command": "env PYTHONPATH=/r python3 -P -m amauta.usage hook"}, {"type": "command", "command": "echo hi there"}]}],
+        })
+        self.assertTrue({"PostToolUse (Edit|Write) \u00b7 impeccable-hook.sh", "Stop \u00b7 amauta usage", "Stop \u00b7 echo"} <= set(got), got)
+        self.assertFalse([t for t in got if ": " in t], got)  # no raw "Event: command prefix" titles
+
+    def test_the_full_masked_command_stays_on_the_page(self):
+        self.titles({"PostToolUse": [{"hooks": [{"type": "command", "command": "bash /x/y/run.sh --token hunter2-secret"}]}]})
+        ident = next(i for i, v in self.items("hook").items() if i.startswith("PostToolUse:") and v["title"].endswith("run.sh"))
+        pg = self.page("hook", ident)
+        self.assertEqual(pg["title"], "PostToolUse \u00b7 run.sh")
+        self.assertIn("bash /x/y/run.sh", self.meta(pg)["Command"])
+        self.assertNotIn("hunter2-secret", json.dumps(pg))
+
+
+class NumericMetaTest(HarnessBase):
+    IDENTIFIERS = {"Version", "version", "Node id"}  # digits that name something: shown verbatim
+
+    def test_every_numeric_meta_value_is_marked_for_digit_grouping(self):
+        pages = [self.page(kind, ident) for kind in ("hook", "mcp", "agent", "command", "plugin", "outputstyle") for ident in self.items(kind)]
+        pages += [self.page("skill", "work-unit-commits"), self.page("tool", "Bash")]
+        loose = [(pg["kind"], pg["id"], m["label"], m["value"]) for pg in pages for m in pg["meta"]
+                 if re.fullmatch(r"-?\d+(\.\d+)?", m["value"]) and m["label"] not in self.IDENTIFIERS and m.get("fmt") != "number"]
+        self.assertEqual(loose, [])
 
 
 class McpPageTest(HarnessBase):

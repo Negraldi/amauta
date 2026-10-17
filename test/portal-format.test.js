@@ -129,7 +129,8 @@ test('a wiki page shows grouped numbers and readable dates in its rail and secti
   assert.doesNotMatch(v, /319906|1234567|T01:44|\.739Z/);
   const dds = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'dd');
   const path = dds.find((d) => /SKILL\.md/.test(d.textContent));
-  assert.match(cls(path), /\btok\b/, 'a long path token may break anywhere');
+  assert.ok(tree(path).some((e) => /\bpath\b/.test(cls(e))), 'a path breaks only at slashes (see portal-polish.test.js)');
+  assert.doesNotMatch(cls(path), /\btok\b/);
   assert.doesNotMatch(cls(dds.find((d) => /Plan commits/.test(d.textContent))), /\btok\b/, 'prose wraps at spaces');
 });
 

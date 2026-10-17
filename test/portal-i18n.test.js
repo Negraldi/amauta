@@ -158,7 +158,8 @@ test('the stored choice survives garbage and a storage that throws', () => {
 test('numbers, decimals and percentages follow the locale', () => {
   R.setLocale('es-ES');
   assert.equal(R.fmtNumber(1234567), '1.234.567');
-  assert.equal(R.fmtDecimal(1234.5, 1), '1234,5');
+  assert.equal(R.fmtNumber(1766), '1.766', 'four digits group too (Intl alone skips es-ES)');
+  assert.equal(R.fmtDecimal(1234.5, 1), '1.234,5');
   assert.equal(R.fmtDecimal(4.4849, 1), '4,5');
   assert.match(R.fmtPercent(0.125), /^12,5\s?%$/);
   assert.equal(R.fmtDecimal(null, 1), '-');

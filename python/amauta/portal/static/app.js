@@ -22,8 +22,27 @@ function h(tag, attrs, ...kids) {
     else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else el.setAttribute(k, v === true ? "" : String(v));
   }
-  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(...(kid instanceof Node ? [kid] : textNodes(String(kid))));
   return el;
+}
+// Plain text, except that every formatted date or date-time sits in its own nowrap span so it never breaks inside the token.
+function textNodes(text) {
+  return R.splitDates(text).map((p) => {
+    if (!p.date) return document.createTextNode(p.text);
+    const span = document.createElement("span");
+    span.className = "date";
+    span.append(document.createTextNode(p.text));
+    return span;
+  });
+}
+// A file path: mono text with a <wbr> after each slash; one very long segment may still break anywhere (.tok).
+function pathNode(value) {
+  const kids = [];
+  for (const seg of R.pathSegments(value)) {
+    if (seg === "/") kids.push(document.createTextNode("/"), document.createElement("wbr"));
+    else kids.push(R.isLongToken(seg) ? h("span", { class: "tok" }, seg) : document.createTextNode(seg));
+  }
+  return h("span", { class: "path" }, kids);
 }
 function svg(tag, attrs, ...kids) {
   const el = document.createElementNS(SVGNS, tag);
@@ -443,7 +462,7 @@ async function viewWikiPage(kind, id, source) {
     throw err;
   }
   document.title = `${pg.title} - amauta`;
-  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m)); return [h("dt", null, ts(m.label)), h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
+  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m)); return [h("dt", null, ts(m.label)), R.isPathLike(v) ? h("dd", null, pathNode(v)) : h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
       h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary), pg.refresh ? refreshControl(pg.refresh.server) : null,
@@ -970,8 +989,10 @@ async function viewThemes() {
     refresh();
   }
   function paintList() {
-    const input = h("input", { type: "file", id: "theme-import", accept: "application/json,.json" });
+    const input = h("input", { type: "file", id: "theme-import", class: "visually-hidden", accept: ".json,application/json", tabindex: "-1" });
     input.addEventListener("change", () => importFile(input));
+    const importButton = h("button", { type: "button" }, t("theme.import"));
+    importButton.addEventListener("click", () => input.click());
     const create = h("button", { type: "button" }, t("theme.newButton"));
     create.addEventListener("click", () => { state.themeDraft = { slug: null, isNew: true, name: "", base: "light", tokens: {} }; paintForm(); say(); });
     const editButton = (th) => {
@@ -984,7 +1005,7 @@ async function viewThemes() {
         ? h("li", null, h("code", null, th.slug), h("p", { class: "warn" }, "▲ " + t("theme.invalidFile", { reason: themeMsg(th) })))
         : h("li", null, editButton(th), h("span", { class: "muted" }, ` ${t(th.base === "dark" ? "theme.dark" : "theme.light")}${state.themeChoice === `custom:${th.slug}` ? ", " + t("theme.inUse") : ""}`))))
         : h("p", { class: "muted" }, t("theme.noneYet")),
-      h("div", { class: "actions" }, create, h("label", { for: "theme-import" }, t("theme.import")), input));
+      h("div", { class: "actions" }, create, importButton, input));
   }
   paintList();
   paintForm();
