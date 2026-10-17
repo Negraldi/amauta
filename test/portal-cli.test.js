@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPortalSpawn, runPortal, defaultSpawn } from '../src/portal/cli.js';
+import { buildPortalSpawn, runPortal, defaultSpawn, configuredRepos } from '../src/portal/cli.js';
 import { main } from '../src/cli.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,7 +19,9 @@ test('builds python3 -P -m amauta.portal with PYTHONPATH and forwarded options',
 
 test('defaults: no forwarded options, state dir derived like the installer', () => {
   const r = buildPortalSpawn([], { HOME: '/h' });
-  assert.deepEqual(r.args, ['-P', '-m', 'amauta.portal']);
+  // The derived state dir is the real one here; repos listed in its portal.json are forwarded too, so expect exactly those.
+  const listed = configuredRepos(r.env.AMAUTA_STATE_DIR).flatMap((p) => ['--repo', path.resolve(p)]);
+  assert.deepEqual(r.args, ['-P', '-m', 'amauta.portal', ...listed]);
   assert.equal(r.env.PYTHONPATH, path.join(repo, 'python'));
   assert.ok(r.env.AMAUTA_STATE_DIR.endsWith('.amauta'));
   const sandbox = buildPortalSpawn(['--claude-home', '/x/.claude'], {});
