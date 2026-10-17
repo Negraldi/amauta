@@ -73,7 +73,7 @@ attribution in commits, strict TDD (`npm test`).
   `f32a95c` (built-in tool catalog EN/ES, MCP tools, connectors; exit 0, node 591 / python 667) `c27cd3b` (refresh descriptions from local stdio servers;
   exit 0, node 595 / python 686) `e313815` (explanation requests, notes, CLI, skill, stale-note lint; exit 0, node 604 / python 709). Route: delegated writer;
   strict TDD, tests first for each commit (RED seen as import errors / 404 / missing keys before the code was wired).
-- [ ] P7 Docs, CHANGELOG, version 0.3.0, PR (last). Done: [x] polish fixes `3cfece0` (dates nowrap, es number grouping, paths with wbr, human hook titles, one import button), [x] CHANGELOG/UPGRADING/README/DESIGN/PRODUCT (docs commit), [x] version 0.3.0 (`chore(release)`); open: PR to `main` (orchestrator).
+- [x] P7 Docs, CHANGELOG, version 0.3.0, PR (last). Done: [x] polish fixes `3cfece0` (dates nowrap, es number grouping, paths with wbr, human hook titles, one import button), [x] CHANGELOG/UPGRADING/README/DESIGN/PRODUCT (docs commit), [x] version 0.3.0 (`chore(release)`); PR #11 merged (`f322a50`), tag `v0.3.0` pushed.
 
 ## Acceptance criteria
 
@@ -115,6 +115,8 @@ attribution in commits, strict TDD (`npm test`).
 
 - 2026-10-17: orchestrator browser re-check (temp state, port 8766): dates whole, paths break at slashes, Spanish grouping; hook titles still showed `· [` for an extensionless quoted script and `in=$(cat);` for an inline snippet: fixed inline with TDD (RED seen) in `7e7fc03` and `04aff8b`. One unrelated flaky failure seen once in `test_graphify_lock` (stale-lock race, 0/15 on rerun, untouched by this branch; follow-up task suggested). Final npm test exit 0 (node 613 / python 714).
 
+- 2026-10-17: PR #11 merged as `f322a50` (with the lock race fix from PR #12 already on main); npm test on main exit 0 (node 613 / python 717); tag `v0.3.0` pushed; user ran `amauta install`, status `amauta 0.3.0: installed (189/189 ok)`. Feature closed.
+
 ## Next step
 
-Open PR to main; user merges; tag v0.3.0.
+None: feature closed in v0.3.0.
