@@ -62,9 +62,9 @@ attribution in commits, strict TDD (`npm test`).
 
 ## Tasks
 
-- [ ] P1 Rail/meta layout and localized number/date formatting across pages.
-- [ ] P2 Skills wiki catalog and skill page summary; built-in skills handled.
-- [ ] P3 Memory rows open their wiki pages (own, Engram, file memories).
+- [x] P1 Rail/meta layout and localized number/date formatting across pages. `4e8cdf7` (route: delegated single writer; strict TDD, RED seen first, npm test exit 0, node 485 / python 549).
+- [x] P2 Skills wiki catalog and skill page summary; built-in skills handled. `37aebfd` (delegated writer; exit 0, node 491 / python 559 tests incl. new files).
+- [x] P3 Memory rows open their wiki pages (own, Engram, file memories). `efd7e45` (delegated writer; exit 0).
 - [ ] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed.
 - [ ] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export.
 - [ ] P6 English/Spanish UI switch.
@@ -90,6 +90,9 @@ attribution in commits, strict TDD (`npm test`).
 - 2026-10-16: wiki for hooks/MCP/connectors/tools/agents/commands proposed as a separate v0.4.0 feature (awaiting user).
 - 2026-10-16: user chose one release: harness wiki added as P8 in v0.3.0; P7 runs last.
 
+- 2026-10-16: scope change from the user applied in `a9278fa`: the Diagrams page and /api/diagrams are removed (`#/diagrams` redirects to Harness; ODD diagrams only on project and feature pages).
+- 2026-10-16: P1-P4 done. Manual check on port 8799 with a temp state dir (copy of memory.db, portal.json listing this repo): /api/projects found 1 project (amauta: config + discovered, 3 features, 63 of 71 tasks, 1 session, 1 memory, graph not mirrored); project page, skill catalog (86 skills), built-in skill page, memory wiki page and memfile page all answered.
+
 ## Next step
 
-P1-P3 writer.
+P5 themes writer.
