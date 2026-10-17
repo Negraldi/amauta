@@ -1,14 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, chmod } from 'node:fs/promises';
+import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { tempDir } from './tmp.js';
 
 export const git = (cwd, ...args) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
 
 /** Temp git repo with helpers. files: {relpath: content}. */
 export async function makeRepo(files = { 'README.md': '# x\n' }) {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'gl-repo-'));
+  const dir = await tempDir('gl-repo-');
   git(dir, 'init', '-q', '-b', 'main');
   const repo = {
     dir,

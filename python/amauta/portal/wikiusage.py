@@ -93,10 +93,13 @@ BUILTIN_NOTE = "Built into Claude Code (no local file); description unavailable 
 
 def _skill_summary(entry):
     """"What it does": description, trigger, source and path of the skill file; built-ins have no file and say so."""
-    from . import wikiskills
+    from . import wikiharness, wikiskills
     if entry is None:
         return {"description": None, "trigger": None, "source": "Built into Claude Code", "path": None, "builtin": True, "note": BUILTIN_NOTE}
-    return {"description": entry["description"], "trigger": entry["trigger"], "source": wikiskills.label(entry), "path": entry["path"], "builtin": False, "note": None}
+    out = {"description": entry["description"], "trigger": entry["trigger"], "source": wikiskills.label(entry), "path": entry["path"], "builtin": False, "note": None}
+    if entry.get("disabled"):
+        out["disabled"], out["status"] = True, wikiharness.PLUGIN_DISABLED
+    return out
 
 
 # ---- skill / tool / mcp page --------------------------------------------------------------------------------------

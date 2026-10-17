@@ -1,18 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { runUpgrade } from '../src/install/upgrade.js';
+import { tempDir } from './helpers/tmp.js';
 
 const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
 
 /** Bare origin with v0.1.0 and v0.2.0 (main = v0.2.0), plus a clone of it reset to v0.1.0 that tracks origin/main. */
 async function fixture({ extraTag } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-upg-'));
+  const root = await tempDir('gl-upg-');
   const origin = path.join(root, 'origin.git');
   const dev = path.join(root, 'dev');
   const inst = path.join(root, 'install');

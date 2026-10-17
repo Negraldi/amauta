@@ -269,3 +269,53 @@ class SearchTest(HarnessBase):
     def test_wikilinks_can_target_the_new_kinds(self):
         from python.amauta.portal import wiki
         self.assertEqual(wiki._parse_wikilinks("[[agent:my-agent]] [[hook:Stop:abc]] [[plugin:plug|P]]"), [("agent", "my-agent", "my-agent"), ("hook", "Stop:abc", "Stop:abc"), ("plugin", "plug", "P")])
+
+
+class DisabledPluginTest(HarnessBase):
+    """Components of a plugin that settings.json disables are listed and labelled, never hidden: they do not run."""
+    STATUS = "Plugin disabled: does not run"
+
+    def setUp(self):
+        super().setUp()
+        settings = json.loads((self.f["home"] / "settings.json").read_text())
+        settings["enabledPlugins"] = {"plug@mk": False}
+        write(self.f["home"] / "settings.json", json.dumps(settings))
+        self.portal._harness_cache = None
+
+    def parts(self):
+        return [("agent", "plug:plug-agent"), ("command", "plug:plug-cmd"), ("mcp", "plugsrv"), ("plugin", "plug"), ("hook", next(i for i in self.items("hook") if i.startswith("UserPromptSubmit:")))]
+
+    def test_every_component_of_the_plugin_is_flagged_in_the_catalog_and_the_page(self):
+        for kind, ident in self.parts():
+            self.assertIs(self.items(kind)[ident].get("disabled"), True, (kind, ident))
+            pg = self.page(kind, ident)
+            self.assertIs(pg["summary"].get("disabled"), True, (kind, ident))
+            self.assertEqual(pg["summary"]["status"], self.STATUS)
+
+    def test_other_components_are_not_flagged(self):
+        for kind, ident in (("agent", "my-agent"), ("command", "do-it"), ("agent", "repo/proj-agent"), ("mcp", "projsrv")):
+            self.assertNotIn("disabled", self.items(kind)[ident], (kind, ident))
+            self.assertNotIn("disabled", self.page(kind, ident)["summary"])
+
+    def test_an_enabled_or_unlisted_plugin_is_not_flagged(self):
+        settings = json.loads((self.f["home"] / "settings.json").read_text())
+        for flags in ({"plug@mk": True}, {}):
+            settings["enabledPlugins"] = flags
+            write(self.f["home"] / "settings.json", json.dumps(settings))
+            self.portal._harness_cache = None
+            self.assertNotIn("disabled", self.items("agent")["plug:plug-agent"], flags)
+
+    def test_plugin_skills_are_flagged_in_the_catalog_and_the_page(self):
+        items = {i["id"]: i for g in self.get("/api/skills")["groups"] for i in g["items"]}
+        self.assertIs(items["plug:plug-skill"].get("disabled"), True)
+        self.assertNotIn("disabled", items["work-unit-commits"] if "work-unit-commits" in items else {})
+        pg = self.page("skill", "plug:plug-skill")
+        self.assertEqual((pg["summary"]["disabled"], pg["summary"]["status"]), (True, self.STATUS))
+
+    def test_tools_reported_by_a_disabled_plugin_server_are_flagged_too(self):
+        write(self.f["state"] / "wiki" / "mcp-tools.json", json.dumps({"plugsrv": {"fetched_at": "2026-10-01T00:00:00Z", "tools": [{"name": "go", "description": "d", "params": []}]},
+                                                                      "projsrv": {"fetched_at": "2026-10-01T00:00:00Z", "tools": [{"name": "run", "description": "d", "params": []}]}}))
+        self.portal._harness_cache = None
+        tools = self.items("mcptool")
+        self.assertIs(tools["plugsrv/go"].get("disabled"), True)
+        self.assertNotIn("disabled", tools["projsrv/run"])

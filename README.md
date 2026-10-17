@@ -178,7 +178,7 @@ amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta 
 (`PYTHONPATH=python python3 -P -m amauta.portal ...` is the same server without the CLI wrapper.)
 
 Top bar: a theme picker (System, Light, Dark, your custom themes) and an English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`).
-Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true}`, also editable in Settings > Projects) and from the git roots of your sessions; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
+Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true}`, also editable in Settings > Projects) and from the git roots of your sessions. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
 
 ### Routes
 
@@ -226,7 +226,7 @@ Every component of the harness has a page that opens with "What it does" and "Wh
 "Built into Claude Code" or "Usage only"). Facts are rebuilt from the real files on each request (cached for a couple of seconds): hooks from user,
 project and plugin settings, MCP servers from `.claude.json`, `.mcp.json` and plugins, agents, commands and output styles from their folders and plugins,
 plugins from their manifests, built-in tools from a curated English and Spanish catalog, connectors from the server names your sessions called that no local
-config explains. MCP configs show type, command and arguments with secrets masked, and the NAMES of env variables and headers, never their values.
+config explains. Components of a plugin that `settings.json` disables (`enabledPlugins: false`) stay listed and are labelled "Plugin disabled: does not run". MCP configs show type, command and arguments with secrets masked, and the NAMES of env variables and headers, never their values.
 
 - **Refresh descriptions** (`POST /api/harness/refresh`, optional `{"server": name}`): same guard as the other writes. It starts each configured command-based
   MCP server (never http, sse or connectors), asks `tools/list` over JSON-RPC (10 s per server, process group killed afterwards, no shell) and caches names,

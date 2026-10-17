@@ -5,9 +5,10 @@ import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { runLaunch, findBrowser, readRunFile } from '../src/portal/launch.js';
+import { tempDirSync } from './helpers/tmp.js';
 
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'amauta-launch-'));
+const tmp = () => tempDirSync('amauta-launch-');
 
 /** A fake world: servers and browsers are plain objects, time never passes unless sleep() is called. */
 function world({ browsers = ['/fake/google-chrome'], ignoreTerm = false, serverStartsAfter = 0, portInUse = null } = {}) {

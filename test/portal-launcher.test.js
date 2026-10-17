@@ -6,10 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { desktopEntry, execQuote, runInstallLauncher, applicationsDir } from '../src/portal/launcher.js';
 import { runPortal } from '../src/portal/cli.js';
+import { tempDirSync } from './helpers/tmp.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'amauta-desktop-'));
+const tmp = () => tempDirSync('amauta-desktop-');
 const parse = (text) => Object.fromEntries(text.split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 
 test('execQuote leaves plain words alone and quotes reserved characters per the Desktop Entry spec', () => {
@@ -83,6 +84,7 @@ test('amauta portal dispatches launch and install-launcher to their handlers', a
 
 test('plain portal still forwards --idle-exit and validates it', async () => {
   const { buildPortalSpawn } = await import('../src/portal/cli.js');
-  assert.deepEqual(buildPortalSpawn(['--idle-exit', '45'], {}).args.slice(-2), ['--idle-exit', '45']);
+  const env = { AMAUTA_STATE_DIR: path.join(os.tmpdir(), 'amauta-no-such-state-dir') };  // no portal.json: nothing appended after the option
+  assert.deepEqual(buildPortalSpawn(['--idle-exit', '45'], env).args.slice(-2), ['--idle-exit', '45']);
   assert.throws(() => buildPortalSpawn(['--idle-exit', '0'], {}), /idle-exit/);
 });

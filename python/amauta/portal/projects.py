@@ -1,7 +1,8 @@
 """Projects the portal knows: `--repo` flags, `portal.json` in the state dir and (optionally) git roots of session working directories.
 
-Only existing directories under $HOME count. Paths are resolved first, so a symlink that leaves $HOME is never followed, and $HOME itself is never
-a project. Discovery is bounded (sessions read, repositories kept) and cached for a few seconds.
+Configured paths (`--repo`, `portal.json`, Settings) may be any existing absolute directory, in $HOME or elsewhere (a data disk), except `/`, $HOME
+itself and system trees. Paths are resolved first, so a symlink into a system tree is refused. Auto-discovery stays inside $HOME. Discovery is bounded
+(sessions read, repositories kept) and cached for a few seconds.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ MAX_DISCOVERED = 50
 MAX_SESSIONS = 300
 MAX_EVENT_CWDS = 200
 MAX_PATH = 1024
+SYSTEM_TREES = ("/proc", "/sys", "/dev", "/run", "/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/boot", "/var", "/tmp", "/snap", "/root")
 TTL = 15.0
 GRAPH_HOWTO = ("Graph memory is mirrored from graphify. Run `amauta graphify hook install --cwd <path>` once (every commit then runs `graphify update .` and syncs), "
                "or sync by hand with `graphify update .` and `python3 -P -m amauta.graph sync --repo .`.")
@@ -46,8 +48,10 @@ def check_repo(raw, home):
     real = Path(os.path.realpath(raw))
     if not real.is_dir():
         raise ConfigError(f"not an existing directory: {raw[:80]}")
-    if real == home or home not in real.parents:
-        raise ConfigError(f"path must be a directory inside your home directory: {raw[:80]}")
+    if real == home or real == Path("/"):
+        raise ConfigError(f"path must not be / or your home directory itself: {raw[:80]}")
+    if home not in real.parents and any(real == Path(t) or Path(t) in real.parents for t in SYSTEM_TREES):
+        raise ConfigError(f"path must not be inside a system directory (/etc, /usr, /var, /tmp ...): {raw[:80]}")
     return real
 
 

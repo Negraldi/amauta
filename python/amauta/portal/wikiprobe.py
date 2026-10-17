@@ -24,11 +24,13 @@ from . import wikiharness, wikitools
 TIMEOUT = 10.0
 GRACE = 1.5
 MAX_PAGES = 10
-MAX_TOOLS = 300
+MAX_TOOLS = 500
 MAX_DESCRIPTION = 600
 MAX_PARAMS = 40
-MAX_OUTPUT = 4_000_000
-MAX_LINE = 1_000_000
+# One tools/list page of a large server (rea: ~200 tools with full input schemas) is several MB on a single JSON-RPC line. Memory stays bounded by
+# MAX_LINE per line and MAX_OUTPUT in total; only name, description[:MAX_DESCRIPTION] and parameter names are kept, so the cache stays small.
+MAX_OUTPUT = 32_000_000
+MAX_LINE = 16_000_000
 MAX_LINES = 400
 MAX_PARALLEL = 4
 MAX_FILE = 4_000_000
@@ -52,15 +54,18 @@ class _Fail(Exception):
 
 class _Reader:
     def __init__(self, fd):
-        self.fd, self.buf, self.total = fd, b"", 0
+        self.fd, self.buf, self.total, self.scanned = fd, bytearray(), 0, 0
         os.set_blocking(fd, False)
 
     def line(self, deadline):
         while True:
-            i = self.buf.find(b"\n")
+            i = self.buf.find(b"\n", self.scanned)
             if i >= 0:
-                line, self.buf = self.buf[:i], self.buf[i + 1:]
+                line = bytes(self.buf[:i])
+                del self.buf[:i + 1]
+                self.scanned = 0
                 return line
+            self.scanned = len(self.buf)
             remaining = deadline - time.monotonic()
             if remaining <= 0 or not select.select([self.fd], [], [], remaining)[0]:
                 raise _Fail("timeout")

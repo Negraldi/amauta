@@ -35,6 +35,9 @@ for line in sys.stdin:
             send({"jsonrpc": "2.0", "id": msg["id"], "error": {"code": -32601, "message": "SECRET-LEAK"}}); continue
         cursor = (msg.get("params") or {}).get("cursor")
         n = int(cursor or 0)
+        if mode == "big":
+            props = {"p%02d" % j: {"type": "string", "description": "y" * 400} for j in range(20)}
+            send({"jsonrpc": "2.0", "id": msg["id"], "result": {"tools": [{"name": "tool%03d" % i, "description": "z" * 900, "inputSchema": {"type": "object", "properties": props}} for i in range(250)]}}); continue
         if mode == "forever":
             send({"jsonrpc": "2.0", "id": msg["id"], "result": {"tools": [{"name": "t%d" % n, "description": "d"}], "nextCursor": str(n + 1)}}); continue
         if cursor is None:
@@ -154,6 +157,29 @@ class RefreshTest(ProbeBase):
         self.assertTrue(out["results"][0]["ok"])
         for pid in self.pids():
             self.assertDead(pid)
+
+    def test_a_server_with_hundreds_of_large_tools_refreshes_and_the_cache_stays_small(self):
+        self.add("fake", "big")
+        out = self.run_refresh()
+        self.assertEqual(out["results"], [{"server": "fake", "ok": True, "tools": 250}])
+        path = self.f["state"] / "wiki" / "mcp-tools.json"
+        self.assertLess(path.stat().st_size, 400_000)
+        tools = self.cache()["fake"]["tools"]
+        self.assertEqual(len(tools), 250)
+        self.assertLessEqual(len(tools[0]["description"]), wikiprobe.MAX_DESCRIPTION)
+        self.assertEqual(tools[0]["params"][:2], ["p00", "p01"])
+        self.assertNotIn("inputSchema", tools[0])
+
+    def test_a_response_over_the_line_limit_still_fails_cleanly(self):
+        self.add("fake", "big")
+        with mock.patch.object(wikiprobe, "MAX_LINE", 500_000):
+            out = self.run_refresh()
+        self.assertEqual(out["results"], [{"server": "fake", "ok": False, "error": "response too large"}])
+        for pid in self.pids():
+            self.assertDead(pid)
+
+    def test_the_limits_are_documented_bounds(self):
+        self.assertEqual((wikiprobe.MAX_LINE, wikiprobe.MAX_OUTPUT, wikiprobe.MAX_TOOLS), (16_000_000, 32_000_000, 500))
 
     def test_pagination_is_capped(self):
         self.add("fake", "forever")
