@@ -125,6 +125,10 @@ class HookTitleTest(HarnessBase):
         self.assertIn("Stop \u00b7 impeccable", got)
         self.assertFalse([t for t in got if t.endswith("\u00b7 [")], got)
 
+    def test_an_inline_shell_snippet_is_called_an_inline_script(self):
+        got = self.titles({"PreToolUse": [{"matcher": "Agent", "hooks": [{"type": "command", "command": "in=$(cat); echo \"$in\" | jq ."}]}]})
+        self.assertIn("PreToolUse (Agent) \u00b7 inline script", got)
+
     def test_the_full_masked_command_stays_on_the_page(self):
         self.titles({"PostToolUse": [{"hooks": [{"type": "command", "command": "bash /x/y/run.sh --token hunter2-secret"}]}]})
         ident = next(i for i, v in self.items("hook").items() if i.startswith("PostToolUse:") and v["title"].endswith("run.sh"))

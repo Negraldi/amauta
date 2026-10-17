@@ -191,6 +191,14 @@ def _script_name(command):
     return (p.group(1).rstrip("/").rsplit("/", 1)[-1] or None) if p else None
 
 
+def _first_word(command):
+    """The first command word, or "inline script" when the command opens with shell syntax (an assignment, "$(", a test)."""
+    word = (command.split() or [""])[0]
+    if not word or re.search(r"[=$(){};\[\]!]", word):
+        return "inline script" if word else None
+    return word.rsplit("/", 1)[-1] or None
+
+
 def _hook_entry(raw):
     h, event = raw["h"], raw["event"]
     if raw["type"] == "command" or isinstance(h.get("command"), str):
@@ -201,7 +209,7 @@ def _hook_entry(raw):
         command = str(h.get("prompt") or "")[:300]
     timeout = h.get("timeout") if isinstance(h.get("timeout"), (int, float)) and not isinstance(h.get("timeout"), bool) else None
     known = next(((short, what) for needle, short, what in HOOK_SUMMARIES if needle in command), None)
-    name = known[0] if known else (_script_name(command) or (command.split() or [raw["type"]])[0].rsplit("/", 1)[-1] or raw["type"])
+    name = known[0] if known else (_script_name(command) or _first_word(command) or raw["type"])
     title = f"{event} ({raw['matcher']}) \u00b7 {name}" if raw["matcher"] else f"{event} \u00b7 {name}"
     material = {"event": event, "matcher": raw["matcher"], "type": raw["type"], "command": command, "timeout": timeout, "path": raw["path"]}
     ident = f"{event}:{digest(material)[:8]}"
