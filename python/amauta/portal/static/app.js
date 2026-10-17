@@ -6,7 +6,7 @@ const SVGNS = "http://www.w3.org/2000/svg";
 const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown; // markdown.js and wikiroute.js load first (see index.html)
 const SECTIONS = [
   ["Knowledge", [["home", "Home"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
-  ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"], ["diagrams", "Diagrams"]]],
+  ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"]]],
   ["Spending", [["usage", "Usage"]]],
   ["Manage", [["lint", "Lint"], ["settings", "Settings"]]],
 ];
@@ -310,25 +310,6 @@ async function viewHarness() {
   out.push(panel("ODD task progress", odd.repos.length ? odd.repos.map((r) => h("div", null, h("h2", null, r.repo), r.documents.length ? r.documents.map((d) => h("div", null, h("strong", null, link("feature", d.name.replace(/\.md$/, ""), d.name)), ` ${d.done}/${d.total}`, h("ul", null, d.tasks.map((t) => h("li", null, (t.done ? "[x] " : "[ ] ") + t.title))))) : empty("No odd/tasks/*.md found."))) : empty("No repositories configured (use --repo).")));
   return out;
 }
-
-async function viewDiagrams() {
-  const d = await api("diagrams");
-  const out = [panel("Architecture", d.architecture ? diagramBox(d.architecture, "amauta install architecture") : empty("amauta is not installed (no state.json in the state directory)."))];
-  const docs = h("div", null);
-  for (const [i, doc] of d.odd.entries()) {
-    const body = h("div", null);
-    const det = h("details", { open: i === 0 }, h("summary", null, `${doc.repo}/${doc.document}: ${doc.done}/${doc.total} done`), body);
-    let drawn = false;
-    const draw = () => { if (!drawn) { drawn = true; body.replaceChildren(diagramBox(doc.source, `Task progress of ${doc.document}`)); } };
-    det.addEventListener("toggle", () => { if (det.open) draw(); });
-    if (i === 0) draw();
-    docs.append(det);
-  }
-  out.push(panel("ODD task progress", d.odd.length ? docs : empty("No odd/tasks/*.md with tasks found (use --repo).")));
-  out.push(panel("Graph memory", empty("Search a node under Memories > Graph memory to see its neighborhood diagram.")));
-  return out;
-}
-
 
 // ---- wiki pages ---------------------------------------------------------------------------------------------
 const HINTS = {
@@ -727,7 +708,7 @@ async function renderRoute(route, changed) {
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
   if (id && ["memory", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, diagrams: viewDiagrams, settings: viewSettings, lint: viewLint };
+  const views = { home: viewHome, usage: viewUsagePage, skill: viewUsage, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
   return views[kind]();
 }
 

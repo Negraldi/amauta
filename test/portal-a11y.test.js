@@ -116,7 +116,7 @@ test('Range and Project filters show on Usage and on list views that read them, 
     assert.equal(R.showsFilters({ kind, id: '' }), true, `${kind} list`);
     assert.equal(R.showsFilters({ kind, id: 'x' }), false, `${kind} page`);
   }
-  for (const kind of ['home', 'memory', 'feature', 'node', 'harness', 'diagrams', 'settings', 'lint', 'unknown']) assert.equal(R.showsFilters({ kind, id: '' }), false, kind);
+  for (const kind of ['home', 'memory', 'feature', 'node', 'harness', 'settings', 'lint', 'unknown']) assert.equal(R.showsFilters({ kind, id: '' }), false, kind);
 });
 
 test('the shell hides the filter bar through showsFilters, not a hard-coded list', () => {

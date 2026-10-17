@@ -475,16 +475,6 @@ class Portal:
         return {"repos": repos}
 
     # ---- diagrams (Mermaid source is generated here, from the data the views above already use) --------------
-    def diagrams(self, q):
-        hs = self.harness({})
-        docs = []
-        for r in self.odd({})["repos"]:
-            for d in r["documents"]:
-                src = diagrams.odd_progress(d["name"], d["tasks"])
-                if src:
-                    docs.append({"repo": r["repo"], "document": d["name"], "done": d["done"], "total": d["total"], "source": src})
-        return {"architecture": diagrams.architecture(hs, self.cfg.state_dir), "odd": docs}
-
     def archify_view(self, q):
         """Harness architecture drawn by the vendored archify CLI (rendered now, cached by input hash) plus the Mermaid text diagram as the fallback."""
         hs = self.harness({})
@@ -581,6 +571,6 @@ _ROUTES = {
     "/api/memories": "memories", "/api/memory": "memory", "/api/memory/history": "memory_history",
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
-    "/api/harness": "harness", "/api/odd": "odd", "/api/diagrams": "diagrams", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
+    "/api/harness": "harness", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
     "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint",
 }

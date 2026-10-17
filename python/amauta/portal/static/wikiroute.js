@@ -4,10 +4,10 @@
   // kind -> label shown in the sidebar and as the page's kind label
   const KINDS = {
     home: "Home", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
-    node: "Graph node", harness: "Harness", usage: "Usage", settings: "Settings", diagrams: "Diagrams", lint: "Lint",
+    node: "Graph node", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint",
   };
   // Hashes of the previous tabbed portal keep working.
-  const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "diagrams" };
+  const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" }; // the Diagrams page was folded into Harness
 
   function decode(part) {
     try { return decodeURIComponent(part); } catch (_) { return part; }
@@ -18,7 +18,9 @@
     const raw = String(hash || "").replace(/^#/, "");
     if (raw === "" || raw === "/") return { kind: "home", id: "" };
     if (!raw.startsWith("/")) return LEGACY[raw] ? { kind: LEGACY[raw], id: "" } : { kind: "unknown", id: raw };
-    const [kind, ...rest] = raw.slice(1).split("/");
+    const [first, ...rest] = raw.slice(1).split("/");
+    const kind = first === "diagrams" ? "harness" : first;
+    if (first === "diagrams") return { kind, id: "" };
     if (!Object.prototype.hasOwnProperty.call(KINDS, kind)) return { kind: "unknown", id: raw };
     return { kind, id: rest.length ? decode(rest.join("/")) : "" };
   }

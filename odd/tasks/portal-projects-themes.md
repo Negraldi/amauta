@@ -42,7 +42,17 @@ project, user themes (light/dark/custom files, editable in the portal) and an En
 - P6 Language: English / Spanish UI switch for portal chrome (navigation, headings, labels, buttons, empty states,
   errors, settings descriptions); user content (memories, SKILL.md, ODD docs) stays as written. Neutral professional
   Spanish. Persisted like the theme; default from the browser language.
-- P7 Docs, CHANGELOG 0.3.0, version bump, one PR to `main`.
+- P8 Harness wiki: pages for every harness component, not only skills: hooks (event, matcher, command, script
+  summary), MCP servers (config without env values or secrets, plus their tools), MCP tools, connectors (claude.ai
+  remote MCP seen in sessions), Claude Code built-in tools, agents and commands (frontmatter), plugins (manifest),
+  output styles. Each page: "What it does / When it runs", source of the fact, usage, backlinks. Maintenance in three
+  layers: (1) derived facts rebuilt on every request from the real files; (2) "Refresh descriptions" button: guarded
+  POST that asks configured local stdio MCP servers for `tools/list` (read-only, timeout, no remote connectors, no env
+  secrets logged) and caches the result under the state dir; (3) "Request explanation" button: guarded POST that
+  enqueues a request in `<state>/wiki/requests.jsonl`; a shipped skill (`amauta-wiki-explain`) processes the queue in a
+  Claude Code session and writes notes to `<state>/wiki/notes/<kind>/<id>.md` with the source hash; wiki lint flags
+  notes whose source changed. Built-in tools ship with a curated EN/ES catalog. The portal never calls a model.
+- P7 Docs, CHANGELOG 0.3.0, version bump, one PR to `main` (runs last).
 
 ## Constraints
 
@@ -58,12 +68,16 @@ attribution in commits, strict TDD (`npm test`).
 - [ ] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed.
 - [ ] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export.
 - [ ] P6 English/Spanish UI switch.
-- [ ] P7 Docs, CHANGELOG, version 0.3.0, PR.
+- [ ] P8 Harness wiki: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output
+  styles; refresh and request-explanation flows.
+- [ ] P7 Docs, CHANGELOG, version 0.3.0, PR (last).
 
 ## Acceptance criteria
 
 - No per-character wrapping at any width; numbers grouped, dates readable.
 - Every skill the user has used or installed has a page that says what it does.
+- Every hook, MCP server/tool, connector, built-in tool, agent, command and plugin has a page; refresh and
+  request-explanation work from the portal without the portal calling a model.
 - Clicking any memory opens its wiki page.
 - The launcher-started portal shows ODD tasks for every configured project.
 - Theme and language switch instantly, persist, and custom themes can be created in the portal.
@@ -74,6 +88,7 @@ attribution in commits, strict TDD (`npm test`).
 - 2026-10-16: plan written from the user's report; branch created from `v0.2.0`.
 - 2026-10-16: user asked to drop the Diagrams page; folded into P4 and sent to the running writer.
 - 2026-10-16: wiki for hooks/MCP/connectors/tools/agents/commands proposed as a separate v0.4.0 feature (awaiting user).
+- 2026-10-16: user chose one release: harness wiki added as P8 in v0.3.0; P7 runs last.
 
 ## Next step
 

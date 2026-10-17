@@ -268,8 +268,7 @@ The portal ships a vendored, unmodified Mermaid build (`python/amauta/portal/sta
 (`python/amauta/portal/diagrams.py`): node ids are generated, and every label that comes from a repo, a graph or the install state is quoted and
 entity-escaped (quotes, brackets, backticks, `<`, `>`, newlines, `#`, `;`) and truncated, so a hostile label cannot add nodes or `click` directives. Where it shows:
 
-- Diagrams view: the install architecture (hooks per event, MCP servers, skill and agent counts, state dir; `GET /api/diagrams`) and one task-progress
-  flowchart per `odd/tasks/*.md` (green done, orange pending, capped at 40 tasks).
+- Harness page: the install architecture. Feature and project pages: one task-progress flowchart per `odd/tasks/*.md` (green done, orange pending, capped at 40 tasks). The old Diagrams page is gone; `#/diagrams` redirects to Harness.
 - Memories, graph memory: selecting a node also draws its neighborhood (nearest 30 nodes and up to 30 edges; `GET /api/graph/diagram`).
 - Memories: the portal shows markdown as plain text, and now also draws the first five ```` ```mermaid ```` fences of the selected file or memory below it.
 

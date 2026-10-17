@@ -33,7 +33,8 @@ test('parseHash: home by default, legacy tab hashes, raw slashes, bad encodings 
   assert.deepEqual(plain(R.parseHash('#overview')), { kind: 'home', id: '' });
   assert.deepEqual(plain(R.parseHash('#sessions')), { kind: 'session', id: '' });
   assert.deepEqual(plain(R.parseHash('#memories')), { kind: 'memory', id: '' });
-  for (const k of ['usage', 'harness', 'diagrams']) assert.deepEqual(plain(R.parseHash('#' + k)), { kind: k, id: '' });
+  for (const k of ['usage', 'harness']) assert.deepEqual(plain(R.parseHash('#' + k)), { kind: k, id: '' });
+  for (const h of ['#diagrams', '#/diagrams']) assert.deepEqual(plain(R.parseHash(h)), { kind: 'harness', id: '' }, h); // the removed Diagrams page redirects
   assert.deepEqual(plain(R.parseHash('#/memory/arch/widgets')), { kind: 'memory', id: 'arch/widgets' });
   assert.deepEqual(plain(R.parseHash('#/memory/%E0%A4%A')), { kind: 'memory', id: '%E0%A4%A' }); // malformed percent-encoding is kept as is
   assert.equal(R.parseHash('#/nope/1').kind, 'unknown');
@@ -180,7 +181,8 @@ test('the sidebar lists every section, marks the current page and shows recent c
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  for (const h of ['#/home', '#/memory', '#/skill', '#/tool', '#/mcp', '#/session', '#/feature', '#/node', '#/harness', '#/usage', '#/diagrams', '#/settings']) assert.ok(byHref[h], h);
+  for (const h of ['#/home', '#/memory', '#/skill', '#/tool', '#/mcp', '#/session', '#/feature', '#/node', '#/harness', '#/usage', '#/settings']) assert.ok(byHref[h], h);
+  assert.equal(byHref['#/diagrams'], undefined, 'no Diagrams entry in the sidebar');
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
   assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
   const recent = env.document.getElementById('recent');
