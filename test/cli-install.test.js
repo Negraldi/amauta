@@ -1,16 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
+import { tempDir } from './helpers/tmp.js';
 
 const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
 const run = (args, env) => spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', env: { ...process.env, ...env } });
 
 test('install/status/uninstall via CLI honour the environment variables', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cli-'));
+  const root = await tempDir('gl-cli-');
   const env = {
     AMAUTA_CLAUDE_HOME: path.join(root, 'claude'),
     AMAUTA_CLAUDE_JSON: path.join(root, 'c.json'),
@@ -41,7 +42,7 @@ test('install/status/uninstall via CLI honour the environment variables', async 
 });
 
 test('flags override the environment and unknown flags fail', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cli2-'));
+  const root = await tempDir('gl-cli2-');
   const r = run(['install', '--claude-home', path.join(root, 'h'), '--claude-json', path.join(root, 'j.json'), '--state-dir', path.join(root, 's')], {});
   assert.equal(r.status, 0, r.stderr);
   assert.ok((await stat(path.join(root, 'h', 'CLAUDE.md'))).isFile());
@@ -56,7 +57,7 @@ test('help lists install, uninstall and status', () => {
 });
 
 test('status prints the per-block CLAUDE.md size report', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cli3-'));
+  const root = await tempDir('gl-cli3-');
   const env = { AMAUTA_CLAUDE_HOME: path.join(root, 'claude'), AMAUTA_CLAUDE_JSON: path.join(root, 'c.json'), AMAUTA_STATE_DIR: path.join(root, 'state') };
   assert.equal(run(['install'], env).status, 0);
   const r = run(['status'], env);
