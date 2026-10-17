@@ -9,7 +9,7 @@ from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 from python.tests.test_portal import ApiBase
 
-EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary"}, "tool": {"usage"}, "mcp": {"usage"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
+EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary"}, "tool": {"usage"}, "mcp": {"usage", "summary"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
 PAGE_KEYS = {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"}
 
 

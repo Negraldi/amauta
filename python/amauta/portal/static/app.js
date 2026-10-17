@@ -7,7 +7,7 @@ const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThi
 const { t, tn, ts } = I; // t(key, params): portal chrome; tn(key, n, params): plural; ts(text): English text sent by the server (see i18n.js)
 const SECTIONS = [
   ["nav.knowledge", [["home", "nav.home"], ["project", "nav.project"], ["memory", "nav.memory"], ["feature", "nav.feature"], ["node", "nav.node"]]],
-  ["nav.harness", [["skill", "nav.skill"], ["tool", "nav.tool"], ["mcp", "nav.mcp"], ["session", "nav.session"], ["harness", "nav.harnessPage"]]],
+  ["nav.harness", [["skill", "nav.skill"], ["tool", "nav.tool"], ["mcp", "nav.mcp"], ["component", "nav.component"], ["session", "nav.session"], ["harness", "nav.harnessPage"]]],
   ["nav.spending", [["usage", "nav.usage"]]],
   ["nav.manage", [["lint", "nav.lint"], ["themes", "nav.themes"], ["settings", "nav.settings"]]],
 ];
@@ -304,7 +304,8 @@ async function viewHarness() {
 }
 
 // ---- wiki pages ---------------------------------------------------------------------------------------------
-const HINTS = ["memory", "skill", "tool", "mcp", "session", "feature", "project", "node"]; // each has a hint.<kind> text
+const WIKI_KINDS = ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node", "hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"];
+const HINTS = ["memory", "skill", "tool", "mcp", "session", "feature", "project", "node", "hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"]; // each has a hint.<kind> text
 const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value === "done" ? "● " : value === "pending" ? "○ " : "▲ ") + t(`status.${value}`));
 const isStatus = (v) => v === "done" || v === "pending" || v === "warning";
 // How a project was found (--repo flag, the Settings list, or discovery from sessions): the server sends the identifiers.
@@ -471,13 +472,34 @@ async function viewSkillCatalog() {
     h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("skills.where"))])];
 }
 
+const clip = (text) => (text.length > 220 ? `${text.slice(0, 217)}...` : text);
+// Component catalog: every harness component grouped by kind; the filter works on what is already loaded.
+async function viewComponents() {
+  const cat = await api("harness/components");
+  const list = h("div", null);
+  const box = h("input", { type: "search", placeholder: t("components.filter"), "aria-label": t("components.filter"), value: state.componentQuery || "" });
+  const paint = () => {
+    state.componentQuery = box.value;
+    const groups = R.filterComponents(cat.groups, box.value);
+    list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
+      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`),
+        i.description ? h("div", null, clip(ts(i.description))) : null)))))
+      : [h("p", { class: "muted" }, cat.total ? t("components.noMatch") : t("components.none"))]));
+  };
+  box.addEventListener("input", paint);
+  paint();
+  return [h("h1", null, t("nav.component")), h("p", { class: "muted" }, t("components.intro", { n: fmt(cat.total) })),
+    h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("components.where"))])];
+}
+
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.
 function summaryBlock(sm) {
   if (!sm) return null;
   return h("section", { class: "page-section summary" }, h("h2", null, t("summary.title")),
     sm.note ? h("p", null, ts(sm.note)) : null,
-    sm.description ? h("p", null, sm.description) : null,
+    sm.description ? h("p", null, ts(sm.description)) : null,
     sm.trigger ? h("p", null, h("strong", null, t("summary.trigger") + " "), sm.trigger) : null,
+    sm.when ? h("p", null, h("strong", null, t("summary.when") + " "), ts(sm.when)) : null,
     h("p", { class: "muted" }, t("summary.source", { source: ts(sm.source) }), sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
 }
 
@@ -979,9 +1001,9 @@ async function viewUsagePage() { return [...(await viewOverview()), ...(await vi
 async function renderRoute(route, changed) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach(t("route.notPage"), t("route.noMatch", { id }))];
-  if (id && ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id, route.source);
+  if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
+  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, component: viewComponents, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
   return views[kind]();
 }
 

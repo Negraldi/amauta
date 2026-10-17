@@ -9,13 +9,13 @@ from __future__ import annotations
 import re
 from ..graph import query as graph_query
 from .api import MAX_TEXT, BadRequest, NotFound, _int, _str, has_table, columns
-from . import diagrams, wikifeature, wikimem, wikiproject, wikisess, wikiusage
+from . import diagrams, wikifeature, wikiharness, wikimem, wikiproject, wikisess, wikiusage
 from .wikiusage import USAGE_COLUMN as _USAGE_COLUMN
 from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime, _ref, strip_title_h1
 
 MAX_ID = 512
 WIKILINK = re.compile(r"\[\[([^\[\]\n]{1,200})\]\]")
-KINDS = ("project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node")
+KINDS = ("project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node", *wikiharness.NEW_KINDS)
 
 
 # ---- dispatch ----------------------------------------------------------------------------------------------
@@ -307,10 +307,10 @@ def _node_title(portal, ident):
         conn.close()
 
 
-_PAGES = {"project": wikiproject.page, "memory": _memory_page, "memfile": _memfile_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiusage.usage_page("mcp"),
-          "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page}
-_TITLES = {"project": wikiproject.title, "memory": _memory_title, "memfile": _memfile_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiusage.usage_title("mcp"),
-           "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title}
+_PAGES = {"project": wikiproject.page, "memory": _memory_page, "memfile": _memfile_page, "skill": wikiusage.usage_page("skill"), "tool": wikiusage.usage_page("tool"), "mcp": wikiharness.mcp_page(wikiusage.usage_page("mcp")),
+          "session": wikiusage.session_page, "feature": _feature_page, "node": _node_page, **{k: wikiharness.page_builder(k) for k in wikiharness.NEW_KINDS}}
+_TITLES = {"project": wikiproject.title, "memory": _memory_title, "memfile": _memfile_title, "skill": wikiusage.usage_title("skill"), "tool": wikiusage.usage_title("tool"), "mcp": wikiharness.mcp_title(wikiusage.usage_title("mcp")),
+           "session": wikiusage.session_title, "feature": _feature_title, "node": _node_title, **{k: wikiharness.title_of(k) for k in wikiharness.NEW_KINDS}}
 
 
 # ---- recent changes -------------------------------------------------------------------------------------------
@@ -364,7 +364,8 @@ def search(portal, q):
     out = {"q": text, "groups": []}
     if not text:
         return out
-    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", _search_usage("tool")), ("mcp", _search_usage("mcp")),
+    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", _search_usage("tool")), ("mcp", wikiharness.merged_search("mcp", _search_usage("mcp"))),
+                      *[(k, wikiharness.search(k)) for k in wikiharness.NEW_KINDS],
                       ("session", _search_sessions), ("project", _search_projects), ("feature", _search_features), ("task", _search_tasks), ("node", _search_nodes)):
         rows = fn(portal, text)
         if rows:

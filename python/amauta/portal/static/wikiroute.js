@@ -5,6 +5,7 @@
   const KINDS = {
     home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
     node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint", themes: "Themes",
+    hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
   // Hashes of the previous tabbed portal keep working.
   const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" }; // the Diagrams page was folded into Harness
@@ -120,6 +121,17 @@
     return out;
   }
 
+  // Component catalog filter: a case-insensitive substring over title, id, description and source; groups left empty disappear.
+  function filterComponents(groups, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const out = [];
+    for (const g of Array.isArray(groups) ? groups : []) {
+      const items = (g.items || []).filter((i) => !q || [i.title, i.id, i.description, i.source, g.kind].some((t) => String(t || "").toLowerCase().includes(q)));
+      if (items.length) out.push({ ...g, items });
+    }
+    return out;
+  }
+
   // Search groups -> one flat list (keyboard order) with a header marker before each group.
   function flattenResults(groups) {
     const flat = [];
@@ -219,5 +231,5 @@
     return { key: "advice.other", text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { filterSkills, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

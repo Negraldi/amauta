@@ -100,6 +100,10 @@ class Portal:
         from . import projects
         return list(projects.collect(self)["repos"])
 
+    def harness_components(self, q):
+        from . import wikiharness
+        return wikiharness.groups(self, q)
+
     def themes(self, q):
         from . import themes
         return themes.list_themes(self.cfg.state_dir)
@@ -588,6 +592,6 @@ _ROUTES = {
     "/api/memories": "memories", "/api/memory": "memory", "/api/memory/history": "memory_history",
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
-    "/api/harness": "harness", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
+    "/api/harness": "harness", "/api/harness/components": "harness_components", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
     "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills", "/api/projects": "projects", "/api/themes": "themes",
 }
