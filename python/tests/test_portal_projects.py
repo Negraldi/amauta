@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+from unittest import mock
 from pathlib import Path
 
 from python.amauta.memory import store as mstore
@@ -57,6 +58,51 @@ class ConfigFileTest(ProjectBase):
         (self.root / "file.txt").write_text("x")
         self.cfg_file(json.dumps({"repos": [str(a), "relative/dir", str(self.root / "ghost"), str(self.root / "file.txt"), 5, str(a)], "auto_discover": False}))
         self.assertEqual(projects.read_config(self.f["state"], home=self.root), {"repos": [str(a.resolve())], "auto_discover": False})
+
+
+class OutsideHomeTest(ProjectBase):
+    """Explicitly configured paths may live outside $HOME (a data disk); system trees, `/` and $HOME itself stay refused."""
+
+    def setUp(self):
+        super().setUp()
+        self.fake_home = self.root / "home"
+        self.fake_home.mkdir()
+        self.data = self.root / "mnt" / "datos"
+        self.data.mkdir(parents=True)
+        # The temp tree lives under /tmp, itself a system tree, so the tests use a narrower list for the "elsewhere" case.
+        patcher = mock.patch.object(projects, "SYSTEM_TREES", ("/proc", "/sys", "/dev", "/run", "/etc", "/usr", "/boot", "/var"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_an_absolute_existing_directory_outside_home_is_accepted(self):
+        self.assertEqual(projects.check_repo(str(self.data), self.fake_home), self.data.resolve())
+
+    def test_the_default_list_refuses_the_temp_tree(self):
+        mock.patch.stopall()
+        with self.assertRaises(projects.ConfigError):
+            projects.check_repo(str(self.data), self.fake_home)
+
+    def test_root_system_trees_home_and_relative_paths_are_refused(self):
+        link = self.root / "to-etc"
+        link.symlink_to("/etc", target_is_directory=True)
+        for bad in ("/", "/etc", "/proc/self", "/usr/lib", "/boot", "/var/lib", str(link), str(self.fake_home), "mnt/datos", ""):
+            with self.assertRaises(projects.ConfigError, msg=bad):
+                projects.check_repo(bad, self.fake_home)
+
+    def test_a_directory_inside_home_still_works_even_when_home_is_under_a_system_tree(self):
+        sub = self.fake_home / "p"
+        sub.mkdir()
+        self.assertEqual(projects.check_repo(str(sub), self.fake_home), sub.resolve())
+
+    def test_config_file_and_settings_post_keep_outside_paths(self):
+        (self.f["state"] / "portal.json").write_text(json.dumps({"repos": [str(self.data), "/etc"]}))
+        self.assertEqual(projects.read_config(self.f["state"], home=self.fake_home)["repos"], [str(self.data.resolve())])
+        out = projects.write_config(self.f["state"], {"repos": [str(self.data)]}, home=self.fake_home)
+        self.assertEqual(out["repos"], [str(self.data.resolve())])
+
+    def test_discovery_stays_inside_home(self):
+        git_dir(self.data)
+        self.assertIsNone(projects.git_root(str(self.data), self.fake_home))
 
 
 class DiscoveryTest(ProjectBase):

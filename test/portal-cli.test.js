@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPortalSpawn, runPortal, defaultSpawn, configuredRepos } from '../src/portal/cli.js';
@@ -98,4 +99,13 @@ test('a missing or broken portal.json adds nothing', async () => {
       assert.deepEqual(buildPortalSpawn(['--state-dir', state], {}).args, ['-P', '-m', 'amauta.portal'], text);
     }
   } finally { await rm(state, { recursive: true, force: true }); }
+});
+
+test('configuredRepos keeps absolute paths outside the home directory (a data disk) and drops relative or non-string entries', async () => {
+  const { tempDir } = await import('./helpers/tmp.js');
+  const dir = await tempDir('amauta-portal-cli-');
+  fs.writeFileSync(path.join(dir, 'portal.json'), JSON.stringify({ repos: ['/mnt/datos/drive/Desktop/HP', 'rel/dir', 5, '/mnt/datos/a\0b'] }));
+  assert.deepEqual(configuredRepos(dir), ['/mnt/datos/drive/Desktop/HP']);
+  const r = buildPortalSpawn(['--state-dir', dir], {});
+  assert.deepEqual(r.args.slice(-2), ['--repo', '/mnt/datos/drive/Desktop/HP']);
 });

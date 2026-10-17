@@ -412,7 +412,7 @@
     "sp.addPath": "Add a path",
     "sp.auto": "Find projects automatically from your Claude Code sessions",
     "sp.found": "Found automatically: {names}.",
-    "sp.intro": "Repositories whose ODD tasks, sessions, memories and graph the portal shows. Paths must be existing directories inside your home directory; they are saved in portal.json in the amauta state directory.",
+    "sp.intro": "Repositories whose ODD tasks, sessions, memories and graph the portal shows. Paths must be absolute, existing directories (in your home directory or elsewhere, such as a data disk), not / or your home directory itself and not a system directory; they are saved in portal.json in the amauta state directory.",
     "sp.none": "No paths saved yet.",
     "sp.pathLabel": "Project path",
     // status
@@ -961,7 +961,7 @@
     "sp.addPath": "Agregar una ruta",
     "sp.auto": "Encontrar proyectos automáticamente a partir de sus sesiones de Claude Code",
     "sp.found": "Encontrados automáticamente: {names}.",
-    "sp.intro": "Repositorios cuyas tareas ODD, sesiones, memorias y grafo muestra el portal. Las rutas deben ser directorios existentes dentro de su directorio personal; se guardan en portal.json, en el directorio de estado de amauta.",
+    "sp.intro": "Repositorios cuyas tareas ODD, sesiones, memorias y grafo muestra el portal. Las rutas deben ser directorios existentes y absolutos (en su directorio personal o en otro lugar, como un disco de datos), no / ni su directorio personal en sí, ni un directorio del sistema; se guardan en portal.json, en el directorio de estado de amauta.",
     "sp.none": "Aún no hay rutas guardadas.",
     "sp.pathLabel": "Ruta del proyecto",
     // status
@@ -1244,7 +1244,8 @@
     "every path must be a string": "cada ruta debe ser una cadena de texto",
     "path must be absolute: {path}": "la ruta debe ser absoluta: {path}",
     "not an existing directory: {path}": "no es un directorio existente: {path}",
-    "path must be a directory inside your home directory: {path}": "la ruta debe ser un directorio dentro de su directorio personal: {path}",
+    "path must not be / or your home directory itself: {path}": "la ruta no puede ser / ni su propio directorio personal: {path}",
+    "path must not be inside a system directory (/etc, /usr, /var, /tmp ...): {path}": "la ruta no puede estar dentro de un directorio del sistema (/etc, /usr, /var, /tmp ...): {path}",
     "at most {n} paths": "como máximo {n} rutas",
     "could not write portal.json": "no se pudo escribir portal.json",
     "Your Claude home": "Su directorio de Claude",
