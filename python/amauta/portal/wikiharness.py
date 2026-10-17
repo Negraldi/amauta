@@ -178,10 +178,17 @@ def _hooks_in(data, source, path, scope):
 _SCRIPT = re.compile(r"[^\s\"'`;&|<>()\[\]=]+\.(?:sh|bash|zsh|py|js|mjs|cjs|ts|rb|pl)(?![\w.])")
 
 
+_PATH = re.compile(r"(?:^|[\s'\"])((?:~|\$\{?\w+\}?)?/[^\s'\"`;&|<>()\[\]]+)")
+
+
 def _script_name(command):
-    """The basename of the first script path in a hook command ("/a/b/run.sh" -> "run.sh"), or None."""
+    """The basename of the first script path in a hook command ("/a/b/run.sh" -> "run.sh"); without a script
+    extension, the basename of the first absolute or home path ("'/a/b/impeccable' hook" -> "impeccable"); or None."""
     m = _SCRIPT.search(command or "")
-    return m.group(0).rsplit("/", 1)[-1] if m else None
+    if m:
+        return m.group(0).rsplit("/", 1)[-1]
+    p = _PATH.search(command or "")
+    return (p.group(1).rstrip("/").rsplit("/", 1)[-1] or None) if p else None
 
 
 def _hook_entry(raw):

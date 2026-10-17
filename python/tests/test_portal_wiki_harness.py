@@ -119,6 +119,12 @@ class HookTitleTest(HarnessBase):
         self.assertTrue({"PostToolUse (Edit|Write) \u00b7 impeccable-hook.sh", "Stop \u00b7 amauta usage", "Stop \u00b7 echo"} <= set(got), got)
         self.assertFalse([t for t in got if ": " in t], got)  # no raw "Event: command prefix" titles
 
+    def test_an_extensionless_quoted_script_path_names_the_hook(self):
+        cmd = "[ ! -f '/home/u/.claude/skills/impeccable/scripts/impeccable' ] || '/home/u/.claude/skills/impeccable/scripts/impeccable' hook"
+        got = self.titles({"Stop": [{"hooks": [{"type": "command", "command": cmd}]}]})
+        self.assertIn("Stop \u00b7 impeccable", got)
+        self.assertFalse([t for t in got if t.endswith("\u00b7 [")], got)
+
     def test_the_full_masked_command_stays_on_the_page(self):
         self.titles({"PostToolUse": [{"hooks": [{"type": "command", "command": "bash /x/y/run.sh --token hunter2-secret"}]}]})
         ident = next(i for i, v in self.items("hook").items() if i.startswith("PostToolUse:") and v["title"].endswith("run.sh"))
