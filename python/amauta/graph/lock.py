@@ -11,11 +11,13 @@ the directory. So all writers are mutually exclusive across languages, with one 
   pending `<lock>.pending` is the hook's "run again" marker (shell only; see hook.js).
   stale  only when the directory is older than 15 minutes AND its owner is gone: no readable pid, pid not running, or a
          recorded token that differs from the live process' token (a pid reused after SIGKILL or a reboot). A live
-         owner is never taken over, however old the lock. Takeover is attempted at most 3 times and is atomic: the stale
-         directory is renamed to a unique `<lock>.stale.*` tombstone, and only the taker whose rename succeeded removes it
-         and creates the new lock. A taker whose rename moved a lock that proves not stale (a rival finished its own
-         takeover between our verdict and our rename) puts it back and reports held. Residual window: a third writer
-         creating the lock exactly while it is put back; the failed put-back is reported on stderr.
+         owner is never taken over, however old the lock.
+  guard  `<lock>.takeover` (a directory) serialises takeovers: only the taker whose mkdir created it re-checks the
+         verdict and retires the stale lock (renamed to a unique `<lock>.stale.*` tombstone, then removed). A lock that a
+         rival created after our first verdict is fresh, so the re-check under the guard never moves a live lock (moving
+         and putting back could replace a third writer's brand-new empty lock dir: two winners). A taker that finds the
+         guard held reports held. A guard older than 10 minutes is abandoned (its taker died mid-takeover) and is
+         removed. Takeover is attempted at most 3 times.
 
 A held lock fails fast (LockHeld); nothing waits.
 """
@@ -35,6 +37,7 @@ from pathlib import Path
 LOCK_NAME = "amauta-graphify.lock"
 STALE_SECONDS = 15 * 60
 TAKEOVER_ATTEMPTS = 3
+GUARD_STALE_SECONDS = 10 * 60
 GIT_TIMEOUT = 20
 
 
@@ -104,23 +107,48 @@ def _remove(path: Path) -> None:
             path.unlink()
 
 
-def _take_over(lock: Path) -> bool:
-    """Atomically retire a stale lock; True only for the one taker whose rename succeeded on a lock that is really stale."""
-    tomb = lock.with_name(f"{lock.name}.stale.{os.getpid()}.{uuid.uuid4().hex}")
-    try:
-        os.rename(lock, tomb)
-    except OSError:
-        return False  # somebody else moved it first (ENOENT) or it cannot be moved: not our takeover
-    if not _stale(tomb):
-        # We moved a live lock: a rival completed its takeover after our verdict. Put it back untouched.
+def _guard_path(lock: Path) -> Path:
+    return lock.with_name(f"{lock.name}.takeover")
+
+
+def _enter_guard(guard: Path) -> bool:
+    """Create the takeover guard; clear it once first when a dead taker abandoned it."""
+    for _ in range(2):
         try:
-            os.rename(tomb, lock)
-        except OSError as exc:
-            # The residual window: the live owner's lock now sits under a tombstone name nobody cleans up. Say so.
-            print(f"amauta: could not put the live lock back ({exc}); it stays at {tomb}", file=sys.stderr)
-        return False
-    _remove(tomb)
-    return True
+            os.mkdir(guard)
+            return True
+        except FileExistsError:
+            try:
+                abandoned = time.time() - guard.stat().st_mtime > GUARD_STALE_SECONDS
+            except OSError:
+                continue  # released meanwhile: try again
+            if not abandoned:
+                return False
+            with contextlib.suppress(OSError):
+                os.rmdir(guard)
+        except OSError:
+            return False
+    return False
+
+
+def _take_over(lock: Path) -> bool:
+    """Retire a stale lock under the takeover guard; True only when this taker removed a lock that is stale right now."""
+    guard = _guard_path(lock)
+    if not _enter_guard(guard):
+        return False  # another takeover is in progress: held
+    try:
+        if not _stale(lock):
+            return False  # a rival already replaced it with a fresh lock: never move a live lock
+        tomb = lock.with_name(f"{lock.name}.stale.{os.getpid()}.{uuid.uuid4().hex}")
+        try:
+            os.rename(lock, tomb)
+        except OSError:
+            return False  # cannot be moved (or vanished): not our takeover
+        _remove(tomb)
+        return True
+    finally:
+        with contextlib.suppress(OSError):
+            os.rmdir(guard)
 
 
 def _acquire(lock: Path, pid: int | None = None) -> bool:
