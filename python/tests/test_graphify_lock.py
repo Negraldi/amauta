@@ -127,24 +127,47 @@ class LockModuleTest(unittest.TestCase):
         self.assertEqual((self.lock / "pid").read_text().split()[0], str(os.getpid()))
         self.assertEqual([p.name for p in self.lock.parent.iterdir() if ".stale." in p.name], [], "no tombstones left behind")
 
-    def test_a_failed_put_back_of_a_live_lock_is_reported_on_stderr(self):
-        import io
-        from contextlib import redirect_stderr
-        self.held_by(f"{dead_pid()}\n", 20)
-        real_rename = os.rename
-        calls = []
+    def test_a_late_stale_verdict_never_moves_a_live_lock(self):
+        # The verdict was taken on a lock that a rival has since replaced with its own fresh one: a late taker must not
+        # rename it away even briefly (a put-back can replace a third writer's brand-new empty lock dir, two winners).
+        tok = gl.start_token(os.getpid())
+        self.held_by(f"{os.getpid()} {tok}\n" if tok else f"{os.getpid()}\n", 0)
+        real, calls = gl._stale, {"n": 0}
+
+        def outdated_first(lock):
+            calls["n"] += 1
+            return True if calls["n"] == 1 else real(lock)
+
+        real_rename, moved = os.rename, []
 
         def rename(src, dst):
-            calls.append(src)
-            if len(calls) == 2:  # the put-back
-                raise OSError("a third writer created the lock")
+            moved.append(Path(src))
             return real_rename(src, dst)
 
-        buf = io.StringIO()
-        with mock.patch.object(gl, "_stale", side_effect=[True, False]), mock.patch.object(gl.os, "rename", rename), redirect_stderr(buf):
+        with mock.patch.object(gl, "_stale", outdated_first), mock.patch.object(gl.os, "rename", rename):
             self.assertFalse(gl._acquire(self.lock))
-        self.assertIn("could not put the live lock back", buf.getvalue())
-        self.assertIn(".stale.", buf.getvalue())
+        self.assertNotIn(self.lock, moved, "a live lock was moved")
+        self.assertTrue((self.lock / "pid").exists())
+
+    def test_a_takeover_in_progress_reports_held_and_leaves_the_lock(self):
+        self.held_by(f"{dead_pid()}\n", 20)
+        gl._guard_path(self.lock).mkdir()
+        self.assertFalse(gl._acquire(self.lock))
+        self.assertTrue((self.lock / "pid").exists(), "only the guard holder may retire the stale lock")
+
+    def test_an_abandoned_takeover_guard_is_cleared(self):
+        self.held_by(f"{dead_pid()}\n", 20)
+        guard = gl._guard_path(self.lock)
+        guard.mkdir()
+        t = time.time() - gl.GUARD_STALE_SECONDS - 5
+        os.utime(guard, (t, t))
+        self.assertTrue(gl._acquire(self.lock))
+        self.assertFalse(guard.exists())
+
+    def test_the_takeover_guard_is_released_after_a_takeover(self):
+        self.held_by(f"{dead_pid()}\n", 20)
+        self.assertTrue(gl._acquire(self.lock))
+        self.assertFalse(gl._guard_path(self.lock).exists())
 
     def test_an_interrupt_between_mkdir_and_the_pid_write_leaves_no_empty_lock(self):
         with mock.patch.object(Path, "write_text", side_effect=KeyboardInterrupt):
@@ -159,7 +182,7 @@ class LockModuleTest(unittest.TestCase):
             "print('won' if gl._acquire(Path(sys.argv[1])) else 'lost')\n"
         )
         env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
-        for round_ in range(6):
+        for round_ in range(12):
             shutil.rmtree(self.lock, ignore_errors=True)
             self.held_by(f"{dead_pid()}\n", 20)
             go = Path(self.tmp.name) / f"go{round_}"
