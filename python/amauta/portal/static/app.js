@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
 const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown; // markdown.js and wikiroute.js load first (see index.html)
 const SECTIONS = [
-  ["Knowledge", [["home", "Home"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
+  ["Knowledge", [["home", "Home"], ["project", "Projects"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
   ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"]]],
   ["Spending", [["usage", "Usage"]]],
   ["Manage", [["lint", "Lint"], ["settings", "Settings"]]],
@@ -255,12 +255,22 @@ function graphRepo(r) {
     h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, "Search graph")), list, near) };
 }
 
+// Graph memory is filled per project by graphify; when nothing is mirrored yet, say how, and list the projects that already have a graph.
+function graphEmptyState(projects) {
+  const mirrored = (projects || []).filter((p) => p.graph && p.graph.mirrored);
+  return h("div", { class: "teach" },
+    h("p", null, "Graph memory is mirrored from graphify, one project at a time. In a project, run ", h("code", null, "amauta graphify hook install"), " once: after each commit it runs ",
+      h("code", null, "graphify update ."), " and syncs the result here. To sync by hand, run ", h("code", null, "graphify update ."), " and then ", h("code", null, "python3 -P -m amauta.graph sync --repo ."), "."),
+    mirrored.length ? h("div", null, h("h3", null, "Projects with a mirrored graph"), h("ul", { class: "refs" }, mirrored.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${fmt(p.graph.nodes)} nodes, ${fmt(p.graph.edges)} edges`)))))
+      : h("p", { class: "muted" }, "No project has a mirrored graph yet."));
+}
+
 async function graphifyPanel() {
-  const g = await api("graphify");
-  if (!g.repos.length) return panel("Graph memory (graphify)", empty("No repositories configured (use --repo)."));
+  const [g, pr] = await Promise.all([api("graphify"), api("projects").catch(() => null)]);
   const blocks = g.repos.map(graphRepo);
   await Promise.all(blocks.map((b) => b.ready));
-  return panel("Graph memory (graphify)", ...blocks.map((b) => b.el));
+  const anyReady = g.repos.some((r) => r.available);
+  return panel("Graph memory (graphify)", ...(anyReady ? [] : [graphEmptyState(pr && pr.projects)]), ...blocks.map((b) => b.el));
 }
 
 // Harness architecture: the archify page lives on its own route with its own sandboxing CSP and is shown in a sandboxed iframe (scripts only, no
@@ -276,7 +286,7 @@ function archifyBlock(d) {
 }
 
 async function viewHarness() {
-  const [hs, odd, arch] = await Promise.all([api("harness"), api("odd"), api("archify").catch(() => ({ installed: false }))]);
+  const [hs, arch] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false }))]);
   const out = [];
   if (!hs.installed) out.push(panel("Harness", empty("amauta is not installed (no state.json in the state directory).")));
   else {
@@ -286,7 +296,6 @@ async function viewHarness() {
       panel("Hooks", hs.hooks.length ? table("hooks", [{ key: "event", label: "Event" }, { key: "kind", label: "Kind" }], hs.hooks) : empty("No hooks registered.")),
       panel("MCP servers", hs.mcp_servers.length ? table("mcp", [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "command", label: "Command" }], hs.mcp_servers) : empty("None.")));
   }
-  out.push(panel("ODD task progress", odd.repos.length ? odd.repos.map((r) => h("div", null, h("h2", null, r.repo), r.documents.length ? r.documents.map((d) => h("div", null, h("strong", null, link("feature", d.name.replace(/\.md$/, ""), d.name)), ` ${d.done}/${d.total}`, h("ul", null, d.tasks.map((t) => h("li", null, (t.done ? "[x] " : "[ ] ") + t.title))))) : empty("No odd/tasks/*.md found."))) : empty("No repositories configured (use --repo).")));
   return out;
 }
 
@@ -297,7 +306,8 @@ const HINTS = {
   tool: "Tool pages appear after a session calls the tool; usage comes from the telemetry backfill (Refresh usage).",
   mcp: "MCP server pages appear after a session calls one of its tools; usage comes from the telemetry backfill.",
   session: "Session pages appear after the usage backfill reads its transcript (Refresh usage).",
-  feature: "Feature pages come from odd/tasks/*.md in a repository passed with --repo.",
+  feature: "Feature pages come from odd/tasks/*.md in a known project (see Projects).",
+  project: "Projects come from --repo flags, the Settings page and, when enabled, git roots of your Claude Code sessions.",
   node: "Graph node pages come from a mirrored graphify graph; run graphify update and the graph sync for a --repo.",
 };
 const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value === "done" ? "● " : value === "pending" ? "○ " : "▲ ") + value);
@@ -412,7 +422,7 @@ function impactBlock(im) {
 }
 
 function pageExtras(pg) {
-  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
+  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null, oddDiagramsBlock(pg), projectGraphBlock(pg)];
 }
 
 function bodyNodes(pg) {
@@ -470,11 +480,45 @@ function summaryBlock(sm) {
     h("p", { class: "muted" }, `Source: ${sm.source}`, sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
 }
 
+function projectOdd(o) {
+  return o.features ? `${fmt(o.done)} of ${fmt(o.total)} tasks (${o.percent}%) in ${fmt(o.features)} feature${o.features === 1 ? "" : "s"}` : "No ODD features";
+}
+async function viewProjects() {
+  const d = await api("projects");
+  if (!d.projects.length) return [teach("Projects", "No projects are known yet. Start the portal with --repo DIR, add a path under Settings, or let it find the git roots of your Claude Code sessions (auto-discover).", h("span", null, link("settings", "", "Open Settings")))];
+  return [h("h1", null, "Projects"), h("p", { class: "muted" }, `${fmt(d.projects.length)} projects${d.auto_discover ? ", including git roots found from your sessions" : ""}. Manage the list under `, link("settings", "", "Settings"), "."),
+    h("ul", { class: "items" }, d.projects.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${p.origin.join(", ")}`),
+      h("div", null, projectOdd(p.odd)),
+      h("div", { class: "muted" }, `${fmt(p.sessions)} sessions, ${fmt(p.memories)} memories, ${p.graph.mirrored ? `graph mirrored ${R.fmtDate(p.graph.synced_at)}` : "graph not mirrored"}`),
+      h("div", { class: "muted tok" }, p.path))))];
+}
+
+// Project page extras: one collapsed task-progress diagram per feature (drawn when opened) and the graph memory status or how-to.
+function oddDiagramsBlock(pg) {
+  if (pg.kind !== "project" || !pg.odd_diagrams || !pg.odd_diagrams.length) return null;
+  return h("section", { class: "page-section" }, h("h2", null, "Task progress"), pg.odd_diagrams.map((d, i) => {
+    const body = h("div", null);
+    let drawn = false;
+    const draw = () => { if (!drawn) { drawn = true; body.replaceChildren(diagramBox(d.source, `Task progress of ${d.name}`)); } };
+    const det = h("details", { open: i === 0 }, h("summary", null, `${d.name}: ${fmt(d.done)}/${fmt(d.total)} done`), body);
+    det.addEventListener("toggle", () => { if (det.open) draw(); });
+    if (i === 0) draw();
+    return det;
+  }));
+}
+function projectGraphBlock(pg) {
+  if (pg.kind !== "project" || !pg.graph) return null;
+  const g = pg.graph;
+  return h("section", { class: "page-section" }, h("h2", null, "Graph memory"),
+    g.mirrored ? h("p", null, `${fmt(g.nodes)} nodes, ${fmt(g.edges)} edges, mirrored ${R.fmtDateTime(g.synced_at)}. `, link("node", "", "Browse graph nodes"))
+      : h("p", { class: "muted" }, "Not mirrored yet. ", g.howto));
+}
+
 async function viewFeatures() {
   const odd = await api("odd");
   const docs = odd.repos.flatMap((r) => r.documents.map((d) => ({ ...d, repo: r.repo })));
-  if (!docs.length) return [teach("ODD features", "Feature documents appear here when a repository passed with --repo has odd/tasks/*.md.")];
-  return [h("h1", null, "ODD features"), h("ul", { class: "items" }, docs.map((d) => h("li", null, link("feature", d.name.replace(/\.md$/, ""), d.name), h("span", { class: "muted" }, ` ${d.repo}`), ` ${d.done}/${d.total} tasks done`)))];
+  if (!docs.length) return [teach("ODD features", "Feature documents appear here when a known project has odd/tasks/*.md. Projects come from --repo, Settings and your sessions.")];
+  return [h("h1", null, "ODD features"), h("ul", { class: "items" }, docs.map((d) => h("li", null, link("feature", d.id || `${d.repo}/${d.name.replace(/\.md$/, "")}`, d.name), h("span", { class: "muted" }, ` ${d.repo}`), ` ${d.done}/${d.total} tasks done`)))];
 }
 
 async function viewGraph() { return [h("h1", null, "Graph"), await graphifyPanel()]; }
@@ -514,6 +558,38 @@ function planBlock(res) {
 function settingLabel(key) {
   if (key.startsWith("module:")) return `Module ${key.slice(7)}`;
   return { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" }[key] || key;
+}
+
+// Settings > Projects: the paths saved in portal.json and the auto-discover switch. Every change is one guarded POST; the server validates the paths.
+async function projectsSection() {
+  let data;
+  try { data = await api("projects"); } catch (_) { return null; }
+  const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
+  const send = async (body) => {
+    out.replaceChildren(h("p", { role: "status", class: "muted" }, "Saving."));
+    let res;
+    try { res = await postJson("/api/projects/config", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    if (!res.ok) { out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, `▲ ${(res.data && res.data.error) || `Request failed (${res.status})`}`, h("p", null, R.settingsAdvice(res.status).text))); return; }
+    data = res.data;
+    paint();
+    out.replaceChildren(h("p", { role: "status" }, "✓ Saved."));
+  };
+  const paint = () => {
+    const input = h("input", { type: "text", id: "project-path", placeholder: "/home/you/code/my-project", "aria-label": "Project path", autocomplete: "off", spellcheck: "false" });
+    const add = h("button", { type: "button" }, "Add project");
+    add.addEventListener("click", () => { const v = String(input.value || "").trim(); if (v) send({ repos: [...data.config_repos, v] }); });
+    const box = h("input", { type: "checkbox", id: "project-auto", checked: data.auto_discover });
+    box.addEventListener("change", (e) => send({ auto_discover: !!e.target.checked }));
+    const found = data.projects.filter((p) => p.origin.includes("discovered") && !p.origin.includes("config") && !p.origin.includes("flag"));
+    root.replaceChildren(h("h2", null, "Projects"),
+      h("p", { class: "muted" }, "Repositories whose ODD tasks, sessions, memories and graph the portal shows. Paths must be existing directories inside your home directory; they are saved in portal.json in the amauta state directory."),
+      data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map((p) => { const b = h("button", { type: "button" }, "Remove"); b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== p) })); return h("li", null, h("code", { class: "tok" }, p), " ", b); })) : h("p", { class: "muted" }, "No paths saved yet."),
+      h("div", { class: "actions" }, h("label", { for: "project-path" }, "Add a path"), input, add),
+      h("p", null, box, h("label", { for: "project-auto" }, " Find projects automatically from your Claude Code sessions")),
+      found.length ? h("p", { class: "muted" }, `Found automatically: ${found.map((p) => p.name).join(", ")}.`) : null);
+  };
+  paint();
+  return h("div", null, root, out);
 }
 
 async function viewSettings() {
@@ -643,9 +719,10 @@ async function viewSettings() {
   }
 
   buildForm();
+  const projectsBox = await projectsSection();
   root.append(h("h1", null, "Settings"),
     h("p", { class: "muted" }, "A short, closed list of harness options. Every change is previewed first, needs your confirmation, makes a backup and can be undone (also previewed first). Nothing else about Claude Code is editable here."),
-    formBox, out);
+    formBox, out, ...(projectsBox ? [projectsBox] : []));
   return [root];
 }
 
@@ -717,9 +794,9 @@ async function viewUsagePage() { return [...(await viewOverview()), ...(await vi
 async function renderRoute(route, changed) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
-  if (id && ["memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id, route.source);
+  if (id && ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
+  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint };
   return views[kind]();
 }
 

@@ -171,7 +171,7 @@ test('existing views stay reachable as pages: legacy hashes, list routes and usa
   const usageLinks = hrefs(view(env));
   assert.ok(usageLinks.includes('#/skill/work-unit-commits'), usageLinks.join(' '));
   ({ env } = await boot('#/feature'));
-  assert.ok(hrefs(view(env)).includes('#/feature/feat'));
+  assert.ok(hrefs(view(env)).includes('#/feature/r%2Ffeat'), 'feature links are project-qualified');
   ({ env } = await boot('#/usage'));
   assert.match(view(env).textContent, /No usage data yet/);  // the old overview stays reachable under #/usage
 });

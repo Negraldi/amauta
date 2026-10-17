@@ -3,7 +3,7 @@
 (function () {
   // kind -> label shown in the sidebar and as the page's kind label
   const KINDS = {
-    home: "Home", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
+    home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
     node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint",
   };
   // Hashes of the previous tabbed portal keep working.

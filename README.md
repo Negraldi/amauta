@@ -183,12 +183,15 @@ amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta 
 |---|---|
 | `#/` | Home: recent activity by day; rail with spending, skill-impact ranking, harness health |
 | `#/memory[/id-or-topic_key]` | Memory: text, derived links and backlinks, same-topic rows, related graph nodes |
-| `#/skill\|tool\|mcp[/name]` | Rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
+| `#/skill` | Catalog of every skill (installed, plugin, project, built into Claude Code), filterable |
+| `#/skill\|tool\|mcp[/name]` | What a skill does, rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
 | `#/session[/id]` | Skills, tools, subagents, tokens and memories of one session |
-| `#/feature[/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
+| `#/feature[/project/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
 | `#/node[/repo::id]` | Graph node, grouped neighbours, neighbourhood diagram |
 | `#/usage` | Token charts, model split, cache hit ratio, cost estimate (Range and Project filters live here) |
-| `#/harness`, `#/diagrams` | Install state and architecture diagram; Mermaid diagrams (see below) |
+| `#/harness` | Install state and architecture diagram (`#/diagrams` redirects here) |
+| `#/project[/name]` | Projects (`--repo`, `portal.json`, git roots of your sessions): ODD features with progress, sessions, memories, graph status |
+| `#/memfile/id` | A Claude file memory (`projects/*/memory/*.md`), read-only |
 | `#/lint` | Review candidates (see below) |
 | `#/settings` | Guarded settings editor (see below) |
 
