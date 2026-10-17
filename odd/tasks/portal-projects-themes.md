@@ -73,7 +73,7 @@ attribution in commits, strict TDD (`npm test`).
   `f32a95c` (built-in tool catalog EN/ES, MCP tools, connectors; exit 0, node 591 / python 667) `c27cd3b` (refresh descriptions from local stdio servers;
   exit 0, node 595 / python 686) `e313815` (explanation requests, notes, CLI, skill, stale-note lint; exit 0, node 604 / python 709). Route: delegated writer;
   strict TDD, tests first for each commit (RED seen as import errors / 404 / missing keys before the code was wired).
-- [ ] P7 Docs, CHANGELOG, version 0.3.0, PR (last).
+- [ ] P7 Docs, CHANGELOG, version 0.3.0, PR (last). Done: [x] polish fixes `3cfece0` (dates nowrap, es number grouping, paths with wbr, human hook titles, one import button), [x] CHANGELOG/UPGRADING/README/DESIGN/PRODUCT (docs commit), [x] version 0.3.0 (`chore(release)`); open: PR to `main` (orchestrator).
 
 ## Acceptance criteria
 
@@ -111,6 +111,8 @@ attribution in commits, strict TDD (`npm test`).
 - Behavior changes in existing tests (intentional): the tool, mcp and wiki-search tests now expect the harness `summary`, `explain`, `refresh` keys, the
   `mcptool` links and the catalog tools in search; the lint test expects seven categories.
 
+- 2026-10-17: real-browser polish pass fixed in `3cfece0` (strict TDD, RED seen first: 8 new tests failed, then green). Root cause of the ungrouped `1766` was Intl in es (minimum grouping digits), not a missing server `fmt` hint; the server already marks numbers, and a new test pins every numeric meta value. P7: docs and version done; PR pending. npm test exit 0 (node 613 / python 712).
+
 ## Next step
 
-P7: docs, CHANGELOG 0.3.0, version bump and the single PR to `main` (runs last).
+Open PR to main; user merges; tag v0.3.0.
