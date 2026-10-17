@@ -52,6 +52,17 @@
     const v = Number(n);
     return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE).format(v) : "-";
   }
+  // A number with a fixed count of decimals in the UI locale ("1,234.5" or "1.234,5"); a percentage from a ratio (0.125 -> "12.5%" or "12,5 %").
+  function fmtDecimal(n, digits) {
+    if (n == null || n === "" || typeof n === "boolean" || typeof n === "object") return "-";
+    const v = Number(n);
+    const d = digits == null ? 1 : digits;
+    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { minimumFractionDigits: d, maximumFractionDigits: d }).format(v) : "-";
+  }
+  function fmtPercent(r) {
+    const v = Number(r);
+    return r == null || r === "" || typeof r === "boolean" || !Number.isFinite(v) ? "-" : new Intl.NumberFormat(LOCALE, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+  }
   const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
   const ISO_DT = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
   const p2 = (n) => String(n).padStart(2, "0");
@@ -161,14 +172,18 @@
     if (m.verdict === "no clear difference") return { mark: "■", text: "no clear difference", name: "flat" };
     return m.delta < 0 ? { mark: "▼", text: "lower, better", name: "better" } : { mark: "▲", text: "higher, worse", name: "worse" };
   }
-  function fmtMetric(name, v) {
-    if (v == null || !Number.isFinite(Number(v))) return "n/a";
-    return name === "tokens_per_turn" ? `${Math.round(v)} tokens` : `${(v * 100).toFixed(1)}%`;
+  // The unit words (n/a, tokens, pp) come from the caller so the page can show them in its language; the defaults are English.
+  const WORDS = { na: "n/a", tokens: "tokens", pp: "pp" };
+  function fmtMetric(name, v, words) {
+    const w = { ...WORDS, ...words };
+    if (v == null || !Number.isFinite(Number(v))) return w.na;
+    return name === "tokens_per_turn" ? `${fmtNumber(Math.round(v))} ${w.tokens}` : fmtPercent(v);
   }
-  function fmtDelta(name, d) {
+  function fmtDelta(name, d, words) {
+    const w = { ...WORDS, ...words };
     if (d == null || !Number.isFinite(Number(d))) return "";
-    if (name === "tokens_per_turn") return `${d < 0 ? "-" : "+"}${Math.abs(Math.round(d))} tokens`;
-    return `${d < 0 ? "-" : "+"}${Math.abs(d * 100).toFixed(1)} pp`;
+    if (name === "tokens_per_turn") return `${d < 0 ? "-" : "+"}${fmtNumber(Math.abs(Math.round(d)))} ${w.tokens}`;
+    return `${d < 0 ? "-" : "+"}${fmtDecimal(Math.abs(d * 100), 1)} ${w.pp}`;
   }
 
   // Settings editor (pure). `current` and `draft` have the shape of GET /api/settings `current`.
@@ -193,15 +208,16 @@
     return body;
   }
   // What to tell the person after a failed write: the next step, and whether a fresh preview fixes it.
+  // `key` is the i18n key of the same text (the page shows the translated one; `text` is the English reference).
   function settingsAdvice(status) {
-    if (status === 403) return { text: "The portal refused the request. Reload this page (it gets a new session token) and try again.", again: false };
-    if (status === 409) return { text: "Something changed since you previewed, or another change is running. Preview again to see the current plan.", again: true };
-    if (status === 429) return { text: "Too many previews are running at once. Wait a moment and preview again.", again: true };
-    if (status === 400) return { text: "The preview is no longer valid (used or older than 5 minutes). Preview again.", again: true };
-    if (status === 413 || status === 415) return { text: "The portal could not accept that request. Reload the page and try again.", again: false };
-    if (status === 502 || status === 503 || status === 504) return { text: "The installer did not finish. Nothing was reported as changed; run amauta status in a terminal, then try again or run amauta install there.", again: false };
-    return { text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
+    if (status === 403) return { key: "advice.403", text: "The portal refused the request. Reload this page (it gets a new session token) and try again.", again: false };
+    if (status === 409) return { key: "advice.409", text: "Something changed since you previewed, or another change is running. Preview again to see the current plan.", again: true };
+    if (status === 429) return { key: "advice.429", text: "Too many previews are running at once. Wait a moment and preview again.", again: true };
+    if (status === 400) return { key: "advice.400", text: "The preview is no longer valid (used or older than 5 minutes). Preview again.", again: true };
+    if (status === 413 || status === 415) return { key: "advice.413", text: "The portal could not accept that request. Reload the page and try again.", again: false };
+    if (status === 502 || status === 503 || status === 504) return { key: "advice.502", text: "The installer did not finish. Nothing was reported as changed; run amauta status in a terminal, then try again or run amauta install there.", again: false };
+    return { key: "advice.other", text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { filterSkills, setLocale, fmtNumber, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { filterSkills, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

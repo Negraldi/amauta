@@ -40,6 +40,8 @@ async function boot({ themes = [NIGHT, PAPER, BROKEN], storage = memoryStorage()
   await tick();
   return { env, posts, storage, blobs, created, anchors, root: env.document.documentElement };
 }
+// <html lang> is set by the language switch; these tests are about the theme attributes only.
+const themeAttrs = (root) => { const { lang, ...rest } = root.attrs; return rest; };
 const view = (env) => env.document.getElementById('view');
 const picker = (env) => env.document.getElementById('theme-picker');
 const options = (env) => tree(picker(env)).filter((e) => e.tagName === 'option').map((o) => [o.getAttribute('value'), o.textContent]);
@@ -54,7 +56,7 @@ test('the picker offers System, Light, Dark, then every valid custom theme (neve
   const { env, root } = await boot();
   assert.deepEqual(options(env), [['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['custom:night', 'Night'], ['custom:paper', XSS]]);
   assert.equal(picker(env).value, 'system');
-  assert.deepEqual([root.attrs, root.props], [{}, {}], 'System follows the OS: nothing forced');
+  assert.deepEqual([themeAttrs(root), root.props], [{}, {}], 'System follows the OS: nothing forced');
   assert.equal(tree(picker(env)).filter((e) => e.tagName === 'img').length, 0, 'a hostile theme name stays text');
 });
 
@@ -67,7 +69,7 @@ test('choosing a scheme switches at once, without a reload, and is remembered', 
   choose(env, 'light');
   assert.equal(root.attrs['data-theme'], 'light');
   choose(env, 'system');
-  assert.deepEqual(root.attrs, {});
+  assert.deepEqual(themeAttrs(root), {});
   assert.equal(env.calls.length, before, 'no request: the switch is instant');
 });
 
@@ -92,7 +94,7 @@ test('the saved choice is applied on load, once the custom theme is known', asyn
 test('a saved custom theme that no longer exists falls back to System', async () => {
   const { env, root } = await boot({ storage: memoryStorage({ 'amauta-theme': 'custom:gone' }) });
   assert.equal(picker(env).value, 'system');
-  assert.deepEqual(root.attrs, {});
+  assert.deepEqual(themeAttrs(root), {});
 });
 
 test('the page works when localStorage is missing or throws', async () => {
@@ -224,7 +226,7 @@ test('Delete asks first, then posts the slug; if it was the chosen theme the por
   await tick();
   assert.deepEqual(posts.map((p) => [p.path, p.body]), [['delete', { slug: 'night' }]]);
   assert.equal(storage.data['amauta-theme'], 'system');
-  assert.deepEqual(root.attrs, {});
+  assert.deepEqual(themeAttrs(root), {});
   assert.ok(!options(env).some(([v]) => v === 'custom:night'));
 });
 
@@ -288,7 +290,7 @@ test('leaving the editor drops the preview and shows the chosen theme again', as
   typeInto(env, 'tok-bg', '#202020');
   assert.equal(root.props['--bg'], '#202020');
   await go(env, '#/');
-  assert.deepEqual([root.attrs, root.props], [{}, {}]);
+  assert.deepEqual([themeAttrs(root), root.props], [{}, {}]);
 });
 
 test('with a chosen theme, the editor preview ends back on that theme', async () => {

@@ -3,14 +3,16 @@
 const token = document.querySelector('meta[name="portal-token"]').content;
 const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
-const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThis.AmautaTheme; // theme.js, markdown.js and wikiroute.js load first (see index.html)
+const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThis.AmautaTheme, I = globalThis.AmautaI18n; // i18n.js, theme.js, markdown.js and wikiroute.js load first (see index.html)
+const { t, tn, ts } = I; // t(key, params): portal chrome; tn(key, n, params): plural; ts(text): English text sent by the server (see i18n.js)
 const SECTIONS = [
-  ["Knowledge", [["home", "Home"], ["project", "Projects"], ["memory", "Memory"], ["feature", "ODD features"], ["node", "Graph"]]],
-  ["Harness", [["skill", "Skills"], ["tool", "Tools"], ["mcp", "MCP servers"], ["session", "Sessions"], ["harness", "Harness"]]],
-  ["Spending", [["usage", "Usage"]]],
-  ["Manage", [["lint", "Lint"], ["themes", "Themes"], ["settings", "Settings"]]],
+  ["nav.knowledge", [["home", "nav.home"], ["project", "nav.project"], ["memory", "nav.memory"], ["feature", "nav.feature"], ["node", "nav.node"]]],
+  ["nav.harness", [["skill", "nav.skill"], ["tool", "nav.tool"], ["mcp", "nav.mcp"], ["session", "nav.session"], ["harness", "nav.harnessPage"]]],
+  ["nav.spending", [["usage", "nav.usage"]]],
+  ["nav.manage", [["lint", "nav.lint"], ["themes", "nav.themes"], ["settings", "nav.settings"]]],
 ];
-const KINDS = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]];
+const KINDS = [["input", "tok.input"], ["output", "tok.output"], ["cache_read", "tok.cache_read"], ["cache_write", "tok.cache_write"]];
+const kindLabel = (kind) => (Object.prototype.hasOwnProperty.call(R.KINDS, kind) ? t(`kind.${kind}`) : kind);
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -30,14 +32,16 @@ function svg(tag, attrs, ...kids) {
   return el;
 }
 const fmt = (n) => R.fmtNumber(n);
-const short = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n || 0));
-const pct = (r) => (r == null ? "-" : (r * 100).toFixed(1) + "%");
+const short = (n) => (n >= 1e9 ? R.fmtDecimal(n / 1e9, 1) + "B" : n >= 1e6 ? R.fmtDecimal(n / 1e6, 1) + "M" : n >= 1e3 ? R.fmtDecimal(n / 1e3, 1) + "k" : fmt(n || 0));
+const pct = (r) => (r == null ? "-" : R.fmtPercent(r));
+const words = () => ({ na: t("common.na"), tokens: t("unit.tokens"), pp: t("unit.pp") }); // unit words for R.fmtMetric / R.fmtDelta
+const plainReason = (e) => String((e && e.message) || e);
 
 async function api(path, params = {}) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
   const r = await fetch(`/api/${path}${q.toString() ? "?" + q : ""}`, { headers: { Accept: "application/json" } });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(body.error ? ts(body.error) : t("common.http", { status: r.status }));
   return body;
 }
 
@@ -56,7 +60,7 @@ function loadMermaid() {
         resolve(window.mermaid);
       } catch (err) { reject(err); }
     };
-    tag.onerror = () => { mermaidReady = null; reject(new Error("could not load /static/mermaid.min.js")); };
+    tag.onerror = () => { mermaidReady = null; reject(new Error(t("diagram.loadFailed"))); };
     document.head.append(tag);
   });
   return mermaidReady;
@@ -69,19 +73,19 @@ async function drawMermaid(source, into) {
     // Parsed into an inert document (no script runs, no resource loads), then only the <svg> element is adopted. HTML parsing, not XML:
     // flowchart labels carry HTML inside <foreignObject>, which is not well-formed XML.
     const root = new DOMParser().parseFromString(svg, "text/html").body.querySelector("svg");
-    if (!root) throw new Error("diagram output was not SVG");
+    if (!root) throw new Error(t("diagram.notSvg"));
     into.replaceChildren(document.importNode(root, true));
   } catch (err) {
-    into.replaceChildren(h("p", { class: "warn" }, `Diagram could not be rendered: ${String(err.message || err).split("\n")[0]}`), h("pre", { class: "text" }, source));
+    into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: String(err.message || err).split("\n")[0] })), h("pre", { class: "text" }, source));
   }
 }
 function diagramBox(source, caption) {
-  const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || "Diagram" }, h("p", { class: "muted" }, "Rendering..."));
+  const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || t("diagram.label") }, h("p", { class: "muted" }, t("common.rendering")));
   drawMermaid(source, box);
   return box;
 }
 
-const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {}, themes: [], themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
+const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {}, projectNames: [], themes: [], themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
 const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value });
 
@@ -104,25 +108,25 @@ function table(id, columns, rows, onRow) {
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
   const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
     c.href ? h("a", { href: c.href(r) }, r[c.key]) : c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : R.fmtIso(r[c.key]) ?? "-"))));
-  return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": "Table, scrollable" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
+  return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": t("table.label") }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
-function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h("span", null, h("span", { class: `sw f-${k}` }), l))); }
+function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h("span", null, h("span", { class: `sw f-${k}` }), t(l)))); }
 
 function stackedChart(daily) {
-  if (!daily.length) return empty("No usage in this range.");
+  if (!daily.length) return empty(t("usage.noneRange"));
   const W = 720, H = 220, L = 44, B = 22, T = 8, PR = 6;
   const totals = daily.map((d) => KINDS.reduce((a, [k]) => a + (d[k] || 0), 0));
   const max = Math.max(...totals, 1);
   const bw = (W - L - PR) / daily.length;
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Tokens per day" });
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": t("usage.tokensPerDay") });
   for (const f of [0, 0.5, 1]) {
     const y = T + (H - T - B) * (1 - f);
     root.append(svg("line", { x1: L, x2: W - PR, y1: y, y2: y, class: "axis" }), svg("text", { x: L - 4, y: y + 4, "text-anchor": "end" }, short(max * f)));
   }
   daily.forEach((d, i) => {
     let y = H - B;
-    const g = svg("g", null, svg("title", null, `${R.fmtDate(d.day)}: ` + KINDS.map(([k, l]) => `${l} ${fmt(d[k])}`).join(", ")));
+    const g = svg("g", null, svg("title", null, `${R.fmtDate(d.day)}: ` + KINDS.map(([k, l]) => `${t(l)} ${fmt(d[k])}`).join(", ")));
     for (const [k] of KINDS) {
       const hgt = ((d[k] || 0) / max) * (H - T - B);
       y -= hgt;
@@ -137,56 +141,56 @@ function stackedChart(daily) {
 function modelBars(models) {
   const total = models.reduce((a, m) => a + KINDS.reduce((s, [k]) => s + (m[k] || 0), 0), 0) || 1;
   return table("models", [
-    { key: "model", label: "Model" }, { key: "messages", label: "Messages", num: true },
-    { key: "input", label: "Input", num: true }, { key: "output", label: "Output", num: true },
-    { key: "cache_read", label: "Cache read", num: true }, { key: "cache_write", label: "Cache write", num: true },
-    { key: "share", label: "Share", num: true, render: (v) => pct(v) },
+    { key: "model", label: t("col.model") }, { key: "messages", label: t("col.messages"), num: true },
+    { key: "input", label: t("tok.input"), num: true }, { key: "output", label: t("tok.output"), num: true },
+    { key: "cache_read", label: t("tok.cache_read"), num: true }, { key: "cache_write", label: t("tok.cache_write"), num: true },
+    { key: "share", label: t("col.share"), num: true, render: (v) => pct(v) },
   ], models.map((m) => ({ ...m, share: KINDS.reduce((s, [k]) => s + (m[k] || 0), 0) / total })));
 }
 
 async function viewOverview() {
   const [o, c] = await Promise.all([api("overview", filters()), api("costs", filters())]);
-  if (!o.available) return [panel("Usage", empty("No usage data yet. Run the backfill or click Refresh usage."))];
-  const t = o.totals;
+  if (!o.available) return [panel(t("nav.usage"), empty(t("usage.nodata.refresh")))];
+  const tot = o.totals;
   const out = [
     h("div", { class: "grid" },
-      card("Input tokens", short(t.input)), card("Output tokens", short(t.output)), card("Cache read", short(t.cache_read)), card("Cache write", short(t.cache_write)),
-      card("Cache hit ratio", pct(o.cache_hit_ratio), h("div", { class: "l" }, "cache read / (input + cache read + cache write)")),
-      card("Messages", fmt(t.messages)), card("Sessions", fmt(t.sessions)),
-      card("Telemetry events", fmt(o.events), o.dropped_events ? h("div", { class: "l warn" }, `${fmt(o.dropped_events)} dropped (lock contention or write failure)`) : h("div", { class: "l" }, "0 dropped"))),
-    panel("Tokens per day", stackedChart(o.daily)),
-    panel("Sessions per day", o.daily.length ? table("sessday", [{ key: "day", label: "Day" }, { key: "sessions", label: "Sessions", num: true }, { key: "messages", label: "Messages", num: true }], o.daily) : empty("No sessions in this range.")),
-    panel("Model split", modelBars(o.models)),
+      card(t("usage.inputTokens"), short(tot.input)), card(t("usage.outputTokens"), short(tot.output)), card(t("tok.cache_read"), short(tot.cache_read)), card(t("tok.cache_write"), short(tot.cache_write)),
+      card(t("usage.cacheHit"), pct(o.cache_hit_ratio), h("div", { class: "l" }, t("usage.cacheHitHelp"))),
+      card(t("col.messages"), fmt(tot.messages)), card(t("nav.session"), fmt(tot.sessions)),
+      card(t("usage.events"), fmt(o.events), o.dropped_events ? h("div", { class: "l warn" }, t("usage.dropped", { n: fmt(o.dropped_events) })) : h("div", { class: "l" }, t("usage.droppedNone")))),
+    panel(t("usage.tokensPerDay"), stackedChart(o.daily)),
+    panel(t("usage.sessionsPerDay"), o.daily.length ? table("sessday", [{ key: "day", label: t("col.day") }, { key: "sessions", label: t("nav.session"), num: true }, { key: "messages", label: t("col.messages"), num: true }], o.daily) : empty(t("usage.noSessionsRange"))),
+    panel(t("usage.modelSplit"), modelBars(o.models)),
   ];
-  if (c.error) out.push(panel("Cost estimate", h("p", { class: "warn" }, c.error)));
+  if (c.error) out.push(panel(t("cost.title"), h("p", { class: "warn" }, ts(c.error))));
   if (c.enabled) {
-    out.push(panel("Cost estimate", h("p", { class: "warn" }, c.label),
-      c.invalid_prices && c.invalid_prices.length ? h("p", { class: "warn" }, "Invalid prices (those models are not costed): " + c.invalid_prices.join(", ")) : null,
-      table("cost", [{ key: "model", label: "Model" }, { key: "cost", label: "Estimated cost", num: true, render: (v) => (v == null ? "no price" : v.toFixed(2)) }], c.models),
-      h("p", null, "Total (priced models): ", h("strong", null, (c.total || 0).toFixed(2)))));
+    out.push(panel(t("cost.title"), h("p", { class: "warn" }, ts(c.label)),
+      c.invalid_prices && c.invalid_prices.length ? h("p", { class: "warn" }, t("cost.invalid", { models: c.invalid_prices.join(", ") })) : null,
+      table("cost", [{ key: "model", label: t("col.model") }, { key: "cost", label: t("cost.estimated"), num: true, render: (v) => (v == null ? t("cost.noPrice") : R.fmtDecimal(v, 2)) }], c.models),
+      h("p", null, t("cost.total"), " ", h("strong", null, R.fmtDecimal(c.total || 0, 2)))));
   }
   return out;
 }
 
 async function viewUsage() {
-  const t = await api("tools", filters());
-  if (!t.available) return [panel("Usage", empty("No usage data yet."))];
-  const kinds = [["skills", "Skills"], ["tools", "Tools"], ["mcp_servers", "MCP servers"], ["mcp_tools", "MCP tools"], ["subagents", "Subagent types"]];
+  const tl = await api("tools", filters());
+  if (!tl.available) return [panel(t("nav.usage"), empty(t("usage.nodata")))];
+  const kinds = [["skills", t("nav.skill")], ["tools", t("nav.tool")], ["mcp_servers", t("nav.mcp")], ["mcp_tools", t("usage.mcpTools")], ["subagents", t("usage.subagents")]];
   const linkKind = { skills: "skill", tools: "tool", mcp_servers: "mcp", mcp_tools: "tool" }[state.usageKind];
-  const cols = [{ key: "name", label: "Name", render: linkKind ? (v) => link(linkKind, v, v) : undefined }, { key: "count", label: "Calls", num: true }, { key: "sessions", label: "Sessions", num: true }, { key: "last_used", label: "Last used" }];
+  const cols = [{ key: "name", label: t("col.name"), render: linkKind ? (v) => link(linkKind, v, v) : undefined }, { key: "count", label: t("col.calls"), num: true }, { key: "sessions", label: t("nav.session"), num: true }, { key: "last_used", label: t("col.lastUsed") }];
   return [
-    h("div", { class: "tabs" }, kinds.map(([k, l]) => h("button", { type: "button", "aria-pressed": state.usageKind === k, onclick: () => { state.usageKind = k; render(); } }, `${l} (${t[k].length})`))),
-    panel(kinds.find(([k]) => k === state.usageKind)[1], t[state.usageKind].length ? table("usage-" + state.usageKind, cols, t[state.usageKind]) : empty("Nothing recorded in this range.")),
+    h("div", { class: "tabs" }, kinds.map(([k, l]) => h("button", { type: "button", "aria-pressed": state.usageKind === k, onclick: () => { state.usageKind = k; render(); } }, `${l} (${fmt(tl[k].length)})`))),
+    panel(kinds.find(([k]) => k === state.usageKind)[1], tl[state.usageKind].length ? table("usage-" + state.usageKind, cols, tl[state.usageKind]) : empty(t("usage.nothingRange"))),
   ];
 }
 
 async function viewSessions() {
   const s = await api("sessions", filters());
-  if (!s.available) return [panel("Sessions", empty("No usage data yet."))];
-  const nums = [["messages", "Msgs"], ["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"]].map(([key, label]) => ({ key, label, num: true }));
+  if (!s.available) return [panel(t("nav.session"), empty(t("usage.nodata")))];
+  const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")], ["cache_write", t("tok.cache_write")]].map(([key, label]) => ({ key, label, num: true }));
   return [
-    panel("Projects", table("projects", [{ key: "project", label: "Project", link: true }, { key: "sessions", label: "Sessions", num: true }, ...nums], s.projects, (r) => { $("project").value = r.project; render(); })),
-    panel("Sessions", table("sessions", [{ key: "session_id", label: "Session", render: (v) => link("session", v, String(v).slice(0, 8)) }, { key: "project", label: "Project" }, { key: "last_ts", label: "Last activity" }, { key: "model", label: "Model" }, ...nums], s.sessions)),
+    panel(t("nav.project"), table("projects", [{ key: "project", label: t("kind.project"), link: true }, { key: "sessions", label: t("nav.session"), num: true }, ...nums], s.projects, (r) => { $("project").value = r.project; render(); })),
+    panel(t("nav.session"), table("sessions", [{ key: "session_id", label: t("kind.session"), render: (v) => link("session", v, String(v).slice(0, 8)) }, { key: "project", label: t("kind.project") }, { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums], s.sessions)),
   ];
 }
 
@@ -198,8 +202,8 @@ function guarded(fn, into) {
 }
 
 async function viewMemories() {
-  const q = h("input", { type: "search", placeholder: "Search memories", "aria-label": "Search memories", value: state.memQuery || "" });
-  const type = h("select", { "aria-label": "Type" }, h("option", { value: "" }, "All types"));
+  const q = h("input", { type: "search", placeholder: t("mem.search"), "aria-label": t("mem.search"), value: state.memQuery || "" });
+  const type = h("select", { "aria-label": t("col.type") }, h("option", { value: "" }, t("mem.allTypes")));
   const mine = h("div", null);
   const source = state.memSource;
   const load = guarded(async () => {
@@ -207,62 +211,62 @@ async function viewMemories() {
     const r = await api("memories", { source, q: q.value, project: $("project").value, type: type.value });
     if (r.available && !type.dataset.ready) { r.facets.types.forEach((t) => type.append(h("option", { value: t }, t))); type.dataset.ready = "1"; }
     // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
-    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: "Title", href: (row) => R.formatHash("memory", String(row.id), { source }) }, { key: "type", label: "Type" }, { key: "project", label: "Project" }, { key: "topic_key", label: "Topic" }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }], r.items) : empty("No matching memories.")) : empty(source === "engram" ? "Engram database not found or not compatible." : "Memory database not found."));
+    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id), { source }) }, { key: "type", label: t("col.type") }, { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") }, { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items) : empty(t("mem.noMatch"))) : empty(source === "engram" ? t("mem.noEngram") : t("mem.noDb")));
   }, mine);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   type.addEventListener("change", load);
   await load();
   const files = await api("memory-files");
   return [
-    h("div", { class: "tabs" }, [["own", "amauta memory"], ["engram", "Engram (read-only)"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
-    panel("Search", h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, "Search")), mine),
-    panel(`Claude file memories (${files.items.length})`, files.items.length ? table("mfiles", [{ key: "name", label: "File", href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: "Project" }, { key: "size", label: "Bytes", num: true }, { key: "mtime", label: "Modified" }], files.items) : empty("No file memories found.")),
+    h("div", { class: "tabs" }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
+    panel(t("mem.searchPanel"), h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, t("common.search"))), mine),
+    panel(t("mem.files", { n: fmt(files.items.length) }), files.items.length ? table("mfiles", [{ key: "name", label: t("col.file"), href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: t("kind.project") }, { key: "size", label: t("col.bytes"), num: true }, { key: "mtime", label: t("col.modified") }], files.items) : empty(t("mem.noFiles"))),
     await graphifyPanel(),
   ];
 }
 
 function graphDiagram(repo, node, depth) {
-  const box = h("div", null, h("p", { class: "muted" }, "Rendering..."));
+  const box = h("div", null, h("p", { class: "muted" }, t("common.rendering")));
   api("graph/diagram", { repo, node, depth }).then((d) => {
-    if (!d.source) box.replaceChildren(empty("Nothing to draw."));
-    else box.replaceChildren(diagramBox(d.source, "Neighbors of the selected graph node"), d.truncated || d.nodes > 30 ? empty(`Showing the nearest 30 of ${fmt(d.nodes)} nodes.`) : null);
+    if (!d.source) box.replaceChildren(empty(t("graph.nothing")));
+    else box.replaceChildren(diagramBox(d.source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? empty(t("graph.nearest", { shown: 30, total: fmt(d.nodes) })) : null);
   }).catch((err) => box.replaceChildren(h("p", { class: "warn" }, String(err.message || err))));
   return box;
 }
 
 // One block per --repo: stats, searchable node list, neighbors of the selected node. Data only ever becomes text.
 function graphRepo(r) {
-  if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason || "Not available.")) };
-  const q = h("input", { type: "search", placeholder: "Search nodes", "aria-label": "Search graph nodes" });
-  const depth = h("select", { "aria-label": "Depth" }, [1, 2, 3].map((d) => h("option", { value: String(d) }, `depth ${d}`)));
+  if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason ? ts(r.reason) : t("graph.notAvailable"))) };
+  const q = h("input", { type: "search", placeholder: t("graph.searchNodes"), "aria-label": t("graph.searchNodesLabel") });
+  const depth = h("select", { "aria-label": t("graph.depth") }, [1, 2, 3].map((d) => h("option", { value: String(d) }, t("graph.depthN", { n: d }))));
   const list = h("div", null);
   const near = h("div", null);
   const show = guarded(async (node) => {
     const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
-    near.replaceChildren(h("h3", null, `Neighbors of ${node.label || node.id}`), h("p", null, link("node", `${r.name}::${node.id}`, "Open as wiki page")),
-      table("gn-" + r.path, [{ key: "depth", label: "Depth", num: true }, { key: "label", label: "Label" }, { key: "kind", label: "Kind" }, { key: "file", label: "File" }], g.nodes),
-      h("h3", null, "Neighborhood diagram"), graphDiagram(r.path, node.id, depth.value),
-      g.edges.length ? table("ge-" + r.path, [{ key: "src", label: "From" }, { key: "relation", label: "Relation" }, { key: "dst", label: "To" }], g.edges) : empty("No edges between these nodes."));
+    near.replaceChildren(h("h3", null, t("graph.neighborsOf", { name: node.label || node.id })), h("p", null, link("node", `${r.name}::${node.id}`, t("graph.openPage"))),
+      table("gn-" + r.path, [{ key: "depth", label: t("graph.depth"), num: true }, { key: "label", label: t("col.label") }, { key: "kind", label: t("col.kind") }, { key: "file", label: t("col.file") }], g.nodes),
+      h("h3", null, t("graph.diagramTitle")), graphDiagram(r.path, node.id, depth.value),
+      g.edges.length ? table("ge-" + r.path, [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation") }, { key: "dst", label: t("col.to") }], g.edges) : empty(t("graph.noEdges")));
   }, near);
   const load = guarded(async () => {
     const g = await api("graph/nodes", { repo: r.path, q: q.value });
-    list.replaceChildren(g.items.length ? table("gnodes-" + r.path, [{ key: "label", label: "Node", link: true, attr: "data-graph" }, { key: "kind", label: "Kind" }, { key: "file", label: "File" }], g.items, show) : empty("No matching nodes."));
+    list.replaceChildren(g.items.length ? table("gnodes-" + r.path, [{ key: "label", label: t("col.node"), link: true, attr: "data-graph" }, { key: "kind", label: t("col.kind") }, { key: "file", label: t("col.file") }], g.items, show) : empty(t("graph.noMatch")));
   }, list);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
-  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, `${fmt(r.nodes)} nodes, ${fmt(r.edges)} edges (mirrored ${R.fmtDateTime(r.synced_at)}; graph.json ${R.fmtDateTime(r.graph_mtime)}), ${fmt(r.sql_tables || 0)} SQL tables`),
-    h("p", { class: "muted" }, `Semantic pass pending: ${r.semantic_pending ? "yes" : "no"}. Last semantic run: ${r.semantic_at ? `${R.fmtDateTime(r.semantic_at)} (${r.semantic_model || "unknown model"})` : "never"}`),
-    h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, "Search graph")), list, near) };
+  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { nodes: fmt(r.nodes), edges: fmt(r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: fmt(r.sql_tables || 0) })),
+    h("p", { class: "muted" }, t("graph.semantic", { pending: r.semantic_pending ? t("common.yes") : t("common.no"), last: r.semantic_at ? t("graph.lastRun", { at: R.fmtDateTime(r.semantic_at), model: r.semantic_model || t("graph.unknownModel") }) : t("common.never") })),
+    h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph"))), list, near) };
 }
 
 // Graph memory is filled per project by graphify; when nothing is mirrored yet, say how, and list the projects that already have a graph.
 function graphEmptyState(projects) {
   const mirrored = (projects || []).filter((p) => p.graph && p.graph.mirrored);
   return h("div", { class: "teach" },
-    h("p", null, "Graph memory is mirrored from graphify, one project at a time. In a project, run ", h("code", null, "amauta graphify hook install"), " once: after each commit it runs ",
-      h("code", null, "graphify update ."), " and syncs the result here. To sync by hand, run ", h("code", null, "graphify update ."), " and then ", h("code", null, "python3 -P -m amauta.graph sync --repo ."), "."),
-    mirrored.length ? h("div", null, h("h3", null, "Projects with a mirrored graph"), h("ul", { class: "refs" }, mirrored.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${fmt(p.graph.nodes)} nodes, ${fmt(p.graph.edges)} edges`)))))
-      : h("p", { class: "muted" }, "No project has a mirrored graph yet."));
+    h("p", null, t("graph.how1"), " ", h("code", null, "amauta graphify hook install"), " ", t("graph.how2"), " ",
+      h("code", null, "graphify update ."), " ", t("graph.how3"), " ", h("code", null, "graphify update ."), " ", t("graph.how4"), " ", h("code", null, "python3 -P -m amauta.graph sync --repo ."), "."),
+    mirrored.length ? h("div", null, h("h3", null, t("graph.mirroredProjects")), h("ul", { class: "refs" }, mirrored.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, " " + t("graph.nodesEdges", { nodes: fmt(p.graph.nodes), edges: fmt(p.graph.edges) }))))))
+      : h("p", { class: "muted" }, t("graph.noneMirrored")));
 }
 
 async function graphifyPanel() {
@@ -270,7 +274,7 @@ async function graphifyPanel() {
   const blocks = g.repos.map(graphRepo);
   await Promise.all(blocks.map((b) => b.ready));
   const anyReady = g.repos.some((r) => r.available);
-  return panel("Graph memory (graphify)", ...(anyReady ? [] : [graphEmptyState(pr && pr.projects)]), ...blocks.map((b) => b.el));
+  return panel(t("graph.panel"), ...(anyReady ? [] : [graphEmptyState(pr && pr.projects)]), ...blocks.map((b) => b.el));
 }
 
 // Harness architecture: the archify page lives on its own route with its own sandboxing CSP and is shown in a sandboxed iframe (scripts only, no
@@ -278,65 +282,61 @@ async function graphifyPanel() {
 function archifyBlock(d) {
   if (!d.installed) return null;
   if (d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)) {
-    return panel("Architecture", h("iframe", { class: "archify-frame", src: d.url, sandbox: "allow-scripts", title: "amauta harness architecture (archify)", referrerpolicy: "no-referrer" }),
-      h("p", { class: "muted" }, `${fmt(d.components)} components drawn by archify from the install state.`));
+    return panel(t("harness.architecture"), h("iframe", { class: "archify-frame", src: d.url, sandbox: "allow-scripts", title: t("harness.archifyTitle"), referrerpolicy: "no-referrer" }),
+      h("p", { class: "muted" }, t("harness.drawn", { n: fmt(d.components) })));
   }
-  return panel("Architecture", d.fallback ? diagramBox(d.fallback, "amauta install architecture") : null,
-    h("p", { class: "muted" }, `Showing the Mermaid fallback${d.reason ? ": " + d.reason : ""}.`));
+  return panel(t("harness.architecture"), d.fallback ? diagramBox(d.fallback, t("harness.installArch")) : null,
+    h("p", { class: "muted" }, d.reason ? t("harness.fallbackReason", { reason: ts(d.reason) }) : t("harness.fallback")));
 }
 
 async function viewHarness() {
   const [hs, arch] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false }))]);
   const out = [];
-  if (!hs.installed) out.push(panel("Harness", empty("amauta is not installed (no state.json in the state directory).")));
+  if (!hs.installed) out.push(panel(t("nav.harnessPage"), empty(t("harness.notInstalled"))));
   else {
-    out.push(h("div", { class: "grid" }, card("Version", hs.version || "-"), card("RDD mode", hs.rdd_mode || "-"), card("Telemetry", hs.telemetry ? "on" : "off"), card("Managed files", fmt(hs.managed_files)), card("Persona", hs.persona || "-")),
+    out.push(h("div", { class: "grid" }, card(t("harness.version"), hs.version || "-"), card(t("harness.rdd"), hs.rdd_mode || "-"), card(t("harness.telemetry"), hs.telemetry ? t("common.on") : t("common.off")), card(t("harness.managed"), fmt(hs.managed_files)), card(t("harness.persona"), hs.persona || "-")),
       archifyBlock(arch),
-      panel("Components", empty((hs.components || []).join(", ") || "none")),
-      panel("Hooks", hs.hooks.length ? table("hooks", [{ key: "event", label: "Event" }, { key: "kind", label: "Kind" }], hs.hooks) : empty("No hooks registered.")),
-      panel("MCP servers", hs.mcp_servers.length ? table("mcp", [{ key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "command", label: "Command" }], hs.mcp_servers) : empty("None.")));
+      panel(t("harness.components"), empty((hs.components || []).join(", ") || t("common.none"))),
+      panel(t("harness.hooks"), hs.hooks.length ? table("hooks", [{ key: "event", label: t("col.event") }, { key: "kind", label: t("col.kind") }], hs.hooks) : empty(t("harness.noHooks"))),
+      panel(t("nav.mcp"), hs.mcp_servers.length ? table("mcp", [{ key: "name", label: t("col.name") }, { key: "type", label: t("col.type") }, { key: "command", label: t("col.command") }], hs.mcp_servers) : empty(t("common.noneDot"))));
   }
   return out;
 }
 
 // ---- wiki pages ---------------------------------------------------------------------------------------------
-const HINTS = {
-  memory: "Memories appear here after mem_save; a bare [[topic]] link points at a topic_key or title.",
-  skill: "Skill pages appear after a session loads the skill; usage comes from the telemetry backfill (Refresh usage).",
-  tool: "Tool pages appear after a session calls the tool; usage comes from the telemetry backfill (Refresh usage).",
-  mcp: "MCP server pages appear after a session calls one of its tools; usage comes from the telemetry backfill.",
-  session: "Session pages appear after the usage backfill reads its transcript (Refresh usage).",
-  feature: "Feature pages come from odd/tasks/*.md in a known project (see Projects).",
-  project: "Projects come from --repo flags, the Settings page and, when enabled, git roots of your Claude Code sessions.",
-  node: "Graph node pages come from a mirrored graphify graph; run graphify update and the graph sync for a --repo.",
-};
-const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value === "done" ? "● " : value === "pending" ? "○ " : "▲ ") + value);
+const HINTS = ["memory", "skill", "tool", "mcp", "session", "feature", "project", "node"]; // each has a hint.<kind> text
+const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value === "done" ? "● " : value === "pending" ? "○ " : "▲ ") + t(`status.${value}`));
 const isStatus = (v) => v === "done" || v === "pending" || v === "warning";
+// How a project was found (--repo flag, the Settings list, or discovery from sessions): the server sends the identifiers.
+const originLabel = (o) => (`origin.${o}` in I.dict.en ? t(`origin.${o}`) : o);
+const CHROME_ITEMS = ["Tokens in the sessions that used it"]; // server section whose item labels are fixed text
 
 function skeleton() {
   return h("div", { class: "skeleton", "aria-hidden": "true" }, h("div", { class: "sk sk-title" }), h("div", { class: "sk" }), h("div", { class: "sk" }), h("div", { class: "sk sk-short" }));
 }
 function teach(title, ...paras) {
-  return h("div", { class: "teach" }, h("h1", null, title), ...paras.map((p) => h("p", null, p)), h("p", null, link("home", "", "Back to Home")));
+  return h("div", { class: "teach" }, h("h1", null, title), ...paras.map((p) => h("p", null, p)), h("p", null, link("home", "", t("common.backHome"))));
 }
 function refList(refs) {
-  return h("ul", { class: "refs" }, refs.map((r) => h("li", null, link(r.kind, r.id, r.title, null, r.source), h("span", { class: "muted" }, ` ${R.KINDS[r.kind] || r.kind}`))));
+  return h("ul", { class: "refs" }, refs.map((r) => h("li", null, link(r.kind, r.id, r.title, null, r.source), h("span", { class: "muted" }, ` ${kindLabel(r.kind)}`))));
 }
 function railBlock(title, body) { return body ? h("section", { class: "rail-block" }, h("h2", null, title), body) : null; }
 
 function sectionBlock(s) {
-  return h("section", { class: "page-section" }, h("h2", null, s.heading), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
-    it.kind && it.id ? link(it.kind, it.id, it.label, null, it.source) : h("span", null, it.label),
-    it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${R.fmtMeta(it)}`)))));
+  // Item labels that link to a page, or are user content (ODD task titles), stay as written; only the fixed token-row labels are translated.
+  const label = (it) => (CHROME_ITEMS.includes(s.heading) ? ts(it.label) : it.label);
+  return h("section", { class: "page-section" }, h("h2", null, ts(s.heading)), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
+    it.kind && it.id ? link(it.kind, it.id, it.label, null, it.source) : h("span", null, label(it)),
+    it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${ts(R.fmtMeta(it))}`)))));
 }
 
 function historyBlock(hist) {
   if (!hist) return null;
-  if (!hist.available) return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note));
-  const revs = hist.revisions.map((r) => h("li", null, `Revision ${r.revision}`, r.title ? ` ${r.title}` : null, r.updated_at ? h("span", { class: "muted" }, ` ${R.fmtIso(r.updated_at)}`) : null));
-  const diffs = hist.diffs.map((d) => h("details", null, h("summary", null, `Revision ${d.from} to ${d.to}`),
-    h("div", { class: "diff", role: "group", "aria-label": `Changes from revision ${d.from} to ${d.to}` }, d.lines.map((ln) => { const r = R.diffRow(ln); return h("div", { class: `diff-line diff-${r.name}` }, r.mark + r.text); }))));
-  return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note), h("ul", { class: "items" }, revs), ...diffs);
+  if (!hist.available) return h("section", { class: "page-section" }, h("h2", null, t("hist.title")), h("p", { class: "muted" }, ts(hist.note)));
+  const revs = hist.revisions.map((r) => h("li", null, t("hist.revision", { n: r.revision }), r.title ? ` ${r.title}` : null, r.updated_at ? h("span", { class: "muted" }, ` ${R.fmtIso(r.updated_at)}`) : null));
+  const diffs = hist.diffs.map((d) => h("details", null, h("summary", null, t("hist.fromTo", { from: d.from, to: d.to })),
+    h("div", { class: "diff", role: "group", "aria-label": t("hist.changes", { from: d.from, to: d.to }) }, d.lines.map((ln) => { const r = R.diffRow(ln); return h("div", { class: `diff-line diff-${r.name}` }, r.mark + r.text); }))));
+  return h("section", { class: "page-section" }, h("h2", null, t("hist.title")), h("p", { class: "muted" }, ts(hist.note)), h("ul", { class: "items" }, revs), ...diffs);
 }
 
 // Calls per day as small bars; the title text and a sentence carry the numbers, so color and shape are never the only signal.
@@ -344,13 +344,13 @@ function usageBlock(usage) {
   if (!usage) return null;
   const total = usage.daily.reduce((a, d) => a + d.value, 0);
   const last = usage.daily.length ? usage.daily[usage.daily.length - 1].day : "";
-  if (!total) return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, "No calls recorded yet."));
+  if (!total) return h("section", { class: "page-section" }, h("h2", null, t("uot.title")), h("p", { class: "muted" }, t("uot.none")));
   const W = 360, H = 60;
   const bars = R.dailyBars(usage.daily, W, H);
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": `Calls per day over the ${usage.days} days up to ${R.fmtDate(last)}` },
-    ...bars.map((b) => svg("g", null, svg("title", null, `${R.fmtDate(b.day)}: ${fmt(b.value)} calls`), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": t("uot.aria", { days: fmt(usage.days), last: R.fmtDate(last) }) },
+    ...bars.map((b) => svg("g", null, svg("title", null, t("uot.bar", { day: R.fmtDate(b.day), n: fmt(b.value) })), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
     svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, R.fmtDate(bars[0].day)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, R.fmtDate(last)));
-  return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, `${fmt(total)} calls in the ${usage.days} days up to ${R.fmtDate(last)}.`), h("div", { class: "spark" }, root));
+  return h("section", { class: "page-section" }, h("h2", null, t("uot.title")), h("p", { class: "muted" }, t("uot.summary", { n: fmt(total), days: fmt(usage.days), last: R.fmtDate(last) })), h("div", { class: "spark" }, root));
 }
 
 // ODD feature: a progress bar with its number, state chips (shape plus label) and the commits the document mentions that git could resolve.
@@ -358,67 +358,68 @@ function progressBlock(pg) {
   if (!pg.progress) return null;
   const p = R.progress(pg.progress.done, pg.progress.total);
   const pending = pg.progress.total - pg.progress.done;
-  return h("section", { class: "progress-block", "aria-label": "Task progress" },
-    h("progress", { max: Math.max(pg.progress.total, 1), value: pg.progress.done, "aria-label": p.label }),
-    h("p", null, h("strong", null, p.label), ` (${p.percent}%)`, statusChip("done"), ` ${pg.progress.done}`, statusChip("pending"), ` ${pending}`));
+  const label = t("progress.label", { done: fmt(pg.progress.done), total: fmt(pg.progress.total) });
+  return h("section", { class: "progress-block", "aria-label": t("progress.aria") },
+    h("progress", { max: Math.max(pg.progress.total, 1), value: pg.progress.done, "aria-label": label }),
+    h("p", null, h("strong", null, label), ` (${fmt(p.percent)}%)`, statusChip("done"), ` ${fmt(pg.progress.done)}`, statusChip("pending"), ` ${fmt(pending)}`));
 }
 
 function commitsBlock(commits) {
   if (!commits || !commits.length) return null;
-  return h("section", { class: "page-section" }, h("h2", null, "Commits"), h("ul", { class: "items" }, commits.map((c) => h("li", null, h("code", null, c.hash), ` ${c.subject}`, h("span", { class: "muted" }, ` ${R.fmtDate(c.date)}`)))));
+  return h("section", { class: "page-section" }, h("h2", null, t("commits.title")), h("ul", { class: "items" }, commits.map((c) => h("li", null, h("code", null, c.hash), ` ${c.subject}`, h("span", { class: "muted" }, ` ${R.fmtDate(c.date)}`)))));
 }
 
 // Graph node: the neighborhood diagram is drawn lazily (mermaid loads on first use) from source the server generated with every label escaped.
 function nodeDiagramBlock(diagram) {
   if (!diagram || !diagram.source) return null;
-  return h("section", { class: "page-section" }, h("h2", null, "Neighborhood"), diagramBox(diagram.source, "Neighbors of this graph node"),
-    diagram.truncated ? h("p", { class: "muted" }, `Showing the nearest ${R.NODE_CAP} of ${fmt(diagram.nodes)} nodes.`) : null);
+  return h("section", { class: "page-section" }, h("h2", null, t("node.neighborhood")), diagramBox(diagram.source, t("node.neighborsOfThis")),
+    diagram.truncated ? h("p", { class: "muted" }, t("graph.nearest", { shown: R.NODE_CAP, total: fmt(diagram.nodes) })) : null);
 }
 
 // ODD feature: tasks grouped by phase in a grid (shape + word + class carry the status); long documents are capped server-side.
 function taskDiagramBlock(pg) {
   const d = pg.diagram;
   if (pg.kind !== "feature" || !d || !d.source) return null;
-  return h("section", { class: "page-section" }, h("h2", null, "Task grid"), diagramBox(d.source, "Tasks of this feature grouped by phase and status"),
-    d.tasks > d.shown ? h("p", { class: "muted" }, `Showing the first ${d.shown} of ${fmt(d.tasks)} tasks.`) : null);
+  return h("section", { class: "page-section" }, h("h2", null, t("grid.title")), diagramBox(d.source, t("grid.aria")),
+    d.tasks > d.shown ? h("p", { class: "muted" }, t("grid.first", { shown: fmt(d.shown), total: fmt(d.tasks) })) : null);
 }
 
 // Skill impact (comparative): the metrics with their sample sizes, then the change log with before/after deltas. Direction is a shape plus words.
 function markSpan(m) {
   const d = R.deltaMark(m);
-  return h("span", { class: `mark mark-${d.name}` }, `${d.mark} ${d.text}`);
+  return h("span", { class: `mark mark-${d.name}` }, `${d.mark} ${t(`delta.${d.name}`)}`);
 }
 function impactRow(name, m) {
-  const reason = m.suppressed ? h("div", { class: "muted" }, m.reason || "too few sessions") : null;
-  return h("tr", null, h("td", null, m.label, reason), h("td", { class: "n" }, R.fmtMetric(name, m.exposed.value)), h("td", { class: "n" }, R.fmtMetric(name, m.baseline.value)),
-    h("td", null, markSpan(m), m.delta == null ? null : h("span", { class: "muted" }, ` ${R.fmtDelta(name, m.delta)}`)),
+  const reason = m.suppressed ? h("div", { class: "muted" }, m.reason ? ts(m.reason) : t("impact.tooFew")) : null;
+  return h("tr", null, h("td", null, ts(m.label), reason), h("td", { class: "n" }, R.fmtMetric(name, m.exposed.value, words())), h("td", { class: "n" }, R.fmtMetric(name, m.baseline.value, words())),
+    h("td", null, markSpan(m), m.delta == null ? null : h("span", { class: "muted" }, ` ${R.fmtDelta(name, m.delta, words())}`)),
     h("td", { class: "n" }, `${fmt(m.exposed.n)} / ${fmt(m.baseline.n)}`));
 }
 function changeItem(c) {
-  const head = c.kind === "installed" ? `Installed version ${c.label}` : `Commit ${c.label}`;
+  const head = c.kind === "installed" ? t("impact.installedVersion", { label: c.label }) : t("impact.commit", { label: c.label });
   const when = R.fmtDate(c.when || c.ts);
-  const lines = c.suppressed ? [h("p", { class: "muted" }, c.reason || "too few sessions")] : Object.entries(c.metrics).filter(([, m]) => m.delta != null).map(([name, m]) =>
-    h("li", null, `${m.label}: ${R.fmtMetric(name, m.before)} to ${R.fmtMetric(name, m.after)} `, markSpan(m), h("span", { class: "muted" }, ` (n ${fmt(m.n_before)} before, ${fmt(m.n_after)} after)`)));
-  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, `, ${when}: ${fmt(c.before_sessions)} sessions before, ${fmt(c.after_sessions)} after`), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
+  const lines = c.suppressed ? [h("p", { class: "muted" }, c.reason ? ts(c.reason) : t("impact.tooFew"))] : Object.entries(c.metrics).filter(([, m]) => m.delta != null).map(([name, m]) =>
+    h("li", null, t("impact.beforeAfter", { label: ts(m.label), before: R.fmtMetric(name, m.before, words()), after: R.fmtMetric(name, m.after, words()) }) + " ", markSpan(m), h("span", { class: "muted" }, " " + t("impact.n", { before: fmt(m.n_before), after: fmt(m.n_after) }))));
+  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, ", " + t("impact.sessionsAround", { when, before: fmt(c.before_sessions), after: fmt(c.after_sessions) })), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
 }
 function impactBlock(im) {
   if (!im) return null;
-  const title = h("h2", null, "Impact (comparative)");
-  const note = h("p", { class: "note" }, im.note);
-  if (!im.available) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, im.reason || "No data yet."));
-  if (!im.exposed_sessions) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, `This skill was not loaded in the last ${im.days} days, so there is nothing to compare.`));
-  const scope = im.control_scope === "same-project" ? "same project" : "all projects";
+  const title = h("h2", null, t("impact.title"));
+  const note = h("p", { class: "note" }, ts(im.note));
+  if (!im.available) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, im.reason ? ts(im.reason) : t("impact.noData")));
+  if (!im.exposed_sessions) return h("section", { class: "page-section impact" }, title, note, h("p", { class: "muted" }, t("impact.notLoaded", { days: fmt(im.days) })));
+  const scope = im.control_scope === "same-project" ? t("impact.sameProject") : t("impact.allProjects");
   const m = im.metrics, u = m.unused_after_load;
   const rows = ["error_rate", "retry_rate", "tokens_per_turn", "test_failure_rate"].map((k) => impactRow(k, m[k]));
   const ch = im.changes || { versions: [], commits: [], changes: [] };
   return h("section", { class: "page-section impact" }, title, note,
-    h("p", null, `${im.exposed_sessions} sessions loaded this skill in the last ${im.days} days; ${im.control_sessions} sessions without it (${scope}) form the baseline. Values below ${im.min_sessions} sessions on either side are withheld.`),
-    im.outcomes_recorded ? null : h("p", { class: "muted" }, "Tool outcomes are not recorded yet: run Refresh usage so the transcripts are read again."),
-    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Metric"), h("th", { class: "n" }, "After load"), h("th", { class: "n" }, "Baseline"), h("th", null, "Difference"), h("th", { class: "n" }, "n (calls or turns)"))), h("tbody", null, rows)),
-    h("p", null, u.suppressed ? `Loaded but unused: ${u.n} loaded sessions, ${u.reason || "too few to show a share"}.` : `Loaded but unused: ${u.unused} of ${u.n} loaded sessions (${R.fmtMetric("rate", u.value)}) ended with no tool call after the load.`),
-    h("h3", null, "Change log"),
-    ch.versions.length ? h("p", { class: "muted" }, "Installed versions (first seen): " + ch.versions.map((v) => `${v.hash}${v.current ? " (current)" : ""} ${R.fmtDate(v.first_seen)}`).join(", ")) : null,
-    ch.changes.length ? h("ul", { class: "items" }, ch.changes.map(changeItem)) : h("p", { class: "muted" }, "No change recorded yet: a skill needs a second installed version or a git commit (a repository passed with --repo that holds it) to compare before and after."));
+    h("p", null, t("impact.summary", { exposed: fmt(im.exposed_sessions), days: fmt(im.days), control: fmt(im.control_sessions), scope, min: fmt(im.min_sessions) })),
+    im.outcomes_recorded ? null : h("p", { class: "muted" }, t("impact.noOutcomes")),
+    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("impact.metric")), h("th", { class: "n" }, t("impact.afterLoad")), h("th", { class: "n" }, t("impact.baseline")), h("th", null, t("impact.difference")), h("th", { class: "n" }, t("impact.nCalls")))), h("tbody", null, rows)),
+    h("p", null, u.suppressed ? t("impact.unusedSuppressed", { n: fmt(u.n), reason: u.reason ? ts(u.reason) : t("impact.tooFewShare") }) : t("impact.unused", { unused: fmt(u.unused), n: fmt(u.n), rate: R.fmtMetric("rate", u.value, words()) })),
+    h("h3", null, t("impact.changeLog")),
+    ch.versions.length ? h("p", { class: "muted" }, t("impact.versions", { list: ch.versions.map((v) => `${v.hash}${v.current ? ` (${t("impact.current")})` : ""} ${R.fmtDate(v.first_seen)}`).join(", ") })) : null,
+    ch.changes.length ? h("ul", { class: "items" }, ch.changes.map(changeItem)) : h("p", { class: "muted" }, t("impact.noChange")));
 }
 
 function pageExtras(pg) {
@@ -428,79 +429,79 @@ function pageExtras(pg) {
 function bodyNodes(pg) {
   const known = (kind, id) => !(pg.missing || []).some((m) => m.kind === kind && m.id === id);
   let diagrams = 0;
-  const mermaid = (src) => (++diagrams <= 5 ? diagramBox(src, "Mermaid diagram") : h("pre", { class: "code" }, h("code", null, src)));
-  return MD.toDom(MD.parse(pg.body_md), document, { known, mermaid, headingOffset: 1 });
+  const mermaid = (src) => (++diagrams <= 5 ? diagramBox(src, t("diagram.mermaid")) : h("pre", { class: "code" }, h("code", null, src)));
+  return MD.toDom(MD.parse(pg.body_md), document, { known, mermaid, headingOffset: 1, labels: { missing: (kind, id) => t("md.missing", { kind, id }), table: t("table.label") } });
 }
 
 async function viewWikiPage(kind, id, source) {
   let pg;
   try { pg = await api("wiki/page", { kind, id, source }); } catch (err) {
-    if (/not found/i.test(String(err.message))) return [teach(`No ${(R.KINDS[kind] || kind).toLowerCase()} page`, `Nothing is stored under ${id}.`, HINTS[kind] || "")];
+    if (/not found|no encontrad/i.test(String(err.message))) return [teach(t("page.none", { kind: kindLabel(kind).toLowerCase() }), t("page.nothingStored", { id }), HINTS.includes(kind) ? t(`hint.${kind}`) : "")];
     throw err;
   }
   document.title = `${pg.title} - amauta`;
-  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = R.fmtMeta(m); return [h("dt", null, m.label), h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
+  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m)); return [h("dt", null, ts(m.label)), h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
+      h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
       pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...pg.sections.map(sectionBlock), ...pageExtras(pg)),
-    h("aside", { class: "rail", "aria-label": "Page details" }, railBlock("Details", meta), railBlock("Links", pg.links.length ? refList(pg.links) : null), railBlock("Linked from", pg.backlinks.length ? refList(pg.backlinks) : null)))];
+    h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), meta), railBlock(t("page.links"), pg.links.length ? refList(pg.links) : null), railBlock(t("page.linkedFrom"), pg.backlinks.length ? refList(pg.backlinks) : null)))];
 }
 
 // Skill catalog: every skill the portal can describe, grouped by source; the filter works on what is already loaded.
 async function viewSkillCatalog() {
   const cat = await api("skills");
   const list = h("div", null);
-  const box = h("input", { type: "search", placeholder: "Filter skills", "aria-label": "Filter skills", value: state.skillQuery || "" });
+  const box = h("input", { type: "search", placeholder: t("skills.filter"), "aria-label": t("skills.filter"), value: state.skillQuery || "" });
   const paint = () => {
     state.skillQuery = box.value;
     const groups = R.filterSkills(cat.groups, box.value);
-    list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${g.label} (${fmt(g.items.length)})`),
-      g.source === "builtin" ? h("p", { class: "muted" }, "Claude Code ships these: there is no local file, so no description is available here.") : null,
+    list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
+      g.source === "builtin" ? h("p", { class: "muted" }, t("skills.builtinNote")) : null,
       h("ul", { class: "items" }, g.items.map((i) => h("li", null, link("skill", i.id, i.id),
         i.description ? h("div", null, i.description) : null,
-        i.trigger ? h("div", { class: "muted" }, `Triggers: ${i.trigger}`) : null,
-        h("div", { class: "muted" }, i.uses ? `${fmt(i.uses)} calls in ${fmt(i.sessions)} sessions, last used ${R.fmtDate(i.last_used)}` : "Not used yet"))))))
-      : [h("p", { class: "muted" }, cat.total ? "No skill matches this filter." : "No skills found.")]));
+        i.trigger ? h("div", { class: "muted" }, t("skills.triggers", { trigger: i.trigger })) : null,
+        h("div", { class: "muted" }, i.uses ? t("skills.usage", { calls: fmt(i.uses), sessions: fmt(i.sessions), last: R.fmtDate(i.last_used) }) : t("skills.notUsed")))))))
+      : [h("p", { class: "muted" }, cat.total ? t("skills.noMatch") : t("skills.none"))]));
   };
   box.addEventListener("input", paint);
   paint();
-  return [h("h1", null, "Skills"), h("p", { class: "muted" }, `${fmt(cat.total)} skills: installed by amauta, your own, from plugins, from your projects, and the ones Claude Code ships. Open one to see what it does.`),
-    h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, "Skills live in ~/.claude/skills, in plugins and in each project's .claude/skills.")])];
+  return [h("h1", null, t("nav.skill")), h("p", { class: "muted" }, t("skills.intro", { n: fmt(cat.total) })),
+    h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("skills.where"))])];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.
 function summaryBlock(sm) {
   if (!sm) return null;
-  return h("section", { class: "page-section summary" }, h("h2", null, "What it does"),
-    sm.note ? h("p", null, sm.note) : null,
+  return h("section", { class: "page-section summary" }, h("h2", null, t("summary.title")),
+    sm.note ? h("p", null, ts(sm.note)) : null,
     sm.description ? h("p", null, sm.description) : null,
-    sm.trigger ? h("p", null, h("strong", null, "When it triggers: "), sm.trigger) : null,
-    h("p", { class: "muted" }, `Source: ${sm.source}`, sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
+    sm.trigger ? h("p", null, h("strong", null, t("summary.trigger") + " "), sm.trigger) : null,
+    h("p", { class: "muted" }, t("summary.source", { source: ts(sm.source) }), sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
 }
 
 function projectOdd(o) {
-  return o.features ? `${fmt(o.done)} of ${fmt(o.total)} tasks (${o.percent}%) in ${fmt(o.features)} feature${o.features === 1 ? "" : "s"}` : "No ODD features";
+  return o.features ? tn("project.odd", o.features, { done: fmt(o.done), total: fmt(o.total), percent: fmt(o.percent), n: fmt(o.features) }) : t("project.noOdd");
 }
 async function viewProjects() {
   const d = await api("projects");
-  if (!d.projects.length) return [teach("Projects", "No projects are known yet. Start the portal with --repo DIR, add a path under Settings, or let it find the git roots of your Claude Code sessions (auto-discover).", h("span", null, link("settings", "", "Open Settings")))];
-  return [h("h1", null, "Projects"), h("p", { class: "muted" }, `${fmt(d.projects.length)} projects${d.auto_discover ? ", including git roots found from your sessions" : ""}. Manage the list under `, link("settings", "", "Settings"), "."),
-    h("ul", { class: "items" }, d.projects.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${p.origin.join(", ")}`),
+  if (!d.projects.length) return [teach(t("nav.project"), t("project.noneKnown"), h("span", null, link("settings", "", t("project.openSettings"))))];
+  return [h("h1", null, t("nav.project")), h("p", { class: "muted" }, t(d.auto_discover ? "project.countAuto" : "project.count", { n: fmt(d.projects.length) }) + " ", t("project.manage"), " ", link("settings", "", t("nav.settings")), "."),
+    h("ul", { class: "items" }, d.projects.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${p.origin.map(originLabel).join(", ")}`),
       h("div", null, projectOdd(p.odd)),
-      h("div", { class: "muted" }, `${fmt(p.sessions)} sessions, ${fmt(p.memories)} memories, ${p.graph.mirrored ? `graph mirrored ${R.fmtDate(p.graph.synced_at)}` : "graph not mirrored"}`),
+      h("div", { class: "muted" }, t("project.summary", { sessions: fmt(p.sessions), memories: fmt(p.memories), graph: p.graph.mirrored ? t("project.graphMirrored", { at: R.fmtDate(p.graph.synced_at) }) : t("project.graphNot") })),
       h("div", { class: "muted tok" }, p.path))))];
 }
 
 // Project page extras: one collapsed task-progress diagram per feature (drawn when opened) and the graph memory status or how-to.
 function oddDiagramsBlock(pg) {
   if (pg.kind !== "project" || !pg.odd_diagrams || !pg.odd_diagrams.length) return null;
-  return h("section", { class: "page-section" }, h("h2", null, "Task progress"), pg.odd_diagrams.map((d, i) => {
+  return h("section", { class: "page-section" }, h("h2", null, t("project.taskProgress")), pg.odd_diagrams.map((d, i) => {
     const body = h("div", null);
     let drawn = false;
-    const draw = () => { if (!drawn) { drawn = true; body.replaceChildren(diagramBox(d.source, `Task progress of ${d.name}`)); } };
-    const det = h("details", { open: i === 0 }, h("summary", null, `${d.name}: ${fmt(d.done)}/${fmt(d.total)} done`), body);
+    const draw = () => { if (!drawn) { drawn = true; body.replaceChildren(diagramBox(d.source, t("project.progressOf", { name: d.name }))); } };
+    const det = h("details", { open: i === 0 }, h("summary", null, t("project.featureDone", { name: d.name, done: fmt(d.done), total: fmt(d.total) })), body);
     det.addEventListener("toggle", () => { if (det.open) draw(); });
     if (i === 0) draw();
     return det;
@@ -509,33 +510,35 @@ function oddDiagramsBlock(pg) {
 function projectGraphBlock(pg) {
   if (pg.kind !== "project" || !pg.graph) return null;
   const g = pg.graph;
-  return h("section", { class: "page-section" }, h("h2", null, "Graph memory"),
-    g.mirrored ? h("p", null, `${fmt(g.nodes)} nodes, ${fmt(g.edges)} edges, mirrored ${R.fmtDateTime(g.synced_at)}. `, link("node", "", "Browse graph nodes"))
-      : h("p", { class: "muted" }, "Not mirrored yet. ", g.howto));
+  return h("section", { class: "page-section" }, h("h2", null, t("project.graphMemory")),
+    g.mirrored ? h("p", null, t("project.graphStats", { nodes: fmt(g.nodes), edges: fmt(g.edges), at: R.fmtDateTime(g.synced_at) }) + " ", link("node", "", t("project.browseNodes")))
+      : h("p", { class: "muted" }, t("project.notMirrored") + " ", ts(g.howto)));
 }
 
 async function viewFeatures() {
   const odd = await api("odd");
   const docs = odd.repos.flatMap((r) => r.documents.map((d) => ({ ...d, repo: r.repo })));
-  if (!docs.length) return [teach("ODD features", "Feature documents appear here when a known project has odd/tasks/*.md. Projects come from --repo, Settings and your sessions.")];
-  return [h("h1", null, "ODD features"), h("ul", { class: "items" }, docs.map((d) => h("li", null, link("feature", d.id || `${d.repo}/${d.name.replace(/\.md$/, "")}`, d.name), h("span", { class: "muted" }, ` ${d.repo}`), ` ${d.done}/${d.total} tasks done`)))];
+  if (!docs.length) return [teach(t("nav.feature"), t("feature.empty"))];
+  return [h("h1", null, t("nav.feature")), h("ul", { class: "items" }, docs.map((d) => h("li", null, link("feature", d.id || `${d.repo}/${d.name.replace(/\.md$/, "")}`, d.name), h("span", { class: "muted" }, ` ${d.repo}`), " " + t("feature.tasksDone", { done: fmt(d.done), total: fmt(d.total) }))))];
 }
 
-async function viewGraph() { return [h("h1", null, "Graph"), await graphifyPanel()]; }
+async function viewGraph() { return [h("h1", null, t("nav.node")), await graphifyPanel()]; }
 
 // ---- Settings editor: a closed list of options, always preview -> confirm -> apply, with undo ----------------------------------------
+// Labels and help are i18n keys (resolved with t() when the page is built).
 const SETTING_OPTIONS = [
-  ["persona", "Persona", [["gentleman", "Gentleman"], ["neutral", "Neutral"]], "How Claude talks to you: gentleman is warm and mentoring, neutral is plain and direct. Applying swaps the installed output style and the persona section of CLAUDE.md."],
-  ["review_mode", "Review mode", [["off", "Off"], ["on", "On"]], "On: after each commit amauta assesses the risk of the change and may ask for a review before you go on. Off: no review reminders."],
-  ["telemetry", "Telemetry", [["on", "On"], ["off", "Off"]], "On: hooks record which tools ran, how long they took and how big they were, into your own local database (never content, never sent anywhere). Off: those hooks are removed."],
+  ["persona", "set.persona", [["gentleman", "set.gentleman"], ["neutral", "set.neutral"]], "set.persona.help"],
+  ["review_mode", "set.review", [["off", "set.off"], ["on", "set.on"]], "set.review.help"],
+  ["telemetry", "set.telemetry", [["on", "set.on"], ["off", "set.off"]], "set.telemetry.help"],
 ];
 const SETTING_MODULES = [
-  ["sdd", "Spec-driven development (SDD)", "Skills, agents and /amauta-sdd-* commands for planned changes, plus a safety hook that checks sdd agents before they start."],
-  ["rea", "Reverse engineering (rea)", "Registers the rea MCP server in Claude Code so it can inspect binaries and packaged apps."],
-  ["context7", "Library docs (context7)", "Registers the context7 MCP server so Claude can look up current library documentation."],
-  ["impeccable", "Frontend design (impeccable)", "Installs the design skill and downloads its pinned engine with npm (needs the network once)."],
-  ["archify", "Architecture diagrams (archify)", "Installs the diagram skill (runs offline). The Harness page uses it to draw the architecture."],
+  ["sdd", "set.mod.sdd", "set.mod.sdd.help"],
+  ["rea", "set.mod.rea", "set.mod.rea.help"],
+  ["context7", "set.mod.context7", "set.mod.context7.help"],
+  ["impeccable", "set.mod.impeccable", "set.mod.impeccable.help"],
+  ["archify", "set.mod.archify", "set.mod.archify.help"],
 ];
+const valueLabel = (v) => (v === "on" ? t("common.on") : v === "off" ? t("common.off") : v);
 const setDisabled = (el, on) => { if (on) el.setAttribute("disabled", ""); else el.removeAttribute("disabled"); };
 
 async function postJson(path, body) {
@@ -546,18 +549,18 @@ async function postJson(path, body) {
 
 function planBlock(res) {
   const p = res.plan || {}, files = p.files || [], removed = p.removed || [], skipped = p.skipped || [];
-  const list = (title, items) => items.length ? h("details", null, h("summary", null, `${title} (${items.length})`), h("ul", { class: "plain-list" }, items.slice(0, 40).map((f) => h("li", null, h("code", null, f))), items.length > 40 ? h("li", { class: "muted" }, `and ${items.length - 40} more`) : null)) : null;
+  const list = (title, items) => items.length ? h("details", null, h("summary", null, `${title} (${fmt(items.length)})`), h("ul", { class: "plain-list" }, items.slice(0, 40).map((f) => h("li", null, h("code", null, f))), items.length > 40 ? h("li", { class: "muted" }, t("plan.more", { n: fmt(items.length - 40) })) : null)) : null;
   return h("div", { class: "plan" },
-    res.changes.length ? h("ul", { class: "plain-list" }, res.changes.map((c) => h("li", null, `${settingLabel(c.key)}: ${c.from} → ${c.to}`)))
-      : h("p", null, res.repair ? "No option changes. Repair re-applies the current settings." : "No option changes."),
-    h("p", null, `${files.length} file(s) written, ${removed.length} removed, ${skipped.length} kept because you edited them.`),
-    p.changed === false ? h("p", { class: "muted" }, "Everything is already in place, so applying changes nothing.") : null,
-    p.impeccable && p.impeccable.engine === "would-install" ? h("p", null, "npm will download the pinned impeccable engine.") : null,
-    list("Files written", files), list("Files removed", removed), list("Kept because you edited them", skipped));
+    res.changes.length ? h("ul", { class: "plain-list" }, res.changes.map((c) => h("li", null, `${settingLabel(c.key)}: ${valueLabel(c.from)} → ${valueLabel(c.to)}`)))
+      : h("p", null, res.repair ? t("plan.noChangesRepair") : t("plan.noChanges")),
+    h("p", null, t("plan.counts", { written: fmt(files.length), removed: fmt(removed.length), kept: fmt(skipped.length) })),
+    p.changed === false ? h("p", { class: "muted" }, t("plan.inPlace")) : null,
+    p.impeccable && p.impeccable.engine === "would-install" ? h("p", null, t("plan.npm")) : null,
+    list(t("plan.filesWritten"), files), list(t("plan.filesRemoved"), removed), list(t("plan.kept"), skipped));
 }
 function settingLabel(key) {
-  if (key.startsWith("module:")) return `Module ${key.slice(7)}`;
-  return { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" }[key] || key;
+  if (key.startsWith("module:")) return t("set.moduleN", { name: key.slice(7) });
+  return { persona: t("set.persona"), review_mode: t("set.review"), telemetry: t("set.telemetry") }[key] || key;
 }
 
 // Settings > Projects: the paths saved in portal.json and the auto-discover switch. Every change is one guarded POST; the server validates the paths.
@@ -566,27 +569,27 @@ async function projectsSection() {
   try { data = await api("projects"); } catch (_) { return null; }
   const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
   const send = async (body) => {
-    out.replaceChildren(h("p", { role: "status", class: "muted" }, "Saving."));
+    out.replaceChildren(h("p", { role: "status", class: "muted" }, t("common.saving")));
     let res;
     try { res = await postJson("/api/projects/config", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
-    if (!res.ok) { out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, `▲ ${(res.data && res.data.error) || `Request failed (${res.status})`}`, h("p", null, R.settingsAdvice(res.status).text))); return; }
+    if (!res.ok) { out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, `▲ ${res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status })}`, h("p", null, t(R.settingsAdvice(res.status).key)))); return; }
     data = res.data;
     paint();
-    out.replaceChildren(h("p", { role: "status" }, "✓ Saved."));
+    out.replaceChildren(h("p", { role: "status" }, "✓ " + t("common.saved")));
   };
   const paint = () => {
-    const input = h("input", { type: "text", id: "project-path", placeholder: "/home/you/code/my-project", "aria-label": "Project path", autocomplete: "off", spellcheck: "false" });
-    const add = h("button", { type: "button" }, "Add project");
+    const input = h("input", { type: "text", id: "project-path", placeholder: "/home/you/code/my-project", "aria-label": t("sp.pathLabel"), autocomplete: "off", spellcheck: "false" });
+    const add = h("button", { type: "button" }, t("sp.add"));
     add.addEventListener("click", () => { const v = String(input.value || "").trim(); if (v) send({ repos: [...data.config_repos, v] }); });
     const box = h("input", { type: "checkbox", id: "project-auto", checked: data.auto_discover });
     box.addEventListener("change", (e) => send({ auto_discover: !!e.target.checked }));
     const found = data.projects.filter((p) => p.origin.includes("discovered") && !p.origin.includes("config") && !p.origin.includes("flag"));
-    root.replaceChildren(h("h2", null, "Projects"),
-      h("p", { class: "muted" }, "Repositories whose ODD tasks, sessions, memories and graph the portal shows. Paths must be existing directories inside your home directory; they are saved in portal.json in the amauta state directory."),
-      data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map((p) => { const b = h("button", { type: "button" }, "Remove"); b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== p) })); return h("li", null, h("code", { class: "tok" }, p), " ", b); })) : h("p", { class: "muted" }, "No paths saved yet."),
-      h("div", { class: "actions" }, h("label", { for: "project-path" }, "Add a path"), input, add),
-      h("p", null, box, h("label", { for: "project-auto" }, " Find projects automatically from your Claude Code sessions")),
-      found.length ? h("p", { class: "muted" }, `Found automatically: ${found.map((p) => p.name).join(", ")}.`) : null);
+    root.replaceChildren(h("h2", null, t("nav.project")),
+      h("p", { class: "muted" }, t("sp.intro")),
+      data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map((p) => { const b = h("button", { type: "button" }, t("common.remove")); b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== p) })); return h("li", null, h("code", { class: "tok" }, p), " ", b); })) : h("p", { class: "muted" }, t("sp.none")),
+      h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
+      h("p", null, box, h("label", { for: "project-auto" }, " " + t("sp.auto"))),
+      h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null)); // replaceChildren(null) would write the text "null" in a browser
   };
   paint();
   return h("div", null, root, out);
@@ -603,57 +606,57 @@ async function viewSettings() {
 
   const refreshMarks = () => {
     const changes = R.settingsChanges(info.current, draft);
-    for (const [key, el] of marks) { const c = changes.find((x) => x.key === key); el.textContent = c ? `◆ changed, was ${c.from}` : ""; }
+    for (const [key, el] of marks) { const c = changes.find((x) => x.key === key); el.textContent = c ? "◆ " + t("set.changed", { from: valueLabel(c.from) }) : ""; }
     if (previewBtn) setDisabled(previewBtn, changes.length === 0);
   };
   const option = (key, id, label, choices, value, help) => {
     const mark = h("span", { class: "changed" });
     marks.set(key, mark);
-    const select = h("select", { id, "aria-describedby": `${id}-help` }, choices.map(([v, l]) => h("option", { value: v, selected: v === value }, l)));
+    const select = h("select", { id, "aria-describedby": `${id}-help` }, choices.map(([v, l]) => h("option", { value: v, selected: v === value }, t(l))));
     select.value = value;
     select.addEventListener("change", (e) => {
       const v = e.target.value;
       if (key.startsWith("module:")) draft.modules[key.slice(7)] = v; else draft[key] = v;
       refreshMarks();
     });
-    return h("div", { class: "option" }, h("label", { for: id }, label), select, h("span", { class: "current" }, `now ${value}`), mark, h("p", { id: `${id}-help`, class: "option-help muted" }, help));
+    return h("div", { class: "option" }, h("label", { for: id }, t(label)), select, h("span", { class: "current" }, t("set.now", { value: valueLabel(value) })), mark, h("p", { id: `${id}-help`, class: "option-help muted" }, t(help)));
   };
   const buildForm = () => {
     draft = copy(info.current);
     marks.clear();
-    previewBtn = h("button", { type: "button", disabled: true }, "Preview changes");
+    previewBtn = h("button", { type: "button", disabled: true }, t("set.preview"));
     previewBtn.addEventListener("click", () => runPreview(false));
-    repairBtn = h("button", { type: "button" }, "Preview repair");
+    repairBtn = h("button", { type: "button" }, t("set.previewRepair"));
     repairBtn.addEventListener("click", () => runPreview(true));
     formBox.replaceChildren(...[
-      info.installed ? null : h("p", { class: "notice" }, "amauta is not installed yet. Previewing and applying here runs the installer for the first time."),
+      info.installed ? null : h("p", { class: "notice" }, t("set.notInstalled")),
       h("div", { class: "options" },
         ...SETTING_OPTIONS.map(([key, label, choices, help]) => option(key, `set-${key.replace("_", "-")}`, label, choices, info.current[key], help)),
-        h("h2", null, "Optional modules"),
-        ...SETTING_MODULES.map(([name, label, help]) => option(`module:${name}`, `set-module-${name}`, label, [["off", "Off"], ["on", "On"]], info.current.modules[name], help))),
+        h("h2", null, t("set.modules")),
+        ...SETTING_MODULES.map(([name, label, help]) => option(`module:${name}`, `set-module-${name}`, label, [["off", "set.off"], ["on", "set.on"]], info.current.modules[name], help))),
       h("div", { class: "actions" }, previewBtn),
-      h("section", { class: "repair" }, h("h2", null, "Reinstall / repair"),
-        h("p", { class: "muted" }, "Re-applies the current settings: restores missing or outdated files that amauta installed. Files you edited are kept."), h("div", { class: "actions" }, repairBtn))].filter(Boolean));
+      h("section", { class: "repair" }, h("h2", null, t("set.repairTitle")),
+        h("p", { class: "muted" }, t("set.repairHelp")), h("div", { class: "actions" }, repairBtn))].filter(Boolean));
     refreshMarks();
   };
 
-  const busy = (text) => { out.replaceChildren(h("p", { role: "status", class: "muted" }, text)); };
+  const busy = (key) => { out.replaceChildren(h("p", { role: "status", class: "muted" }, t(key))); };
   const fail = (res, retry) => {
     const adv = R.settingsAdvice(res.status);
-    out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${(res.data && res.data.error) || `Request failed (${res.status})`}`),
-      res.data && res.data.detail ? h("p", { class: "muted" }, h("code", null, res.data.detail)) : null, h("p", null, adv.text),
-      adv.again ? (() => { const b = h("button", { type: "button" }, "Preview again"); b.addEventListener("click", () => retry()); return b; })() : null));
+    out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status })}`),
+      res.data && res.data.detail ? h("p", { class: "muted" }, h("code", null, res.data.detail)) : null, h("p", null, t(adv.key)),
+      adv.again ? (() => { const b = h("button", { type: "button" }, t("set.previewAgain")); b.addEventListener("click", () => retry()); return b; })() : null));
   };
   const askConfirm = (text, yes, onYes, onNo) => {
-    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, "Go back");
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
     ok.addEventListener("click", onYes); no.addEventListener("click", onNo);
-    return h("div", { class: "confirm", role: "group", "aria-label": "Confirm" }, h("p", null, text), h("div", { class: "actions" }, ok, no));
+    return h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, text), h("div", { class: "actions" }, ok, no));
   };
 
   async function runPreview(repair) {
     const body = R.settingsBody(info.current, draft, repair);
     setDisabled(previewBtn, true); setDisabled(repairBtn, true);
-    busy("Checking what would change. Nothing is written yet.");
+    busy("set.checking");
     let res;
     try { res = await postJson("/api/settings/preview", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
     setDisabled(repairBtn, false); refreshMarks();
@@ -662,56 +665,56 @@ async function viewSettings() {
   }
   function showPlan(plan, repair) {
     const confirmBox = h("div", null);
-    const apply = h("button", { type: "button", class: "primary" }, "Apply changes");
+    const apply = h("button", { type: "button", class: "primary" }, t("set.apply"));
     apply.addEventListener("click", () => {
       setDisabled(apply, true);
-      confirmBox.replaceChildren(askConfirm("This changes your Claude Code configuration. A backup is made first and you can undo it from here.", "Yes, apply now", () => runApply(plan), () => { setDisabled(apply, false); confirmBox.replaceChildren(); }));
+      confirmBox.replaceChildren(askConfirm(t("set.applyConfirm"), t("set.applyYes"), () => runApply(plan), () => { setDisabled(apply, false); confirmBox.replaceChildren(); }));
     });
-    const cancel = h("button", { type: "button" }, "Discard preview");
+    const cancel = h("button", { type: "button" }, t("set.discard"));
     cancel.addEventListener("click", () => out.replaceChildren());
-    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, "Preview: what would change"), planBlock(plan), h("p", { class: "muted" }, `This preview is valid for ${Math.round((plan.expires_in || 300) / 60)} minutes.`), h("div", { class: "actions" }, apply, cancel), confirmBox));
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.previewTitle")), planBlock(plan), h("p", { class: "muted" }, t("set.validFor", { n: fmt(Math.round((plan.expires_in || 300) / 60)) })), h("div", { class: "actions" }, apply, cancel), confirmBox));
   }
   async function runApply(plan) {
-    busy("Applying. This can take a while when a module downloads something.");
+    busy("set.applying");
     let res;
     try { res = await postJson("/api/settings/apply", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
     if (!res.ok) return fail(res, () => runPreview(false));
     const d = res.data;
-    const undo = d.undo_available ? h("button", { type: "button" }, "Undo this change") : null;
+    const undo = d.undo_available ? h("button", { type: "button" }, t("set.undo")) : null;
     if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); runUndoPreview(); });
-    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Applied."),
-      h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`), d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
-      d.skipped.length ? h("p", { class: "muted" }, `${d.skipped.length} file(s) you edited were kept.`) : null,
-      d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, `▲ The impeccable engine was not installed: ${d.impeccable.detail || "npm failed"}. Run Reinstall / repair to retry.`) : null,
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, t("set.applied")),
+      h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })), d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")),
+      d.skipped.length ? h("p", { class: "muted" }, t("set.keptEdited", { n: fmt(d.skipped.length) })) : null,
+      d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, "▲ " + t("set.engineFailed", { detail: d.impeccable.detail || t("set.npmFailed") })) : null,
       h("div", { class: "actions" }, undo)));
     await reload();
   }
   async function runUndoPreview() {
-    busy("Checking what undoing would change.");
+    busy("set.checkingUndo");
     let res;
     try { res = await postJson("/api/settings/undo/preview", {}); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
     if (!res.ok) return fail(res, () => runUndoPreview());
     const plan = res.data, confirmBox = h("div", null);
-    const revert = h("button", { type: "button", class: "primary" }, "Revert these changes");
+    const revert = h("button", { type: "button", class: "primary" }, t("set.revert"));
     revert.addEventListener("click", () => {
       setDisabled(revert, true);
-      confirmBox.replaceChildren(askConfirm("Undo re-runs the installer with the previous values and makes a fresh backup. Files you changed by hand since are not overwritten wholesale.", "Yes, undo", () => runUndo(plan), () => { setDisabled(revert, false); confirmBox.replaceChildren(); }));
+      confirmBox.replaceChildren(askConfirm(t("set.undoConfirm"), t("set.undoYes"), () => runUndo(plan), () => { setDisabled(revert, false); confirmBox.replaceChildren(); }));
     });
-    const cancel = h("button", { type: "button" }, "Discard preview");
+    const cancel = h("button", { type: "button" }, t("set.discard"));
     cancel.addEventListener("click", () => out.replaceChildren());
-    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, "Preview: what undoing would change"), planBlock(plan),
-      h("p", { class: "muted" }, `Undo re-runs the installer with the settings from before your change. This preview is valid for ${Math.round((plan.expires_in || 300) / 60)} minutes.`),
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.undoPreviewTitle")), planBlock(plan),
+      h("p", { class: "muted" }, t("set.undoValid", { n: fmt(Math.round((plan.expires_in || 300) / 60)) })),
       h("div", { class: "actions" }, revert, cancel), confirmBox));
   }
   async function runUndo(plan) {
-    busy("Undoing the change.");
+    busy("set.undoing");
     let res;
     try { res = await postJson("/api/settings/undo", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
     if (!res.ok) return fail(res, () => runUndoPreview());
     const d = res.data;
-    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, "Undone."), h("p", null, `✓ ${d.files.length} file(s) written, ${d.removed.length} removed.`),
-      d.backup ? h("p", null, `Backup: ${d.backup}`) : h("p", { class: "muted" }, "Nothing needed a backup."),
-      h("p", { class: "muted" }, "If the change had downloaded an npm engine, run Reinstall / repair to bring it back.")));
+    out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, t("set.undone")), h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })),
+      d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")),
+      h("p", { class: "muted" }, t("set.undoneNote"))));
     await reload();
   }
   async function reload() {
@@ -720,21 +723,21 @@ async function viewSettings() {
 
   buildForm();
   const projectsBox = await projectsSection();
-  root.append(h("h1", null, "Settings"),
-    h("p", { class: "muted" }, "A short, closed list of harness options. Every change is previewed first, needs your confirmation, makes a backup and can be undone (also previewed first). Nothing else about Claude Code is editable here."),
+  root.append(h("h1", null, t("nav.settings")),
+    h("p", { class: "muted" }, t("set.intro")),
     formBox, out, ...(projectsBox ? [projectsBox] : []));
   return [root];
 }
 
 // ---- Themes: picker in the top bar, and the editor page (list, live preview, save, import, export) ----------------------------------
 // A theme reaches the page only through TH.applyChoice / TH.previewTheme (CSSOM custom properties and data-theme). The viewer's choice lives in
-// Browser storage only through TH.storage() (try/catch: the page works without it); the theme files themselves are stored by the server through guarded writes.
-const usableThemes = () => state.themes.filter((t) => !t.error && TH.validateTheme({ name: t.name, base: t.base, tokens: t.tokens }).ok);
-const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((t) => `custom:${t.slug}` === state.themeChoice) ? "system" : state.themeChoice);
+// browser storage through TH.storage() (try/catch: the page works without it); the theme files themselves are stored by the server through guarded writes.
+const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateTheme({ name: th.name, base: th.base, tokens: th.tokens }).ok);
+const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((th) => `custom:${th.slug}` === state.themeChoice) ? "system" : state.themeChoice);
 function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); }
 function paintPicker() {
   const pick = $("theme-picker");
-  pick.replaceChildren(...[["system", "System"], ["light", "Light"], ["dark", "Dark"], ...usableThemes().map((t) => [`custom:${t.slug}`, t.name])].map(([v, l]) => h("option", { value: v }, l)));
+  pick.replaceChildren(...[["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")], ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])].map(([v, l]) => h("option", { value: v }, l)));
   pick.value = effectiveChoice();
 }
 async function loadThemes() {
@@ -750,26 +753,12 @@ function chooseTheme(choice) {
   paintPicker();
 }
 
-const THEME_MSG = {
-  "theme.shape": "A theme file is an object with exactly name, base and tokens.",
-  "theme.name": "The name must be 1 to 60 characters without control characters.",
-  "theme.base": "The base must be light or dark.",
-  "theme.token": "Unknown token: {token}.",
-  "theme.value": "{token}: use oklch(L C H) or #rrggbb.",
-  "theme.slug": "The file name is not valid.",
-  "theme.limit": "At most 50 themes are allowed.",
-  "theme.dir": "The themes directory is not a plain directory.",
-  "theme.symlink": "Links are ignored.",
-  "theme.toolarge": "The file is too large.",
-  "theme.json": "The file is not valid JSON.",
-  "theme.unreadable": "The file could not be read.",
-  "theme.notfound": "No such theme.",
-  "theme.write": "The theme could not be written.",
-};
+const THEME_CODES = ["shape", "name", "base", "token", "value", "slug", "limit", "dir", "symlink", "toolarge", "json", "unreadable", "notfound", "write"]; // the server sends "theme.<code>"; each has a themeErr.<code> text
 // A known code gives the plain-language text; an unknown code, or a token-specific one without its token, shows the server's own message.
 function themeMsg(e) {
-  const text = THEME_MSG[e && e.code];
-  return text && (e.token || !text.includes("{token}")) ? text.replace("{token}", e.token || "") : (e && e.error) || "Invalid theme.";
+  const code = String((e && e.code) || "").replace(/^theme\./, "");
+  const known = THEME_CODES.includes(code);
+  return known && (e.token || !/^(token|value)$/.test(code)) ? t(`themeErr.${code}`, { token: e.token || "" }) : e && e.error ? ts(e.error) : t("themeErr.invalid");
 }
 const MAX_THEME_FILE = 16384;
 
@@ -790,71 +779,70 @@ async function viewThemes() {
     TH.previewTheme(document.documentElement, draft().base, draft().tokens);
     const w = TH.contrastWarnings(draft().base, draft().tokens);
     warnBox.hidden = !w.length;
-    warnBox.replaceChildren(...w.map((x) => h("p", null, `▲ Low contrast: ${x.fg} on ${x.bg} is ${x.ratio.toFixed(1)}:1 (needs ${x.min}:1).`)));
+    warnBox.replaceChildren(...w.map((x) => h("p", null, "▲ " + t("theme.lowContrast", { fg: x.fg, bg: x.bg, ratio: R.fmtDecimal(x.ratio, 1), min: R.fmtDecimal(x.min, x.min % 1 ? 1 : 0) }))));
   };
   state.preview = refresh;
-  const paintRow = (t) => {
-    const r = rows[t], v = draft().tokens[t] || "";
+  const paintRow = (tok) => {
+    const r = rows[tok], v = draft().tokens[tok] || "";
     const ok = !v || TH.isValidValue(v);
-    r.msg.textContent = ok ? "" : "▲ Invalid value: use oklch(L C H) or #rrggbb.";
+    r.msg.textContent = ok ? "" : "▲ " + t("theme.invalidValue");
     if (ok) r.text.removeAttribute("aria-invalid"); else r.text.setAttribute("aria-invalid", "true");
-    r.text.setAttribute("placeholder", TH.BASES[draft().base][t]);
-    const shown = TH.toHex(ok && v ? v : TH.BASES[draft().base][t]) || "#000000";
-    r.color.value = shown;
+    r.text.setAttribute("placeholder", TH.BASES[draft().base][tok]);
+    r.color.value = TH.toHex(ok && v ? v : TH.BASES[draft().base][tok]) || "#000000";
   };
-  const tokenRow = (t) => {
-    const text = h("input", { type: "text", id: `tok-${t}`, value: draft().tokens[t] || "", "aria-describedby": `tok-${t}-msg`, autocomplete: "off", spellcheck: "false" });
-    const color = h("input", { type: "color", id: `tok-${t}-color`, "aria-label": `${t} color picker` });
-    const msg = h("span", { class: "tok-msg", id: `tok-${t}-msg` });
-    rows[t] = { text, color, msg };
-    text.addEventListener("input", () => { const v = text.value.trim(); if (v) draft().tokens[t] = v; else delete draft().tokens[t]; paintRow(t); refresh(); });
-    color.addEventListener("input", (e) => { text.value = e.target.value; draft().tokens[t] = String(e.target.value).toLowerCase(); paintRow(t); refresh(); });
-    return h("div", { class: "token-row" }, h("label", { for: `tok-${t}` }, t), color, text, msg);
+  const tokenRow = (tok) => {
+    const text = h("input", { type: "text", id: `tok-${tok}`, value: draft().tokens[tok] || "", "aria-describedby": `tok-${tok}-msg`, autocomplete: "off", spellcheck: "false" });
+    const color = h("input", { type: "color", id: `tok-${tok}-color`, "aria-label": t("theme.picker", { token: tok }) });
+    const msg = h("span", { class: "tok-msg", id: `tok-${tok}-msg` });
+    rows[tok] = { text, color, msg };
+    text.addEventListener("input", () => { const v = text.value.trim(); if (v) draft().tokens[tok] = v; else delete draft().tokens[tok]; paintRow(tok); refresh(); });
+    color.addEventListener("input", (e) => { text.value = e.target.value; draft().tokens[tok] = String(e.target.value).toLowerCase(); paintRow(tok); refresh(); });
+    return h("div", { class: "token-row" }, h("label", { for: `tok-${tok}` }, tok), color, text, msg);
   };
 
   const askConfirm = (text, yes, onYes) => {
-    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, "Go back");
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
     ok.addEventListener("click", onYes);
     no.addEventListener("click", () => paintForm());
-    return h("div", { class: "confirm", role: "group", "aria-label": "Confirm" }, h("p", null, text), h("div", { class: "actions" }, ok, no));
+    return h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, text), h("div", { class: "actions" }, ok, no));
   };
   const freeSlug = (base) => {
-    const taken = new Set(state.themes.map((t) => t.slug));
+    const taken = new Set(state.themes.map((th) => th.slug));
     if (!taken.has(base)) return base;
     for (let n = 2; ; n++) { const s = `${base.slice(0, 40 - String(n).length - 1).replace(/-+$/, "")}-${n}`; if (!taken.has(s)) return s; }
   };
   const saved = (data, note) => { state.themes = data.themes || []; paintPicker(); paintList(); say(h("p", { role: "status" }, note)); };
-  const failed = (res) => warn(themeMsg(res.data) || `Request failed (${res.status})`, h("p", null, R.settingsAdvice(res.status).text));
+  const failed = (res) => warn(res.data && (res.data.code || res.data.error) ? themeMsg(res.data) : t("common.requestFailed", { status: res.status }), h("p", null, t(R.settingsAdvice(res.status).key)));
 
   async function save() {
     const d = draft();
-    if (badTokens().length) return warn("Fix the highlighted values before saving.");
+    if (badTokens().length) return warn(t("theme.fixValues"));
     const v = TH.validateTheme({ name: d.name, base: d.base, tokens: d.tokens });
-    if (!v.ok) return warn("This theme cannot be saved yet.", h("ul", { class: "plain-list" }, v.errors.map((e) => h("li", null, themeMsg(e)))));
+    if (!v.ok) return warn(t("theme.cannotSave"), h("ul", { class: "plain-list" }, v.errors.map((e) => h("li", null, themeMsg(e)))));
     const slug = d.isNew ? freeSlug(TH.slugify(d.name)) : d.slug;
-    say(h("p", { role: "status", class: "muted" }, "Saving."));
+    say(h("p", { role: "status", class: "muted" }, t("common.saving")));
     let res;
     try { res = await postJson("/api/themes", { slug, ...v.theme }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
     if (!res.ok) return failed(res);
     d.slug = slug; d.isNew = false;
-    saved(res.data, "✓ Saved.");
+    saved(res.data, "✓ " + t("common.saved"));
     paintForm();
   }
   async function remove() {
     const d = draft();
-    say(h("p", { role: "status", class: "muted" }, "Deleting."));
+    say(h("p", { role: "status", class: "muted" }, t("theme.deleting")));
     let res;
     try { res = await postJson("/api/themes/delete", { slug: d.slug }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
     if (!res.ok) return failed(res);
     if (state.themeChoice === `custom:${d.slug}`) chooseTheme("system");
     state.themeDraft = null; state.preview = null;
     applyTheme();
-    saved(res.data, "✓ Deleted.");
+    saved(res.data, "✓ " + t("theme.deleted"));
     paintForm();
   }
   function exportTheme() {
     const d = draft();
-    const data = { name: d.name.trim() || "Untitled", base: d.base, tokens: validTokens() };
+    const data = { name: d.name.trim() || t("theme.untitled"), base: d.base, tokens: validTokens() };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + "\n"], { type: "application/json" }));
     const a = h("a", { href: url, download: `${d.slug || TH.slugify(d.name)}.json` });
     if (document.body) document.body.append(a);
@@ -865,59 +853,61 @@ async function viewThemes() {
   async function importFile(input) {
     const file = (input.files || [])[0];
     if (!file) return;
-    if (file.size > MAX_THEME_FILE) return warn("That file is too large for a theme (16 KB at most).");
+    if (file.size > MAX_THEME_FILE) return warn(t("theme.fileTooLarge"));
     let data;
-    try { data = JSON.parse(await file.text()); } catch (_) { return warn("The file could not be imported: it is not valid JSON."); }
+    try { data = JSON.parse(await file.text()); } catch (_) { return warn(t("theme.importNotJson")); }
     const v = TH.validateTheme(data);
     input.value = "";
-    if (!v.ok) return warn("The file could not be imported.", h("ul", { class: "plain-list" }, v.errors.map((e) => h("li", null, themeMsg(e)))));
+    if (!v.ok) return warn(t("theme.importFailed"), h("ul", { class: "plain-list" }, v.errors.map((e) => h("li", null, themeMsg(e)))));
     state.themeDraft = { slug: null, isNew: true, name: v.theme.name, base: v.theme.base, tokens: { ...v.theme.tokens } };
     paintForm();
-    say(h("p", { role: "status" }, "Imported. Review the theme, then choose Save theme to keep it."));
+    say(h("p", { role: "status" }, t("theme.imported")));
   }
 
   function paintForm() {
     for (const k of Object.keys(rows)) delete rows[k];
     const d = draft();
-    if (!d) { state.preview = null; applyTheme(); formBox.replaceChildren(h("p", { class: "muted" }, "Choose a theme to edit, create a new one, or import a file.")); return; }
+    if (!d) { state.preview = null; applyTheme(); formBox.replaceChildren(h("p", { class: "muted" }, t("theme.choose"))); return; }
     state.preview = refresh;
     const name = h("input", { type: "text", id: "theme-name", value: d.name, maxlength: "60", autocomplete: "off" });
     name.addEventListener("input", () => { d.name = name.value; });
-    const base = h("select", { id: "theme-base" }, h("option", { value: "light" }, "Light"), h("option", { value: "dark" }, "Dark"));
+    const base = h("select", { id: "theme-base" }, h("option", { value: "light" }, t("theme.light")), h("option", { value: "dark" }, t("theme.dark")));
     base.value = d.base;
-    base.addEventListener("change", (e) => { d.base = e.target.value === "dark" ? "dark" : "light"; for (const t of TH.TOKENS) paintRow(t); refresh(); });
+    base.addEventListener("change", (e) => { d.base = e.target.value === "dark" ? "dark" : "light"; for (const tok of TH.TOKENS) paintRow(tok); refresh(); });
     const btn = (label, fn, cls) => { const b = h("button", { type: "button", class: cls || false }, label); b.addEventListener("click", fn); return b; };
     const confirmBox = h("div", null);
-    formBox.replaceChildren(h("section", { class: "theme-form", "aria-label": "Theme editor" },
-      h("h2", null, d.isNew ? "New theme" : `Edit: ${d.name}`),
-      h("div", { class: "field" }, h("label", { for: "theme-name" }, "Name"), name),
-      h("div", { class: "field" }, h("label", { for: "theme-base" }, "Base"), base, h("span", { class: "muted" }, "Tokens left empty use the base theme.")),
+    formBox.replaceChildren(h("section", { class: "theme-form", "aria-label": t("theme.editorLabel") },
+      h("h2", null, d.isNew ? t("theme.new") : t("theme.edit", { name: d.name })),
+      h("div", { class: "field" }, h("label", { for: "theme-name" }, t("col.name")), name),
+      h("div", { class: "field" }, h("label", { for: "theme-base" }, t("theme.base")), base, h("span", { class: "muted" }, t("theme.emptyUsesBase"))),
       ...TH.TOKENS.map(tokenRow), warnBox,
-      h("div", { class: "actions" }, btn("Save theme", save, "primary"), btn("Export", exportTheme),
-        d.isNew ? null : btn("Delete theme", () => confirmBox.replaceChildren(askConfirm(`Delete the theme "${d.name}"? Its file is removed.`, "Yes, delete", remove))),
-        btn("Close editor", () => { state.themeDraft = null; paintForm(); })),
+      h("div", { class: "actions" }, btn(t("theme.save"), save, "primary"), btn(t("theme.export"), exportTheme),
+        d.isNew ? null : btn(t("theme.delete"), () => confirmBox.replaceChildren(askConfirm(t("theme.deleteConfirm", { name: d.name }), t("theme.deleteYes"), remove))),
+        btn(t("theme.close"), () => { state.themeDraft = null; paintForm(); })),
       confirmBox));
-    for (const t of TH.TOKENS) paintRow(t);
+    for (const tok of TH.TOKENS) paintRow(tok);
     refresh();
   }
   function paintList() {
     const input = h("input", { type: "file", id: "theme-import", accept: "application/json,.json" });
     input.addEventListener("change", () => importFile(input));
-    const create = h("button", { type: "button" }, "New theme");
+    const create = h("button", { type: "button" }, t("theme.newButton"));
     create.addEventListener("click", () => { state.themeDraft = { slug: null, isNew: true, name: "", base: "light", tokens: {} }; paintForm(); say(); });
+    const editButton = (th) => {
+      const b = h("button", { class: "row-link", type: "button", "data-edit": th.slug }, th.name);
+      b.addEventListener("click", () => { state.themeDraft = { slug: th.slug, isNew: false, name: th.name, base: th.base, tokens: { ...th.tokens } }; paintForm(); say(); });
+      return b;
+    };
     listBox.replaceChildren(
-      state.themes.length ? h("ul", { class: "items" }, state.themes.map((t) => t.error
-        ? h("li", null, h("code", null, t.slug), h("p", { class: "warn" }, `▲ Invalid, not applied: ${themeMsg(t)}`))
-        : h("li", null, (() => { const b = h("button", { class: "row-link", type: "button", "data-edit": t.slug }, t.name); b.addEventListener("click", () => { state.themeDraft = { slug: t.slug, isNew: false, name: t.name, base: t.base, tokens: { ...t.tokens } }; paintForm(); say(); }); return b; })(),
-          h("span", { class: "muted" }, ` ${t.base}${state.themeChoice === `custom:${t.slug}` ? ", in use" : ""}`))))
-        : h("p", { class: "muted" }, "No custom themes yet."),
-      h("div", { class: "actions" }, create, h("label", { for: "theme-import" }, "Import a theme file"), input));
+      state.themes.length ? h("ul", { class: "items" }, state.themes.map((th) => th.error
+        ? h("li", null, h("code", null, th.slug), h("p", { class: "warn" }, "▲ " + t("theme.invalidFile", { reason: themeMsg(th) })))
+        : h("li", null, editButton(th), h("span", { class: "muted" }, ` ${t(th.base === "dark" ? "theme.dark" : "theme.light")}${state.themeChoice === `custom:${th.slug}` ? ", " + t("theme.inUse") : ""}`))))
+        : h("p", { class: "muted" }, t("theme.noneYet")),
+      h("div", { class: "actions" }, create, h("label", { for: "theme-import" }, t("theme.import")), input));
   }
   paintList();
   paintForm();
-  root.append(h("h1", null, "Themes"),
-    h("p", { class: "muted" }, "System follows your device, Light and Dark are built in. A custom theme is a small JSON file (a name, a light or dark base, and colors) saved in the themes folder of the amauta state directory. Changes preview on this whole page while you edit; pick a theme from the top bar to use it."),
-    listBox, formBox, out);
+  root.append(h("h1", null, t("nav.themes")), h("p", { class: "muted" }, t("theme.intro")), listBox, formBox, out);
   return [root];
 }
 
@@ -929,66 +919,66 @@ function localDays(days) {
   return [...by.entries()].filter(([day]) => day !== "-").sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([day, items]) => ({ day, items: items.sort((a, b) => (String(a.ts) < String(b.ts) ? 1 : -1)) }));
 }
 function activityBlock(days) {
-  if (!days.length) return h("p", { class: "muted" }, "Memories saved, sessions and ODD document edits appear here, grouped by day.");
+  if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
   return h("div", null, localDays(days).map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
-    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${R.KINDS[i.kind] || i.kind} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))))));
+    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.what)}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))))));
 }
 function spendingBlock(sp) {
-  if (!sp.available) return h("p", { class: "muted" }, "Spending appears after the usage backfill: open Usage and choose Refresh usage.");
+  if (!sp.available) return h("p", { class: "muted" }, t("home.noSpending"));
   const by = Object.fromEntries(sp.windows.map((w) => [w.days, w]));
   const cols = sp.windows.map((w) => w.days);
   return h("div", null,
-    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Tokens"), cols.map((d) => h("th", { class: "n" }, `${d} days`)))),
+    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("home.tokens")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
       h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, label), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
-    h("p", null, `Cache hit ratio over ${cols[cols.length - 1]} days: `, h("strong", null, pct(sp.cache_hit_ratio))),
-    sp.top_models.length ? h("div", null, h("h3", null, "Top models"), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, ` ${short(m.tokens)} tokens`))))) : null,
-    h("p", null, link("usage", "", "Usage details")));
+    h("p", null, t("home.cacheRatio", { n: fmt(cols[cols.length - 1]) }) + " ", h("strong", null, pct(sp.cache_hit_ratio))),
+    sp.top_models.length ? h("div", null, h("h3", null, t("home.topModels")), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, " " + t("home.tokensN", { n: short(m.tokens) })))))) : null,
+    h("p", null, link("usage", "", t("home.usageDetails"))));
 }
 function healthBlock(hl) {
-  if (!hl.installed) return h("p", { class: "muted" }, "amauta is not installed (no state.json in the state directory).");
-  const rows = [["Version", hl.version || "-"], ["Hooks", fmt(hl.hooks)], ["MCP servers", fmt(hl.mcp_servers)], ["Skills", fmt(hl.skills)], ["Agents", fmt(hl.agents)], ["Telemetry", hl.telemetry ? "on" : "off"]];
-  return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", "Harness details")));
+  if (!hl.installed) return h("p", { class: "muted" }, t("harness.notInstalled"));
+  const rows = [[t("harness.version"), hl.version || "-"], [t("harness.hooks"), fmt(hl.hooks)], [t("nav.mcp"), fmt(hl.mcp_servers)], [t("nav.skill"), fmt(hl.skills)], [t("home.agents"), fmt(hl.agents)], [t("harness.telemetry"), hl.telemetry ? t("common.on") : t("common.off")]];
+  return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", t("home.harnessDetails"))));
 }
 function impactRankBlock(rk) {
   if (!rk || !rk.available) return null;
   const line = (r) => h("li", null, `${r.verdict === "better" ? "▼" : "▲"} `, link("skill", r.skill, r.skill),
-    h("span", { class: "muted" }, ` ${R.fmtDelta("error_rate", r.delta)} error rate, ${fmt(r.n)} calls, ${fmt(r.sessions)} sessions`));
+    h("span", { class: "muted" }, " " + t("home.rankLine", { delta: R.fmtDelta("error_rate", r.delta, words()), n: fmt(r.n), sessions: fmt(r.sessions) })));
   const list = (title, rows) => (rows.length ? h("div", null, h("h3", null, title), h("ul", { class: "refs" }, rows.map(line))) : null);
   const none = !rk.best.length && !rk.worst.length;
   return h("div", null,
-    none ? h("p", { class: "muted" }, `No skill has ${rk.min_sessions} or more sessions with and without it yet.`) : null,
-    list("Lower error rate after load", rk.best), list("Higher error rate after load", rk.worst),
-    h("p", { class: "muted" }, `${rk.ranked} of ${rk.tracked} skills have enough sessions (last ${rk.days} days). ${rk.note}`));
+    none ? h("p", { class: "muted" }, t("home.noRank", { n: fmt(rk.min_sessions) })) : null,
+    list(t("home.lowerError"), rk.best), list(t("home.higherError"), rk.worst),
+    h("p", { class: "muted" }, t("home.rankFoot", { ranked: fmt(rk.ranked), tracked: fmt(rk.tracked), days: fmt(rk.days) }) + " " + ts(rk.note)));
 }
 async function viewHome() {
   const hm = await api("wiki/home");
-  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Recent activity"), activityBlock(hm.activity)),
-    h("aside", { class: "rail", "aria-label": "Spending and harness" }, railBlock("Spending", spendingBlock(hm.spending)), railBlock("Skill impact", impactRankBlock(hm.impact)), railBlock("Harness health", healthBlock(hm.health))))];
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("home.title")), activityBlock(hm.activity)),
+    h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact)), railBlock(t("home.health"), healthBlock(hm.health))))];
 }
 // Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.
 function lintItem(it) {
   const people = Array.isArray(it.members) && it.members.length > 1
     ? h("ul", { class: "refs" }, it.members.map((m) => h("li", null, link(m.kind, m.id, m.title), m.topic_key ? h("span", { class: "muted" }, ` ${m.topic_key}`) : null)))
     : null;
-  return h("li", null, people ? h("span", null, "Group: ") : link(it.kind, it.id, it.title), it.detail ? h("span", { class: "muted" }, ` ${it.detail}`) : null, people);
+  return h("li", null, people ? h("span", null, t("lint.group") + " ") : link(it.kind, it.id, it.title), it.detail ? h("span", { class: "muted" }, ` ${ts(it.detail)}`) : null, people);
 }
 function lintCategory(c) {
-  return h("section", { class: "page-section lint-cat" }, h("h2", null, `${c.title} (${fmt(c.count)})`), h("p", { class: "muted" }, c.note),
-    c.items.length ? h("ul", { class: "items" }, c.items.map(lintItem)) : h("p", null, "Nothing to review."),
-    c.truncated ? h("p", { class: "muted" }, `Showing ${c.items.length} of ${fmt(c.count)}.`) : null);
+  return h("section", { class: "page-section lint-cat" }, h("h2", null, `${ts(c.title)} (${fmt(c.count)})`), h("p", { class: "muted" }, ts(c.note)),
+    c.items.length ? h("ul", { class: "items" }, c.items.map(lintItem)) : h("p", null, t("lint.nothing")),
+    c.truncated ? h("p", { class: "muted" }, t("lint.showing", { shown: fmt(c.items.length), total: fmt(c.count) })) : null);
 }
 async function viewLint() {
   const l = await api("wiki/lint");
   const sc = l.scanned || {};
-  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, "Lint"),
-    h("p", { class: "muted" }, `Read-only checks over ${fmt(sc.memories)} memories, installed skills and ODD documents${sc.capped ? " (only the newest memories were scanned)" : ""}. These are prompts to review, not errors.`),
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("nav.lint")),
+    h("p", { class: "muted" }, t("lint.intro", { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" })),
     l.categories.map(lintCategory)))];
 }
 async function viewUsagePage() { return [...(await viewOverview()), ...(await viewUsage())]; }
 
 async function renderRoute(route, changed) {
   const { kind, id } = route;
-  if (kind === "unknown") return [teach("Not a wiki page", `The address ${id} does not match any page.`)];
+  if (kind === "unknown") return [teach(t("route.notPage"), t("route.noMatch", { id }))];
   if (id && ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node"].includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
   const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
@@ -996,8 +986,8 @@ async function renderRoute(route, changed) {
 }
 
 function renderNav(route) {
-  $("nav").replaceChildren(...SECTIONS.map(([heading, items]) => h("section", { class: "nav-section" }, h("h2", null, heading),
-    h("ul", null, items.map(([k, label]) => h("li", null, link(k, "", label, { "aria-current": k === route.kind ? "page" : false })))))));
+  $("nav").replaceChildren(...SECTIONS.map(([heading, items]) => h("section", { class: "nav-section" }, h("h2", null, t(heading)),
+    h("ul", null, items.map(([k, label]) => h("li", null, link(k, "", t(label), { "aria-current": k === route.kind ? "page" : false })))))));
 }
 
 let renderSeq = 0;
@@ -1011,7 +1001,7 @@ async function render() {
   $("filters").hidden = !R.showsFilters(route);
   $("shell").setAttribute("data-nav", "closed");
   $("nav-toggle").setAttribute("aria-expanded", "false");
-  document.title = `${R.KINDS[route.kind] || "amauta"} - amauta`;
+  document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;
   if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }
   try {
     const nodes = await renderRoute(route, changed);
@@ -1020,7 +1010,7 @@ async function render() {
     state.shown = key;
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {
-    if (seq === renderSeq) { $("view").replaceChildren(panel("Error", h("p", { class: "warn" }, String(err.message || err)))); state.shown = key; }
+    if (seq === renderSeq) { $("view").replaceChildren(panel(t("common.error"), h("p", { class: "warn" }, String(err.message || err)))); state.shown = key; }
   } finally {
     if (seq === renderSeq) $("view").setAttribute("aria-busy", "false");
   }
@@ -1031,18 +1021,49 @@ async function loadRecent() {
   try {
     const r = await api("wiki/recent", { limit: 12 });
     box.replaceChildren(r.items.length
-      ? h("ul", { class: "refs" }, r.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${R.fmtDateTime(i.ts)}`))))
-      : h("p", { class: "muted" }, "Saved memories, sessions and ODD document edits appear here."));
-  } catch (_) { box.replaceChildren(h("p", { class: "muted" }, "Recent changes are unavailable.")); }
+      ? h("ul", { class: "refs" }, r.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.what)}, ${R.fmtDateTime(i.ts)}`))))
+      : h("p", { class: "muted" }, t("recent.empty")));
+  } catch (_) { box.replaceChildren(h("p", { class: "muted" }, t("recent.unavailable"))); }
 }
 
+function paintProjectSelect() {
+  const cur = $("project").value;
+  $("project").replaceChildren(h("option", { value: "" }, t("filters.allProjects")), ...state.projectNames.map((name) => h("option", { value: name }, name)));
+  $("project").value = cur;
+}
 async function loadProjects() {
   try {
     const s = await api("sessions", { days: 3650, limit: 1 });
-    const cur = $("project").value;
-    $("project").replaceChildren(h("option", { value: "" }, "All projects"), ...s.projects.map((p) => h("option", { value: p.project }, p.project)));
-    $("project").value = cur;
+    state.projectNames = s.projects.map((p) => p.project);
+    paintProjectSelect();
   } catch (_) { /* optional */ }
+}
+
+// ---- language: the static text of index.html is filled from the dictionary by id; everything else is built with t() when a route renders ----
+const STATIC_TEXT = [["skip", "chrome.skip"], ["recent-title", "chrome.recent"], ["recent-loading", "chrome.loading"], ["view-loading", "chrome.loading"], ["nav-toggle", "chrome.menu"], ["search-text", "chrome.search"],
+  ["range-label", "filters.range"], ["opt-7", "filters.d7"], ["opt-30", "filters.d30"], ["opt-90", "filters.d90"], ["opt-365", "filters.d365"], ["opt-3650", "filters.d3650"], ["opt-all-projects", "filters.allProjects"], ["project-label", "filters.project"],
+  ["refresh", "filters.refresh"], ["theme-label", "chrome.theme"], ["theme-edit", "chrome.editThemes"], ["lang-label", "chrome.language"], ["palette-hint", "palette.hint"]];
+const STATIC_ATTR = [["sidebar", "aria-label", "chrome.wiki"], ["filters", "aria-label", "chrome.filters"], ["prefs", "aria-label", "chrome.appearance"], ["palette", "aria-label", "chrome.search"],
+  ["palette-input", "placeholder", "palette.placeholder"], ["palette-input", "aria-label", "palette.label"], ["palette-results", "aria-label", "palette.results"]];
+function applyStatic() {
+  for (const [id, key] of STATIC_TEXT) { const el = $(id); if (el) el.textContent = t(key); }
+  for (const [id, attr, key] of STATIC_ATTR) { const el = $(id); if (el) el.setAttribute(attr, t(key)); }
+  $("lang-picker").value = I.lang();
+}
+// Everything a language change touches except the route itself: html lang, number locale, static text, pickers, the idle palette hint.
+function applyLanguage(lang) {
+  const chosen = I.setLang(lang);
+  R.setLocale(I.locale(chosen, I.browserLanguage()));
+  document.documentElement.setAttribute("lang", chosen);
+  applyStatic();
+  paintPicker();
+  paintProjectSelect();
+  if (!$("palette-input").value) $("palette-results").replaceChildren(h("p", { class: "muted" }, t("palette.hint")));
+}
+function setLanguage(lang) {
+  I.saveLang(I.storage(), I.setLang(lang));
+  applyLanguage(lang);
+  render(); // the current route is built again in the new language; no reload, no navigation
 }
 
 // ---- search palette (native <dialog>) ---------------------------------------------------------------------------
@@ -1073,17 +1094,19 @@ function goResult(index) {
   closePalette();
   location.hash = R.formatHash(item.kind, item.id);
 }
+// Search groups arrive named after their kind (memory, skill, ...): shown with the same labels as the pages.
+const groupLabel = (kind) => (`palette.group.${kind}` in I.dict.en ? t(`palette.group.${kind}`) : kind);
 function paintResults(groups, q) {
   const box = $("palette-results");
   palette.items = R.flattenResults(groups);
   palette.nodes = [];
-  if (!palette.items.length) { box.replaceChildren(h("p", { class: "muted" }, `No results for "${q}". Memories, skills, tools, sessions, ODD features and graph nodes are searched.`)); return; }
+  if (!palette.items.length) { box.replaceChildren(h("p", { class: "muted" }, t("palette.noResults", { q }))); return; }
   let flat = 0;
-  box.replaceChildren(...groups.map((g) => h("div", { class: "pal-group", role: "group", "aria-label": g.kind }, h("div", { class: "pal-head" }, `${g.kind} (${g.count})`),
+  box.replaceChildren(...groups.map((g) => h("div", { class: "pal-group", role: "group", "aria-label": groupLabel(g.kind) }, h("div", { class: "pal-head" }, `${groupLabel(g.kind)} (${fmt(g.count)})`),
     g.items.map((it) => {
       const i = flat++;
       const node = h("div", { role: "option", id: `pal-${i}`, class: "pal-item", "aria-selected": "false", onclick: () => goResult(i) },
-        h("span", { class: "pal-kind" }, g.kind), h("span", { class: "pal-title" }, it.title), it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
+        h("span", { class: "pal-kind" }, groupLabel(g.kind)), h("span", { class: "pal-title" }, it.title), it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
       palette.nodes.push(node);
       return node;
     }))));
@@ -1092,12 +1115,12 @@ function paintResults(groups, q) {
 async function runSearch() {
   const q = $("palette-input").value.trim();
   const seq = ++palette.seq;
-  if (!q) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "muted" }, "Type to search. Arrow keys move, Enter opens, Esc closes.")); return; }
+  if (!q) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "muted" }, t("palette.hint"))); return; }
   try {
     const r = await api("wiki/search", { q });
     if (seq === palette.seq) paintResults(r.groups, q);
   } catch (err) {
-    if (seq === palette.seq) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "warn" }, `Search failed: ${String(err.message || err)}`)); }
+    if (seq === palette.seq) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "warn" }, t("palette.failed", { reason: String(err.message || err) }))); }
   }
 }
 let searchTimer = null;
@@ -1121,20 +1144,22 @@ $("nav-toggle").addEventListener("click", () => {
   $("nav-toggle").setAttribute("aria-expanded", String(open));
 });
 $("refresh").addEventListener("click", async () => {
-  $("status").textContent = "Refreshing...";
+  $("status").textContent = t("refresh.running");
   try {
     const r = await fetch("/api/refresh", { method: "POST", headers: { "X-Portal-Token": token } });
     const b = await r.json();
-    $("status").textContent = r.ok ? `Done: ${b.messages} new message(s) from ${b.files} file(s).` : `Failed: ${b.error}`;
+    $("status").textContent = r.ok ? t("refresh.done", { messages: fmt(b.messages), files: fmt(b.files) }) : t("refresh.failed", { reason: ts(b.error) });
     await loadProjects();
     loadRecent();
     render();
-  } catch (err) { $("status").textContent = "Failed: " + err.message; }
+  } catch (err) { $("status").textContent = t("refresh.failed", { reason: err.message }); }
 });
 for (const id of ["days", "project"]) $(id).addEventListener("change", render);
 $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
+$("lang-picker").addEventListener("change", (e) => setLanguage(e.target.value));
 window.addEventListener("hashchange", () => { state.route = R.parseHash(location.hash); render(); });
 state.route = R.parseHash(location.hash);
+applyLanguage(I.loadLang(I.storage()) || I.detect(I.browserLanguage())); // a stored choice wins over the browser language
 applyTheme();
 paintPicker();
 if (state.route.kind !== "themes") loadThemes(); // the editor page loads them itself

@@ -237,7 +237,8 @@
   }
 
   // ---- DOM adapter -----------------------------------------------------------------------------------------------
-  // opts: known(kind, id) -> boolean (false marks a wikilink as missing), mermaid(source) -> Node, headingOffset (default 1: the page title is the h1).
+  // opts: known(kind, id) -> boolean (false marks a wikilink as missing), mermaid(source) -> Node, headingOffset (default 1: the page title is the h1),
+  // labels {missing(kind, id), table}: the two fixed texts this module shows (English when omitted), so the page can pass them translated.
   function toDom(tree, doc, opts = {}) {
     const el = (tag, attrs, ...kids) => {
       const node = doc.createElement(tag);
@@ -254,7 +255,7 @@
         case "strong": return el("strong", null, inline(n.children));
         case "link": return el("a", { href: n.href, class: n.href.startsWith("#/") ? null : "external", rel: n.href.startsWith("#/") ? null : "noopener noreferrer", target: n.href.startsWith("#/") ? null : "_blank" }, inline(n.children));
         case "wikilink": {
-          if (opts.known && opts.known(n.kind, n.id) === false) return el("span", { class: "wikilink missing", title: `No page yet for ${n.kind}: ${n.id}` }, text(n.label));
+          if (opts.known && opts.known(n.kind, n.id) === false) return el("span", { class: "wikilink missing", title: opts.labels && opts.labels.missing ? opts.labels.missing(n.kind, n.id) : `No page yet for ${n.kind}: ${n.id}` }, text(n.label));
           return el("a", { class: "wikilink", href: `#/${n.kind}/${encodeURIComponent(n.id)}` }, text(n.label));
         }
         default: return text("");
@@ -271,7 +272,7 @@
         case "list": return list(b);
         case "quote": return el("blockquote", null, b.children.map(block));
         case "hr": return el("hr");
-        case "table": return el("div", { class: "scroll", tabindex: "0", role: "region", "aria-label": "Table, scrollable" }, el("table", null,
+        case "table": return el("div", { class: "scroll", tabindex: "0", role: "region", "aria-label": (opts.labels && opts.labels.table) || "Table, scrollable" }, el("table", null,
           el("thead", null, el("tr", null, b.head.map((c, k) => el("th", { class: b.align[k] ? "al-" + b.align[k] : null }, inline(c))))),
           el("tbody", null, b.rows.map((r) => el("tr", null, r.map((c, k) => el("td", { class: b.align[k] ? "al-" + b.align[k] : null }, inline(c))))))));
         default: return null;

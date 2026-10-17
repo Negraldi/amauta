@@ -75,7 +75,7 @@ test('the right rail shows from 72rem up and collapses below it; the sidebar col
 // ---- keyboard ---------------------------------------------------------------------------------------------
 test('a skip link is the first focusable element and targets the focusable main region', () => {
   const body = html.slice(html.indexOf('<body>'));
-  assert.match(body, /^<body>\s*<a class="skip" href="#view">/);
+  assert.match(body, /^<body>\s*<a class="skip"[^>]*href="#view">/);
   assert.match(html, /<main id="view" tabindex="-1">/);
   assert.match(css, /\.skip:focus \{ top: /);
 });

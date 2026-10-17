@@ -17,7 +17,7 @@ from .api import Portal
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
 STATIC = Path(__file__).resolve().parent / "static"
 JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
-STATIC_FILES = {"app.js": JS, "theme.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
+STATIC_FILES = {"app.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
                 "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}

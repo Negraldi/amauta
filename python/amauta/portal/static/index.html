@@ -11,38 +11,40 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<a class="skip" href="#view">Skip to content</a>
+<a class="skip" id="skip" href="#view">Skip to content</a>
 <div class="shell" id="shell" data-nav="closed">
   <nav class="sidebar" id="sidebar" aria-label="Wiki">
     <a class="brand" href="#/">amauta</a>
     <div id="nav"></div>
     <section class="recent" aria-labelledby="recent-title">
       <h2 id="recent-title">Recent changes</h2>
-      <div id="recent"><p class="muted">Loading...</p></div>
+      <div id="recent"><p class="muted" id="recent-loading">Loading...</p></div>
     </section>
   </nav>
   <div class="main-col">
     <header class="topbar">
       <button id="nav-toggle" class="nav-toggle" type="button" aria-controls="sidebar" aria-expanded="false">Menu</button>
-      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /">Search the wiki <kbd>Ctrl K</kbd></button>
+      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /"><span id="search-text">Search the wiki</span> <kbd>Ctrl K</kbd></button>
       <div class="filters" id="filters" role="group" aria-label="Filters">
-        <label>Range <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option><option value="3650">All</option></select></label>
-        <label>Project <select id="project"><option value="">All projects</option></select></label>
+        <label><span id="range-label">Range</span> <select id="days"><option value="7" id="opt-7">7 days</option><option value="30" id="opt-30" selected>30 days</option><option value="90" id="opt-90">90 days</option><option value="365" id="opt-365">1 year</option><option value="3650" id="opt-3650">All</option></select></label>
+        <label><span id="project-label">Project</span> <select id="project"><option value="" id="opt-all-projects">All projects</option></select></label>
         <button id="refresh" type="button">Refresh usage</button>
         <span id="status" role="status"></span>
       </div>
-      <div class="prefs" role="group" aria-label="Appearance">
-        <label>Theme <select id="theme-picker"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      <div class="prefs" id="prefs" role="group" aria-label="Appearance">
+        <label><span id="theme-label">Theme</span> <select id="theme-picker"></select></label>
         <a id="theme-edit" href="#/themes">Edit themes</a>
+        <label><span id="lang-label">Language</span> <select id="lang-picker"><option value="en">English</option><option value="es">Español</option></select></label>
       </div>
     </header>
-    <main id="view" tabindex="-1"><p class="muted">Loading...</p></main>
+    <main id="view" tabindex="-1"><p class="muted" id="view-loading">Loading...</p></main>
   </div>
 </div>
 <dialog id="palette" class="palette" aria-label="Search the wiki">
   <input id="palette-input" type="search" placeholder="Search memories, skills, tools, sessions, features, nodes" aria-label="Search" aria-controls="palette-results" autocomplete="off" spellcheck="false">
-  <div id="palette-results" role="listbox" aria-label="Results"><p class="muted">Type to search. Arrow keys move, Enter opens, Esc closes.</p></div>
+  <div id="palette-results" role="listbox" aria-label="Results"><p class="muted" id="palette-hint">Type to search. Arrow keys move, Enter opens, Esc closes.</p></div>
 </dialog>
+<script src="/static/i18n.js"></script>
 <script src="/static/theme.js"></script>
 <script src="/static/markdown.js"></script>
 <script src="/static/wikiroute.js"></script>
