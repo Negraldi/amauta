@@ -111,3 +111,16 @@ class SessionPageTest(SkillBase):
 
     def test_sessions_without_saved_memories_have_no_empty_section(self):
         self.assertNotIn("Memories saved in this session", [s["heading"] for s in self.page("session", "s2")["sections"]])
+
+
+class NumberHintTest(SkillBase):
+    def test_meta_and_items_mark_real_numbers_so_the_ui_can_group_digits(self):
+        pg = self.page("skill", "work-unit-commits")
+        by = {m["label"]: m for m in pg["meta"]}
+        self.assertEqual(by["Calls"].get("fmt"), "number")
+        self.assertEqual(by["Sessions"].get("fmt"), "number")
+        self.assertNotIn("fmt", by["Installed"])
+        self.assertNotIn("fmt", by["Last used"])  # dates are recognised by shape, never hinted
+        tokens = next(s for s in pg["sections"] if s["heading"].startswith("Tokens"))
+        self.assertEqual(tokens["items"][0].get("fmt"), "number")
+        self.assertNotIn("fmt", tokens["items"][-1])

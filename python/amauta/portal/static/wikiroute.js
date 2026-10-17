@@ -28,6 +28,66 @@
     return id ? `#/${kind}/${encodeURIComponent(id)}` : `#/${kind}`;
   }
 
+
+  // ---- number and date formatting (one place, used by every page) ----------------------------------------------
+  // Numbers group thousands through Intl (the locale follows the UI language). Dates are ALWAYS YYYY-MM-DD; date-times are
+  // YYYY-MM-DD HH:MM on a 24h clock in the viewer's local time. Anything unusable shows "-", never a raw value.
+  let LOCALE = "en-US";
+  function setLocale(locale) {
+    try { LOCALE = new Intl.NumberFormat(String(locale)).resolvedOptions().locale; } catch (_) { /* keep the previous locale */ }
+    return LOCALE;
+  }
+  function fmtNumber(n) {
+    if (n == null || n === "" || typeof n === "boolean" || typeof n === "object") return "-";
+    const v = Number(n);
+    return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE).format(v) : "-";
+  }
+  const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const ISO_DT = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+  const p2 = (n) => String(n).padStart(2, "0");
+  function realDate(y, m, d) {
+    const t = new Date(Date.UTC(y, m - 1, d));
+    return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+  }
+  // The Date a value stands for, or null. A naive "YYYY-MM-DD HH:MM" is read as local time, like the browser does for the T form.
+  function toDate(v) {
+    if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+    if (typeof v === "number") { const d = new Date(v); return Number.isFinite(v) && !Number.isNaN(d.getTime()) ? d : null; }
+    if (typeof v !== "string") return null;
+    const m = ISO_DT.exec(v.trim());
+    if (!m || !realDate(+m[1], +m[2], +m[3]) || +m[4] > 23 || +m[5] > 59 || (m[6] && +m[6] > 59)) return null;
+    const d = new Date(v.trim().replace(" ", "T"));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function fmtDate(v) {
+    if (typeof v === "string") {
+      const m = ISO_DATE.exec(v.trim());
+      if (m) return realDate(+m[1], +m[2], +m[3]) ? v.trim() : "-"; // a calendar date has no time zone: never shifted
+    }
+    const d = toDate(v);
+    return d ? `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` : "-";
+  }
+  function fmtDateTime(v) {
+    if (typeof v === "string" && ISO_DATE.test(v.trim())) return fmtDate(v);
+    const d = toDate(v);
+    return d ? `${fmtDate(d)} ${p2(d.getHours())}:${p2(d.getMinutes())}` : "-";
+  }
+  // Rewrites a value only when the WHOLE string is an ISO date or date-time; every other value is returned untouched.
+  function fmtIso(v) {
+    if (typeof v !== "string") return v;
+    const t = v.trim();
+    if (ISO_DATE.test(t)) return fmtDate(t) === "-" ? v : fmtDate(t);
+    if (ISO_DT.test(t)) { const out = fmtDateTime(t); return out === "-" ? v : out; }
+    return v;
+  }
+  // A page-meta or section value: the server marks numbers with fmt "number"; ISO dates are recognised by shape.
+  function fmtMeta(m) {
+    const v = m && m.value;
+    return m && m.fmt === "number" ? fmtNumber(v) : fmtIso(v);
+  }
+  // One unbroken run of characters (path, id, hash): the only text allowed to break anywhere.
+  function isLongToken(v) { return typeof v === "string" && v.length >= 24 && !/\s/.test(v); }
+
   // Search groups -> one flat list (keyboard order) with a header marker before each group.
   function flattenResults(groups) {
     const flat = [];
@@ -122,5 +182,5 @@
     return { text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = { setLocale, fmtNumber, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
 })();

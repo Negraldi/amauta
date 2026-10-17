@@ -29,7 +29,7 @@ function svg(tag, attrs, ...kids) {
   for (const kid of kids.flat()) if (kid != null) el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
   return el;
 }
-const fmt = (n) => (n == null ? "-" : Number(n).toLocaleString("en-US"));
+const fmt = (n) => R.fmtNumber(n);
 const short = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n || 0));
 const pct = (r) => (r == null ? "-" : (r * 100).toFixed(1) + "%");
 
@@ -109,7 +109,7 @@ function table(id, columns, rows, onRow) {
     onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } },
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
   const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
-    c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : r[c.key] ?? "-"))));
+    c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : R.fmtIso(r[c.key]) ?? "-"))));
   return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": "Table, scrollable" }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
@@ -117,25 +117,25 @@ function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h
 
 function stackedChart(daily) {
   if (!daily.length) return empty("No usage in this range.");
-  const W = 720, H = 220, L = 44, B = 22, T = 8, R = 6;
+  const W = 720, H = 220, L = 44, B = 22, T = 8, PR = 6;
   const totals = daily.map((d) => KINDS.reduce((a, [k]) => a + (d[k] || 0), 0));
   const max = Math.max(...totals, 1);
-  const bw = (W - L - R) / daily.length;
+  const bw = (W - L - PR) / daily.length;
   const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Tokens per day" });
   for (const f of [0, 0.5, 1]) {
     const y = T + (H - T - B) * (1 - f);
-    root.append(svg("line", { x1: L, x2: W - R, y1: y, y2: y, class: "axis" }), svg("text", { x: L - 4, y: y + 4, "text-anchor": "end" }, short(max * f)));
+    root.append(svg("line", { x1: L, x2: W - PR, y1: y, y2: y, class: "axis" }), svg("text", { x: L - 4, y: y + 4, "text-anchor": "end" }, short(max * f)));
   }
   daily.forEach((d, i) => {
     let y = H - B;
-    const g = svg("g", null, svg("title", null, `${d.day}: ` + KINDS.map(([k, l]) => `${l} ${fmt(d[k])}`).join(", ")));
+    const g = svg("g", null, svg("title", null, `${R.fmtDate(d.day)}: ` + KINDS.map(([k, l]) => `${l} ${fmt(d[k])}`).join(", ")));
     for (const [k] of KINDS) {
       const hgt = ((d[k] || 0) / max) * (H - T - B);
       y -= hgt;
       if (hgt > 0) g.append(svg("rect", { x: L + i * bw + 1, y, width: Math.max(bw - 2, 1), height: hgt, class: `f-${k}` }));
     }
     root.append(g);
-    if (daily.length <= 12 || i % Math.ceil(daily.length / 8) === 0) root.append(svg("text", { x: L + i * bw + bw / 2, y: H - 6, "text-anchor": "middle" }, d.day.slice(5)));
+    if (daily.length <= 12 || i % Math.ceil(daily.length / 8) === 0) root.append(svg("text", { x: L + i * bw + bw / 2, y: H - 6, "text-anchor": "middle" }, R.fmtDate(d.day)));
   });
   return h("div", null, legend(), root);
 }
@@ -209,7 +209,7 @@ async function showMemory(source, id, into) {
   const m = await api("memory", { source, id });
   const hist = m.topic_key ? await api("memory/history", { source, topic_key: m.topic_key, project: m.project }) : { items: [] };
   into.replaceChildren(
-    h("h2", null, m.title), h("p", null, link("memory", m.id, "Open as wiki page")), h("div", { class: "muted" }, [m.type, m.project, m.topic_key, `rev ${m.revision}`, m.updated_at].filter(Boolean).join(" · ")),
+    h("h2", null, m.title), h("p", null, link("memory", m.id, "Open as wiki page")), h("div", { class: "muted" }, [m.type, m.project, m.topic_key, `rev ${m.revision}`, R.fmtIso(m.updated_at)].filter(Boolean).join(" · ")),
     h("pre", { class: "text" }, m.content), fences(m.content),
     hist.items.length > 1 || (hist.items[0] && hist.items[0].revision > 1) ? h("div", null, h("h2", null, "Topic history"), table("hist", [{ key: "id", label: "#", num: true }, { key: "revision", label: "Rev", num: true }, { key: "updated_at", label: "Updated" }, { key: "deleted_at", label: "Deleted" }], hist.items)) : null);
 }
@@ -271,8 +271,8 @@ function graphRepo(r) {
   }, list);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
-  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, `${fmt(r.nodes)} nodes, ${fmt(r.edges)} edges (mirrored ${r.synced_at}; graph.json ${r.graph_mtime}), ${fmt(r.sql_tables || 0)} SQL tables`),
-    h("p", { class: "muted" }, `Semantic pass pending: ${r.semantic_pending ? "yes" : "no"}. Last semantic run: ${r.semantic_at ? `${r.semantic_at} (${r.semantic_model || "unknown model"})` : "never"}`),
+  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, `${fmt(r.nodes)} nodes, ${fmt(r.edges)} edges (mirrored ${R.fmtDateTime(r.synced_at)}; graph.json ${R.fmtDateTime(r.graph_mtime)}), ${fmt(r.sql_tables || 0)} SQL tables`),
+    h("p", { class: "muted" }, `Semantic pass pending: ${r.semantic_pending ? "yes" : "no"}. Last semantic run: ${r.semantic_at ? `${R.fmtDateTime(r.semantic_at)} (${r.semantic_model || "unknown model"})` : "never"}`),
     h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, "Search graph")), list, near) };
 }
 
@@ -357,13 +357,13 @@ function railBlock(title, body) { return body ? h("section", { class: "rail-bloc
 function sectionBlock(s) {
   return h("section", { class: "page-section" }, h("h2", null, s.heading), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
     it.kind && it.id ? link(it.kind, it.id, it.label) : h("span", null, it.label),
-    it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${it.value}`)))));
+    it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${R.fmtMeta(it)}`)))));
 }
 
 function historyBlock(hist) {
   if (!hist) return null;
   if (!hist.available) return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note));
-  const revs = hist.revisions.map((r) => h("li", null, `Revision ${r.revision}`, r.title ? ` ${r.title}` : null, r.updated_at ? h("span", { class: "muted" }, ` ${r.updated_at}`) : null));
+  const revs = hist.revisions.map((r) => h("li", null, `Revision ${r.revision}`, r.title ? ` ${r.title}` : null, r.updated_at ? h("span", { class: "muted" }, ` ${R.fmtIso(r.updated_at)}`) : null));
   const diffs = hist.diffs.map((d) => h("details", null, h("summary", null, `Revision ${d.from} to ${d.to}`),
     h("div", { class: "diff", role: "group", "aria-label": `Changes from revision ${d.from} to ${d.to}` }, d.lines.map((ln) => { const r = R.diffRow(ln); return h("div", { class: `diff-line diff-${r.name}` }, r.mark + r.text); }))));
   return h("section", { class: "page-section" }, h("h2", null, "Revision history"), h("p", { class: "muted" }, hist.note), h("ul", { class: "items" }, revs), ...diffs);
@@ -377,10 +377,10 @@ function usageBlock(usage) {
   if (!total) return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, "No calls recorded yet."));
   const W = 360, H = 60;
   const bars = R.dailyBars(usage.daily, W, H);
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": `Calls per day over the ${usage.days} days up to ${last}` },
-    ...bars.map((b) => svg("g", null, svg("title", null, `${b.day}: ${b.value} calls`), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
-    svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, bars[0].day.slice(5)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, last.slice(5)));
-  return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, `${fmt(total)} calls in the ${usage.days} days up to ${last}.`), h("div", { class: "spark" }, root));
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": `Calls per day over the ${usage.days} days up to ${R.fmtDate(last)}` },
+    ...bars.map((b) => svg("g", null, svg("title", null, `${R.fmtDate(b.day)}: ${fmt(b.value)} calls`), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
+    svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, R.fmtDate(bars[0].day)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, R.fmtDate(last)));
+  return h("section", { class: "page-section" }, h("h2", null, "Usage over time"), h("p", { class: "muted" }, `${fmt(total)} calls in the ${usage.days} days up to ${R.fmtDate(last)}.`), h("div", { class: "spark" }, root));
 }
 
 // ODD feature: a progress bar with its number, state chips (shape plus label) and the commits the document mentions that git could resolve.
@@ -395,7 +395,7 @@ function progressBlock(pg) {
 
 function commitsBlock(commits) {
   if (!commits || !commits.length) return null;
-  return h("section", { class: "page-section" }, h("h2", null, "Commits"), h("ul", { class: "items" }, commits.map((c) => h("li", null, h("code", null, c.hash), ` ${c.subject}`, h("span", { class: "muted" }, ` ${String(c.date).slice(0, 10)}`)))));
+  return h("section", { class: "page-section" }, h("h2", null, "Commits"), h("ul", { class: "items" }, commits.map((c) => h("li", null, h("code", null, c.hash), ` ${c.subject}`, h("span", { class: "muted" }, ` ${R.fmtDate(c.date)}`)))));
 }
 
 // Graph node: the neighborhood diagram is drawn lazily (mermaid loads on first use) from source the server generated with every label escaped.
@@ -426,10 +426,10 @@ function impactRow(name, m) {
 }
 function changeItem(c) {
   const head = c.kind === "installed" ? `Installed version ${c.label}` : `Commit ${c.label}`;
-  const when = String(c.when || c.ts).slice(0, 10);
+  const when = R.fmtDate(c.when || c.ts);
   const lines = c.suppressed ? [h("p", { class: "muted" }, c.reason || "too few sessions")] : Object.entries(c.metrics).filter(([, m]) => m.delta != null).map(([name, m]) =>
     h("li", null, `${m.label}: ${R.fmtMetric(name, m.before)} to ${R.fmtMetric(name, m.after)} `, markSpan(m), h("span", { class: "muted" }, ` (n ${fmt(m.n_before)} before, ${fmt(m.n_after)} after)`)));
-  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, `, ${when}: ${c.before_sessions} sessions before, ${c.after_sessions} after`), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
+  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, `, ${when}: ${fmt(c.before_sessions)} sessions before, ${fmt(c.after_sessions)} after`), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
 }
 function impactBlock(im) {
   if (!im) return null;
@@ -447,7 +447,7 @@ function impactBlock(im) {
     h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, "Metric"), h("th", { class: "n" }, "After load"), h("th", { class: "n" }, "Baseline"), h("th", null, "Difference"), h("th", { class: "n" }, "n (calls or turns)"))), h("tbody", null, rows)),
     h("p", null, u.suppressed ? `Loaded but unused: ${u.n} loaded sessions, ${u.reason || "too few to show a share"}.` : `Loaded but unused: ${u.unused} of ${u.n} loaded sessions (${R.fmtMetric("rate", u.value)}) ended with no tool call after the load.`),
     h("h3", null, "Change log"),
-    ch.versions.length ? h("p", { class: "muted" }, "Installed versions (first seen): " + ch.versions.map((v) => `${v.hash}${v.current ? " (current)" : ""} ${String(v.first_seen).slice(0, 10)}`).join(", ")) : null,
+    ch.versions.length ? h("p", { class: "muted" }, "Installed versions (first seen): " + ch.versions.map((v) => `${v.hash}${v.current ? " (current)" : ""} ${R.fmtDate(v.first_seen)}`).join(", ")) : null,
     ch.changes.length ? h("ul", { class: "items" }, ch.changes.map(changeItem)) : h("p", { class: "muted" }, "No change recorded yet: a skill needs a second installed version or a git commit (a repository passed with --repo that holds it) to compare before and after."));
 }
 
@@ -469,7 +469,7 @@ async function viewWikiPage(kind, id) {
     throw err;
   }
   document.title = `${pg.title} - amauta`;
-  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => [h("dt", null, m.label), h("dd", null, m.value)])) : null;
+  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = R.fmtMeta(m); return [h("dt", null, m.label), h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
       h("p", { class: "kind" }, R.KINDS[pg.kind] || pg.kind), h("h1", null, pg.title), progressBlock(pg),
@@ -658,10 +658,16 @@ async function viewSettings() {
 }
 
 // Home: recent activity is the page; spending and harness health sit in the rail as plain text and a small table (no metric tiles).
+// The server groups by UTC day; the page regroups by the viewer's local day so a time and its heading always agree.
+function localDays(days) {
+  const by = new Map();
+  for (const d of days) for (const i of d.items) { const day = R.fmtDate(i.ts); if (!by.has(day)) by.set(day, []); by.get(day).push(i); }
+  return [...by.entries()].filter(([day]) => day !== "-").sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([day, items]) => ({ day, items: items.sort((a, b) => (String(a.ts) < String(b.ts) ? 1 : -1)) }));
+}
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, "Memories saved, sessions and ODD document edits appear here, grouped by day.");
-  return h("div", null, days.map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
-    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${R.KINDS[i.kind] || i.kind} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${String(i.ts).slice(11, 16) || "?"}`)))))));
+  return h("div", null, localDays(days).map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
+    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${R.KINDS[i.kind] || i.kind} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))))));
 }
 function spendingBlock(sp) {
   if (!sp.available) return h("p", { class: "muted" }, "Spending appears after the usage backfill: open Usage and choose Refresh usage.");
@@ -676,13 +682,13 @@ function spendingBlock(sp) {
 }
 function healthBlock(hl) {
   if (!hl.installed) return h("p", { class: "muted" }, "amauta is not installed (no state.json in the state directory).");
-  const rows = [["Version", hl.version || "-"], ["Hooks", hl.hooks], ["MCP servers", hl.mcp_servers], ["Skills", hl.skills], ["Agents", hl.agents], ["Telemetry", hl.telemetry ? "on" : "off"]];
+  const rows = [["Version", hl.version || "-"], ["Hooks", fmt(hl.hooks)], ["MCP servers", fmt(hl.mcp_servers)], ["Skills", fmt(hl.skills)], ["Agents", fmt(hl.agents)], ["Telemetry", hl.telemetry ? "on" : "off"]];
   return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", "Harness details")));
 }
 function impactRankBlock(rk) {
   if (!rk || !rk.available) return null;
   const line = (r) => h("li", null, `${r.verdict === "better" ? "▼" : "▲"} `, link("skill", r.skill, r.skill),
-    h("span", { class: "muted" }, ` ${R.fmtDelta("error_rate", r.delta)} error rate, ${fmt(r.n)} calls, ${r.sessions} sessions`));
+    h("span", { class: "muted" }, ` ${R.fmtDelta("error_rate", r.delta)} error rate, ${fmt(r.n)} calls, ${fmt(r.sessions)} sessions`));
   const list = (title, rows) => (rows.length ? h("div", null, h("h3", null, title), h("ul", { class: "refs" }, rows.map(line))) : null);
   const none = !rk.best.length && !rk.worst.length;
   return h("div", null,
@@ -760,7 +766,7 @@ async function loadRecent() {
   try {
     const r = await api("wiki/recent", { limit: 12 });
     box.replaceChildren(r.items.length
-      ? h("ul", { class: "refs" }, r.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${String(i.ts).slice(0, 10)}`))))
+      ? h("ul", { class: "refs" }, r.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${i.what}, ${R.fmtDateTime(i.ts)}`))))
       : h("p", { class: "muted" }, "Saved memories, sessions and ODD document edits appear here."));
   } catch (_) { box.replaceChildren(h("p", { class: "muted" }, "Recent changes are unavailable.")); }
 }

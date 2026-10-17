@@ -66,7 +66,7 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 .nav-toggle { display: none; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin-left: auto; }
 .filters[hidden] { display: none; }
-#view { overflow-wrap: anywhere; padding: var(--s5) var(--s5) var(--s7); outline: none; }
+#view { overflow-wrap: break-word; padding: var(--s5) var(--s5) var(--s7); outline: none; }
 
 /* ---- controls ---- */
 select, input, button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: var(--s1) var(--s2); transition: border-color var(--t) var(--ease), background-color var(--t) var(--ease); }
@@ -91,9 +91,10 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .rail { font-size: 0.875rem; color: var(--ink-muted); min-width: 0; }
 .rail-block { margin-bottom: var(--s5); }
 .rail-block h2 { font: 600 1rem var(--sans); color: var(--ink); margin: 0 0 var(--s2); }
-.meta { display: grid; grid-template-columns: max-content 1fr; gap: var(--s1) var(--s3); margin: 0; }
-.meta dt { color: var(--ink-muted); }
-.meta dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.meta { display: grid; grid-template-columns: minmax(5rem, 8rem) minmax(0, 1fr); gap: var(--s1) var(--s3); margin: 0; }
+.meta dt { color: var(--ink-muted); min-width: 0; }
+.meta dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 0; }
+.tok { overflow-wrap: anywhere; }
 .refs, .items { list-style: none; margin: 0; padding: 0; }
 .refs li, .items li { padding: var(--s1) 0; }
 .items li { border-bottom: 1px solid var(--line); padding: var(--s2) 0; }
@@ -147,6 +148,7 @@ th, td { text-align: left; padding: var(--s2) var(--s3); border-bottom: 1px soli
 thead th { position: sticky; top: 0; background: var(--surface); z-index: var(--z-dropdown); font-weight: 600; }
 th[data-key] { cursor: pointer; user-select: none; white-space: nowrap; }
 td.n, th.n { text-align: right; }
+td.n { white-space: nowrap; }
 svg { max-width: 100%; height: auto; display: block; }
 svg text { fill: var(--ink-muted); font-size: 11px; }
 .axis { stroke: var(--line); }

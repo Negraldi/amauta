@@ -32,7 +32,9 @@ project, user themes (light/dark/custom files, editable in the portal) and an En
   git roots from session working directories (existing dirs under `$HOME` only); `#/project` list and per-project pages
   with ODD features and progress, sessions, memories and graph status; Diagrams ODD per project; the launcher passes
   the configured repos; Settings can add/remove project paths (guarded write to `portal.json`). Graph empty state
-  explains how to populate it.
+  explains how to populate it. Remove the separate Diagrams page (user, 2026-10-16: it duplicates other pages):
+  architecture moves to the Harness page, ODD progress to project/feature pages, graph to node pages; `#/diagrams`
+  redirects to `#/harness`.
 - P5 Themes: picker in the top bar (System / Light / Dark / custom); custom theme files `~/.amauta/themes/*.json`
   (name, base light|dark, validated token values from DESIGN.md only); in-portal editor with color inputs and live
   preview that saves/imports/exports theme files through a guarded endpoint (slug names, confined dir, schema).
@@ -53,7 +55,7 @@ attribution in commits, strict TDD (`npm test`).
 - [ ] P1 Rail/meta layout and localized number/date formatting across pages.
 - [ ] P2 Skills wiki catalog and skill page summary; built-in skills handled.
 - [ ] P3 Memory rows open their wiki pages (own, Engram, file memories).
-- [ ] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state.
+- [ ] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed.
 - [ ] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export.
 - [ ] P6 English/Spanish UI switch.
 - [ ] P7 Docs, CHANGELOG, version 0.3.0, PR.
@@ -70,6 +72,8 @@ attribution in commits, strict TDD (`npm test`).
 ## Progress
 
 - 2026-10-16: plan written from the user's report; branch created from `v0.2.0`.
+- 2026-10-16: user asked to drop the Diagrams page; folded into P4 and sent to the running writer.
+- 2026-10-16: wiki for hooks/MCP/connectors/tools/agents/commands proposed as a separate v0.4.0 feature (awaiting user).
 
 ## Next step
 

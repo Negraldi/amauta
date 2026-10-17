@@ -10,6 +10,7 @@ import { runPortal } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
+process.env.TZ = 'UTC'; // date-times are shown in local time: pin it so the expectations are stable
 const XSS = '<img src=x onerror=alert(1)>';
 const tick = () => new Promise((r) => setTimeout(r, 20));
 
@@ -200,7 +201,7 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
   assert.match(view.textContent, /6 nodes, 4 edges/);
   assert.match(view.textContent, /2 SQL tables/);
   assert.match(view.textContent, /Semantic pass pending: yes/);
-  assert.match(view.textContent, /Last semantic run: 2026-10-12T08:00:00Z \(claude-haiku-5-5\)/);
+  assert.match(view.textContent, /Last semantic run: 2026-10-12 08:00 \(claude-haiku-5-5\)/);
   assert.match(view.textContent, /not mirrored|graphify update|<img/); // the unavailable repo shows its reason as text
   assert.ok(view.textContent.includes('src/a.py'), 'initial node list is loaded');
   env.calls.length = 0;

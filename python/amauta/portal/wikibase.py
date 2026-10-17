@@ -26,12 +26,20 @@ def _ref(kind, ident, title=None):
     return {"kind": kind, "id": str(ident), "title": str(title if title is not None else ident)}
 
 
+def _is_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
 def _meta(*pairs):
-    return [{"label": k, "value": str(v)} for k, v in pairs if v not in (None, "")]
+    """[{label, value, fmt?}]: `fmt: "number"` marks real numbers so the UI groups digits (ids and versions stay verbatim)."""
+    return [{"label": k, "value": str(v), **({"fmt": "number"} if _is_number(v) else {})} for k, v in pairs if v not in (None, "")]
 
 
 def _item(label, value=None, kind=None, ident=None):
-    return {"label": str(label), "value": None if value is None else str(value), "kind": kind, "id": None if ident is None else str(ident)}
+    out = {"label": str(label), "value": None if value is None else str(value), "kind": kind, "id": None if ident is None else str(ident)}
+    if _is_number(value):
+        out["fmt"] = "number"
+    return out
 
 
 def _blank(kind, ident, title, body=None):
