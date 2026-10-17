@@ -68,8 +68,11 @@ attribution in commits, strict TDD (`npm test`).
 - [x] P4 Projects: discovery, project pages, ODD per project, launcher repos, Settings project paths, graph empty state, Diagrams page removed. `a9278fa` `d090621` `1e08ff4` (delegated writer; npm test exit 0, node 510 / python 591, re-run by orchestrator).
 - [x] P5 Themes: picker, custom theme files, in-portal editor, guarded save/import/export. `ef0d28d` (server API + theme.js helpers; npm test exit 0, node 525 / python 609) `0c47f7f` (picker, editor, CSS; exit 0, node 548 / python 609). Route: delegated writer; strict TDD, RED seen first for each test file.
 - [x] P6 English/Spanish UI switch. `c814217` (single commit, about 2200 lines because of the dictionaries; npm test exit 0, node 581 / python 614). Route: delegated writer; strict TDD, RED seen first.
-- [ ] P8 Harness wiki: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output
-  styles; refresh and request-explanation flows.
+- [x] P8 Harness wiki: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output styles; refresh and
+  request-explanation flows. `b5466a6` (component discovery, masking, pages and catalog for hook/mcp/agent/command/plugin/outputstyle; exit 0, node 588 / python 651)
+  `f32a95c` (built-in tool catalog EN/ES, MCP tools, connectors; exit 0, node 591 / python 667) `c27cd3b` (refresh descriptions from local stdio servers;
+  exit 0, node 595 / python 686) `e313815` (explanation requests, notes, CLI, skill, stale-note lint; exit 0, node 604 / python 709). Route: delegated writer;
+  strict TDD, tests first for each commit (RED seen as import errors / 404 / missing keys before the code was wired).
 - [ ] P7 Docs, CHANGELOG, version 0.3.0, PR (last).
 
 ## Acceptance criteria
@@ -97,6 +100,17 @@ attribution in commits, strict TDD (`npm test`).
 - 2026-10-16: P6 done. `static/i18n.js` (en and es dictionaries, `t`, `tn`, `ts`). Server-provided chrome text stays English in Python and is translated by the client through an exact-text catalog (`srv`, `{x}` for variable parts; a Python test pins it against the strings in `python/amauta/portal`); user content is never translated. Switch re-renders the current route, sets `<html lang>`, persists in localStorage (safe fallback), default from `navigator.language`. Dates stay `YYYY-MM-DD`; numbers use the chosen locale. Also fixed a P4 defect found on the way: Settings > Projects passed `null` to `replaceChildren`, which a browser writes as the text "null".
 - Not translated on purpose: Mermaid/archify diagram labels and session titles built by the server (for example "unknown project", "N messages"), which are generated data.
 
+- 2026-10-17: P8 done. `#/component` catalog (139 components on the real Claude home: 19 hooks, 5 MCP servers, 41 MCP tools, 7 connectors, 34 built-in tools,
+  20 agents, 11 commands, 1 plugin, 1 output style) and a page per component with "What it does / When it runs" and the source of each fact. MCP configs show
+  type, command and masked arguments plus env and header NAMES only (`wikisecret.py`). `POST /api/harness/refresh` (same guard, closed schema, 1 KiB body)
+  starts configured command-based servers only, 10 s per server, process group killed, cache in `<state>/wiki/mcp-tools.json`; `POST /api/harness/explain`
+  queues `<state>/wiki/requests.jsonl`; shipped skill `amauta-wiki-explain` plus `python3 -P -m amauta.portal.wikiexplain list|write` write notes with the
+  source hash; lint flags stale or orphaned notes. Manual check on port 8791 with a temp state dir (copy of memory.db), real Claude home read-only: no env
+  value of any MCP server appears in any page, explain POST 403 without token and 200 with it (deduplicated), `list` then `write` then the page showing the
+  note, lint reports the note after its hash is changed. Refresh was exercised only against the fake server in tests, never the real config.
+- Behavior changes in existing tests (intentional): the tool, mcp and wiki-search tests now expect the harness `summary`, `explain`, `refresh` keys, the
+  `mcptool` links and the catalog tools in search; the lint test expects seven categories.
+
 ## Next step
 
-P8 harness wiki writer (after it, P7 docs, CHANGELOG, version 0.3.0 and the PR).
+P7: docs, CHANGELOG 0.3.0, version bump and the single PR to `main` (runs last).
