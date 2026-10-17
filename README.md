@@ -177,6 +177,9 @@ amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta 
 
 (`PYTHONPATH=python python3 -P -m amauta.portal ...` is the same server without the CLI wrapper.)
 
+Top bar: a theme picker (System, Light, Dark, your custom themes) and an English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`).
+Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true}`, also editable in Settings > Projects) and from the git roots of your sessions; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
+
 ### Routes
 
 | Route | Page |
@@ -193,6 +196,7 @@ amauta portal install-launcher [--remove]  # desktop entry; not part of `amauta 
 | `#/usage` | Token charts, model split, cache hit ratio, cost estimate (Range and Project filters live here) |
 | `#/harness` | Install state and architecture diagram (`#/diagrams` redirects here) |
 | `#/project[/name]` | Projects (`--repo`, `portal.json`, git roots of your sessions): ODD features with progress, sessions, memories, graph status |
+| `#/themes` | Theme editor: custom light/dark themes with live preview, contrast warnings, import and export |
 | `#/memfile/id` | A Claude file memory (`projects/*/memory/*.md`), read-only |
 | `#/lint` | Review candidates (see below) |
 | `#/settings` | Guarded settings editor (see below) |

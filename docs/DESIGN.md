@@ -35,6 +35,23 @@ series. Status never relies on color alone (always a label, icon or shape).
 | `--c-cache-read` | 0.62 0.11 165 | 0.80 0.10 165 | Data: cache read |
 | `--c-cache-write` | 0.58 0.13 300 | 0.76 0.10 300 | Data: cache write |
 
+### Themes
+
+The portal ships Light and Dark (the table above) and follows the system by default. A custom theme is one JSON file in `<state>/themes/<slug>.json`:
+
+```json
+{"name": "Night", "base": "dark", "tokens": {"bg": "#101010", "accent": "oklch(0.8 0.1 30)"}}
+```
+
+- Exactly `name` (1-60 characters), `base` (`light` or `dark`) and `tokens`; nothing else is accepted.
+- Allowed tokens are the 14 in the table above (`bg`, `surface`, `sidebar`, `ink`, `ink-muted`, `line`, `accent`, `accent-soft`, `warn`, `ok`, `c-input`, `c-output`, `c-cache-read`, `c-cache-write`). A token left out falls back to the base theme.
+- A value is `oklch(L C H)` (L 0-1, C 0-0.5, H 0-360) or `#rrggbb`, so no value can carry other CSS.
+- The editor warns in words, never blocking, when `ink` or `ink-muted` on the background is below 4.5:1 or `accent` is below 3:1 (the focus ring must stay visible). Diagram cards pin the light tokens because Mermaid always draws light.
+
+### Language
+
+English and Spanish apply to the portal chrome only (navigation, headings, labels, buttons, empty states, errors). Memories, `SKILL.md` and ODD documents are shown as written. Dates are always `YYYY-MM-DD` (date-times `YYYY-MM-DD HH:MM`, 24 h) in both languages and never break across lines; numbers are grouped with the separator of the chosen language.
+
 ## Typography
 
 - Reading serif: Source Serif 4 (OFL), Latin subset, vendored as woff2 (regular, italic, semibold), for page prose

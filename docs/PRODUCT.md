@@ -18,6 +18,10 @@ Jobs to be done, all equally frequent:
   revisions, graph memory nodes) and follow links between them.
 - Check harness health: what is installed (hooks, MCP servers, skills, agents), ODD task progress, and whether each
   skill is actually helping (skill-impact).
+- See all projects: every repository the harness works in, with its ODD features, sessions, memories and graph status
+  in one place, without passing flags.
+- Learn what each harness component does: every skill, hook, MCP server and tool, agent, command and plugin has a page
+  that says what it does and when it runs, so the owner does not have to read the files.
 - Configure: change a closed list of harness options (persona, review mode, telemetry, optional modules) without a
   terminal, with a preview before anything is written.
 
