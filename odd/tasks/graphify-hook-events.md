@@ -18,19 +18,19 @@ Locator: `odd/tasks/graphify-hook-events.md` (branch `feat/graphify-hook-events`
 
 - [x] E1 (inline, hook suite 38/38, npm test node 622 / python 731 green) install/uninstall manage the marked block in `post-commit`, `post-merge`, `post-rewrite` and `post-checkout`
   (the last one only acts on branch switches, `$3 = 1`); CLI output lists every file; README documents it.
-- [ ] E3 SessionStart hook `graphify-connect`: in a git repo that has `graphify-out/graph.json` but no amauta block,
+- [x] E3 (delegated writer, `8218f05`; RED 9/9 missing module, GREEN node 633 / python 731) SessionStart hook `graphify-connect`: in a git repo that has `graphify-out/graph.json` but no amauta block,
   install the event hooks and run one background refresh, so a future graphify project reaches the portal without a
   manual step. `uninstall` records an opt-out (`git config amauta.graphifyHook false`) that the auto-connect honours;
   an explicit `install` clears it. (User decision 2026-10-18: trigger on opening Claude.)
 - [x] E2 (inline; RED 38/39 confirmed by reverting the fix, then GREEN; uninstall hint test RED then GREEN) install removes graphify's own `# graphify-*hook-start` ... `# graphify-*hook-end` blocks from those four hooks
   (they rebuild the graph without mirroring it and race amauta's lock) and says so.
 
-- [ ] E4 Portal sync for every project: on a project page, a guarded "Sync graph now" action runs the same background
+- [x] E4 (delegated writer, `c372248` refresh module + `da5f186` portal API/UI; RED seen for refresh (import error), portal API (import error) and UI (6 of 19), GREEN node 639 / python 759) Portal sync for every project: on a project page, a guarded "Sync graph now" action runs the same background
   refresh as the hook (lock, `graphify update .`, `amauta.graph sync`) for any configured project, git or not; for a git
   project without the amauta block, a guarded "Connect" action installs the event hooks. The page shows the last sync
   time and whether the graph is older than the last commit. (User report 2026-10-18: non-git projects and repos
   without hooks never sync; taken over from the idle session.)
-- [ ] E5 Auto-discovery skips linked git worktrees of a known project (`~/amauta-dev` showed up as its own project
+- [x] E5 (delegated writer, `8f06140`; RED 2 failures + 1 error, GREEN node 639 / python 759) Auto-discovery skips linked git worktrees of a known project (`~/amauta-dev` showed up as its own project
   with a duplicate graph).
 
 ## Acceptance criteria
@@ -47,7 +47,7 @@ TDD: on (strict, CLAUDE.md). Runner: `node --test test/graphify-hook.test.js`, t
 
 ## Route
 
-E1-E3 inline: the context (hook.js, its tests) was already loaded in this session; one file plus its test.
+E1-E2 inline (E3-E5: delegated writer): the context (hook.js, its tests) was already loaded in this session; one file plus its test.
 
 ## Progress
 
@@ -57,6 +57,11 @@ E1-E3 inline: the context (hook.js, its tests) was already loaded in this sessio
 - 2026-10-18: worktree and branch created from `origin/main` (`1830ab5`); baseline hook suite 33/33.
 - 2026-10-18: E1 RED (3 of 4 new tests failing) then GREEN; user asked that future graphify projects connect on their own (E3).
 
+- 2026-10-18: E3-E5 implemented by one delegated writer. E3 reuses the hook block itself for the first refresh
+  (`sh -c <block>`, which backgrounds itself). E4 adds `amauta.graph.refresh` (lock + update + check-update + sync, git
+  or not; non-git lock is `graphify-out/.amauta-graphify.lock`), `graphsync.py` (staleness, guarded sync/connect) and the
+  project page buttons. E5 filters linked worktrees only in discovery.
+
 ## Next step
 
-E3, E4, E5 (one delegated writer).
+PR to main.
