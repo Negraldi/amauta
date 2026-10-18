@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from . import wikifeature, wikisess
+from . import graphsync
 from .api import has_table
 
 CONFIG_NAME = "portal.json"
@@ -252,7 +253,7 @@ def memory_count(portal, name):
         conn.close()
 
 
-def graph_status(portal, repo):
+def graph_status(portal, repo, detail=False):
     conn = portal._graph_conn()
     row = None
     if conn is not None:
@@ -261,8 +262,12 @@ def graph_status(portal, repo):
         finally:
             conn.close()
     if row is None:
-        return {"mirrored": False, "nodes": 0, "edges": 0, "synced_at": None, "howto": GRAPH_HOWTO}
-    return {"mirrored": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"]}
+        out = {"mirrored": False, "nodes": 0, "edges": 0, "synced_at": None, "howto": GRAPH_HOWTO}
+    else:
+        out = {"mirrored": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"]}
+    if detail:  # the project page: git facts cost a few git calls, so the list view skips them
+        out.update(graphsync.info(repo, out["synced_at"]))
+    return out
 
 
 def summary(portal, q=None):
