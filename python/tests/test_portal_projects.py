@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import threading
 from unittest import mock
 from pathlib import Path
@@ -326,3 +327,46 @@ class ProjectConfigWriteTest(ServerBase):
         before = self.saved()
         self.assertEqual(self.post({"repos": [str(self.home / "ghost")]})[0], 400)
         self.assertEqual(self.saved(), before)
+
+
+class LinkedWorktreeTest(ProjectBase):
+    def make_repo_with_worktree(self):
+        main = self.root / "main"
+        main.mkdir()
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+        def git(*args):
+            subprocess.run(["git", "-C", str(main), "-c", "user.email=a@b.c", "-c", "user.name=T", *args], check=True, capture_output=True, env=env)
+        git("init", "-q", ".")
+        (main / "f.txt").write_text("x")
+        git("add", "-A")
+        git("commit", "-q", "-m", "x")
+        wt = self.root / "main-dev"
+        git("worktree", "add", "-q", "-b", "dev", str(wt))
+        self.assertTrue((wt / ".git").is_file(), "a linked worktree has a .git file")
+        return main, wt
+
+    def test_a_linked_worktree_is_recognised_and_a_normal_repo_or_submodule_style_file_is_not(self):
+        main, wt = self.make_repo_with_worktree()
+        self.assertTrue(projects.is_linked_worktree(wt))
+        self.assertFalse(projects.is_linked_worktree(main))
+        sub = self.root / "sub"
+        sub.mkdir()
+        (sub / ".git").write_text("gitdir: ../.git/modules/sub\n")
+        self.assertFalse(projects.is_linked_worktree(sub))
+        junk = self.root / "junk"
+        junk.mkdir()
+        (junk / ".git").write_text("\x00\xff not a pointer")
+        self.assertFalse(projects.is_linked_worktree(junk))
+
+    def test_discovery_skips_the_worktree_but_keeps_its_main_repository(self):
+        main, wt = self.make_repo_with_worktree()
+        self.session("wt1", wt)
+        self.session("main1", main)
+        self.assertEqual(self.names(), ["repo", "main"])
+
+    def test_a_worktree_found_only_from_a_session_is_not_a_project_but_a_configured_one_is(self):
+        main, wt = self.make_repo_with_worktree()
+        self.session("wt1", wt)
+        self.assertEqual(self.names(), ["repo"])
+        (self.f["state"] / "portal.json").write_text(json.dumps({"repos": [str(wt)], "auto_discover": True}))
+        self.assertEqual(self.names(), ["repo", "main-dev"])
