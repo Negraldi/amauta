@@ -117,8 +117,9 @@ PYTHONPATH=python python3 -m amauta.memory import-engram --from ~/.engram/engram
   `.codegraph/` exists.
 - **graphify** (PyPI `graphifyy`, Apache-2.0): `graphify-out/graph.json` stays the source of truth.
   `amauta graphify hook install|uninstall [--cwd DIR] [--state-dir DIR]` manages a marked block in the repo's
-  `post-commit` hook (`# >>> amauta graphify >>>` ... `# <<< amauta graphify <<<`; other content is kept and
-  `core.hooksPath` is honoured). The block runs in a silent background subshell: `graphify update .` (only if `graphify`
+  `post-commit`, `post-merge`, `post-rewrite` and `post-checkout` hooks (`# >>> amauta graphify >>>` ... `# <<< amauta graphify <<<`; other content is kept and
+  `core.hooksPath` is honoured), so history that arrives by `pull`/`merge`, `rebase`/`commit --amend` or a branch switch
+  is mirrored too (`post-checkout` acts on branch switches only, never on `git checkout -- <file>`). The block runs in a silent background subshell: `graphify update .` (only if `graphify`
   is on `PATH`, with `GRAPHIFY_QUERY_LOG_DISABLE=1`), then `python3 -P -m amauta.graph sync --repo .`.
   A lock is taken over only when it is older than 15 minutes and its owner (pid file) is gone, with at most three attempts. The pid file also holds a start token (boot id and process start time from `/proc`), so a pid reused after SIGKILL or a reboot counts as gone; without `/proc` only `kill -0` decides;
   a trigger that finds the lock held leaves a `.pending` marker and re-tries the lock once, so a marker is never orphaned.

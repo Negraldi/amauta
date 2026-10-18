@@ -500,3 +500,77 @@ test('a clean check-update clears the pending flag, and a failing check-update l
   assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '0'), 'nothing pending any more');
   await t.cleanup();
 });
+
+const EVENT_HOOKS = ['post-commit', 'post-merge', 'post-rewrite', 'post-checkout'];
+const hookAt = (t, name) => path.join(t.repo, '.git', 'hooks', name);
+const syncedNodes = (t) => {
+  const r = spawnSync('python3', ['-P', '-c', `import sqlite3\nr=sqlite3.connect(${JSON.stringify(path.join(t.state, 'memory.db'))}).execute("select nodes from graph_sync").fetchone()\nprint(r[0] if r else '')`], { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : '';
+};
+const WRITE_GRAPH = `mkdir -p graphify-out\ncat > graphify-out/graph.json <<'JSON'\n${GRAPH}\nJSON`;
+
+test('install manages the block in post-commit, post-merge, post-rewrite and post-checkout', async () => {
+  const t = await sandbox();
+  const r = await installHook(t.opts());
+  assert.deepEqual(r.files, EVENT_HOOKS.map((n) => hookAt(t, n)));
+  for (const name of EVENT_HOOKS) {
+    const text = await readFile(hookAt(t, name), 'utf8');
+    assert.equal(text.split(BEGIN).length - 1, 1, name);
+    assert.ok(await executable(hookAt(t, name)), name);
+  }
+  assert.equal((await installHook(t.opts())).changed, false);
+  await t.cleanup();
+});
+
+test('uninstall restores every event hook: user content kept, files we created deleted', async () => {
+  const t = await sandbox();
+  const original = '#!/bin/sh\necho "user merge hook"\n';
+  await writeFile(hookAt(t, 'post-merge'), original);
+  await chmod(hookAt(t, 'post-merge'), 0o755);
+  await installHook(t.opts());
+  const r = await uninstallHook(t.opts());
+  assert.equal(r.changed, true);
+  assert.equal(await readFile(hookAt(t, 'post-merge'), 'utf8'), original);
+  for (const name of ['post-commit', 'post-rewrite', 'post-checkout']) await assert.rejects(stat(hookAt(t, name)), /ENOENT/, name);
+  await t.cleanup();
+});
+
+test('a fast-forward merge (no commit hook runs) refreshes and mirrors the graph', async () => {
+  const t = await sandbox({ graphify: WRITE_GRAPH });
+  await t.commit('base');
+  t.git('checkout', '-q', '-b', 'side');
+  await t.commit('on side');
+  t.git('checkout', '-q', '-');
+  await installHook(t.opts());
+  const m = t.git('merge', '-q', '--ff-only', 'side');
+  assert.equal(m.status, 0, m.stderr);
+  assert.equal(await waitFor(async () => syncedNodes(t) === '2'), true);
+  await t.cleanup();
+});
+
+test('post-checkout refreshes on a branch switch but not on a file checkout', async () => {
+  const t = await sandbox({ graphify: WRITE_GRAPH });
+  await writeFile(path.join(t.repo, 'tracked.txt'), 'v1');
+  t.git('add', '-A');
+  t.git('commit', '-q', '-m', 'base');
+  t.git('branch', 'other');
+  await installHook(t.opts());
+  await writeFile(path.join(t.repo, 'tracked.txt'), 'dirty');
+  assert.equal(t.git('checkout', '-q', '--', 'tracked.txt').status, 0);
+  await sleep(1500);
+  assert.deepEqual(await lines(t.log), [], 'a file checkout must not start graphify');
+  assert.equal(t.git('checkout', '-q', 'other').status, 0);
+  assert.ok(await waitFor(async () => (await lines(t.log)).some((l) => l.startsWith('args=update .'))));
+  await t.cleanup();
+});
+
+test('CLI: install and uninstall name every event hook', async () => {
+  const t = await sandbox();
+  const out = sink();
+  assert.equal(await main(['graphify', 'hook', 'install', '--cwd', t.repo, '--state-dir', t.state], { stdout: out, stderr: sink() }), 0);
+  for (const name of EVENT_HOOKS) assert.ok(out.text.includes(hookAt(t, name)), name);
+  const out2 = sink();
+  assert.equal(await main(['graphify', 'hook', 'uninstall', '--cwd', t.repo], { stdout: out2, stderr: sink() }), 0);
+  for (const name of EVENT_HOOKS) assert.ok(out2.text.includes(hookAt(t, name)), name);
+  await t.cleanup();
+});
