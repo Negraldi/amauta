@@ -62,6 +62,7 @@ HOOK_SUMMARIES = (
     ("amauta.usage hook", "amauta usage", "Imports the finished session's token, tool and skill usage from the Claude Code transcript into the local amauta usage database."),
     ("hook review-stop", "amauta review reminder", "When review mode is on, reminds Claude once per candidate commit to run the amauta review before stopping."),
     ("hook skill-registry", "amauta skill registry", "Refreshes the project's skill registry (.atl/skill-registry.md) when you submit a prompt, so delegated work sees current skills."),
+    ("hook graphify-connect", "amauta graphify connect", "Connects a git repository that has a graphify graph but no amauta git hooks (installs them and starts one background refresh), so its graph reaches the portal. Skips repositories that ran `amauta graphify hook uninstall`."),
     ("amauta.memory", "amauta memory", "Runs the amauta memory component."),
 )
 MCP_WHAT = "A Model Context Protocol server: Claude Code starts it or connects to it, and the tools it lists become available to Claude."

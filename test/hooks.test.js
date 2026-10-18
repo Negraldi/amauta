@@ -12,7 +12,7 @@ const run = (args, input = '{}', env = {}) =>
 const exists = (p) => stat(p).then(() => true, () => false);
 
 test('hooks fail open on malformed stdin, empty stdin and missing fields', () => {
-  for (const name of ['skill-registry', 'review-stop']) {
+  for (const name of ['skill-registry', 'review-stop', 'graphify-connect']) {
     for (const input of ['not json', '', '[]', '{}']) {
       const r = run(['hook', name], input);
       assert.equal(r.status, 0, `${name} <- ${JSON.stringify(input)}`);

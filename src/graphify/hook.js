@@ -85,12 +85,26 @@ export function hookBlock({ stateDir, event = 'post-commit' }) {
   ].join('\n');
 }
 
-async function hookFiles(cwd) {
+// Repo-local opt-out: `uninstall` sets it so the SessionStart auto-connect (connect.js) does not reinstall what the user removed;
+// an explicit `install` clears it.
+export const OPT_OUT_KEY = 'amauta.graphifyHook';
+
+async function hookLocation(cwd) {
   const root = await gitRepoRoot(cwd);
   if (!root) throw new Error(`not a git repository: ${cwd}`);
   const rel = (await gitOrNull(root, ['rev-parse', '--git-path', 'hooks']))?.trim();
   if (!rel) throw new Error('cannot locate the git hooks directory');
-  return EVENTS.map((event) => ({ event, file: path.join(path.resolve(root, rel), event) }));
+  return { root, hooks: EVENTS.map((event) => ({ event, file: path.join(path.resolve(root, rel), event) })) };
+}
+
+/** Git root, whether the repo opted out of the auto-connect, and whether any event hook already holds our block. Never throws on a non-repo (root null). */
+export async function hookStatus(cwd) {
+  let loc;
+  try { loc = await hookLocation(path.resolve(cwd)); } catch { return { root: null, optedOut: false, installed: false }; }
+  const optedOut = (await gitOrNull(loc.root, ['config', '--local', '--get', OPT_OUT_KEY]))?.trim() === 'false';
+  let installed = false;
+  for (const { file } of loc.hooks) if ((await readOrNull(file).catch(() => null))?.includes(BEGIN)) installed = true;
+  return { root: loc.root, optedOut, installed };
 }
 
 const readOrNull = (p) => readFile(p, 'utf8').then((t) => t, (err) => (err.code === 'ENOENT' ? null : Promise.reject(err)));
@@ -125,7 +139,7 @@ function nextHookText(file, original, block, warnings) {
 
 /** Every event hook is checked before any is written, so a refused hook leaves all of them untouched. */
 export async function installHook({ cwd = process.cwd(), stateDir } = {}) {
-  const hooks = await hookFiles(path.resolve(cwd));
+  const { root, hooks } = await hookLocation(path.resolve(cwd));
   const state = resolveTargets({ stateDir }).stateDir;
   const warnings = [];
   const plans = [];
@@ -141,12 +155,13 @@ export async function installHook({ cwd = process.cwd(), stateDir } = {}) {
     }
     if (((await stat(file)).mode & 0o111) === 0) warnings.push(`${file}: the hook file is not executable, so git ignores it (chmod +x)`);
   }
+  await gitOrNull(root, ['config', '--local', '--unset-all', OPT_OUT_KEY]); // exit 5 when it was never set: ignored
   const files = hooks.map((h) => h.file);
   return { file: files[0], files, changed, warnings };
 }
 
 export async function uninstallHook({ cwd = process.cwd() } = {}) {
-  const hooks = await hookFiles(path.resolve(cwd));
+  const { root, hooks } = await hookLocation(path.resolve(cwd));
   const removed = [];
   for (const { file } of hooks) {
     const existing = await readOrNull(file);
@@ -157,6 +172,7 @@ export async function uninstallHook({ cwd = process.cwd() } = {}) {
     else await writeFileAtomic(file, rest);
     removed.push(file);
   }
+  await gitOrNull(root, ['config', '--local', OPT_OUT_KEY, 'false']);
   const files = hooks.map((h) => h.file);
   return { file: files[0], files, removed, changed: removed.length > 0 };
 }

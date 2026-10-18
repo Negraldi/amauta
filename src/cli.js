@@ -29,7 +29,7 @@ export function helpText() {
 }
 
 commands.set('hook', {
-  summary: 'Hook entrypoint used by Claude Code (skill-registry, review-stop)',
+  summary: 'Hook entrypoint used by Claude Code (skill-registry, review-stop, graphify-connect)',
   run: (args, io) => runHook(args[0], io),
 });
 

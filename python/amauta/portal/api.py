@@ -581,7 +581,8 @@ _OBS_COLUMNS = {"id", "title", "content", "type", "project", "topic_key", "updat
 
 def _hook_kind(cmd: str) -> str:
     for kind, pat in (("telemetry", r"amauta\.telemetry"), ("usage", r"amauta\.usage"), ("skill-registry", r"amauta\.js\S*\s+hook\s+skill-registry"),
-                      ("review-stop", r"amauta\.js\S*\s+hook\s+review-stop")):
+                      ("review-stop", r"amauta\.js\S*\s+hook\s+review-stop"),
+                      ("graphify-connect", r"amauta\.js\S*\s+hook\s+graphify-connect")):
         if re.search(pat, cmd):
             return kind
     return "other"
