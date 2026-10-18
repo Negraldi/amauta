@@ -107,10 +107,16 @@ function blockBounds(text) {
   return { start, from, end };
 }
 
-function nextHookText(file, existing, block, warnings) {
-  if (existing === null) return `${SHEBANG}\n${block}`;
-  const first = existing.split('\n', 1)[0];
+// `graphify hook install` writes its own blocks (post-commit, post-checkout, post-merge). They rebuild graph.json without
+// mirroring it and outside our lock, so two rebuilds race on every commit: ours replaces them.
+const NATIVE_BLOCK = /^# graphify-(?:[a-z]+-)?hook-start\n[\s\S]*?^# graphify-(?:[a-z]+-)?hook-end[^\n]*(?:\n|$)/gm;
+
+function nextHookText(file, original, block, warnings) {
+  if (original === null) return `${SHEBANG}\n${block}`;
+  const first = original.split('\n', 1)[0];
   if (first.startsWith('#!') && !SHELL_SHEBANG.test(first)) throw new Error(`${file} is not a shell script (${first}); add the graphify step to it by hand`);
+  const existing = original.replace(NATIVE_BLOCK, '');
+  if (existing !== original) warnings.push(`${file}: removed graphify's own hook block (amauta's block runs \`graphify update .\` itself); \`graphify hook install\` would add it back`);
   const bounds = blockBounds(existing);
   if (bounds) return existing.slice(0, bounds.start) + block + existing.slice(bounds.end); // refresh our block in place
   if (/^\s*(exit|exec)\b/m.test(existing)) warnings.push(`${file}: the existing hook has a top-level exit/exec before our block, so the block may never run`);
@@ -174,6 +180,8 @@ async function run(args, io) {
     } else {
       const r = await uninstallHook(opts);
       io.stdout.write(r.changed ? `amauta: graphify hook block removed from:\n${r.removed.map((f) => `  ${f}\n`).join('')}` : 'amauta: no graphify hook block found\n');
+      // install replaces graphify's own hook blocks and cannot know their original text afterwards.
+      if (r.changed) io.stdout.write("  if you used graphify's own hooks, run `graphify hook install` to add them back\n");
     }
     return 0;
   } catch (err) {

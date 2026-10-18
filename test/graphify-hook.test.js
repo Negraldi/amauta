@@ -574,3 +574,31 @@ test('CLI: install and uninstall name every event hook', async () => {
   for (const name of EVENT_HOOKS) assert.ok(out2.text.includes(hookAt(t, name)), name);
   await t.cleanup();
 });
+
+test("install strips graphify's own hook blocks (they race our lock and never mirror) and keeps the rest", async () => {
+  const t = await sandbox();
+  const native = (kind) => `# graphify-${kind}hook-start\n# Installed by: graphify hook install\ngraphify update . &\n# graphify-${kind}hook-end\n`;
+  await writeFile(hookAt(t, 'post-commit'), `#!/bin/sh\necho "user line"\n${native('')}`);
+  await writeFile(hookAt(t, 'post-checkout'), `#!/bin/sh\n${native('checkout-')}`);
+  for (const n of ['post-commit', 'post-checkout']) await chmod(hookAt(t, n), 0o755);
+  const r = await installHook(t.opts());
+  for (const n of ['post-commit', 'post-checkout']) {
+    const text = await readFile(hookAt(t, n), 'utf8');
+    assert.doesNotMatch(text, /graphify-(checkout-)?hook-(start|end)/, n);
+    assert.equal(text.split(BEGIN).length - 1, 1, n);
+  }
+  assert.ok((await readFile(hookAt(t, 'post-commit'), 'utf8')).startsWith('#!/bin/sh\necho "user line"\n'));
+  assert.ok(r.warnings.some((w) => w.includes(hookAt(t, 'post-checkout')) && /graphify's own hook block/.test(w)));
+  await t.cleanup();
+});
+
+test("uninstall says how to restore graphify's own hooks when install had removed them", async () => {
+  const t = await sandbox();
+  await writeFile(hookAt(t, 'post-commit'), '#!/bin/sh\n# graphify-hook-start\ngraphify update . &\n# graphify-hook-end\n');
+  await chmod(hookAt(t, 'post-commit'), 0o755);
+  await installHook(t.opts());
+  const out = sink();
+  assert.equal(await main(['graphify', 'hook', 'uninstall', '--cwd', t.repo], { stdout: out, stderr: sink() }), 0);
+  assert.match(out.text, /graphify hook install/);
+  await t.cleanup();
+});
