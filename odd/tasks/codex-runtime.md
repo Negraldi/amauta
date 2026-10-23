@@ -52,7 +52,7 @@ partitions (Codex could not read Claude's memories); this design has no such spl
   (ingestion + schema), `167c6c5` (portal). Route: delegated writer. Schema: nullable-safe `runtime TEXT NOT NULL DEFAULT
   'claude'` on `usage_messages` and `events`, added by an idempotent ensure step in `connect()` independent of
   `user_version` (stays 7 on fresh DBs, 9 untouched on the user's DB). `npm test` exit 0: 719 Node + 784 Python.
-- [ ] K4 Switch the live machine: reinstall Claude from `~/amauta` (no path to `~/amauta-dev`), install Codex, retire
+- [x] K4 (user ran `amauta upgrade --to v0.4.0` and the Codex backfill; verified 2026-10-23: status claude 220/220 and codex 183/183 ok, no config mentions amauta-dev/dual/codex/graphify, skills in both runtimes are links into `~/.amauta/skills`, usage rows claude 7184 / codex 6631; Codex found Claude's memory #324 ("quipu") and Claude found Codex's #328 ("tambo"); worktrees removed, the abandoned dual-runtime doc and the partial R3a patch archived in `~/amauta-backups/archived-dual-runtime/`) Switch the live machine: reinstall Claude from `~/amauta` (no path to `~/amauta-dev`), install Codex, retire
   `~/amauta-dev` and `~/amauta-dual`; real check (Codex reads Claude's "quipu", Claude reads Codex's "chasqui").
 - [x] K5 Docs, CHANGELOG, v0.4.0. Commit `dda7fbf` (CHANGELOG 0.4.0, UPGRADING 0.3.1 -> 0.4.0, version in package.json and python/amauta/__init__.py; no test pinned the version). Route: delegated writer. `npm test` exit 0: 719 Node + 784 Python.
 - [x] K6 Runtime-agnostic repository for GitHub: description, README, PRODUCT, NOTICE say "Claude Code and Codex"; `AGENTS.md` is the
@@ -81,4 +81,4 @@ TDD on (strict). Runner `npm test` in `~/amauta-codex`.
 
 ## Next step
 
-K4 (switch the live machine) after the release PR for v0.4.0 is merged and tagged. Run `python3 -P -m amauta.usage backfill --runtime all` once after reinstalling to import existing Codex sessions.
+None: feature closed in v0.4.0.
