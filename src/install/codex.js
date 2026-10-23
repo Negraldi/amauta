@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
 import { mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
-import { readMcpServer, removeMcpServer, setMcpServer } from '../core/toml.js';
+import { mcpCore, readMcpServer, removeMcpServer, setMcpServer } from '../core/toml.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { createBackup, pruneEmptyDirs } from '../core/backup.js';
 import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
@@ -172,13 +172,13 @@ async function plan(opts) {
   const wanted = desiredCodexServers({ stateDir: t.stateDir, rea, context7, codegraph });
   const ours = (name) => {
     const cur = readMcpServer(toml, name).value;
-    return cur !== null && prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(cur, prev.mcp_added[name]);
+    return cur !== null && prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(mcpCore(cur), mcpCore(prev.mcp_added[name]));
   };
   const mcpAdded = {};
   for (const [name, value] of Object.entries(wanted)) {
     const cur = readMcpServer(toml, name);
     const old = cur.found && !ours(name) && isStaleAmautaServer(cur.value);
-    if (!cur.found || ours(name) || isDeepStrictEqual(cur.value, value) || old) {
+    if (!cur.found || ours(name) || isDeepStrictEqual(mcpCore(cur.value), mcpCore(value)) || old) {
       if (old) legacy.push(`mcp ${name}`);
       toml = setMcpServer(toml, name, value);
       mcpAdded[name] = value;
@@ -335,7 +335,7 @@ export async function uninstallCodex(opts = {}) {
     let toml = before;
     for (const [name, value] of Object.entries(state?.mcp_added ?? {})) {
       const cur = readMcpServer(toml, name);
-      if (cur.found && isDeepStrictEqual(cur.value, value)) toml = removeMcpServer(toml, name);
+      if (cur.found && isDeepStrictEqual(mcpCore(cur.value), mcpCore(value))) toml = removeMcpServer(toml, name);
       else if (cur.found && !isStaleAmautaServer(cur.value)) kept.push(`mcp:${name}`);
     }
     // Entries an older checkout or adapter left under amauta's names, whatever the install recorded.

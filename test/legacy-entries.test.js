@@ -177,3 +177,31 @@ test('a node_repl copy an earlier sync wrote to Claude is removed when untouched
     assert.equal(readMcpServer(await t.read('config.toml'), 'node_repl').found, true, 'the Codex original stays');
   }
 });
+
+// --- the real Codex-written shape (quoted names, .env and .tools.<tool> sub-tables) ---
+import { CODEX_SHAPE } from './helpers/codex-shape.js';
+
+test('Codex install replaces the Codex-written legacy amauta and amauta-memory entries, tools tables included', async () => {
+  const t = await codexSandbox({ 'config.toml': CODEX_SHAPE });
+  const r = await installCodex(t.opts());
+  const out = await t.read('config.toml');
+  assert.ok(r.legacy.includes('mcp amauta') && r.legacy.includes('mcp amauta-memory'), r.legacy.join('|'));
+  assert.ok(!r.skipped.some((s) => s.includes('mcp_servers.amauta')), r.skipped.join('|'));
+  assert.ok(!out.includes('amauta-dev') && !out.includes('amauta-memory'));
+  assert.ok(out.includes('[hooks.state]\n"/x/hooks.json:stop:0:0" = { trusted_hash = "sha256:ab" }'));
+  assert.ok(out.includes('[mcp_servers.node_repl.env]\nNODE_REPL_MODE = "1"'));
+  assert.ok(out.endsWith('[projects."/home/u/proj"]\ntrust_level = "trusted"\n') || out.includes('[projects."/home/u/proj"]\ntrust_level = "trusted"\n'));
+  assert.ok(out.startsWith('# user config\nmodel = "gpt-5"\n\n[hooks.state]'));
+  assert.ok(out.includes('approval_mode = "approve"'), 'the user tools table of amauta survives the rewrite');
+  assert.deepEqual(new Set(listMcpServers(out)).has('amauta-memory'), false);
+  assert.equal((await installCodex(t.opts())).changed, false);
+});
+
+test('Codex uninstall removes the Codex-written legacy entries with their sub-tables', async () => {
+  const t = await codexSandbox({ 'config.toml': CODEX_SHAPE });
+  await uninstallCodex(t.opts());
+  const out = await t.read('config.toml');
+  assert.deepEqual(listMcpServers(out), ['node_repl']);
+  assert.ok(!out.includes('approval_mode'));
+  assert.ok(out.includes('[projects."/home/u/proj"]'));
+});

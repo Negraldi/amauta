@@ -1,6 +1,7 @@
-// Conservative TOML support for ~/.codex/config.toml: read and write only `[mcp_servers.<name>]` tables (plus their
-// `.env` subtable) and keep every other byte of the file. This is not a TOML parser: values it cannot read (dates,
-// multi-line strings, nested arrays of tables) make an entry "foreign" (value null), which the installer never touches.
+// Conservative TOML support for ~/.codex/config.toml: read and write only `[mcp_servers.<name>]` tables (plus their `.env`
+// subtable; other dotted sub-tables such as `.tools.<tool>` are Codex-side config that is kept on rewrite and dropped
+// on remove) and keep every other byte of the file. Quoted names equal bare ones. This is not a TOML parser: values it
+// cannot read (dates, multi-line strings, nested arrays of tables) make an entry "foreign" (value null), which the installer never touches.
 import { isDeepStrictEqual } from 'node:util';
 
 const UNSUPPORTED = Symbol('unsupported');
@@ -241,11 +242,13 @@ export function readMcpServer(text, name) {
       return;
     }
     if (h.path[0] !== 'mcp_servers' || h.path[1] !== name) return;
-    ranges.push({ start: h.line, end: trimmedEnd(lines, h.line, to) });
-    if (h.array || h.path.length > 3 || (h.path.length === 3 && h.path[2] !== 'env')) {
+    const owned = !h.array && (h.path.length === 2 || (h.path.length === 3 && h.path[2] === 'env'));
+    ranges.push({ start: h.line, end: trimmedEnd(lines, h.line, to), owned, quoted: h.path.length === 2 && /["']/.test(lines[h.line]) });
+    if (h.array) {
       ok = false;
       return;
     }
+    if (!owned) return; // Codex-side sub-tables (`.tools.<tool>`, ...): kept as they are, not part of the value
     try {
       let target = value;
       if (h.path.length === 3) target = value.env ??= {};
@@ -257,6 +260,9 @@ export function readMcpServer(text, name) {
   });
   return { found: ranges.length > 0 || parent, value: ok && !parent && ranges.length > 0 ? value : null, ranges, parent };
 }
+
+/** The part of a server value amauta compares and owns: command, args and env (Codex-only keys are ignored). */
+export const mcpCore = (v) => (v === null || typeof v !== 'object' ? v : { command: v.command, ...(v.args !== undefined ? { args: v.args } : {}), ...(v.env !== undefined ? { env: v.env } : {}) });
 
 /** Names of the `[mcp_servers.<name>]` tables in a file (parent-table definitions excluded), in file order. */
 export function listMcpServers(text) {
@@ -270,19 +276,27 @@ export function listMcpServers(text) {
 function renderScalar(v) {
   if (typeof v === 'string') return quoteString(v);
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return `[${v.map(quoteString).join(', ')}]`;
+  if (Array.isArray(v)) {
+    const items = v.map(renderScalar);
+    return items.includes(null) ? null : `[${items.join(', ')}]`;
+  }
+  if (v !== null && typeof v === 'object') {
+    const items = Object.entries(v).map(([k, x]) => [k, renderScalar(x)]);
+    return items.some(([, x]) => x === null) ? null : `{ ${items.map(([k, x]) => `${quoteKey(k)} = ${x}`).join(', ')} }`;
+  }
   return null;
 }
 
-export function renderMcpServer(name, value) {
+export function renderMcpServer(name, value, { quoted = false } = {}) {
+  const key = quoted ? quoteString(name) : quoteKey(name);
   const { command, args, env, ...rest } = value;
   const unsupported = Object.keys(rest).filter((k) => renderScalar(rest[k]) === null);
   if (unsupported.length > 0) throw new Error(`cannot render unsupported MCP keys: ${unsupported.join(', ')}`);
-  const out = [`[mcp_servers.${quoteKey(name)}]`, `command = ${quoteString(command)}`];
+  const out = [`[mcp_servers.${key}]`, `command = ${quoteString(command)}`];
   if (args !== undefined) out.push(`args = [${args.map(quoteString).join(', ')}]`);
   for (const [k, v] of Object.entries(rest)) out.push(`${quoteKey(k)} = ${renderScalar(v)}`); // keys amauta does not own, kept as they were
   if (env && Object.keys(env).length > 0) {
-    out.push('', `[mcp_servers.${quoteKey(name)}.env]`);
+    out.push('', `[mcp_servers.${key}.env]`);
     for (const [k, v] of Object.entries(env)) out.push(`${quoteKey(k)} = ${quoteString(v)}`);
   }
   return `${out.join('\n')}\n`;
@@ -301,18 +315,21 @@ function removeRange(lines, { start, end }) {
 export function setMcpServer(text, name, value) {
   const r = readMcpServer(text, name);
   if (r.parent) throw new Error(`mcp_servers.${name} is defined through the [mcp_servers] parent table; not touching it`);
-  const block = renderMcpServer(name, value);
+  const own = r.ranges.filter((x) => x.owned);
+  const { command: _c, args: _a, env: _e, ...kept } = r.value ?? {}; // unknown keys of the user's table survive
+  const merged = { ...value, ...kept, ...Object.fromEntries(Object.entries(value).filter(([k]) => !['command', 'args', 'env'].includes(k))) };
+  const block = renderMcpServer(name, merged, { quoted: own[0]?.quoted ?? r.ranges[0]?.quoted });
   let out;
-  if (r.ranges.length === 0) {
+  if (own.length === 0) {
     out = text === '' ? block : `${text.endsWith('\n') ? text : `${text}\n`}\n${block}`;
   } else {
     const { lines, nl } = splitLines(text);
-    for (const range of r.ranges.slice(1).reverse()) removeRange(lines, range);
-    const first = r.ranges[0];
+    for (const range of own.slice(1).reverse()) removeRange(lines, range);
+    const first = own[0];
     lines.splice(first.start, first.end - first.start + 1, ...block.slice(0, -1).split('\n'));
     out = joinLines(lines, nl);
   }
-  if (!isDeepStrictEqual(readMcpServer(out, name).value, value)) throw new Error(`could not write mcp_servers.${name} reliably; config left unchanged`);
+  if (!isDeepStrictEqual(readMcpServer(out, name).value, merged)) throw new Error(`could not write mcp_servers.${name} reliably; config left unchanged`);
   return out;
 }
 
