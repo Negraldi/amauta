@@ -40,3 +40,23 @@ export function resolveCodexTargets(opts = {}, env = process.env, home = os.home
   );
   return { codexHome, codexSkillsDir, stateDir };
 }
+
+/**
+ * Where the Claude user config lives, for reading it from the Codex side (MCP servers and personal skills to mirror).
+ * Same rules as resolveTargets, except that a sandboxed Codex (custom Codex home that is not the default one) with no
+ * explicit Claude paths looks inside its own sandbox, so a test run can never read the real ~/.claude.json.
+ */
+export function resolveClaudeSource(opts = {}, env = process.env, home = os.homedir()) {
+  const explicit = opts.claudeHome ?? env.AMAUTA_CLAUDE_HOME;
+  const jsonExplicit = opts.claudeJson ?? env.AMAUTA_CLAUDE_JSON;
+  if (explicit !== undefined || jsonExplicit !== undefined) {
+    const t = resolveTargets(opts, env, home);
+    return { claudeHome: t.claudeHome, claudeJson: t.claudeJson };
+  }
+  const codexExplicit = opts.codexHome ?? env.AMAUTA_CODEX_HOME;
+  if (codexExplicit !== undefined && path.resolve(codexExplicit) !== path.join(home, '.codex')) {
+    const sandbox = path.resolve(codexExplicit);
+    return { claudeHome: path.join(sandbox, '.claude-source'), claudeJson: path.join(sandbox, '.claude-source.json') };
+  }
+  return { claudeHome: path.join(home, '.claude'), claudeJson: path.join(home, '.claude.json') };
+}

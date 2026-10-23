@@ -67,6 +67,7 @@ test('config.toml gets engram and amauta with the same command, args and env as 
   for (const name of ['engram', 'amauta']) {
     const { type, ...expected } = claude[name];
     assert.equal(type, 'stdio');
+    if (name === 'engram') expected.env = { ...expected.env, AMAUTA_RUNTIME: 'codex' }; // the only difference: the runtime tag
     assert.deepEqual(readMcpServer(toml, name).value, expected, name);
   }
   assert.equal(readMcpServer(toml, 'codegraph').found, false, 'codegraph is not on PATH');

@@ -6,7 +6,7 @@ import { mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { readMcpServer, removeMcpServer, setMcpServer } from '../core/toml.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { createBackup, pruneEmptyDirs } from '../core/backup.js';
-import { resolveCodexTargets } from './paths.js';
+import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
 import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText } from './assets.js';
 import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, renderSkillFile, safeManagedPath, sha256, statOrNull, toJson, isObject } from './installer.js';
 import { renderSddText } from './sdd.js';
@@ -35,12 +35,54 @@ export function desiredCodexHooks({ stateDir, telemetry }) {
   return Object.fromEntries(Object.entries(hooks).map(([event, entries]) => [event, entries.map((e) => ({ ...e, hooks: e.hooks.map((h) => ({ ...h, command: `${RUNTIME_ENV} ${h.command}` })) }))]));
 }
 
+const isMemoryServer = (v) => Array.isArray(v?.args) && v.args.includes('amauta.memory');
+
 /** The Claude MCP entries for Codex's TOML (no `type`: Codex infers stdio from `command`). Memory is always `engram`. */
 export function desiredCodexServers({ stateDir, rea, context7, codegraph }) {
   const { memory, ...rest } = desiredMcpServers({ stateDir, rea, context7 });
   if (!codegraph) delete rest.codegraph;
   const strip = ({ type: _type, ...value }) => value;
-  return Object.fromEntries(Object.entries({ engram: memory, ...rest }).map(([name, value]) => [name, strip(value)]));
+  const out = Object.fromEntries(Object.entries({ engram: memory, ...rest }).map(([name, value]) => [name, strip(value)]));
+  out.engram = { ...out.engram, env: { ...out.engram.env, AMAUTA_RUNTIME: 'codex' } };
+  return out;
+}
+
+/**
+ * Claude `mcpServers` -> what Codex's TOML can carry: stdio servers with command, args and env. `type` is dropped (Codex
+ * infers stdio from `command`). Anything else (http/sse, extra keys, odd shapes) is listed in `unsupported` with a reason
+ * that never contains a value. Our memory server is published as `engram` with the codex runtime tag, whatever key
+ * Claude registered it under (`amauta-memory` when the user already had another `engram` there).
+ */
+export function mirrorServers(claudeServers) {
+  const servers = {};
+  const unsupported = [];
+  const input = isObject(claudeServers) ? claudeServers : {};
+  for (const [name, raw] of Object.entries(input)) {
+    if (!isObject(raw)) {
+      unsupported.push({ name, reason: 'not an object' });
+      continue;
+    }
+    const { type, command, args, env, ...rest } = raw;
+    if ((type !== undefined && type !== 'stdio') || typeof command !== 'string') {
+      unsupported.push({ name, reason: `not a stdio server${type ? ` (${type})` : ''}` });
+    } else if (Object.keys(rest).length > 0) {
+      unsupported.push({ name, reason: `keys Codex config cannot take here: ${Object.keys(rest).join(', ')}` });
+    } else if (args !== undefined && !(Array.isArray(args) && args.every((a) => typeof a === 'string'))) {
+      unsupported.push({ name, reason: 'args are not a list of strings' });
+    } else if (env !== undefined && !(isObject(env) && Object.values(env).every((v) => typeof v === 'string'))) {
+      unsupported.push({ name, reason: 'env values are not strings' });
+    } else {
+      servers[name] = { command, ...(args !== undefined ? { args } : {}), ...(env !== undefined ? { env } : {}) };
+    }
+  }
+  const foreignEngram = 'engram' in input && !isMemoryServer(servers.engram);
+  for (const [name, value] of Object.entries(servers)) {
+    if (!isMemoryServer(value)) continue;
+    const key = name === 'engram' || foreignEngram ? name : 'engram';
+    delete servers[name];
+    servers[key] = { ...value, env: { ...value.env, AMAUTA_RUNTIME: 'codex' } };
+  }
+  return { servers, unsupported };
 }
 
 const posix = (rel) => rel.split(path.sep).join('/');
@@ -166,18 +208,29 @@ async function plan(opts) {
   const tomlBuf = await readOrNull(tomlFile);
   const tomlBefore = tomlBuf ? tomlBuf.toString('utf8') : '';
   let toml = tomlBefore;
-  const wanted = desiredCodexServers({ stateDir: t.stateDir, rea, context7, codegraph });
+  const mirrorMcp = opts.mirrorMcp !== false; // default on; --no-mirror-mcp is per run, not sticky
+  let mirror = { servers: {}, unsupported: [] };
+  if (mirrorMcp) {
+    const source = resolveClaudeSource(opts);
+    const claudeJson = await readJsonObject(source.claudeJson, '.claude.json').catch(() => ({ data: {} }));
+    mirror = mirrorServers(claudeJson.data.mcpServers);
+  }
+  const wanted = { ...desiredCodexServers({ stateDir: t.stateDir, rea, context7, codegraph }), ...mirror.servers };
   const ours = (name) => {
     const cur = readMcpServer(toml, name).value;
     return cur !== null && prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(cur, prev.mcp_added[name]);
   };
   const mcpAdded = {};
+  const differs = [];
   for (const [name, value] of Object.entries(wanted)) {
     const cur = readMcpServer(toml, name);
     if (!cur.found || ours(name) || isDeepStrictEqual(cur.value, value)) {
       toml = setMcpServer(toml, name, value);
       mcpAdded[name] = value;
-    } else skipped.push(`config.toml:mcp_servers.${name}`);
+    } else {
+      skipped.push(`config.toml:mcp_servers.${name}`);
+      if (name in mirror.servers) differs.push(name);
+    }
   }
   for (const name of Object.keys(prev?.mcp_added ?? {})) if (!(name in wanted) && ours(name)) toml = removeMcpServer(toml, name);
   if (!tomlBuf || toml !== tomlBefore) writes.push({ rel: 'config.toml', path: tomlFile, data: Buffer.from(toml, 'utf8') });
@@ -197,20 +250,23 @@ async function plan(opts) {
     rea,
     context7,
     mcp_added: mcpAdded,
+    mirror_mcp: mirrorMcp,
+    mcp_unsupported: mirror.unsupported.map((u) => u.name),
     created_files: created,
   });
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, makeState };
+  const mirrored = Object.keys(mirror.servers).filter((n) => n in mcpAdded);
+  return { t, prev, writes: real, removes, skipped, makeState, mirror: { enabled: mirrorMcp, mirrored, unsupported: mirror.unsupported, differs } };
 }
 
 export async function installCodex(opts = {}) {
-  const { t, prev, writes, removes, skipped, makeState } = await plan(opts);
+  const { t, prev, writes, removes, skipped, makeState, mirror } = await plan(opts);
   const files = writes.map((w) => w.rel);
   const removed = removes.map((r) => r.rel);
   const touches = writes.length > 0 || removes.length > 0;
-  if (opts.dryRun) return { dryRun: true, changed: touches, files, removed, skipped, backup: null };
+  if (opts.dryRun) return { dryRun: true, changed: touches, files, removed, skipped, backup: null, mirror };
 
   const statePath = stateFileOf(t.stateDir);
   let backup = null;
@@ -225,7 +281,7 @@ export async function installCodex(opts = {}) {
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
-  return { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, backup };
+  return { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, backup, mirror };
 }
 
 export async function uninstallCodex(opts = {}) {
@@ -332,7 +388,9 @@ export async function statusCodex(opts = {}) {
     else if (sha256(buf) !== hash) add(`skill ${rel}`, false, 'modified');
     else add(`skill ${rel}`, true);
   }
-  const notes = [{ name: 'hooks trust', ok: true, detail: 'Codex asks you to trust new or changed hooks in its own UI; amauta never writes [hooks.state]' }];
+  const notes = [];
+  if ((state.mcp_unsupported ?? []).length > 0) notes.push({ name: 'mcp not mirrored', ok: true, detail: `${state.mcp_unsupported.join(', ')} (Claude servers Codex config cannot take here: not stdio, or keys beyond command/args/env)` });
+  notes.push({ name: 'hooks trust', ok: true, detail: 'Codex asks you to trust new or changed hooks in its own UI; amauta never writes [hooks.state]' });
   return { installed: true, ok: items.every((i) => i.ok), items, notes, state };
 }
 

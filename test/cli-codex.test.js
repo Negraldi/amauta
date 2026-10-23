@@ -113,3 +113,21 @@ test('restore --backup restores Codex files; flags beat the environment', async 
   assert.ok(!(await exists(path.join(other, 'AGENTS.md'))));
   void readFile;
 });
+
+test('--no-mirror-mcp skips the other Claude MCP servers; the default mirrors them and prints names only', async () => {
+  const w = await world({ codexHome: true });
+  await mkdir(path.dirname(w.env.AMAUTA_CLAUDE_JSON), { recursive: true });
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(w.env.AMAUTA_CLAUDE_JSON, JSON.stringify({ mcpServers: { mine: { command: 'm', env: { K: 'topsecret' } }, remote: { type: 'http', url: 'https://x.invalid' } } }));
+  let r = run(['install', '--no-mirror-mcp'], w.env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(await readFile(w.codex('config.toml'), 'utf8'), /\[mcp_servers\.mine\]/);
+  r = run(['install'], w.env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(await readFile(w.codex('config.toml'), 'utf8'), /\[mcp_servers\.mine\]/);
+  assert.match(r.stdout, /mcp mirrored from Claude: .*mine/);
+  assert.match(r.stdout, /mcp not mirrored: remote/);
+  r = run(['status'], w.env);
+  assert.doesNotMatch(r.stdout, /topsecret/);
+  assert.match(r.stdout, /mcp not mirrored/);
+});

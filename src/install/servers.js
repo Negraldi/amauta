@@ -8,7 +8,8 @@ export const memoryServer = (stateDir) => ({
   type: 'stdio',
   command: 'python3',
   args: ['-P', '-m', 'amauta.memory', 'serve'],
-  env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir },
+  // AMAUTA_RUNTIME only labels where the server runs; memories are partitioned by project alone, never by runtime.
+  env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir, AMAUTA_RUNTIME: 'claude' },
 });
 
 /**
