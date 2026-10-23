@@ -109,12 +109,18 @@ function printInstallSummary(r, io, subject) {
   for (const s of r.skipped) io.stdout.write(`  kept your edited file (use --force to overwrite): ${s}\n`);
 }
 
+function printEngine(eng, io) {
+  if (eng?.engine === 'failed') {
+    io.stderr.write(`amauta: impeccable engine not installed: ${eng.detail}\n  the skill itself is installed (its bundled detector needs no npm); rerun \`amauta install\` to retry the engine\n`);
+  } else if (eng) io.stdout.write(`amauta: impeccable engine ${eng.version} ${eng.engine === 'would-install' ? 'would be installed with npm' : eng.engine}\n`);
+}
+
 async function runInstall(opts, io) {
   const { runtimes } = await selectRuntimes(opts);
   const multi = !(runtimes.length === 1 && runtimes[0] === 'claude');
   const r = runtimes.includes('claude') ? await install(opts) : null;
   const c = runtimes.includes('codex') ? await installCodex(opts) : null;
-  const failed = r?.impeccable?.engine === 'failed' ? 1 : 0;
+  const failed = (r?.impeccable ?? c?.impeccable)?.engine === 'failed' ? 1 : 0;
   if (opts.json) {
     io.stdout.write(`${JSON.stringify({ ...(r ?? {}), ...(c ? { codex: c } : {}) })}\n`);
     return failed;
@@ -122,15 +128,13 @@ async function runInstall(opts, io) {
   if (r) {
     header(io, 'claude', multi);
     printInstallSummary(r, io, '');
-    const eng = r.impeccable;
-    if (eng?.engine === 'failed') {
-      io.stderr.write(`amauta: impeccable engine not installed: ${eng.detail}\n  the skill itself is installed (its bundled detector needs no npm); rerun \`amauta install\` to retry the engine\n`);
-    } else if (eng) io.stdout.write(`amauta: impeccable engine ${eng.version} ${eng.engine === 'would-install' ? 'would be installed with npm' : eng.engine}\n`);
+    printEngine(r.impeccable, io);
   }
   if (c) {
     header(io, 'codex', multi);
     printInstallSummary(c, io, ' into Codex');
     printMcpSync(c.mirror, io);
+    if (!r) printEngine(c.impeccable, io); // one shared engine: reported once, under the first runtime that prepared it
   }
   return failed;
 }

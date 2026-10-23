@@ -14,6 +14,7 @@ import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections,
 import { applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
 import { desiredHooks, desiredMcpServers, isAmautaHook } from './servers.js';
 import { findOnPath } from '../codegraph/index.js';
+import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
 import { packageVersion } from '../version.js';
 
 export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
@@ -230,11 +231,11 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, makeState, linkPlan, managedNames: new Set(names), mirror };
+  return { t, prev, writes: real, removes, skipped, makeState, linkPlan, managedNames: new Set(names), mirror, impeccable, manifest };
 }
 
 export async function installCodex(opts = {}) {
-  const { t, prev, writes, removes, skipped, makeState, mirror, linkPlan, managedNames } = await plan(opts);
+  const { t, prev, writes, removes, skipped, makeState, mirror, linkPlan, managedNames, impeccable, manifest } = await plan(opts);
   const files = writes.map((w) => w.rel);
   const removed = removes.map((r) => r.rel);
   const touches = writes.length > 0 || removes.length > 0 || linkPlan.link.length > 0 || linkPlan.unlink.length > 0;
@@ -242,7 +243,12 @@ export async function installCodex(opts = {}) {
     const cs = resolveClaudeSource(opts);
     const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, dryRun: true, sides: [{ dir: path.join(cs.claudeHome, 'skills'), create: (await statOrNull(cs.claudeHome)) !== null }, { dir: t.codexSkillsDir }] });
     const pending = personal.linked.length > 0 || personal.removed.length > 0;
-    return { dryRun: true, changed: touches || pending, files: [...files, ...personal.linked.map((n) => `skills/${n} (link)`)], removed, skipped, backup: null, mirror, personal };
+    const dry = { dryRun: true, changed: touches || pending, files: [...files, ...personal.linked.map((n) => `skills/${n} (link)`)], removed, skipped, backup: null, mirror, personal };
+    if (impeccable) {
+      const wanted = manifest.impeccable?.engine.version;
+      dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
+    }
+    return dry;
   }
 
   const statePath = stateFileOf(t.stateDir);
@@ -263,7 +269,13 @@ export async function installCodex(opts = {}) {
   if (stateChanged) await writeFileAtomic(statePath, stateText);
   const recordText = toJson({ fingerprint: await sourceFingerprint(opts) }); // what the next SessionStart check compares with
   if (await needsWrite(syncRecordOf(t.stateDir), recordText)) await writeFileAtomic(syncRecordOf(t.stateDir), recordText);
-  return { dryRun: false, changed: touches || stateChanged || !prev || personal.linked.length > 0 || personal.removed.length > 0, files, removed, skipped, backup, mirror, personal };
+  const result = { dryRun: false, changed: touches || stateChanged || !prev || personal.linked.length > 0 || personal.removed.length > 0, files, removed, skipped, backup, mirror, personal };
+  if (impeccable) {
+    // The engine is one shared store: whichever runtime installs the module prepares it (after the state is written, so a failed run is retried).
+    result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: manifest.impeccable?.engine.version, searchPath: opts.searchPath });
+    if (result.impeccable.engine === 'installed') result.changed = true;
+  }
+  return result;
 }
 
 /** Re-sync Codex with the Claude side and the shared store: the same idempotent pass an install does, for an existing Codex install. */
@@ -352,6 +364,7 @@ export async function uninstallCodex(opts = {}) {
   await rmdir(storeDirOf(t.stateDir)).catch(() => {}); // the store goes with the last runtime that used it
   await removePersonalLinks({ stateDir: t.stateDir, skillsDir: t.codexSkillsDir });
   if (hadState) await rm(statePath, { force: true });
+  if (state?.impeccable === true && (await readJsonFile(path.join(t.stateDir, 'state.json')))?.impeccable !== true) await removeEngine(t.stateDir); // the engine goes with the last runtime that used it
   return { changed: true, backup, removed: [...writes.map((w) => w.path), ...deletes], kept };
 }
 

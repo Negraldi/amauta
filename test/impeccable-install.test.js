@@ -191,3 +191,34 @@ test('uninstall leaves a directory named impeccable alone when the option was ne
   assert.ok(existsSync(path.join(t.engine, 'mine.txt')));
   await t.cleanup();
 });
+
+test('a Codex-only install with --with-impeccable prepares the shared engine too, and Codex uninstall removes it', async () => {
+  const { installCodex, uninstallCodex } = await import('../src/install/codex.js');
+  const { codexSandbox } = await import('./helpers/codex.js');
+  const t = await sandbox();
+  const c = await codexSandbox();
+  const opts = { codexHome: c.codexHome, codexSkillsDir: c.skillsDir, stateDir: t.stateDir, searchPath: t.bin, claudeHome: t.claudeHome, claudeJson: t.claudeJson, withImpeccable: true };
+  const r = await installCodex(opts);
+  assert.equal(r.impeccable.engine, 'installed');
+  assert.deepEqual(await t.npmCalls(), [NPM_ARGS(t.engine).join(' ')]);
+  assert.ok(existsSync(t.cli));
+  const again = await installCodex(opts); // idempotent: the engine is already there
+  assert.equal(again.impeccable.engine, 'present');
+  assert.equal((await t.npmCalls()).length, 1);
+  await uninstallCodex(opts);
+  assert.ok(!existsSync(t.engine), 'engine removed with the last runtime that uses it');
+  await t.cleanup();
+});
+
+test('Codex uninstall keeps the engine while the Claude install still uses it', async () => {
+  const { installCodex, uninstallCodex } = await import('../src/install/codex.js');
+  const { codexSandbox } = await import('./helpers/codex.js');
+  const t = await sandbox();
+  const c = await codexSandbox();
+  await install(t.opts({ withImpeccable: true }));
+  const opts = { codexHome: c.codexHome, codexSkillsDir: c.skillsDir, stateDir: t.stateDir, searchPath: t.bin, claudeHome: t.claudeHome, claudeJson: t.claudeJson };
+  await installCodex(opts);
+  await uninstallCodex(opts);
+  assert.ok(existsSync(t.cli));
+  await t.cleanup();
+});

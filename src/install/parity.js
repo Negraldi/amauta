@@ -7,7 +7,10 @@ import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
 import { isAmautaHook } from './servers.js';
 
 /** Hook events Codex fires (the ones hooks.json can name). Claude events outside this set have no Codex counterpart. */
-export const CODEX_HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop'];
+export const CODEX_HOOK_EVENTS = [
+  'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop',
+  'SubagentStart', 'SubagentStop', 'PreCompact', 'PostCompact',
+];
 
 const text = (file) => readFile(file, 'utf8').catch(() => null);
 const json = async (file) => {

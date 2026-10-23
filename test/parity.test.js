@@ -25,13 +25,13 @@ async function world() {
   return t;
 }
 
-test('both runtimes in step: no differences; the only hook note is the Claude-only SubagentStop', async () => {
+test('both runtimes in step: no differences and no hook without a Codex event (SubagentStop exists in Codex)', async () => {
   const t = await world();
   const p = await computeParity(t.all());
   assert.equal(p.present, true);
   for (const k of ['mcp', 'skills', 'instructions']) assert.deepEqual([p[k].onlyClaude, p[k].onlyCodex], [[], []], k);
   assert.deepEqual(p.mcp.differs, []);
-  assert.deepEqual([...new Set(p.hooks.noCodexEvent.map((h) => h.event))], ['SubagentStop']);
+  assert.deepEqual(p.hooks.noCodexEvent, []);
   assert.deepEqual(p.hooks.missingInCodex, []);
 });
 
@@ -77,7 +77,7 @@ test('CLI: status prints a parity section and --json a parity key; the exit code
   let r = spawnSync(process.execPath, [bin, 'status'], { encoding: 'utf8', env: { ...process.env, ...t.env } });
   assert.match(r.stdout, /parity/);
   assert.match(r.stdout, /mcp only in Claude: cl/);
-  assert.match(r.stdout, /hook SubagentStop: no Codex event/);
+  assert.doesNotMatch(r.stdout, /hook SubagentStop: no Codex event/);
   r = spawnSync(process.execPath, [bin, 'status', '--json'], { encoding: 'utf8', env: { ...process.env, ...t.env } });
   const out = JSON.parse(r.stdout);
   assert.deepEqual(out.parity.mcp.onlyClaude, ['cl']);
