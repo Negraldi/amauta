@@ -49,7 +49,7 @@ const EXTRA_OK = (v) => ['string', 'number', 'boolean'].includes(typeof v) || (A
  *   toCodex / toClaude (added or changed), removedFromCodex / removedFromClaude, conflicts, unsupported ({name, reason}).
  */
 export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set(), exclude = [], internalPaths = [] }) {
-  const report = { toCodex: [], toClaude: [], removedFromCodex: [], removedFromClaude: [], conflicts: [], unsupported: [], excluded: [], removedExcluded: [], staleExcluded: [], unreadable: null };
+  const report = { toCodex: [], toClaude: [], removedFromCodex: [], removedFromClaude: [], conflicts: [], transport: [], unsupported: [], excluded: [], removedExcluded: [], staleExcluded: [], unreadable: null };
   const dirs = asDirs(internalPaths);
   const userExcluded = new Set(exclude);
   /** `{ runtime }` (runtime may be undefined) when the server is runtime-internal or listed by the user, else null. */
@@ -73,6 +73,7 @@ export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set
   }
   const servers = isObject(claudeData.mcpServers) ? { ...claudeData.mcpServers } : {};
   const claudeSide = new Map();
+  const claudeOther = new Set(); // present in Claude but not a stdio server Codex can take
   for (const [name, raw] of Object.entries(servers)) {
     if (managed.has(name)) continue;
     const r = stdioOf(raw);
@@ -81,10 +82,13 @@ export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set
       excludedClaude.set(name, { ...ex, raw, value: r.value });
       continue;
     }
-    if (r.reason) report.unsupported.push({ name, reason: r.reason });
-    else if (!isMemoryServer(r.value)) claudeSide.set(name, { value: r.value, raw });
+    if (r.reason) {
+      report.unsupported.push({ name, reason: r.reason });
+      claudeOther.add(name);
+    } else if (!isMemoryServer(r.value)) claudeSide.set(name, { value: r.value, raw });
   }
   const codexSide = new Map();
+  const codexOther = new Set();
   for (const name of listMcpServers(tomlText)) {
     if (managed.has(name)) continue;
     const { value } = readMcpServer(tomlText, name);
@@ -94,8 +98,10 @@ export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set
       excludedCodex.set(name, { ...ex, value: r.value, extras: r.extras });
       continue;
     }
-    if (r.reason) report.unsupported.push({ name, reason: `codex: ${r.reason}` });
-    else if (!isMemoryServer(r.value)) codexSide.set(name, { value: r.value, extras: r.extras });
+    if (r.reason) {
+      report.unsupported.push({ name, reason: `codex: ${r.reason}` });
+      codexOther.add(name);
+    } else if (!isMemoryServer(r.value)) codexSide.set(name, { value: r.value, extras: r.extras });
   }
   let toml = tomlText;
   let changedClaude = false;
@@ -129,6 +135,12 @@ export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set
   const names = new Set([...Object.keys(base), ...claudeSide.keys(), ...codexSide.keys()]);
   for (const name of [...names].sort()) {
     if (managed.has(name) || excludedClaude.has(name) || excludedCodex.has(name)) continue;
+    // Another transport on one side (e.g. HTTP in Codex, stdio in Claude): never converted, left alone on both sides.
+    if ((claudeSide.has(name) && codexOther.has(name)) || (codexSide.has(name) && claudeOther.has(name))) {
+      report.transport.push(name);
+      if (base[name] !== undefined) nextBase[name] = base[name];
+      continue;
+    }
     const c = claudeSide.get(name);
     const x = codexSide.get(name);
     const hc = c ? hashOf(c.value) : undefined;

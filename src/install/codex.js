@@ -48,6 +48,9 @@ export function desiredCodexServers({ stateDir, rea, context7, codegraph }) {
   return out;
 }
 
+/** Opt-in third-party servers whose command/args/env come from whichever runtime already has them. */
+const SHARED_SERVERS = ['rea', 'context7', 'codegraph'];
+
 const stateFileOf = (stateDir) => path.join(stateDir, 'codex-state.json');
 
 async function readCodexState(stateDir) {
@@ -175,8 +178,23 @@ async function plan(opts) {
     return cur !== null && prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(mcpCore(cur), mcpCore(prev.mcp_added[name]));
   };
   const mcpAdded = {};
+  // Opt-in third-party servers (rea, context7, codegraph) follow the entry the other runtime already has (command, args,
+  // env) through the normal two-way sync; the template applies only when neither runtime has one.
+  const claudeBuf = await readOrNull(resolveClaudeSource(opts).claudeJson);
+  let claudeNames = new Set();
+  try {
+    const parsed = JSON.parse(claudeBuf?.toString('utf8') ?? '{}');
+    if (isObject(parsed?.mcpServers)) claudeNames = new Set(Object.keys(parsed.mcpServers));
+  } catch {
+    claudeNames = new Set();
+  }
+  const oneWay = new Set(Object.keys(wanted).filter((n) => !SHARED_SERVERS.includes(n)));
   for (const [name, value] of Object.entries(wanted)) {
     const cur = readMcpServer(toml, name);
+    if (SHARED_SERVERS.includes(name)) {
+      if (claudeNames.has(name) || (cur.found && !ours(name))) continue; // an entry exists: the sync owns it
+      oneWay.add(name); // template-only so far: stays amauta's until a runtime gains its own entry
+    }
     const old = cur.found && !ours(name) && isStaleAmautaServer(cur.value);
     if (!cur.found || ours(name) || isDeepStrictEqual(mcpCore(cur.value), mcpCore(value)) || old) {
       if (old) legacy.push(`mcp ${name}`);
@@ -191,10 +209,9 @@ async function plan(opts) {
     legacy.push(`mcp ${name}`);
   }
   // Every other stdio server goes both ways between .claude.json and config.toml (3-way merge against the last synced set).
-  let mirror = { enabled: mirrorMcp, mirrored: [], toClaude: [], removed: [], conflicts: [], unsupported: [], excluded: [], staleExcluded: [], unreadable: null };
+  let mirror = { enabled: mirrorMcp, mirrored: [], toClaude: [], removed: [], conflicts: [], transport: [], unsupported: [], excluded: [], staleExcluded: [], unreadable: null };
   if (mirrorMcp) {
     const source = resolveClaudeSource(opts);
-    const claudeBuf = await readOrNull(source.claudeJson);
     const baseBuf = await readOrNull(baseFileOf(t.stateDir));
     let base = {};
     let exclude = []; // the user's own list: <state dir>/mcp-sync.json { "exclude": [...] }
@@ -207,10 +224,10 @@ async function plan(opts) {
     }
     const internalPaths = [{ path: '/usr/lib/chatgpt', runtime: 'codex' }, { path: '/opt/claude', runtime: 'claude' }, { path: t.codexHome, runtime: 'codex' }, { path: source.claudeHome, runtime: 'claude' }];
     if (claudeBuf !== null) {
-      const r = planMcpSync({ claudeText: claudeBuf.toString('utf8'), tomlText: toml, base, managed: new Set(Object.keys(wanted)), exclude, internalPaths });
+      const r = planMcpSync({ claudeText: claudeBuf.toString('utf8'), tomlText: toml, base, managed: oneWay, exclude, internalPaths });
       toml = r.toml;
       const rp = r.report;
-      mirror = { enabled: true, mirrored: rp.toCodex, toClaude: rp.toClaude, removed: [...rp.removedFromCodex.map((n) => `codex:${n}`), ...rp.removedFromClaude.map((n) => `claude:${n}`), ...rp.removedExcluded], excluded: rp.excluded, staleExcluded: rp.staleExcluded, conflicts: rp.conflicts, unsupported: rp.unsupported, unreadable: rp.unreadable };
+      mirror = { enabled: true, mirrored: rp.toCodex, toClaude: rp.toClaude, removed: [...rp.removedFromCodex.map((n) => `codex:${n}`), ...rp.removedFromClaude.map((n) => `claude:${n}`), ...rp.removedExcluded], excluded: rp.excluded, staleExcluded: rp.staleExcluded, conflicts: rp.conflicts, transport: rp.transport, unsupported: rp.unsupported, unreadable: rp.unreadable };
       if (r.claudeText !== null) writes.push({ rel: '.claude.json', path: source.claudeJson, data: Buffer.from(r.claudeText, 'utf8'), mode: 0o600 });
       if (r.base !== base || baseBuf === null) {
         const text = toJson({ schema: 'amauta.mcp-sync/v1', servers: r.base, ...(exclude.length > 0 ? { exclude } : {}) });

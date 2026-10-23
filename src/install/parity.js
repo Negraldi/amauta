@@ -65,11 +65,14 @@ export async function computeParity(opts = {}) {
   }
   const toml = (await text(path.join(t.codexHome, 'config.toml'))) ?? '';
   const codexMcp = new Map();
-  for (const name of listMcpServers(toml)) {
+  const codexAll = new Set(listMcpServers(toml));
+  for (const name of codexAll) {
     const r = stdioOf(readMcpServer(toml, name).value);
     if (r.value) codexMcp.set(name, r.value);
   }
-  const mcp = { ...diff([...claudeMcp.keys()].sort(), [...codexMcp.keys()].sort()), differs: [...claudeMcp.keys()].filter((n) => codexMcp.has(n) && comparable(claudeMcp.get(n)) !== comparable(codexMcp.get(n))).sort() };
+  // Present in both runtimes with a different transport (one is not stdio): informational, never compared as stdio.
+  const transport = [...new Set([...Object.keys(servers).filter((n) => !claudeMcp.has(n) && codexMcp.has(n)), ...[...claudeMcp.keys()].filter((n) => codexAll.has(n) && !codexMcp.has(n))])].sort();
+  const mcp = { ...diff([...claudeMcp.keys()].sort().filter((n) => !transport.includes(n)), [...codexMcp.keys()].sort().filter((n) => !transport.includes(n))), transport, differs: [...claudeMcp.keys()].filter((n) => codexMcp.has(n) && comparable(claudeMcp.get(n)) !== comparable(codexMcp.get(n))).sort() };
 
   const skills = diff(await skillNames(path.join(c.claudeHome, 'skills')), await skillNames(t.codexSkillsDir));
   const ids = async (file) => listSections((await text(file)) ?? '').map((s) => s.id).sort();
@@ -95,6 +98,7 @@ export function parityLines(p) {
     list(`${kind} only in Codex`, d.onlyCodex);
   }
   list('mcp different in the two runtimes', p.mcp.differs);
+  list('mcp different transport (informational)', p.mcp.transport ?? []);
   for (const h of p.hooks.noCodexEvent) out.push(`hook ${h.event}: no Codex event (${h.name})`);
   for (const h of p.hooks.missingInCodex) out.push(`hook ${h.event} ${h.name}: in Claude, missing in Codex`);
   return out;
