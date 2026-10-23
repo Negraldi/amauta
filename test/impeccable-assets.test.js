@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadManifest, assetPath, listFiles, readAssetText, repoRoot } from '../src/install/assets.js';
+import { tempDir } from './helpers/tmp.js';
 
 const DIR = 'skills/impeccable';
 const PLACEHOLDERS = new Set(['{{AMAUTA_IMPECCABLE_DIR}}', '{{AMAUTA_IMPECCABLE_CLI}}']);
@@ -60,7 +61,7 @@ test('the vendored boot script never polls the network for skill updates', async
   const { mkdtemp, rm } = await import('node:fs/promises');
   const os = await import('node:os');
   const script = process.env.IMPECCABLE_TEST_CONTEXT_SCRIPT ?? assetPath(`${DIR}/scripts/context.mjs`);
-  const home = await mkdtemp(path.join(os.tmpdir(), 'gl-imp-ctx-'));
+  const home = await tempDir('gl-imp-ctx-');
   let hits = 0;
   const server = createServer((req, res) => { hits += 1; res.setHeader('content-type', 'application/json'); res.end('{"skills":"99.0.0"}'); });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

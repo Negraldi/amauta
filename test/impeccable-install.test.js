@@ -7,13 +7,14 @@ import path from 'node:path';
 import { install, uninstall, status } from '../src/install/installer.js';
 import { main } from '../src/cli.js';
 import { assetPath } from '../src/install/assets.js';
+import { tempDir } from './helpers/tmp.js';
 
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
 const NPM_ARGS = (prefix) => ['install', '--prefix', prefix, 'impeccable@3.6.1', '--omit=optional', '--ignore-scripts', '--no-audit', '--no-fund'];
 
 /** Temp HOME-less sandbox with a fake `npm` that records its calls and fakes the package layout; never any network. */
 async function sandbox({ npm = 'ok', version = '3.6.1' } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-imp-'));
+  const root = await tempDir('gl-imp-');
   const t = { root, claudeHome: path.join(root, 'home', '.claude'), claudeJson: path.join(root, 'home', 'claude.json'), stateDir: path.join(root, 'state'), bin: path.join(root, 'bin') };
   await mkdir(t.claudeHome, { recursive: true });
   await mkdir(t.bin);
