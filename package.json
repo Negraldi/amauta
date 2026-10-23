@@ -1,7 +1,8 @@
 {
   "name": "amauta",
-  "version": "0.3.1",
-  "description": "A small Node/Python harness for Claude Code, modelled on gentle-ai.",
+  "version": "0.4.0",
+  "description": "A small Node/Python harness for Claude Code and Codex, modelled on gentle-ai.",
+  "keywords": ["claude-code", "codex", "harness", "mcp", "agents", "memory"],
   "type": "module",
   "license": "MIT",
   "bin": {

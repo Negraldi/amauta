@@ -8,7 +8,8 @@ export const memoryServer = (stateDir) => ({
   type: 'stdio',
   command: 'python3',
   args: ['-P', '-m', 'amauta.memory', 'serve'],
-  env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir },
+  // AMAUTA_RUNTIME only labels where the server runs; memories are partitioned by project alone, never by runtime.
+  env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir, AMAUTA_RUNTIME: 'claude' },
 });
 
 /**
@@ -33,7 +34,7 @@ export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.
 
 /** True for any hook command amauta registered (absolute `node .../amauta.js hook X` or legacy `amauta ...`). */
 export const isAmautaHook = (command) =>
-  /amauta\.js['"]?\s+hook\s/.test(command) || command.startsWith('amauta ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
+  /(^|[\s/'"])amauta\.js['"]?\s+hook(\s|$)/.test(command) || /(^|\s)-m\s+amauta\.[a-z_]+(\s|$)/.test(command) || command.startsWith('amauta ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
   /amauta\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
 const hook = (name, timeout) => ({
@@ -86,7 +87,7 @@ export const sddPreflightCommand = () => {
 export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
   const hooks = {
     UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry', 10)] }],
-    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30), hook('graphify-connect', 10)] }],
+    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30), hook('graphify-connect', 10), hook('sync-check', 10)] }],
     Stop: [{ matcher: '', hooks: [hook('review-stop', 60)] }],
   };
   if (telemetry) {
@@ -95,4 +96,45 @@ export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) 
   }
   if (sdd) (hooks.PreToolUse ??= []).push({ matcher: 'Agent', hooks: [{ type: 'command', command: sddPreflightCommand(), timeout: 30 }] });
   return hooks;
+}
+
+/**
+ * True for an MCP server entry that runs one of amauta's own servers, from any checkout: `.../src/mcp/server.js`
+ * (only under an `amauta*` path or with AMAUTA_* env, so an unrelated project's server.js is never claimed) or
+ * `-m amauta.memory`. Used to replace entries an older checkout or an earlier adapter left behind.
+ */
+export function isAmautaServer(value) {
+  if (value === null || typeof value !== 'object' || !Array.isArray(value.args)) return false;
+  const args = value.args.filter((a) => typeof a === 'string');
+  const mod = args.indexOf('amauta.memory');
+  if (mod > 0 && args[mod - 1] === '-m') return true;
+  const hasAmautaEnv = Object.keys(value.env ?? {}).some((k) => k.startsWith('AMAUTA_'));
+  return args.some((a) => /(^|[\\/])src[\\/]mcp[\\/]server\.js$/.test(a) && (/amauta/i.test(a) || hasAmautaEnv));
+}
+
+/** Names an older checkout or adapter registered for amauta's own servers; entries under them that run amauta are ours. */
+export const AMAUTA_SERVER_NAMES = ['amauta', 'engram', 'amauta-memory'];
+/** `amauta-memory` is a retired alias: the memory server is `engram`. */
+export const LEGACY_SERVER_ALIASES = ['amauta-memory'];
+
+/** Report lines (`hook <Event>: <command>`) for amauta hooks in a hooks object that are not in `wantedCommands`. */
+export function staleAmautaHooks(settings, wantedCommands) {
+  const out = [];
+  const hooks = settings?.hooks;
+  if (hooks === null || typeof hooks !== 'object') return out;
+  for (const [event, entries] of Object.entries(hooks)) {
+    if (!Array.isArray(entries)) continue;
+    for (const e of entries) for (const h of Array.isArray(e?.hooks) ? e.hooks : []) if (typeof h?.command === 'string' && isAmautaHook(h.command) && !wantedCommands.has(h.command)) out.push(`hook ${event}: ${h.command}`);
+  }
+  return out;
+}
+
+/**
+ * An amauta server entry that points at another checkout (the server script or PYTHONPATH is not this one's).
+ * An entry that points here but was edited is the user's and is never "stale".
+ */
+export function isStaleAmautaServer(value) {
+  if (!isAmautaServer(value)) return false;
+  const here = (value.args ?? []).includes(path.join(repoRoot, 'src', 'mcp', 'server.js')) || value.env?.PYTHONPATH === PYTHON_PATH;
+  return !here;
 }

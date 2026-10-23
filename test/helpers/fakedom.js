@@ -41,7 +41,7 @@ export function makeEnv(routes) {
     querySelector: (sel) => (sel.includes('portal-token') ? token : null),
     getElementById: (id) => { if (!byId.has(id)) { const e = new Element('div'); e.id = id; byId.set(id, e); } return byId.get(id); },
   };
-  for (const id of ['days', 'project']) { const e = document.getElementById(id); e.value = id === 'days' ? '30' : ''; }
+  for (const id of ['days', 'project', 'runtime']) { const e = document.getElementById(id); e.value = id === 'days' ? '30' : ''; }
   const calls = [];
   const fetch = async (url, opts = {}) => {
     calls.push({ url, opts });

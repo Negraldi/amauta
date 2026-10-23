@@ -34,7 +34,7 @@ const memoryEntry = (t) => ({
   type: 'stdio',
   command: 'python3',
   args: ['-P', '-m', 'amauta.memory', 'serve'],
-  env: { PYTHONPATH: path.join(repo, 'python'), AMAUTA_STATE_DIR: t.stateDir },
+  env: { PYTHONPATH: path.join(repo, 'python'), AMAUTA_STATE_DIR: t.stateDir, AMAUTA_RUNTIME: 'claude' },
 });
 const telemetryCommands = (settings) =>
   Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /amauta\.telemetry hook/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));

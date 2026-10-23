@@ -1,4 +1,4 @@
-"""Stop/SubagentStop hook: ingest the transcripts named in the payload. Never fails, never prints."""
+"""Stop/SubagentStop hook: ingest the transcripts named in the payload (Claude transcripts, or Codex rollouts when AMAUTA_RUNTIME=codex). Never fails, never prints."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .. import paths
 from ..memory import store as mstore
-from . import ingest
+from . import codex, ingest
 
 BUSY_MS = 500
 BUDGET_S = 3.0  # total time the hook may spend ingesting; the rest is picked up on the next run
@@ -32,11 +32,12 @@ def run(payload, env=None) -> None:
     files = candidates(payload)
     if not files:
         return
+    parser = codex if paths.runtime(env) == "codex" else ingest
     deadline = time.monotonic() + BUDGET_S
     conn = mstore.connect(paths.db_path(env), busy_ms=BUSY_MS)
     try:
         for p in files:
-            ingest.ingest_file(conn, p, deadline=deadline)
+            parser.ingest_file(conn, p, deadline=deadline)
     finally:
         conn.close()
 

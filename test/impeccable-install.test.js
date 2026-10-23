@@ -7,13 +7,14 @@ import path from 'node:path';
 import { install, uninstall, status } from '../src/install/installer.js';
 import { main } from '../src/cli.js';
 import { assetPath } from '../src/install/assets.js';
+import { tempDir } from './helpers/tmp.js';
 
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
 const NPM_ARGS = (prefix) => ['install', '--prefix', prefix, 'impeccable@3.6.1', '--omit=optional', '--ignore-scripts', '--no-audit', '--no-fund'];
 
 /** Temp HOME-less sandbox with a fake `npm` that records its calls and fakes the package layout; never any network. */
 async function sandbox({ npm = 'ok', version = '3.6.1' } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-imp-'));
+  const root = await tempDir('gl-imp-');
   const t = { root, claudeHome: path.join(root, 'home', '.claude'), claudeJson: path.join(root, 'home', 'claude.json'), stateDir: path.join(root, 'state'), bin: path.join(root, 'bin') };
   await mkdir(t.claudeHome, { recursive: true });
   await mkdir(t.bin);
@@ -66,10 +67,11 @@ test('--with-impeccable installs the rendered skill and the pinned engine throug
   assert.deepEqual(await t.npmCalls(), [NPM_ARGS(t.engine).join(' ')]);
   assert.equal(r.impeccable.engine, 'installed');
   const skillDir = path.join(t.claudeHome, 'skills', 'impeccable');
+  const storeSkillDir = path.join(t.stateDir, 'skills', 'impeccable');
   for (const f of ['SKILL.md', 'LICENSE', 'reference/audit.md', 'scripts/context.mjs', 'scripts/detect.mjs']) assert.ok(existsSync(path.join(skillDir, f)), f);
   const skill = await t.read('skills/impeccable/SKILL.md');
   assert.ok(!skill.includes('{{AMAUTA_'), 'placeholders rendered');
-  assert.ok(skill.includes(`node ${skillDir}/scripts/context.mjs`), 'absolute skill path');
+  assert.ok(skill.includes(`node ${storeSkillDir}/scripts/context.mjs`), 'absolute skill path');
   assert.ok(skill.includes(`node ${t.cli} detect`), 'engine CLI path');
   // scripts are copied byte for byte
   assert.deepEqual(await readFile(path.join(skillDir, 'scripts', 'detect.mjs')), await readFile(assetPath('skills/impeccable/scripts/detect.mjs')));
@@ -188,5 +190,36 @@ test('uninstall leaves a directory named impeccable alone when the option was ne
   await writeFile(path.join(t.engine, 'mine.txt'), 'x');
   await uninstall(t.opts());
   assert.ok(existsSync(path.join(t.engine, 'mine.txt')));
+  await t.cleanup();
+});
+
+test('a Codex-only install with --with-impeccable prepares the shared engine too, and Codex uninstall removes it', async () => {
+  const { installCodex, uninstallCodex } = await import('../src/install/codex.js');
+  const { codexSandbox } = await import('./helpers/codex.js');
+  const t = await sandbox();
+  const c = await codexSandbox();
+  const opts = { codexHome: c.codexHome, codexSkillsDir: c.skillsDir, stateDir: t.stateDir, searchPath: t.bin, claudeHome: t.claudeHome, claudeJson: t.claudeJson, withImpeccable: true };
+  const r = await installCodex(opts);
+  assert.equal(r.impeccable.engine, 'installed');
+  assert.deepEqual(await t.npmCalls(), [NPM_ARGS(t.engine).join(' ')]);
+  assert.ok(existsSync(t.cli));
+  const again = await installCodex(opts); // idempotent: the engine is already there
+  assert.equal(again.impeccable.engine, 'present');
+  assert.equal((await t.npmCalls()).length, 1);
+  await uninstallCodex(opts);
+  assert.ok(!existsSync(t.engine), 'engine removed with the last runtime that uses it');
+  await t.cleanup();
+});
+
+test('Codex uninstall keeps the engine while the Claude install still uses it', async () => {
+  const { installCodex, uninstallCodex } = await import('../src/install/codex.js');
+  const { codexSandbox } = await import('./helpers/codex.js');
+  const t = await sandbox();
+  const c = await codexSandbox();
+  await install(t.opts({ withImpeccable: true }));
+  const opts = { codexHome: c.codexHome, codexSkillsDir: c.skillsDir, stateDir: t.stateDir, searchPath: t.bin, claudeHome: t.claudeHome, claudeJson: t.claudeJson };
+  await installCodex(opts);
+  await uninstallCodex(opts);
+  assert.ok(existsSync(t.cli));
   await t.cleanup();
 });

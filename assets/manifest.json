@@ -8,7 +8,7 @@
   "claudeMd": [
     {
       "id": "codegraph-guidance",
-      "source": "claude/codegraph-guidance.md",
+      "source": "core/codegraph-guidance.md",
       "note": "rendered upstream CodeGraph guidance"
     },
     {
@@ -22,19 +22,19 @@
     },
     {
       "id": "orchestrator",
-      "source": "claude/orchestrator.md",
+      "source": "core/orchestrator.md",
       "note": "ODD protocol, delegation, review, optional modules"
     }
   ],
   "personas": {
     "gentleman": {
-      "residual": "claude/persona-gentleman.md",
-      "outputStyle": "claude/output-style-gentleman.md",
+      "residual": "core/persona-gentleman.md",
+      "outputStyle": "core/output-style-gentleman.md",
       "styleName": "Gentleman"
     },
     "neutral": {
-      "residual": "claude/persona-neutral-residual.md",
-      "outputStyle": "claude/output-style-neutral.md",
+      "residual": "core/persona-neutral-residual.md",
+      "outputStyle": "core/output-style-neutral.md",
       "styleName": "Neutral"
     }
   },
@@ -42,7 +42,7 @@
   "agentFooters": [
     {
       "id": "codegraph-guidance",
-      "source": "claude/codegraph-guidance.md"
+      "source": "core/codegraph-guidance.md"
     },
     {
       "id": "agent-language-contract",
@@ -92,7 +92,7 @@
       "modelKey": "default"
     }
   ],
-  "agentsDir": "claude/agents",
+  "agentsDir": "core/agents",
   "skills": [
     "amauta-wiki-explain",
     "chained-pr",
@@ -113,7 +113,7 @@
   ],
   "skillsDir": "skills",
   "sharedSkillsDir": "skills/_shared",
-  "settingsOverlay": "claude/settings-overlay.json",
+  "settingsOverlay": "core/settings-overlay.json",
   "sdd": {
     "note": "optional module, installed with --with-sdd; v3.4.0 SDD assets (MIT) renamed to /amauta-sdd-*",
     "skills": [

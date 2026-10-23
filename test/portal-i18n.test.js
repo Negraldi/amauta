@@ -47,7 +47,8 @@ test('Spanish is neutral and professional: no voseo, no slang, no emoji', () => 
 });
 
 test('most Spanish texts are really translated (only short names and code may equal the English)', () => {
-  const same = Object.keys(EN).filter((k) => EN[k] === ES[k] && /[a-z]{4,} [a-z]{3,}/i.test(EN[k]));
+  const BRANDS = new Set(['Claude Code']); // product names are not translated
+  const same = Object.keys(EN).filter((k) => EN[k] === ES[k] && !BRANDS.has(EN[k]) && /[a-z]{4,} [a-z]{3,}/i.test(EN[k]));
   assert.deepEqual(same, [], 'untranslated sentences: ' + same.join(', '));
 });
 

@@ -31,7 +31,7 @@ test('always-on CLAUDE.md sources are plain files that fit the 20k budget and ca
     assert.doesNotMatch(text, /gentle-ai|consent envelope|lineage|receipt|Lossless/i, `gentle-ai machinery in ${source}`);
   }
   assert.ok(total <= 20000, `CLAUDE.md sources total ${total} chars (> 20000)`);
-  const orchestrator = await readAssetText('claude/orchestrator.md');
+  const orchestrator = await readAssetText('core/orchestrator.md');
   assert.match(orchestrator, /Organic Driven Development/);
   assert.match(orchestrator, /review assess/);
 });
@@ -44,7 +44,7 @@ test('listFiles walks a directory recursively with relative sorted paths', async
 });
 
 test('codegraph-guidance refers to the upstream codegraph CLI, not gentle-ai', async () => {
-  const text = await readFile(new URL('../assets/claude/codegraph-guidance.md', import.meta.url), 'utf8');
+  const text = await readFile(new URL('../assets/core/codegraph-guidance.md', import.meta.url), 'utf8');
   assert.ok(!text.includes('gentle-ai'));
   assert.match(text, /`codegraph init`/);
 });

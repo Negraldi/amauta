@@ -89,6 +89,16 @@ class CatalogTest(SkillsBase):
             skill(home / "skills" / f"bulk-{i:04d}", f"bulk-{i}", "x")
         self.assertLessEqual(sum(1 for k in self.entries() if k.startswith("bulk-")), wikiskills.MAX_PER_ROOT)
 
+    def test_links_into_the_skill_store_are_followed_other_links_are_not(self):
+        home, state = self.f["home"], self.f["state"]
+        skill(state / "skills" / "stored", "stored", "STORED")
+        (home / "skills" / "stored").symlink_to(state / "skills" / "stored", target_is_directory=True)
+        outside = self.root / "outside2"
+        skill(outside / "leak2", "leak2", "LEAK")
+        (home / "skills" / "leak2").symlink_to(outside / "leak2", target_is_directory=True)
+        self.assertIn("stored", self.entries())
+        self.assertNotIn("leak2", self.entries())
+
     def test_empty_state_has_no_groups_but_still_answers(self):
         from python.amauta.portal import api
         from python.amauta.portal.config import Config

@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-10-23
+
+### Added
+
+- Codex runtime target: `amauta install|uninstall|status --runtime claude|codex|both` (default `both` once `~/.codex` exists). The Codex side gets the same instruction blocks in `~/.codex/AGENTS.md`, hooks in `~/.codex/hooks.json`, MCP servers in `~/.codex/config.toml` and skills in `~/.agents/skills`, with the same backups and `amauta restore`.
+- One shared skill store (`<state dir>/skills`) that both skills directories link to; personal skills made in either runtime get a symlink in the other.
+- Two-way MCP sync between `~/.claude.json` and `~/.codex/config.toml` (3-way merge against the last synced set); conflicts are reported in `amauta status` and never overwritten.
+- `amauta sync` and a silent `SessionStart` drift check (`hook sync-check`); `amauta status` reports drift and a parity section for both runtimes (`--json` adds `codex` and `parity` keys).
+- Codex usage ingestion: rollouts under `<codex home>/sessions` land in the usage tables with a `runtime` column; `python3 -P -m amauta.usage backfill --runtime codex|all`. Portal: runtime filter and badge, and a per-runtime split in sessions, usage and home spending. Codex models have no prices, so Codex shows tokens only.
+- Hooks and the memory server receive `AMAUTA_RUNTIME=claude|codex` so telemetry says where an event came from. Memory itself is not split: both runtimes read and write the same `memory.db`.
+- Graphify hooks: `amauta graphify hook install` also manages `post-merge`, `post-rewrite` and `post-checkout` (branch switches only) and removes graphify's own competing blocks; a `SessionStart` hook (`graphify-connect`) connects a repo that already has a graph; the portal can sync or connect any project's graph from its page.
+- Repository instructions live in `AGENTS.md`; `CLAUDE.md` imports it.
+
+### Changed
+
+- The project is described as a harness for Claude Code and Codex (README, package metadata, `NOTICE`, product doc, `--help`).
+- Bundled instruction assets moved from `assets/claude/` to `assets/core/`. Installed files and the state directory are unchanged.
+- Portal auto-discovery skips linked git worktrees of a project it already knows.
+
+### Fixed
+
+- Codex `SubagentStop` and the other Codex-only events are mapped in parity instead of being reported as Claude-only.
+- A Codex-only install with the impeccable skill prepares its shared engine.
+- Test suites remove the temporary directories they create (graphify sandboxes, impeccable homes).
+
 ## [0.3.1] - 2026-10-17
 
 ### Added

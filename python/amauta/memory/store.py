@@ -120,7 +120,26 @@ def connect(path, busy_ms: int = 5000) -> sqlite3.Connection:
             for stmt in _split(_MIGRATIONS[target]):
                 conn.execute(stmt)
             conn.execute(f"PRAGMA user_version = {target}")
+    _ensure_runtime_columns(conn)
     return conn
+
+
+# Additive and independent of user_version: a database that another build already took to a higher version still gets them,
+# and a build that does not know them ignores them (the columns are nullable-safe: they default to 'claude').
+_RUNTIME_TABLES = ("usage_messages", "events")
+
+
+def _ensure_runtime_columns(conn) -> None:
+    for table in _RUNTIME_TABLES:
+        cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+        if not cols or "runtime" in cols:
+            continue
+        try:
+            with conn:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN runtime TEXT NOT NULL DEFAULT 'claude'")
+        except sqlite3.OperationalError:  # another process added it first
+            if "runtime" not in [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]:
+                raise
 
 
 def _split(script: str):

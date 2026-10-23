@@ -118,3 +118,26 @@ class StoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RuntimeSharingTest(unittest.TestCase):
+    """Claude Code and Codex run the same server on one db; AMAUTA_RUNTIME must not partition memories."""
+
+    def test_two_runtimes_see_each_others_memories_by_project(self):
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "memory.db"
+            with mock.patch.dict(os.environ, {"AMAUTA_RUNTIME": "claude"}):
+                claude = mstore.Store(db)
+                saved = claude.save(title="quipu", content="saved from claude", project="shared")
+            with mock.patch.dict(os.environ, {"AMAUTA_RUNTIME": "codex"}):
+                codex = mstore.Store(db)
+                other = codex.save(title="chasqui", content="saved from codex", project="shared")
+            self.addCleanup(claude.close)
+            self.addCleanup(codex.close)
+            self.assertEqual([h["id"] for h in codex.search("quipu", project="shared")], [saved["id"]])
+            self.assertEqual([h["id"] for h in claude.search("chasqui", project="shared")], [other["id"]])
+            titles = {o["title"] for o in claude.context(project="shared")["observations"]}
+            self.assertEqual(titles, {"quipu", "chasqui"})
+            self.assertEqual(codex.search("quipu", project="other"), [])

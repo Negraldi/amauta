@@ -1,5 +1,18 @@
 # Upgrading
 
+## From 0.3.1 to 0.4.0
+
+```bash
+amauta upgrade --to v0.4.0
+```
+
+- Codex is installed automatically when `~/.codex` exists; otherwise add it with `amauta install --runtime both` (or `--runtime codex`). `amauta status` shows both runtimes and what differs between them.
+- Existing real copies in `~/.claude/skills` become links to the shared store `~/.amauta/skills`, unless you edited them: edited copies are kept and reported (`--force` replaces them).
+- Import past Codex usage once: `python3 -P -m amauta.usage backfill --runtime all`.
+- Codex asks you to trust the new hooks the first time it starts; amauta never writes that trust itself.
+- The memory database is not migrated: 0.4.0 adds a `runtime` column to the usage tables through an idempotent step, and 0.3.1 ignores it.
+- Rollback: `amauta upgrade --to v0.3.1`. The Codex files amauta wrote stay in place until you run `amauta uninstall --runtime codex` before rolling back.
+
 ## From 0.3.0 to 0.3.1
 
 ```bash
