@@ -28,8 +28,10 @@ partitions (Codex could not read Claude's memories); this design has no such spl
 
 ## Tasks
 
-- [ ] K1 Codex targets in the installer: AGENTS.md blocks, hooks.json, config.toml MCP (TOML writer with marked
+- [x] K1 Codex targets in the installer: AGENTS.md blocks, hooks.json, config.toml MCP (TOML writer with marked
   ownership), skills dir; install/uninstall/status/backup/restore exactly like Claude; tests with temp homes.
+  Commits `4f21232` (targets, AGENTS.md, restore), `d55044e` (hooks.json, config.toml, `src/core/toml.js`), `ad81575`
+  (skills, `--runtime` CLI, status per runtime, docs). Route: delegated writer. `npm test` exit 0: 679 Node + 759 Python.
 - [ ] K2 Parity: mirror the user's other MCP servers and personal skills from Claude to Codex; `status` diff.
 - [ ] K3 Codex usage: ingest `~/.codex/sessions` token usage into telemetry with `runtime=codex`; portal filters by
   runtime.
@@ -50,8 +52,9 @@ TDD on (strict). Runner `npm test` in `~/amauta-codex`.
 
 ## Progress
 
+- 2026-10-22: K1 done (3 commits above). Codex state in `<state dir>/codex-state.json`; ownership of MCP tables by recorded value (like Claude), no markers in TOML; hooks identified by command; `--json` keeps the Claude shape plus a `codex` key.
 - 2026-10-22: plan written after the real check exposed the partition bug; R3a writer stopped; worktree created.
 
 ## Next step
 
-K1 (delegated writer).
+K2 (parity: mirror other MCP servers and personal skills, `status` diff).
