@@ -106,7 +106,9 @@ function diagramBox(source, caption) {
 
 const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {}, projectNames: [], themes: [], themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
 const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
-const filters = () => ({ days: $("days").value, project: $("project").value });
+const filters = () => ({ days: $("days").value, project: $("project").value, runtime: $("runtime").value });
+const runtimeName = (v) => (v === "codex" ? t("filters.codex") : t("filters.claude")); // anything that is not Codex was written by Claude Code
+const runtimeBadge = (v) => h("span", { class: `badge rt-${v === "codex" ? "codex" : "claude"}` }, runtimeName(v));
 
 function card(label, value, extra) { return h("div", { class: "card" }, h("div", { class: "v" }, value), h("div", { class: "l" }, label), extra); }
 function panel(title, ...kids) { return h("section", { class: "panel" }, title ? h("h2", null, title) : null, ...kids); }
@@ -181,6 +183,7 @@ async function viewOverview() {
     panel(t("usage.sessionsPerDay"), o.daily.length ? table("sessday", [{ key: "day", label: t("col.day") }, { key: "sessions", label: t("nav.session"), num: true }, { key: "messages", label: t("col.messages"), num: true }], o.daily) : empty(t("usage.noSessionsRange"))),
     panel(t("usage.modelSplit"), modelBars(o.models)),
   ];
+  if (o.runtimes && o.runtimes.length > 1) out.push(panel(t("usage.byRuntime"), table("runtimes", [{ key: "runtime", label: t("col.runtime"), render: runtimeBadge }, { key: "sessions", label: t("nav.session"), num: true }, { key: "messages", label: t("col.messages"), num: true }, ...KINDS.map(([k, l]) => ({ key: k, label: t(l), num: true }))], o.runtimes)));
   if (c.error) out.push(panel(t("cost.title"), h("p", { class: "warn" }, ts(c.error))));
   if (c.enabled) {
     out.push(panel(t("cost.title"), h("p", { class: "warn" }, ts(c.label)),
@@ -209,7 +212,7 @@ async function viewSessions() {
   const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")], ["cache_write", t("tok.cache_write")]].map(([key, label]) => ({ key, label, num: true }));
   return [
     panel(t("nav.project"), table("projects", [{ key: "project", label: t("kind.project"), link: true }, { key: "sessions", label: t("nav.session"), num: true }, ...nums], s.projects, (r) => { $("project").value = r.project; render(); })),
-    panel(t("nav.session"), table("sessions", [{ key: "session_id", label: t("kind.session"), render: (v) => link("session", v, String(v).slice(0, 8)) }, { key: "project", label: t("kind.project") }, { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums], s.sessions)),
+    panel(t("nav.session"), table("sessions", [{ key: "session_id", label: t("kind.session"), render: (v) => link("session", v, String(v).slice(0, 8)) }, { key: "runtime", label: t("col.runtime"), render: runtimeBadge }, { key: "project", label: t("kind.project") }, { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums], s.sessions)),
   ];
 }
 
@@ -1078,6 +1081,9 @@ function spendingBlock(sp) {
   return h("div", null,
     h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("home.tokens")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
       h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, label), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
+    sp.runtimes && sp.runtimes.length > 1 ? h("div", null, h("h3", null, t("home.byRuntime")),
+      h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("col.runtime")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
+        h("tbody", null, sp.runtimes.map((r) => h("tr", null, h("td", null, runtimeName(r.runtime)), r.windows.map((w) => h("td", { class: "n" }, short(KINDS.reduce((a, [k]) => a + (w[k] || 0), 0))))))))) : null,
     h("p", null, t("home.cacheRatio", { n: fmt(cols[cols.length - 1]) }) + " ", h("strong", null, pct(sp.cache_hit_ratio))),
     sp.top_models.length ? h("div", null, h("h3", null, t("home.topModels")), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, " " + t("home.tokensN", { n: short(m.tokens) })))))) : null,
     h("p", null, link("usage", "", t("home.usageDetails"))));
@@ -1190,6 +1196,7 @@ async function loadProjects() {
 // ---- language: the static text of index.html is filled from the dictionary by id; everything else is built with t() when a route renders ----
 const STATIC_TEXT = [["skip", "chrome.skip"], ["recent-title", "chrome.recent"], ["recent-loading", "chrome.loading"], ["view-loading", "chrome.loading"], ["nav-toggle", "chrome.menu"], ["search-text", "chrome.search"],
   ["range-label", "filters.range"], ["opt-7", "filters.d7"], ["opt-30", "filters.d30"], ["opt-90", "filters.d90"], ["opt-365", "filters.d365"], ["opt-3650", "filters.d3650"], ["opt-all-projects", "filters.allProjects"], ["project-label", "filters.project"],
+  ["runtime-label", "filters.runtime"], ["opt-all-runtimes", "filters.allRuntimes"], ["opt-claude", "filters.claude"], ["opt-codex", "filters.codex"],
   ["refresh", "filters.refresh"], ["theme-label", "chrome.theme"], ["theme-edit", "chrome.editThemes"], ["lang-label", "chrome.language"], ["palette-hint", "palette.hint"]];
 const STATIC_ATTR = [["sidebar", "aria-label", "chrome.wiki"], ["filters", "aria-label", "chrome.filters"], ["prefs", "aria-label", "chrome.appearance"], ["palette", "aria-label", "chrome.search"],
   ["palette-input", "placeholder", "palette.placeholder"], ["palette-input", "aria-label", "palette.label"], ["palette-results", "aria-label", "palette.results"]];
@@ -1302,7 +1309,7 @@ $("refresh").addEventListener("click", async () => {
     render();
   } catch (err) { $("status").textContent = t("refresh.failed", { reason: err.message }); }
 });
-for (const id of ["days", "project"]) $(id).addEventListener("change", render);
+for (const id of ["days", "project", "runtime"]) $(id).addEventListener("change", render);
 $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
 $("lang-picker").addEventListener("change", (e) => setLanguage(e.target.value));
 window.addEventListener("hashchange", () => { state.route = R.parseHash(location.hash); render(); });

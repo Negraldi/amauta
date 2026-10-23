@@ -185,8 +185,17 @@ names in `tool_calls` (Skill names, subagent types and MCP server names only; ne
 Ingestion is incremental through `ingest_state` (byte offset; a shrunk or rewritten file is rescanned).
 
 ```
-PYTHONPATH=python python3 -P -m amauta.usage backfill [--claude-home ~/.claude]
+PYTHONPATH=python python3 -P -m amauta.usage backfill [--claude-home ~/.claude] [--runtime claude|codex|all] [--codex-home ~/.codex]
 ```
+
+Codex usage goes to the same tables with `runtime = 'codex'` (a `runtime` column added to `usage_messages` and `events`,
+default `claude`; added without touching `user_version`). The Codex `Stop`/`SubagentStop` hook (installed with
+`AMAUTA_RUNTIME=codex`) imports the finished rollout under `<codex home>/sessions/`; `backfill --runtime codex|all`
+imports them all (default stays Claude only). One row per model response (`response_id`): input = `input_tokens` minus
+`cached_input_tokens`, cache read = `cached_input_tokens`, cache write = `cache_write_input_tokens`, output =
+`output_tokens`, thinking = `reasoning_output_tokens`. Prompt text and tool output in a rollout are never read into the
+database. The portal filters sessions and usage by runtime (All / Claude Code / Codex); Codex models have no price
+here, so they show tokens only.
 
 ## Control portal (local wiki)
 

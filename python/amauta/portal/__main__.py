@@ -14,6 +14,7 @@ def build_parser():
     p = argparse.ArgumentParser(prog="amauta.portal", description="Read-only local control portal on 127.0.0.1.")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--claude-home")
+    p.add_argument("--codex-home", help="Codex home whose sessions Refresh usage imports (default: AMAUTA_CODEX_HOME or ~/.codex)")
     p.add_argument("--engram-db")
     p.add_argument("--repo", action="append", default=[], help="repository whose odd/tasks/*.md and mirrored graphify graph to show (repeatable)")
     p.add_argument("--idle-exit", type=float, default=None, metavar="SECONDS", help="exit cleanly after this many seconds without a page heartbeat (default: run until stopped)")
@@ -25,6 +26,7 @@ def main(argv=None) -> int:
     cfg = Config(
         state_dir=paths.state_dir(),
         claude_home=args.claude_home or paths.claude_home(),
+        codex_home=args.codex_home or paths.codex_home(),
         engram_db=args.engram_db or Path.home() / ".engram" / "engram.db",
         repos=args.repo,
     )

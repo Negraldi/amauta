@@ -14,6 +14,7 @@ SKILL_BYTES = 100_000
 FRONT_KEYS = 12
 FRONT_VALUE = 300
 DAYS = 30
+RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
 
 
 # ---- session labels -----------------------------------------------------------------------------------------------
@@ -193,9 +194,10 @@ def session_page(portal, ident, q):
         if not t["messages"]:
             raise NotFound()
         info = wikisess.session_info(portal, ident)
+        runtime = conn.execute(f"SELECT max({'u.runtime' if 'runtime' in columns(conn, 'usage_messages') else repr('claude')}) FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()[0]
         pg = _blank("session", ident, wikisess.label(portal, ident, t["project"], t["model"], t["messages"], t["first_ts"]))
         models = conn.execute("SELECT coalesce(u.model, 'unknown') model, count(*) n FROM usage_messages u WHERE u.session_id = ? GROUP BY model ORDER BY n DESC, model LIMIT 10", (ident,)).fetchall()
-        pg["meta"] = _meta(("Project", t["project"]), ("Repository", wikisess.repo_name(info.get("cwd")) or None), ("Working directory", info.get("cwd")),
+        pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", t["project"]), ("Repository", wikisess.repo_name(info.get("cwd")) or None), ("Working directory", info.get("cwd")),
                            ("Started", t["first_ts"]), ("Ended", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
                            ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
         for heading, kind, col, cond in (("Skills", "skill", "c.skill", "c.skill IS NOT NULL"), ("Tools", "tool", "c.tool", "1=1"),
