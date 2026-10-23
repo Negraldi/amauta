@@ -1,11 +1,16 @@
 import { rm } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
+import { mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
+import { readMcpServer, removeMcpServer, setMcpServer } from '../core/toml.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { createBackup } from '../core/backup.js';
 import { resolveCodexTargets } from './paths.js';
 import { loadManifest } from './assets.js';
-import { needsWrite, readOrNull, renderSections, statOrNull, toJson, isObject } from './installer.js';
+import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, statOrNull, toJson, isObject } from './installer.js';
+import { desiredHooks, desiredMcpServers, isAmautaHook } from './servers.js';
+import { findOnPath } from '../codegraph/index.js';
 import { packageVersion } from '../version.js';
 
 export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
@@ -13,10 +18,27 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
 /**
  * Codex is a second target of the Claude installer: the same manifest, the same content, other paths.
  *   CLAUDE.md blocks        -> <codex home>/AGENTS.md blocks (same marker injector)
+ *   settings.json hooks     -> <codex home>/hooks.json (same hook schema; every command carries AMAUTA_RUNTIME=codex)
+ *   .claude.json mcpServers -> <codex home>/config.toml [mcp_servers.<same name>] (same command, args and env)
  * Claude-only assets have no Codex meaning and are never installed: output styles (a Claude Code setting) and the
  * Claude agent definitions (Codex has no equivalent file format).
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
+const RUNTIME_ENV = 'AMAUTA_RUNTIME=codex';
+/** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */
+export function desiredCodexHooks({ stateDir, telemetry }) {
+  const hooks = desiredHooks({ stateDir, telemetry, sdd: false });
+  return Object.fromEntries(Object.entries(hooks).map(([event, entries]) => [event, entries.map((e) => ({ ...e, hooks: e.hooks.map((h) => ({ ...h, command: `${RUNTIME_ENV} ${h.command}` })) }))]));
+}
+
+/** The Claude MCP entries for Codex's TOML (no `type`: Codex infers stdio from `command`). Memory is always `engram`. */
+export function desiredCodexServers({ stateDir, rea, context7, codegraph }) {
+  const { memory, ...rest } = desiredMcpServers({ stateDir, rea, context7 });
+  if (!codegraph) delete rest.codegraph;
+  const strip = ({ type: _type, ...value }) => value;
+  return Object.fromEntries(Object.entries({ engram: memory, ...rest }).map(([name, value]) => [name, strip(value)]));
+}
+
 const stateFileOf = (stateDir) => path.join(stateDir, 'codex-state.json');
 
 async function readCodexState(stateDir) {
@@ -49,6 +71,18 @@ async function plan(opts) {
   const persona = opts.persona ?? prev?.persona ?? claudeState?.persona ?? 'gentleman';
   if (!manifest.personas[persona]) throw new Error(`unknown persona: ${persona} (expected gentleman or neutral)`);
   const writes = [];
+  // Opt-in modules are sticky like Claude's; a first Codex install follows what Claude already has.
+  const sticky = (flag, key) => (flag === false ? false : flag === true || (prev ?? claudeState)?.[key] === true);
+  const telemetry = opts.telemetry !== false;
+  const sdd = sticky(opts.withSdd, 'sdd');
+  const rea = sticky(opts.withRea, 'rea');
+  const context7 = sticky(opts.withContext7, 'context7');
+  const codegraph = (await findOnPath('codegraph', opts.searchPath)) !== null;
+  const skipped = [];
+  const created = prev?.created_files ?? [];
+  const note = (file, existed) => {
+    if (!existed && !created.includes(file) && prev === null) created.push(file);
+  };
 
   // AGENTS.md: the same marked blocks CLAUDE.md gets.
   const mdFile = path.join(t.codexHome, 'AGENTS.md');
@@ -61,7 +95,39 @@ async function plan(opts) {
   for (const id of prev?.agents_md_sections ?? []) if (!wantedIds.has(id)) md = removeSection(md, id);
   if (!mdBuf || md !== mdBefore) writes.push({ rel: 'AGENTS.md', path: mdFile, data: Buffer.from(md, 'utf8') });
 
-  const created = prev?.created_files ?? [...(mdBuf ? [] : [mdFile])];
+  note(mdFile, mdBuf !== null);
+
+  // hooks.json
+  const hooksFile = path.join(t.codexHome, 'hooks.json');
+  const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
+  const wantedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry });
+  const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
+  let hooks = removeHooksWhere(hooksIn.data, (c) => isAmautaHook(c) && !wantedCommands.has(c));
+  hooks = ensureTimeouts(mergeHooks(hooks, wantedHooks), wantedHooks);
+  if (!hooksIn.existed || !isDeepStrictEqual(hooks, hooksIn.data)) writes.push({ rel: 'hooks.json', path: hooksFile, data: Buffer.from(toJson(hooks), 'utf8') });
+  note(hooksFile, hooksIn.existed);
+
+  // config.toml: only our [mcp_servers.*] tables; every other byte stays.
+  const tomlFile = path.join(t.codexHome, 'config.toml');
+  const tomlBuf = await readOrNull(tomlFile);
+  const tomlBefore = tomlBuf ? tomlBuf.toString('utf8') : '';
+  let toml = tomlBefore;
+  const wanted = desiredCodexServers({ stateDir: t.stateDir, rea, context7, codegraph });
+  const ours = (name) => {
+    const cur = readMcpServer(toml, name).value;
+    return cur !== null && prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(cur, prev.mcp_added[name]);
+  };
+  const mcpAdded = {};
+  for (const [name, value] of Object.entries(wanted)) {
+    const cur = readMcpServer(toml, name);
+    if (!cur.found || ours(name) || isDeepStrictEqual(cur.value, value)) {
+      toml = setMcpServer(toml, name, value);
+      mcpAdded[name] = value;
+    } else skipped.push(`config.toml:mcp_servers.${name}`);
+  }
+  for (const name of Object.keys(prev?.mcp_added ?? {})) if (!(name in wanted) && ours(name)) toml = removeMcpServer(toml, name);
+  if (!tomlBuf || toml !== tomlBefore) writes.push({ rel: 'config.toml', path: tomlFile, data: Buffer.from(toml, 'utf8') });
+  note(tomlFile, tomlBuf !== null);
   const makeState = (lastBackup) => ({
     schema: CODEX_STATE_SCHEMA,
     version: packageVersion(),
@@ -71,12 +137,17 @@ async function plan(opts) {
     persona,
     last_backup: lastBackup ?? prev?.last_backup ?? null,
     agents_md_sections: sections.map((s) => s.id),
+    telemetry,
+    sdd,
+    rea,
+    context7,
+    mcp_added: mcpAdded,
     created_files: created,
   });
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes: [], skipped: [], makeState };
+  return { t, prev, writes: real, removes: [], skipped, makeState };
 }
 
 export async function installCodex(opts = {}) {
@@ -119,6 +190,32 @@ export async function uninstallCodex(opts = {}) {
     }
   }
 
+  const hooksFile = path.join(t.codexHome, 'hooks.json');
+  const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
+  if (hooksIn.existed) {
+    const next = removeHooksWhere(hooksIn.data, isAmautaHook);
+    if (!isDeepStrictEqual(next, hooksIn.data)) {
+      if (created.has(hooksFile) && Object.keys(next).length === 0) deletes.push(hooksFile);
+      else writes.push({ path: hooksFile, data: Buffer.from(toJson(next), 'utf8') });
+    }
+  }
+
+  const tomlFile = path.join(t.codexHome, 'config.toml');
+  const tomlBuf = await readOrNull(tomlFile);
+  if (tomlBuf && state?.mcp_added) {
+    const before = tomlBuf.toString('utf8');
+    let toml = before;
+    for (const [name, value] of Object.entries(state.mcp_added)) {
+      const cur = readMcpServer(toml, name);
+      if (cur.found && isDeepStrictEqual(cur.value, value)) toml = removeMcpServer(toml, name);
+      else if (cur.found) kept.push(`mcp:${name}`);
+    }
+    if (toml !== before) {
+      if (created.has(tomlFile) && toml.trim() === '') deletes.push(tomlFile);
+      else writes.push({ path: tomlFile, data: Buffer.from(toml, 'utf8') });
+    }
+  }
+
   const statePath = stateFileOf(t.stateDir);
   const hadState = (await statOrNull(statePath)) !== null;
   if (writes.length === 0 && deletes.length === 0 && !hadState) return { changed: false, backup: null, removed: [], kept };
@@ -142,5 +239,20 @@ export async function statusCodex(opts = {}) {
   const md = (await readOrNull(path.join(t.codexHome, 'AGENTS.md')))?.toString('utf8') ?? '';
   const present = new Set(listSections(md).map((s) => s.id));
   for (const id of state.agents_md_sections ?? []) add(`AGENTS.md section ${id}`, present.has(id), present.has(id) ? '' : 'missing');
-  return { installed: true, ok: items.every((i) => i.ok), items, notes: [], state };
+
+  const hooks = (await readJsonObject(path.join(t.codexHome, 'hooks.json'), 'hooks.json')).data;
+  const commands = (event) => (Array.isArray(hooks.hooks?.[event]) ? hooks.hooks[event] : []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
+  for (const [event, entries] of Object.entries(desiredCodexHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true }))) {
+    for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
+      const ok = commands(event).includes(cmd);
+      add(`hook ${event}`, ok, ok ? cmd : 'missing');
+    }
+  }
+  const toml = (await readOrNull(path.join(t.codexHome, 'config.toml')))?.toString('utf8') ?? '';
+  for (const name of Object.keys(state.mcp_added ?? {})) {
+    const ok = readMcpServer(toml, name).found;
+    add(`mcp ${name}`, ok, ok ? '' : 'missing');
+  }
+  const notes = [{ name: 'hooks trust', ok: true, detail: 'Codex asks you to trust new or changed hooks in its own UI; amauta never writes [hooks.state]' }];
+  return { installed: true, ok: items.every((i) => i.ok), items, notes, state };
 }
