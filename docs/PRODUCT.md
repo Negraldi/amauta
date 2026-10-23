@@ -6,7 +6,7 @@ product
 
 ## Users
 
-One developer, the owner of the machine, who works with Claude Code every day through the amauta harness. They open
+One developer, the owner of the machine, who works with Claude Code and Codex every day through the amauta harness. They open
 the portal as a desktop app window next to their editor and terminal, sometimes for a quick check and sometimes for
 a long read, at any time of day (the system light/dark theme decides). They know the harness well and read
 English technical text; the UI talks to an expert, not to a newcomer.
@@ -27,7 +27,7 @@ Jobs to be done, all equally frequent:
 
 ## Product Purpose
 
-amauta is a small Claude Code harness (memory, telemetry, graph memory, skills, workflow). The portal is its local,
+amauta is a small harness for Claude Code and Codex (memory, telemetry, graph memory, skills, workflow). The portal is its local,
 offline window: a wiki where every entity (memory topic, skill, tool, MCP server, session, ODD feature, graph node)
 is a linked page with backlinks, plus a global search. Success means the owner can answer "what did I spend", "what
 do we know about X", "is the harness healthy" and "change setting Y" in a few clicks, and enjoys reading it.

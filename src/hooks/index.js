@@ -1,4 +1,4 @@
-// Hook entrypoints for Claude Code. Handlers receive the hook JSON from stdin and may
+// Hook entrypoints for Claude Code and Codex. Handlers receive the hook JSON from stdin and may
 // return one object to print as JSON on stdout. Hooks fail open: any error, malformed
 // input or missing field results in empty stdout and exit code 0.
 import { refreshRegistry } from '../registry/skill-registry.js';

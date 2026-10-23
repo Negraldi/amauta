@@ -1,6 +1,6 @@
 # amauta
 
-A small Claude Code harness in plain Node.js and Python, modelled on
+A small harness for Claude Code and Codex in plain Node.js and Python, modelled on
 [gentle-ai](https://github.com/Gentleman-Programming/gentle-ai) (MIT). No compiled
 programs of our own, no npm dependencies and Python stdlib only for the core.
 
@@ -10,13 +10,32 @@ programs of our own, no npm dependencies and Python stdlib only for the core.
 - Optional, detected on `PATH` and never vendored: `codegraph` (npm `@colbymchenry/codegraph`) and `graphify`
   (PyPI `graphifyy`). `npx` is used by the opt-in `context7` and `rea` MCP entries.
 
-## What `install` sets up
+## Install
+
+```bash
+amauta install --runtime claude|codex|both   # default: both once ~/.codex exists, else claude
+amauta status  --runtime claude|codex|both
+amauta uninstall --runtime claude|codex|both
+```
+
+Claude Code and Codex share one harness; neither is the master. What is shared, and how:
+
+- one `memory.db` and the same `engram` memory server in both runtimes;
+- one skill store (`~/.amauta/skills`) that both skills directories link to;
+- MCP servers synced both ways, with conflicts reported and never overwritten;
+- instruction blocks (`CLAUDE.md` / `AGENTS.md`) and hooks (`settings.json` / `hooks.json`) written to both;
+- `amauta sync` and a silent `SessionStart` drift check keep the unavoidable copies in step;
+- usage from both runtimes in the portal, with a runtime filter.
+
+Details are in [Shared between runtimes](#shared-between-runtimes) below.
+
+### What `install` sets up for Claude Code
 
 Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety):
 
 | Piece | Details |
 | --- | --- |
-| `CLAUDE.md` | four short blocks (orchestrator, persona, memory protocol, codegraph guidance; under a 20k-char budget that `status` checks) between `<!-- amauta:ID -->` markers; your text is kept |
+| `CLAUDE.md` (and `AGENTS.md` for Codex) | four short blocks (orchestrator, persona, memory protocol, codegraph guidance; under a 20k-char budget that `status` checks) between `<!-- amauta:ID -->` markers; your text is kept |
 | Assets | output style, skills, agents (judgment-day, review lenses), rendered with model assignments |
 | Stack skills (original to amauta) | `cpp-testing`, `python-testing`, `node-testing`, `r-testing` (testing patterns for C++, Python, Node.js, R), `tabular-data` (Excel, Parquet, CSV, TXT), `doc-formats` (md, Rmd, html, pdf, docx, pptx), `mermaid-diagrams` (when and how to draw Mermaid in documentation) |
 | Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, `SessionStart` graphify-connect, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
@@ -24,7 +43,7 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety)
 | Permissions | `ask`: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)` (prefix matches only, `rm -fr` or `sudo rm -rf` get past them). `deny` for `Read` and `Edit` of `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `*.pem`, `*.key`, `secrets/**`. No `defaultMode`, no allow entries |
 | Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--with-impeccable` (design skill, see below), `--with-archify` (diagram skill, see below), `--no-telemetry` |
 
-### Codex
+### Shared between runtimes
 
 `install`, `uninstall` and `status` take `--runtime claude|codex|both` (default `both` once `~/.codex` exists, else `claude`).
 Claude Code and Codex share one harness; neither is the master:
@@ -35,9 +54,9 @@ Claude Code and Codex share one harness; neither is the master:
 | Skills | rendered once into the amauta store `<state dir>/skills/<name>`; `~/.claude/skills/<name>` and `~/.agents/skills/<name>` are symlinks to it (impeccable and archify included). An unedited real copy from an older install is replaced by the link; an edited one is kept and reported (`--force` replaces it) |
 | Personal skills | a real skill directory in either skills dir gets a symlink in the other; the real copy stays where you made it, nothing is copied or moved. Same name as a real directory on both sides: reported as a conflict |
 | MCP servers | every stdio server (`command`, `args`, `env`) goes both ways between `.claude.json` and `~/.codex/config.toml` as a 3-way merge against the last synced set (`<state dir>/mcp-sync.json`, hashes only). Changed or removed on one side only: copied. Changed differently on both: left as is and reported as a conflict in `amauta status` until you make one side match. Claude-only keys (`type`, ...) and Codex-only keys (`startup_timeout_sec`, ...) stay on their side. Non-stdio servers are listed and not synced. `--no-mirror-mcp` turns it off for a run |
-| Instructions, hooks | amauta writes both: `CLAUDE.md` blocks become the same blocks in `~/.codex/AGENTS.md`; hooks go to `~/.codex/hooks.json` with the same commands tagged `AMAUTA_RUNTIME=codex` (no SDD preflight or codegraph prompt hook; Codex asks you to trust new hooks, amauta never writes that state) |
+| Instructions, hooks | amauta writes both: the same blocks go to `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`; hooks go to `~/.codex/hooks.json` with the same commands tagged `AMAUTA_RUNTIME=codex` (no SDD preflight or codegraph prompt hook; Codex asks you to trust new hooks, amauta never writes that state) |
 
-Output styles, agents and SDD commands are Claude-only. `amauta sync` runs the pass above on demand; a cheap `SessionStart`
+Output styles, agents and SDD commands are Claude-only; usage from both runtimes shows in the portal (Codex usage is tokens only, no prices). `amauta sync` runs the pass above on demand; a cheap `SessionStart`
 step (`hook sync-check`, silent, a hash compare when nothing moved) runs it by itself when a source changed. `amauta status`
 reports drift ("Codex out of sync"), MCP conflicts, and a parity section (MCP servers, skills and instruction blocks in one
 runtime and not the other, hooks without a Codex event; informational, `--json` adds a `parity` key). Redirect with

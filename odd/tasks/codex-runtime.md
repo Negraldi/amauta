@@ -55,6 +55,9 @@ partitions (Codex could not read Claude's memories); this design has no such spl
 - [ ] K4 Switch the live machine: reinstall Claude from `~/amauta` (no path to `~/amauta-dev`), install Codex, retire
   `~/amauta-dev` and `~/amauta-dual`; real check (Codex reads Claude's "quipu", Claude reads Codex's "chasqui").
 - [ ] K5 Docs, CHANGELOG, v0.4.0.
+- [ ] K6 Runtime-agnostic repository for GitHub: description, README, PRODUCT, NOTICE say "Claude Code and Codex"; `AGENTS.md` is the
+  repo instruction source and `CLAUDE.md` is the one-line pointer `@AGENTS.md`; `assets/claude/` renamed to `assets/core/`
+  (only manifest and one test referenced it; no on-disk key changes); `--help` wording symmetric.
 
 ## Acceptance criteria
 
