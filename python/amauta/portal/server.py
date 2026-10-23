@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiexplain, wikiprobe
+from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiexplain, wikiprobe
 from . import wikiharness
 from .api import Portal
 
@@ -26,6 +26,8 @@ MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
 PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB
 PROJECTS_CONFIG = "/api/projects/config"
+GRAPH_WRITES = {"/api/projects/graph-sync": ("start", 202), "/api/projects/graph-connect": ("connect", 200)}
+GRAPH_MAX_BODY = 1024  # {"project": "<name>"}
 PROBE_PATH = "/api/harness/refresh"
 PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
 EXPLAIN_PATH = "/api/harness/explain"
@@ -75,6 +77,7 @@ class PortalServer(ThreadingHTTPServer):
         self.idle = IdleMonitor(idle_exit, clock) if idle_exit else None
         self.portal = Portal(cfg)
         self.settings = settings_mod.Settings(cfg, installer=installer, clock=clock)
+        self.graphsync = graphsync_mod.GraphSync(self.portal)
         self.token = secrets.token_urlsafe(32)
         self.port = self.server_address[1]
 
@@ -182,7 +185,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, PROBE_PATH, EXPLAIN_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *GRAPH_WRITES, PROBE_PATH, EXPLAIN_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
@@ -190,6 +193,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._settings_write(SETTINGS_WRITES[path])
         if path == PROJECTS_CONFIG:
             return self._projects_write()
+        if path in GRAPH_WRITES:
+            return self._graphsync_write(*GRAPH_WRITES[path])
         if path in THEMES_WRITES:
             return self._themes_write(THEMES_WRITES[path])
         if path == PROBE_PATH:
@@ -265,6 +270,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(err.status, {"error": err.message})
         projects_mod.forget(portal)
         self._json(200, portal.projects({}))
+
+    def _graphsync_write(self, action, ok_status):
+        """Start a graph refresh or install the git hooks for one known project (see graphsync): same guard and body rules, closed schema, no client path."""
+        body = self._settings_body(GRAPH_MAX_BODY)
+        if body is None:
+            return
+        try:
+            result = getattr(self.server.graphsync, action)(body)
+        except graphsync_mod.SyncError as err:
+            return self._json(err.status, err.body())
+        projects_mod.forget(self.server.portal)
+        self._json(ok_status, result)
 
     def _themes_write(self, action):
         """Create/update or delete one theme file under `<state_dir>/themes`: same guard and body rules as the other writes, closed schema, slug-only paths."""

@@ -64,7 +64,7 @@ def page(portal, ident, q):
         raise NotFound()
     feats = _features(repo)
     done, total = sum(t["done"] for _, ts in feats for t in ts), sum(len(ts) for _, ts in feats)
-    sessions, memories, graph = _sessions(portal, repo), _memories(portal, repo.name), projects.graph_status(portal, repo)
+    sessions, memories, graph = _sessions(portal, repo), _memories(portal, repo.name), projects.graph_status(portal, repo, detail=True)
     origin = ", ".join(projects.collect(portal)["origin"].get(str(repo.resolve()), []))
     pg = _blank("project", repo.name, repo.name)
     pg["meta"] = _meta(("Path", str(repo.resolve())), ("Found by", origin), ("Features", len(feats)), ("Tasks done", f"{done} of {total}" if total else None),

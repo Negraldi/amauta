@@ -86,7 +86,7 @@ export const sddPreflightCommand = () => {
 export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
   const hooks = {
     UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry', 10)] }],
-    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30)] }],
+    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30), hook('graphify-connect', 10)] }],
     Stop: [{ matcher: '', hooks: [hook('review-stop', 60)] }],
   };
   if (telemetry) {

@@ -16,6 +16,11 @@ const SHELL_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+)?(?:\S*\/)?(?:ba|z|da|k)?sh(?
 
 const LOG_MAX_BYTES = 262144;
 
+// git runs post-commit only for local commits: history that arrives by merge/pull (post-merge), is rewritten by
+// rebase/amend (post-rewrite) or comes with a branch switch (post-checkout) needs its own trigger. One block for all.
+export const EVENTS = ['post-commit', 'post-merge', 'post-rewrite', 'post-checkout'];
+const CHECKOUT_GUARD = '  [ "$3" = 1 ] || exit 0  # post-checkout: branch switches only, never file checkouts';
+
 /**
  * The hook block: everything runs in a background subshell, so a commit never waits or fails because of it.
  * A lock directory in the git dir keeps runs single-flight: a trigger that finds the lock held leaves a `.pending`
@@ -24,13 +29,14 @@ const LOG_MAX_BYTES = 262144;
  * The lock itself (stale rule, start token, atomic takeover) is python/amauta/graph/lock.py, shared with Node and Python.
  * Failures go to <state-dir>/graphify-hook.log.
  */
-export function hookBlock({ stateDir }) {
+export function hookBlock({ stateDir, event = 'post-commit' }) {
   const pythonPath = path.join(packageRoot, 'python');
   const log = path.join(stateDir, 'graphify-hook.log');
   return [
     BEGIN,
     '# Managed by amauta: refresh the graphify graph, then mirror it into memory.db. Background, single-flight, never fails a commit.',
     '(',
+    ...(event === 'post-checkout' ? [CHECKOUT_GUARD] : []),
     '  export GRAPHIFY_QUERY_LOG_DISABLE=1',
     '  cd "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || exit 0',
     `  LOG=${shellQuote(log)}`,
@@ -79,12 +85,26 @@ export function hookBlock({ stateDir }) {
   ].join('\n');
 }
 
-async function hookFile(cwd) {
+// Repo-local opt-out: `uninstall` sets it so the SessionStart auto-connect (connect.js) does not reinstall what the user removed;
+// an explicit `install` clears it.
+export const OPT_OUT_KEY = 'amauta.graphifyHook';
+
+async function hookLocation(cwd) {
   const root = await gitRepoRoot(cwd);
   if (!root) throw new Error(`not a git repository: ${cwd}`);
-  const rel = (await gitOrNull(root, ['rev-parse', '--git-path', 'hooks/post-commit']))?.trim();
-  if (!rel) throw new Error('cannot locate the post-commit hook path');
-  return path.resolve(root, rel);
+  const rel = (await gitOrNull(root, ['rev-parse', '--git-path', 'hooks']))?.trim();
+  if (!rel) throw new Error('cannot locate the git hooks directory');
+  return { root, hooks: EVENTS.map((event) => ({ event, file: path.join(path.resolve(root, rel), event) })) };
+}
+
+/** Git root, whether the repo opted out of the auto-connect, and whether any event hook already holds our block. Never throws on a non-repo (root null). */
+export async function hookStatus(cwd) {
+  let loc;
+  try { loc = await hookLocation(path.resolve(cwd)); } catch { return { root: null, optedOut: false, installed: false }; }
+  const optedOut = (await gitOrNull(loc.root, ['config', '--local', '--get', OPT_OUT_KEY]))?.trim() === 'false';
+  let installed = false;
+  for (const { file } of loc.hooks) if ((await readOrNull(file).catch(() => null))?.includes(BEGIN)) installed = true;
+  return { root: loc.root, optedOut, installed };
 }
 
 const readOrNull = (p) => readFile(p, 'utf8').then((t) => t, (err) => (err.code === 'ENOENT' ? null : Promise.reject(err)));
@@ -101,42 +121,60 @@ function blockBounds(text) {
   return { start, from, end };
 }
 
+// `graphify hook install` writes its own blocks (post-commit, post-checkout, post-merge). They rebuild graph.json without
+// mirroring it and outside our lock, so two rebuilds race on every commit: ours replaces them.
+const NATIVE_BLOCK = /^# graphify-(?:[a-z]+-)?hook-start\n[\s\S]*?^# graphify-(?:[a-z]+-)?hook-end[^\n]*(?:\n|$)/gm;
+
+function nextHookText(file, original, block, warnings) {
+  if (original === null) return `${SHEBANG}\n${block}`;
+  const first = original.split('\n', 1)[0];
+  if (first.startsWith('#!') && !SHELL_SHEBANG.test(first)) throw new Error(`${file} is not a shell script (${first}); add the graphify step to it by hand`);
+  const existing = original.replace(NATIVE_BLOCK, '');
+  if (existing !== original) warnings.push(`${file}: removed graphify's own hook block (amauta's block runs \`graphify update .\` itself); \`graphify hook install\` would add it back`);
+  const bounds = blockBounds(existing);
+  if (bounds) return existing.slice(0, bounds.start) + block + existing.slice(bounds.end); // refresh our block in place
+  if (/^\s*(exit|exec)\b/m.test(existing)) warnings.push(`${file}: the existing hook has a top-level exit/exec before our block, so the block may never run`);
+  return `${existing}${existing === '' || existing.endsWith('\n') ? '' : '\n'}\n${block}`;
+}
+
+/** Every event hook is checked before any is written, so a refused hook leaves all of them untouched. */
 export async function installHook({ cwd = process.cwd(), stateDir } = {}) {
-  const dir = path.resolve(cwd);
-  const file = await hookFile(dir);
+  const { root, hooks } = await hookLocation(path.resolve(cwd));
   const state = resolveTargets({ stateDir }).stateDir;
-  const block = hookBlock({ stateDir: state });
-  const existing = await readOrNull(file);
   const warnings = [];
-  let next;
-  if (existing === null) {
-    next = `${SHEBANG}\n${block}`;
-  } else {
-    const first = existing.split('\n', 1)[0];
-    if (first.startsWith('#!') && !SHELL_SHEBANG.test(first)) throw new Error(`${file} is not a shell script (${first}); add the graphify step to it by hand`);
-    const bounds = blockBounds(existing);
-    if (bounds) {
-      next = existing.slice(0, bounds.start) + block + existing.slice(bounds.end); // refresh our block in place
-    } else {
-      next = `${existing}${existing === '' || existing.endsWith('\n') ? '' : '\n'}\n${block}`;
-      if (/^\s*(exit|exec)\b/m.test(existing)) warnings.push('the existing hook has a top-level exit/exec before our block, so the block may never run');
-    }
+  const plans = [];
+  for (const { event, file } of hooks) {
+    const existing = await readOrNull(file);
+    plans.push({ file, existing, next: nextHookText(file, existing, hookBlock({ stateDir: state, event }), warnings) });
   }
-  const changed = next !== existing;
-  if (changed) await writeFileAtomic(file, next, existing === null ? { mode: 0o755 } : {});
-  if (((await stat(file)).mode & 0o111) === 0) warnings.push('the hook file is not executable, so git ignores it (chmod +x)');
-  return { file, changed, warnings };
+  let changed = false;
+  for (const { file, existing, next } of plans) {
+    if (next !== existing) {
+      await writeFileAtomic(file, next, existing === null ? { mode: 0o755 } : {});
+      changed = true;
+    }
+    if (((await stat(file)).mode & 0o111) === 0) warnings.push(`${file}: the hook file is not executable, so git ignores it (chmod +x)`);
+  }
+  await gitOrNull(root, ['config', '--local', '--unset-all', OPT_OUT_KEY]); // exit 5 when it was never set: ignored
+  const files = hooks.map((h) => h.file);
+  return { file: files[0], files, changed, warnings };
 }
 
 export async function uninstallHook({ cwd = process.cwd() } = {}) {
-  const file = await hookFile(path.resolve(cwd));
-  const existing = await readOrNull(file);
-  const bounds = existing === null ? null : blockBounds(existing);
-  if (!bounds) return { file, changed: false };
-  const rest = existing.slice(0, bounds.from) + existing.slice(bounds.end);
-  if (rest.trim() === '' || rest.trim() === SHEBANG.trim()) await rm(file, { force: true }); // a hook that only ever held our block
-  else await writeFileAtomic(file, rest);
-  return { file, changed: true };
+  const { root, hooks } = await hookLocation(path.resolve(cwd));
+  const removed = [];
+  for (const { file } of hooks) {
+    const existing = await readOrNull(file);
+    const bounds = existing === null ? null : blockBounds(existing);
+    if (!bounds) continue;
+    const rest = existing.slice(0, bounds.from) + existing.slice(bounds.end);
+    if (rest.trim() === '' || rest.trim() === SHEBANG.trim()) await rm(file, { force: true }); // a hook that only ever held our block
+    else await writeFileAtomic(file, rest);
+    removed.push(file);
+  }
+  await gitOrNull(root, ['config', '--local', OPT_OUT_KEY, 'false']);
+  const files = hooks.map((h) => h.file);
+  return { file: files[0], files, removed, changed: removed.length > 0 };
 }
 
 const OPTIONS = { cwd: { type: 'string' }, 'state-dir': { type: 'string' } };
@@ -153,11 +191,13 @@ async function run(args, io) {
     const opts = { cwd: path.resolve(values.cwd ?? process.cwd()), stateDir: values['state-dir'] };
     if (action === 'install') {
       const r = await installHook(opts);
-      io.stdout.write(r.changed ? `amauta: graphify post-commit hook installed in ${r.file}\n` : `amauta: graphify post-commit hook already up to date (${r.file})\n`);
+      io.stdout.write(`amauta: graphify hooks ${r.changed ? 'installed' : 'already up to date'}:\n${r.files.map((f) => `  ${f}\n`).join('')}`);
       for (const w of r.warnings) io.stdout.write(`  warning: ${w}\n`);
     } else {
       const r = await uninstallHook(opts);
-      io.stdout.write(r.changed ? `amauta: graphify post-commit hook removed from ${r.file}\n` : 'amauta: no graphify hook block found\n');
+      io.stdout.write(r.changed ? `amauta: graphify hook block removed from:\n${r.removed.map((f) => `  ${f}\n`).join('')}` : 'amauta: no graphify hook block found\n');
+      // install replaces graphify's own hook blocks and cannot know their original text afterwards.
+      if (r.changed) io.stdout.write("  if you used graphify's own hooks, run `graphify hook install` to add them back\n");
     }
     return 0;
   } catch (err) {
@@ -167,5 +207,5 @@ async function run(args, io) {
 }
 
 export function registerGraphifyCommands(commands) {
-  commands.set('graphify', { summary: 'Manage the graphify post-commit hook that mirrors the code graph into memory.db (hook install|uninstall --cwd --state-dir; semantic --cwd --model: optional LLM pass, needs ANTHROPIC_API_KEY)', run });
+  commands.set('graphify', { summary: 'Manage the graphify git hooks (post-commit, post-merge, post-rewrite, post-checkout) that mirror the code graph into memory.db (hook install|uninstall --cwd --state-dir; semantic --cwd --model: optional LLM pass, needs ANTHROPIC_API_KEY)', run });
 }

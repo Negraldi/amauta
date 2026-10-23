@@ -2,6 +2,7 @@
 // return one object to print as JSON on stdout. Hooks fail open: any error, malformed
 // input or missing field results in empty stdout and exit code 0.
 import { refreshRegistry } from '../registry/skill-registry.js';
+import { graphifyConnect } from '../graphify/connect.js';
 import { reviewStop } from '../review/stop.js';
 
 export const handlers = new Map([
@@ -11,6 +12,7 @@ export const handlers = new Map([
     return null;
   }],
   ['review-stop', (payload) => reviewStop(payload)],
+  ['graphify-connect', (payload) => graphifyConnect(payload)],
 ]);
 
 async function readAll(stream) {

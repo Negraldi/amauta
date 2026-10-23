@@ -159,3 +159,64 @@ test('a rejected path shows the server message inline and nothing else changes',
   assert.match(view(env).textContent, /not an existing directory/);
   assert.equal(tree(view(env)).filter((e) => e.tagName === 'img').length, 0);
 });
+
+// ---- graph sync on the project page -----------------------------------------------------------------------------
+const GIT_GRAPH = { mirrored: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z', is_git: true, last_commit: '2026-10-15T08:00:00Z', stale: true, hooks_installed: false, opted_out: false, running: false };
+const withGraph = (graph) => ({ '/api/wiki/page': { ...PAGE, graph } });
+
+test('a stale git project says the graph is older than the last commit and offers Sync and Connect', async () => {
+  const { env } = await boot('#/project/repo', withGraph(GIT_GRAPH));
+  const v = view(env);
+  assert.match(v.textContent, /The graph is older than the last commit \(2026-10-15/);
+  assert.ok(byText(v, 'button', 'Sync graph now'));
+  assert.ok(byText(v, 'button', 'Connect'));
+});
+
+test('an up to date graph says so; hooks installed or a plain directory hide Connect but keep Sync', async () => {
+  let { env } = await boot('#/project/repo', withGraph({ ...GIT_GRAPH, stale: false, hooks_installed: true }));
+  assert.match(view(env).textContent, /up to date with the last commit/);
+  assert.ok(byText(view(env), 'button', 'Sync graph now'));
+  assert.equal(byText(view(env), 'button', 'Connect'), undefined);
+  ({ env } = await boot('#/project/repo', withGraph({ mirrored: false, nodes: 0, edges: 0, synced_at: null, howto: 'x', is_git: false, last_commit: null, stale: null, hooks_installed: false, opted_out: false, running: false })));
+  assert.ok(byText(view(env), 'button', 'Sync graph now'), 'non-git projects sync too');
+  assert.equal(byText(view(env), 'button', 'Connect'), undefined);
+  assert.doesNotMatch(view(env).textContent, /older than the last commit|up to date with/);
+});
+
+test('Sync graph now posts the project with the token, disables the buttons and shows a status line', async () => {
+  const posts = [];
+  const { env } = await boot('#/project/repo', { ...withGraph(GIT_GRAPH), '/api/projects/graph-sync': async (opts) => { posts.push({ headers: opts.headers, body: JSON.parse(opts.body), method: opts.method }); return { started: true, project: 'repo' }; } });
+  const btn = byText(view(env), 'button', 'Sync graph now');
+  btn.click();
+  await tick();
+  assert.deepEqual(posts.map((p) => [p.method, p.body, p.headers['X-Portal-Token'], p.headers['Content-Type']]), [['POST', { project: 'repo' }, 'TOKEN-123', 'application/json']]);
+  assert.ok('disabled' in btn.attrs, 'disabled while the refresh runs');
+  assert.ok('disabled' in byText(view(env), 'button', 'Connect').attrs);
+  assert.match(view(env).textContent, /Refresh started/);
+});
+
+test('a refused sync shows the server error and lets the user try again', async () => {
+  const { env } = await boot('#/project/repo', { ...withGraph(GIT_GRAPH), '/api/projects/graph-sync': { __status: 409, error: 'graphify is not installed or not on the portal\'s PATH (install it with: pipx install graphifyy)' } });
+  const btn = byText(view(env), 'button', 'Sync graph now');
+  btn.click();
+  await tick();
+  assert.match(view(env).textContent, /graphify is not installed/);
+  assert.equal('disabled' in btn.attrs, false);
+});
+
+test('Connect posts to graph-connect and then disappears', async () => {
+  const posts = [];
+  const { env } = await boot('#/project/repo', { '/api/wiki/page': async () => ({ ...PAGE, graph: { ...GIT_GRAPH, hooks_installed: posts.length > 0 } }), '/api/projects/graph-connect': async (opts) => { posts.push(JSON.parse(opts.body)); return { ok: true, project: 'repo' }; } });
+  byText(view(env), 'button', 'Connect').click();
+  await tick();
+  assert.deepEqual(posts, [{ project: 'repo' }]);
+  assert.match(view(env).textContent, /Connected: the git hooks are installed/);
+  assert.equal(byText(view(env), 'button', 'Connect'), undefined);
+  assert.equal('disabled' in byText(view(env), 'button', 'Sync graph now').attrs, false);
+});
+
+test('while a refresh is running the buttons are disabled and the page says so', async () => {
+  const { env } = await boot('#/project/repo', withGraph({ ...GIT_GRAPH, running: true }));
+  assert.match(view(env).textContent, /A graph refresh is running/);
+  assert.ok('disabled' in byText(view(env), 'button', 'Sync graph now').attrs);
+});

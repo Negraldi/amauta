@@ -1,7 +1,7 @@
 """Projects the portal knows: `--repo` flags, `portal.json` in the state dir and (optionally) git roots of session working directories.
 
 Configured paths (`--repo`, `portal.json`, Settings) may be any existing absolute directory, in $HOME or elsewhere (a data disk), except `/`, $HOME
-itself and system trees. Paths are resolved first, so a symlink into a system tree is refused. Auto-discovery stays inside $HOME. Discovery is bounded
+itself and system trees. Paths are resolved first, so a symlink into a system tree is refused. Auto-discovery stays inside $HOME and skips linked git worktrees. Discovery is bounded
 (sessions read, repositories kept) and cached for a few seconds.
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from . import wikifeature, wikisess
+from . import graphsync
 from .api import has_table
 
 CONFIG_NAME = "portal.json"
@@ -142,6 +143,20 @@ def git_root(cwd, home):
     return None
 
 
+def is_linked_worktree(root):
+    """True for a linked worktree: its `.git` is a file pointing into another repository's `.git/worktrees/<name>` (a submodule points into `.git/modules`)."""
+    try:
+        marker = Path(root) / ".git"
+        if not marker.is_file() or marker.stat().st_size > 4096:
+            return False
+        first = marker.read_text(errors="replace").splitlines()[0:1]
+    except OSError:
+        return False
+    if not first or not first[0].startswith("gitdir:"):
+        return False
+    return "worktrees" in Path(first[0][len("gitdir:"):].strip()).parts[-2:-1]
+
+
 def session_roots(portal, home):
     """{session_id: git root} for the most recent sessions, newest first; cwd comes from the transcript's first bytes (read-only)."""
     conn = portal._usage_conn()
@@ -199,7 +214,9 @@ def collect(portal):
         for root in [*roots.values(), *event_roots(portal, home)]:
             if root not in found:
                 found.append(root)
-        for root in found[:MAX_DISCOVERED]:
+        # A linked worktree of a project is another checkout of it, not another project (its graph would duplicate the main one).
+        # Only discovery filters them: a path the user configured or passed with --repo is always kept.
+        for root in [r for r in found if not is_linked_worktree(r)][:MAX_DISCOVERED]:
             add(root, "discovered")
     value = {"repos": repos, "origin": origin, "config": config, "session_roots": roots}
     portal._projects_cache = (time.monotonic(), value)
@@ -252,7 +269,7 @@ def memory_count(portal, name):
         conn.close()
 
 
-def graph_status(portal, repo):
+def graph_status(portal, repo, detail=False):
     conn = portal._graph_conn()
     row = None
     if conn is not None:
@@ -261,8 +278,12 @@ def graph_status(portal, repo):
         finally:
             conn.close()
     if row is None:
-        return {"mirrored": False, "nodes": 0, "edges": 0, "synced_at": None, "howto": GRAPH_HOWTO}
-    return {"mirrored": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"]}
+        out = {"mirrored": False, "nodes": 0, "edges": 0, "synced_at": None, "howto": GRAPH_HOWTO}
+    else:
+        out = {"mirrored": True, "nodes": row["nodes"], "edges": row["edges"], "synced_at": row["synced_at"]}
+    if detail:  # the project page: git facts cost a few git calls, so the list view skips them
+        out.update(graphsync.info(repo, out["synced_at"]))
+    return out
 
 
 def summary(portal, q=None):

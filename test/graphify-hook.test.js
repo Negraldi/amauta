@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, stat, utimes, access } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, chmod, rm, stat, utimes, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installHook, uninstallHook, BEGIN, END } from '../src/graphify/hook.js';
 import { main } from '../src/cli.js';
+import { tempDir } from './helpers/tmp.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
@@ -14,7 +15,7 @@ const GRAPH = JSON.stringify({ nodes: [{ id: 'a', label: 'A', file_type: 'code',
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function sandbox({ graphify = null } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-gfy-'));
+  const root = await tempDir('gl-gfy-');
   const t = { root, repo: path.join(root, 'repo'), state: path.join(root, 'state'), bin: path.join(root, 'bin'), log: path.join(root, 'graphify.log') };
   await mkdir(t.repo, { recursive: true });
   await mkdir(t.bin);
@@ -121,7 +122,7 @@ test('a hook that is not a shell script is refused and left untouched', async ()
 });
 
 test('outside a git repository nothing is written', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-nogit-'));
+  const root = await tempDir('gl-nogit-');
   await assert.rejects(installHook({ cwd: root, stateDir: path.join(root, 's') }), /not a git repository/);
   await rm(root, { recursive: true, force: true });
 });
@@ -498,5 +499,107 @@ test('a clean check-update clears the pending flag, and a failing check-update l
   await rm(path.join(t.root, 'pending'));
   await t.commit('three');
   assert.ok(await waitFor(() => dbValue(db, 'select semantic_pending from graph_sync') === '0'), 'nothing pending any more');
+  await t.cleanup();
+});
+
+const EVENT_HOOKS = ['post-commit', 'post-merge', 'post-rewrite', 'post-checkout'];
+const hookAt = (t, name) => path.join(t.repo, '.git', 'hooks', name);
+const syncedNodes = (t) => {
+  const r = spawnSync('python3', ['-P', '-c', `import sqlite3\nr=sqlite3.connect(${JSON.stringify(path.join(t.state, 'memory.db'))}).execute("select nodes from graph_sync").fetchone()\nprint(r[0] if r else '')`], { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : '';
+};
+const WRITE_GRAPH = `mkdir -p graphify-out\ncat > graphify-out/graph.json <<'JSON'\n${GRAPH}\nJSON`;
+
+test('install manages the block in post-commit, post-merge, post-rewrite and post-checkout', async () => {
+  const t = await sandbox();
+  const r = await installHook(t.opts());
+  assert.deepEqual(r.files, EVENT_HOOKS.map((n) => hookAt(t, n)));
+  for (const name of EVENT_HOOKS) {
+    const text = await readFile(hookAt(t, name), 'utf8');
+    assert.equal(text.split(BEGIN).length - 1, 1, name);
+    assert.ok(await executable(hookAt(t, name)), name);
+  }
+  assert.equal((await installHook(t.opts())).changed, false);
+  await t.cleanup();
+});
+
+test('uninstall restores every event hook: user content kept, files we created deleted', async () => {
+  const t = await sandbox();
+  const original = '#!/bin/sh\necho "user merge hook"\n';
+  await writeFile(hookAt(t, 'post-merge'), original);
+  await chmod(hookAt(t, 'post-merge'), 0o755);
+  await installHook(t.opts());
+  const r = await uninstallHook(t.opts());
+  assert.equal(r.changed, true);
+  assert.equal(await readFile(hookAt(t, 'post-merge'), 'utf8'), original);
+  for (const name of ['post-commit', 'post-rewrite', 'post-checkout']) await assert.rejects(stat(hookAt(t, name)), /ENOENT/, name);
+  await t.cleanup();
+});
+
+test('a fast-forward merge (no commit hook runs) refreshes and mirrors the graph', async () => {
+  const t = await sandbox({ graphify: WRITE_GRAPH });
+  await t.commit('base');
+  t.git('checkout', '-q', '-b', 'side');
+  await t.commit('on side');
+  t.git('checkout', '-q', '-');
+  await installHook(t.opts());
+  const m = t.git('merge', '-q', '--ff-only', 'side');
+  assert.equal(m.status, 0, m.stderr);
+  assert.equal(await waitFor(async () => syncedNodes(t) === '2'), true);
+  await t.cleanup();
+});
+
+test('post-checkout refreshes on a branch switch but not on a file checkout', async () => {
+  const t = await sandbox({ graphify: WRITE_GRAPH });
+  await writeFile(path.join(t.repo, 'tracked.txt'), 'v1');
+  t.git('add', '-A');
+  t.git('commit', '-q', '-m', 'base');
+  t.git('branch', 'other');
+  await installHook(t.opts());
+  await writeFile(path.join(t.repo, 'tracked.txt'), 'dirty');
+  assert.equal(t.git('checkout', '-q', '--', 'tracked.txt').status, 0);
+  await sleep(1500);
+  assert.deepEqual(await lines(t.log), [], 'a file checkout must not start graphify');
+  assert.equal(t.git('checkout', '-q', 'other').status, 0);
+  assert.ok(await waitFor(async () => (await lines(t.log)).some((l) => l.startsWith('args=update .'))));
+  await t.cleanup();
+});
+
+test('CLI: install and uninstall name every event hook', async () => {
+  const t = await sandbox();
+  const out = sink();
+  assert.equal(await main(['graphify', 'hook', 'install', '--cwd', t.repo, '--state-dir', t.state], { stdout: out, stderr: sink() }), 0);
+  for (const name of EVENT_HOOKS) assert.ok(out.text.includes(hookAt(t, name)), name);
+  const out2 = sink();
+  assert.equal(await main(['graphify', 'hook', 'uninstall', '--cwd', t.repo], { stdout: out2, stderr: sink() }), 0);
+  for (const name of EVENT_HOOKS) assert.ok(out2.text.includes(hookAt(t, name)), name);
+  await t.cleanup();
+});
+
+test("install strips graphify's own hook blocks (they race our lock and never mirror) and keeps the rest", async () => {
+  const t = await sandbox();
+  const native = (kind) => `# graphify-${kind}hook-start\n# Installed by: graphify hook install\ngraphify update . &\n# graphify-${kind}hook-end\n`;
+  await writeFile(hookAt(t, 'post-commit'), `#!/bin/sh\necho "user line"\n${native('')}`);
+  await writeFile(hookAt(t, 'post-checkout'), `#!/bin/sh\n${native('checkout-')}`);
+  for (const n of ['post-commit', 'post-checkout']) await chmod(hookAt(t, n), 0o755);
+  const r = await installHook(t.opts());
+  for (const n of ['post-commit', 'post-checkout']) {
+    const text = await readFile(hookAt(t, n), 'utf8');
+    assert.doesNotMatch(text, /graphify-(checkout-)?hook-(start|end)/, n);
+    assert.equal(text.split(BEGIN).length - 1, 1, n);
+  }
+  assert.ok((await readFile(hookAt(t, 'post-commit'), 'utf8')).startsWith('#!/bin/sh\necho "user line"\n'));
+  assert.ok(r.warnings.some((w) => w.includes(hookAt(t, 'post-checkout')) && /graphify's own hook block/.test(w)));
+  await t.cleanup();
+});
+
+test("uninstall says how to restore graphify's own hooks when install had removed them", async () => {
+  const t = await sandbox();
+  await writeFile(hookAt(t, 'post-commit'), '#!/bin/sh\n# graphify-hook-start\ngraphify update . &\n# graphify-hook-end\n');
+  await chmod(hookAt(t, 'post-commit'), 0o755);
+  await installHook(t.opts());
+  const out = sink();
+  assert.equal(await main(['graphify', 'hook', 'uninstall', '--cwd', t.repo], { stdout: out, stderr: sink() }), 0);
+  assert.match(out.text, /graphify hook install/);
   await t.cleanup();
 });
