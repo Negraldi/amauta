@@ -1,11 +1,15 @@
 import { parseArgs } from 'node:util';
 import { install, uninstall, status, restore } from './installer.js';
 import { runUpgrade } from './upgrade.js';
+import { installCodex, parseRuntime, selectRuntimes, statusCodex, uninstallCodex } from './codex.js';
 
 const OPTIONS = {
   'claude-home': { type: 'string' },
   'claude-json': { type: 'string' },
   'state-dir': { type: 'string' },
+  'codex-home': { type: 'string' },
+  'codex-skills-dir': { type: 'string' },
+  runtime: { type: 'string' }, // claude | codex | both (default: both when a Codex home exists)
   'dry-run': { type: 'boolean', default: false },
   force: { type: 'boolean', default: false },
   persona: { type: 'string' },
@@ -39,6 +43,9 @@ function parse(args) {
     claudeHome: values['claude-home'],
     claudeJson: values['claude-json'],
     stateDir: values['state-dir'],
+    codexHome: values['codex-home'],
+    codexSkillsDir: values['codex-skills-dir'],
+    runtime: parseRuntime(values.runtime),
     dryRun: values['dry-run'],
     force: values.force,
     persona: values.persona,
@@ -71,30 +78,47 @@ const guard = (fn) => async (args, io) => {
   }
 };
 
-async function runInstall(opts, io) {
-  const r = await install(opts);
-  if (opts.json) {
-    io.stdout.write(`${JSON.stringify(r)}\n`);
-    return r.impeccable?.engine === 'failed' ? 1 : 0;
-  }
+const header = (io, runtime, show) => {
+  if (show) io.stdout.write(`runtime ${runtime}\n`);
+};
+
+function printInstallSummary(r, io, subject) {
   if (r.dryRun) {
-    io.stdout.write(`amauta: dry run, ${r.files.length} file(s) would be written\n`);
+    io.stdout.write(`amauta: dry run, ${r.files.length} file(s) would be written${subject}\n`);
     for (const f of r.files) io.stdout.write(`  ${f}\n`);
     for (const f of r.removed) io.stdout.write(`  remove ${f}\n`);
   } else if (r.changed) {
-    io.stdout.write(`amauta: installed (${r.files.length} file(s) written)\n`);
+    io.stdout.write(`amauta: installed${subject} (${r.files.length} file(s) written)\n`);
     if (r.backup) io.stdout.write(`  backup: ${r.backup}\n`);
   } else {
     io.stdout.write('amauta: already installed, nothing to change\n');
   }
   for (const s of r.skipped) io.stdout.write(`  kept your edited file (use --force to overwrite): ${s}\n`);
-  const eng = r.impeccable;
-  if (eng?.engine === 'failed') {
-    io.stderr.write(`amauta: impeccable engine not installed: ${eng.detail}\n  the skill itself is installed (its bundled detector needs no npm); rerun \`amauta install\` to retry the engine\n`);
-    return 1;
+}
+
+async function runInstall(opts, io) {
+  const { runtimes } = await selectRuntimes(opts);
+  const multi = !(runtimes.length === 1 && runtimes[0] === 'claude');
+  const r = runtimes.includes('claude') ? await install(opts) : null;
+  const c = runtimes.includes('codex') ? await installCodex(opts) : null;
+  const failed = r?.impeccable?.engine === 'failed' ? 1 : 0;
+  if (opts.json) {
+    io.stdout.write(`${JSON.stringify({ ...(r ?? {}), ...(c ? { codex: c } : {}) })}\n`);
+    return failed;
   }
-  if (eng) io.stdout.write(`amauta: impeccable engine ${eng.version} ${eng.engine === 'would-install' ? 'would be installed with npm' : eng.engine}\n`);
-  return 0;
+  if (r) {
+    header(io, 'claude', multi);
+    printInstallSummary(r, io, '');
+    const eng = r.impeccable;
+    if (eng?.engine === 'failed') {
+      io.stderr.write(`amauta: impeccable engine not installed: ${eng.detail}\n  the skill itself is installed (its bundled detector needs no npm); rerun \`amauta install\` to retry the engine\n`);
+    } else if (eng) io.stdout.write(`amauta: impeccable engine ${eng.version} ${eng.engine === 'would-install' ? 'would be installed with npm' : eng.engine}\n`);
+  }
+  if (c) {
+    header(io, 'codex', multi);
+    printInstallSummary(c, io, ' into Codex');
+  }
+  return failed;
 }
 
 async function runRestore(opts, io) {
@@ -108,13 +132,18 @@ async function runRestore(opts, io) {
 }
 
 async function runUninstall(opts, io) {
-  const r = await uninstall(opts);
-  io.stdout.write(r.changed ? `amauta: uninstalled\n${r.backup ? `  backup: ${r.backup}\n` : ''}` : 'amauta: nothing to uninstall\n');
-  for (const k of r.kept) io.stdout.write(`  kept (modified by you): ${k}\n`);
+  const { runtimes } = await selectRuntimes(opts);
+  const multi = !(runtimes.length === 1 && runtimes[0] === 'claude');
+  for (const runtime of runtimes) {
+    header(io, runtime, multi);
+    const r = runtime === 'claude' ? await uninstall(opts) : await uninstallCodex(opts);
+    io.stdout.write(r.changed ? `amauta: uninstalled\n${r.backup ? `  backup: ${r.backup}\n` : ''}` : 'amauta: nothing to uninstall\n');
+    for (const k of r.kept) io.stdout.write(`  kept (modified by you): ${k}\n`);
+  }
   return 0;
 }
 
-async function runStatus(opts, io) {
+async function printClaudeStatus(opts, io) {
   const s = await status(opts);
   if (!s.installed) {
     io.stdout.write('amauta: not installed\n');
@@ -135,10 +164,38 @@ async function runStatus(opts, io) {
   return s.ok ? 0 : 1;
 }
 
+
+async function printCodexStatus(opts, io) {
+  const s = await statusCodex(opts);
+  if (!s.installed) {
+    io.stdout.write('amauta: not installed\n');
+    return false;
+  }
+  const bad = s.items.filter((i) => !i.ok);
+  io.stdout.write(`amauta ${s.state.version}: ${s.ok ? 'installed' : 'installed with problems'} (${s.items.length - bad.length}/${s.items.length} ok)\n`);
+  for (const i of bad) io.stdout.write(`  [problem] ${i.name}: ${i.detail}\n`);
+  for (const n of s.notes) io.stdout.write(`  [optional] ${n.name}: ${n.detail}\n`);
+  io.stdout.write(`  codex home: ${s.state.codex_home}\n  skills dir: ${s.state.codex_skills_dir}\n`);
+  return s.ok;
+}
+
+async function runStatus(opts, io) {
+  const { runtimes, explicit } = await selectRuntimes(opts);
+  if (runtimes.length === 1 && runtimes[0] === 'claude') return printClaudeStatus(opts, io);
+  let code = 0;
+  for (const runtime of runtimes) {
+    header(io, runtime, true);
+    if (runtime === 'claude') {
+      if ((await printClaudeStatus(opts, io)) !== 0) code = 1;
+    } else if (!(await printCodexStatus(opts, io)) && explicit) code = 1; // by default a Codex that was never installed is informational
+  }
+  return code;
+}
+
 export function registerInstallCommands(commands) {
-  commands.set('install', { summary: 'Install amauta into Claude Code (--claude-home --claude-json --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
-  commands.set('restore', { summary: 'Restore an installer backup by id (--backup <id> --claude-home --claude-json --state-dir --json)', run: guard(runRestore) });
+  commands.set('install', { summary: 'Install amauta into Claude Code and/or Codex (--runtime claude|codex|both, default both when ~/.codex exists; --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --dry-run --force --persona --no-telemetry --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
+  commands.set('restore', { summary: 'Restore an installer backup by id, Claude or Codex files (--backup <id> --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --json)', run: guard(runRestore) });
   commands.set('upgrade', { summary: 'Update this install to the latest release tag (--to <tag> for another, --dry-run, --yes, --claude-home --claude-json --state-dir)', run: (args, io) => runUpgrade(args, io) });
-  commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content', run: guard(runUninstall) });
-  commands.set('status', { summary: 'Show what is installed and what is missing (--deep also probes the graphify SQL extractor)', run: guard(runStatus) });
+  commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content (--runtime claude|codex|both)', run: guard(runUninstall) });
+  commands.set('status', { summary: 'Show what is installed and what is missing, one section per runtime (--runtime claude|codex|both, --deep also probes the graphify SQL extractor)', run: guard(runStatus) });
 }

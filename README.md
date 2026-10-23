@@ -24,6 +24,22 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety)
 | Permissions | `ask`: `Bash(git push --force*)`, `Bash(git reset --hard*)`, `Bash(rm -rf*)` (prefix matches only, `rm -fr` or `sudo rm -rf` get past them). `deny` for `Read` and `Edit` of `.env`, `.env.*`, `~/.ssh/**`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, `*.pem`, `*.key`, `secrets/**`. No `defaultMode`, no allow entries |
 | Optional | `--with-sdd` (SDD module), `--with-context7`, `--with-rea` (third-party MCP servers, off by default; choices are sticky until uninstall), `--with-impeccable` (design skill, see below), `--with-archify` (diagram skill, see below), `--no-telemetry` |
 
+### Codex
+
+`install`, `uninstall` and `status` take `--runtime claude|codex|both` (default `both` once `~/.codex` exists, else `claude`).
+The Codex target reuses the same manifest and content:
+
+| Claude | Codex |
+| --- | --- |
+| `CLAUDE.md` blocks | the same blocks in `~/.codex/AGENTS.md` (your text is kept) |
+| `settings.json` hooks | `~/.codex/hooks.json`, same commands tagged `AMAUTA_RUNTIME=codex` (no SDD preflight or codegraph prompt hook; Codex asks you to trust new hooks, amauta never writes that state) |
+| `.claude.json` MCP servers | `[mcp_servers.engram]`, `[mcp_servers.amauta]`, ... in `~/.codex/config.toml` (same command, args, env; only those tables are touched) |
+| skills | the same skills in `~/.agents/skills` (SDD skills with `--with-sdd`) |
+
+Output styles, agents, SDD commands, impeccable and archify are Claude-only and not installed. Redirect with `--codex-home` /
+`AMAUTA_CODEX_HOME` (else `CODEX_HOME`) and `--codex-skills-dir` / `AMAUTA_CODEX_SKILLS_DIR`. State lives in
+`<state dir>/codex-state.json`; backups and `amauta restore --backup ID` work for Codex files too.
+
 ## Upgrading
 
 See [UPGRADING.md](UPGRADING.md) (`amauta upgrade --dry-run`, then `amauta upgrade`; rollback with `amauta upgrade --to <tag>`). Release notes are in [CHANGELOG.md](CHANGELOG.md).
@@ -47,7 +63,8 @@ odd/tasks/           feature documents
 ```
 amauta --help
 amauta version
-amauta install   [--claude-home DIR] [--claude-json FILE] [--state-dir DIR] [--dry-run] [--json]
+amauta install   [--runtime claude|codex|both] [--claude-home DIR] [--claude-json FILE] [--codex-home DIR]
+                 [--codex-skills-dir DIR] [--state-dir DIR] [--dry-run] [--json]
                  [--with-sdd|rea|context7|impeccable|archify] [--without-<module>] [--review-mode on|off]
 amauta restore   --backup ID [same dirs] [--json]    # undo an install from its backup (ids: YYYYMMDDTHHMMSSZ)
 amauta uninstall [same options]

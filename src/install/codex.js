@@ -5,10 +5,11 @@ import { injectSection, removeSection, listSections } from '../core/markers.js';
 import { mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { readMcpServer, removeMcpServer, setMcpServer } from '../core/toml.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
-import { createBackup } from '../core/backup.js';
+import { createBackup, pruneEmptyDirs } from '../core/backup.js';
 import { resolveCodexTargets } from './paths.js';
-import { loadManifest } from './assets.js';
-import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, statOrNull, toJson, isObject } from './installer.js';
+import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText } from './assets.js';
+import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, renderSkillFile, safeManagedPath, sha256, statOrNull, toJson, isObject } from './installer.js';
+import { renderSddText } from './sdd.js';
 import { desiredHooks, desiredMcpServers, isAmautaHook } from './servers.js';
 import { findOnPath } from '../codegraph/index.js';
 import { packageVersion } from '../version.js';
@@ -19,9 +20,12 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  * Codex is a second target of the Claude installer: the same manifest, the same content, other paths.
  *   CLAUDE.md blocks        -> <codex home>/AGENTS.md blocks (same marker injector)
  *   settings.json hooks     -> <codex home>/hooks.json (same hook schema; every command carries AMAUTA_RUNTIME=codex)
+ *   ~/.claude/skills        -> ~/.agents/skills (the same skill set; SDD skills only with --with-sdd)
  *   .claude.json mcpServers -> <codex home>/config.toml [mcp_servers.<same name>] (same command, args and env)
  * Claude-only assets have no Codex meaning and are never installed: output styles (a Claude Code setting) and the
- * Claude agent definitions (Codex has no equivalent file format).
+ * Claude agent definitions (Codex has no equivalent file format). Also not carried over: SDD slash commands and agents,
+ * the SDD preflight hook (all Claude dispatch machinery), codegraph's own prompt hook, and the impeccable and archify
+ * skills (their rendering is tied to the Claude home).
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
 const RUNTIME_ENV = 'AMAUTA_RUNTIME=codex';
@@ -37,6 +41,26 @@ export function desiredCodexServers({ stateDir, rea, context7, codegraph }) {
   if (!codegraph) delete rest.codegraph;
   const strip = ({ type: _type, ...value }) => value;
   return Object.fromEntries(Object.entries({ engram: memory, ...rest }).map(([name, value]) => [name, strip(value)]));
+}
+
+const posix = (rel) => rel.split(path.sep).join('/');
+
+/** Skill files (path relative to the skills dir -> Buffer): the Claude set, SDD skills only when asked. */
+async function renderCodexSkills(manifest, { sdd }) {
+  const files = new Map();
+  for (const skill of manifest.skills) {
+    const dir = `${manifest.skillsDir}/${skill}`;
+    for (const rel of await listFiles(assetPath(dir))) files.set(`${skill}/${posix(rel)}`, renderSkillFile(rel, await readAssetBuffer(`${dir}/${posix(rel)}`)));
+  }
+  for (const rel of await listFiles(assetPath(manifest.sharedSkillsDir))) files.set(`_shared/${posix(rel)}`, await readAssetBuffer(`${manifest.sharedSkillsDir}/${posix(rel)}`));
+  if (sdd) {
+    const addTree = async (srcDir, dest) => {
+      for (const rel of await listFiles(assetPath(srcDir))) files.set(`${dest}/${posix(rel)}`, Buffer.from(renderSddText(await readAssetText(`${srcDir}/${posix(rel)}`)), 'utf8'));
+    };
+    for (const skill of manifest.sdd.skills) await addTree(`${manifest.sdd.skillsDir}/${skill}`, skill);
+    await addTree(manifest.sdd.sharedDir, '_shared');
+  }
+  return files;
 }
 
 const stateFileOf = (stateDir) => path.join(stateDir, 'codex-state.json');
@@ -97,6 +121,36 @@ async function plan(opts) {
 
   note(mdFile, mdBuf !== null);
 
+  // Skills: managed files under the skills dir; an edited one is the user's and stays (unless --force).
+  const rendered = await renderCodexSkills(manifest, { sdd });
+  const managedFiles = {};
+  for (const [rel, data] of rendered) {
+    const file = path.join(t.codexSkillsDir, ...rel.split('/'));
+    const existing = await readOrNull(file);
+    if (existing === null) writes.push({ rel: `skills/${rel}`, path: file, data });
+    else if (existing.equals(data)) {
+      // already in place: adopt
+    } else if (opts.force || prev?.managed_files?.[rel] === sha256(existing)) writes.push({ rel: `skills/${rel}`, path: file, data });
+    else {
+      skipped.push(`skills/${rel}`);
+      continue;
+    }
+    managedFiles[rel] = sha256(data);
+  }
+  const removes = [];
+  for (const [rel, hash] of Object.entries(prev?.managed_files ?? {})) {
+    if (rendered.has(rel)) continue;
+    const file = await safeManagedPath(t.codexSkillsDir, rel);
+    if (file === null) {
+      skipped.push(`skills/${rel}`);
+      continue;
+    }
+    const buf = await readOrNull(file);
+    if (buf === null) continue;
+    if (sha256(buf) === hash) removes.push({ rel: `skills/${rel}`, path: file });
+    else skipped.push(`skills/${rel}`);
+  }
+
   // hooks.json
   const hooksFile = path.join(t.codexHome, 'hooks.json');
   const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
@@ -137,6 +191,7 @@ async function plan(opts) {
     persona,
     last_backup: lastBackup ?? prev?.last_backup ?? null,
     agents_md_sections: sections.map((s) => s.id),
+    managed_files: managedFiles,
     telemetry,
     sdd,
     rea,
@@ -147,7 +202,7 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes: [], skipped, makeState };
+  return { t, prev, writes: real, removes, skipped, makeState };
 }
 
 export async function installCodex(opts = {}) {
@@ -162,7 +217,10 @@ export async function installCodex(opts = {}) {
   if (touches) {
     ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), ...removes.map((r) => r.path), statePath]));
     for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
-    for (const r of removes) await rm(r.path, { force: true });
+    for (const r of removes) {
+      await rm(r.path, { force: true });
+      await pruneEmptyDirs(path.dirname(r.path), t.codexSkillsDir);
+    }
   }
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
@@ -216,6 +274,18 @@ export async function uninstallCodex(opts = {}) {
     }
   }
 
+  for (const [rel, hash] of Object.entries(state?.managed_files ?? {})) {
+    const file = await safeManagedPath(t.codexSkillsDir, rel);
+    if (file === null) {
+      kept.push(`skills/${rel}`);
+      continue;
+    }
+    const buf = await readOrNull(file);
+    if (buf === null) continue;
+    if (sha256(buf) === hash) deletes.push(file);
+    else kept.push(`skills/${rel}`);
+  }
+
   const statePath = stateFileOf(t.stateDir);
   const hadState = (await statOrNull(statePath)) !== null;
   if (writes.length === 0 && deletes.length === 0 && !hadState) return { changed: false, backup: null, removed: [], kept };
@@ -225,7 +295,10 @@ export async function uninstallCodex(opts = {}) {
     ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), ...deletes, statePath]));
   }
   for (const w of writes) await writeFileAtomic(w.path, w.data);
-  for (const file of deletes) await rm(file, { force: true });
+  for (const file of deletes) {
+    await rm(file, { force: true });
+    await pruneEmptyDirs(path.dirname(file), file.startsWith(t.codexSkillsDir + path.sep) ? t.codexSkillsDir : t.codexHome);
+  }
   if (hadState) await rm(statePath, { force: true });
   return { changed: true, backup, removed: [...writes.map((w) => w.path), ...deletes], kept };
 }
@@ -253,6 +326,29 @@ export async function statusCodex(opts = {}) {
     const ok = readMcpServer(toml, name).found;
     add(`mcp ${name}`, ok, ok ? '' : 'missing');
   }
+  for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
+    const buf = await readOrNull(path.join(t.codexSkillsDir, ...rel.split('/')));
+    if (buf === null) add(`skill ${rel}`, false, 'missing');
+    else if (sha256(buf) !== hash) add(`skill ${rel}`, false, 'modified');
+    else add(`skill ${rel}`, true);
+  }
   const notes = [{ name: 'hooks trust', ok: true, detail: 'Codex asks you to trust new or changed hooks in its own UI; amauta never writes [hooks.state]' }];
   return { installed: true, ok: items.every((i) => i.ok), items, notes, state };
+}
+
+const RUNTIMES = ['claude', 'codex', 'both'];
+
+/** Validate a --runtime value (undefined stays undefined: pick by what is on the machine). */
+export function parseRuntime(value) {
+  if (value !== undefined && !RUNTIMES.includes(value)) throw new Error(`--runtime must be claude, codex or both (got ${value})`);
+  return value;
+}
+
+/** Runtimes a command acts on. Default: both when a Codex home directory exists, else Claude alone. */
+export async function selectRuntimes(opts = {}) {
+  if (opts.runtime === 'claude') return { runtimes: ['claude'], explicit: true };
+  if (opts.runtime === 'codex') return { runtimes: ['codex'], explicit: true };
+  if (opts.runtime === 'both') return { runtimes: ['claude', 'codex'], explicit: true };
+  const present = (await statOrNull(resolveCodexTargets(opts).codexHome))?.isDirectory() === true;
+  return { runtimes: present ? ['claude', 'codex'] : ['claude'], explicit: false };
 }
