@@ -9,6 +9,7 @@ import { createBackup, pruneEmptyDirs } from '../core/backup.js';
 import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
 import { loadManifest } from './assets.js';
 import { baseFileOf, planMcpSync } from './mcpsync.js';
+import { sourceFingerprint, syncRecordOf } from './fingerprint.js';
 import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, safeManagedPath, sha256, statOrNull, toJson, isObject } from './installer.js';
 import { applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
 import { desiredHooks, desiredMcpServers, isAmautaHook } from './servers.js';
@@ -260,7 +261,16 @@ export async function installCodex(opts = {}) {
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
+  const recordText = toJson({ fingerprint: await sourceFingerprint(opts) }); // what the next SessionStart check compares with
+  if (await needsWrite(syncRecordOf(t.stateDir), recordText)) await writeFileAtomic(syncRecordOf(t.stateDir), recordText);
   return { dryRun: false, changed: touches || stateChanged || !prev || personal.linked.length > 0 || personal.removed.length > 0, files, removed, skipped, backup, mirror, personal };
+}
+
+/** Re-sync Codex with the Claude side and the shared store: the same idempotent pass an install does, for an existing Codex install. */
+export async function syncCodex(opts = {}) {
+  const t = resolveCodexTargets(opts);
+  if (!(await readCodexState(t.stateDir))) return { synced: false, changed: false, reason: 'no codex install' };
+  return { synced: true, ...(await installCodex(opts)) };
 }
 
 export async function uninstallCodex(opts = {}) {
@@ -324,6 +334,7 @@ export async function uninstallCodex(opts = {}) {
   }
 
   if ((await statOrNull(baseFileOf(t.stateDir))) !== null) deletes.push(baseFileOf(t.stateDir));
+  if ((await statOrNull(syncRecordOf(t.stateDir))) !== null) deletes.push(syncRecordOf(t.stateDir));
   const statePath = stateFileOf(t.stateDir);
   const hadState = (await statOrNull(statePath)) !== null;
   if (writes.length === 0 && deletes.length === 0 && !hadState) return { changed: false, backup: null, removed: [], kept };

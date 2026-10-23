@@ -1,7 +1,8 @@
 import { parseArgs } from 'node:util';
 import { install, uninstall, status, restore } from './installer.js';
 import { runUpgrade } from './upgrade.js';
-import { installCodex, parseRuntime, selectRuntimes, statusCodex, uninstallCodex } from './codex.js';
+import { computeParity, parityLines } from './parity.js';
+import { installCodex, parseRuntime, selectRuntimes, statusCodex, syncCodex, uninstallCodex } from './codex.js';
 
 const OPTIONS = {
   'claude-home': { type: 'string' },
@@ -134,6 +135,19 @@ async function runInstall(opts, io) {
   return failed;
 }
 
+async function runSync(opts, io) {
+  const r = await syncCodex(opts);
+  if (opts.json) io.stdout.write(`${JSON.stringify(r)}\n`);
+  else if (!r.synced) io.stdout.write('amauta: no Codex install to sync (run: amauta install --runtime codex)\n');
+  else {
+    io.stdout.write(r.dryRun ? `amauta: dry run, ${r.files.length} file(s) would change\n` : r.changed ? `amauta: synced (${r.files.length} file(s) written)\n` : 'amauta: already in sync\n');
+    for (const f of r.files) io.stdout.write(`  ${f}\n`);
+    printMcpSync(r.mirror, io);
+    for (const n of r.personal?.conflicts ?? []) io.stdout.write(`  skill conflict, a real directory of that name exists in both runtimes: ${n}\n`);
+  }
+  return 0;
+}
+
 async function runRestore(opts, io) {
   const r = await restore(opts);
   if (opts.json) io.stdout.write(`${JSON.stringify(r)}\n`);
@@ -194,6 +208,14 @@ async function printCodexStatus(opts, io) {
 
 async function runStatus(opts, io) {
   const { runtimes, explicit } = await selectRuntimes(opts);
+  const both = runtimes.length === 2;
+  const parity = both ? await computeParity(opts) : { present: false };
+  if (opts.json) {
+    const claude = runtimes.includes('claude') ? await status(opts) : { installed: false };
+    const codex = runtimes.includes('codex') ? await statusCodex(opts) : null;
+    io.stdout.write(`${JSON.stringify({ ...claude, ...(codex ? { codex } : {}), parity })}\n`);
+    return claude.installed && claude.ok ? 0 : runtimes.includes('claude') ? 1 : codex?.ok ? 0 : 1;
+  }
   if (runtimes.length === 1 && runtimes[0] === 'claude') return printClaudeStatus(opts, io);
   let code = 0;
   for (const runtime of runtimes) {
@@ -202,11 +224,17 @@ async function runStatus(opts, io) {
       if ((await printClaudeStatus(opts, io)) !== 0) code = 1;
     } else if (!(await printCodexStatus(opts, io)) && explicit) code = 1; // by default a Codex that was never installed is informational
   }
+  if (parity.present) {
+    const lines = parityLines(parity);
+    io.stdout.write(lines.length === 0 ? 'parity: Claude and Codex have the same MCP servers, skills and instruction blocks\n' : 'parity (informational, does not change the exit code):\n');
+    for (const l of lines) io.stdout.write(`  ${l}\n`);
+  }
   return code;
 }
 
 export function registerInstallCommands(commands) {
   commands.set('install', { summary: 'Install amauta into Claude Code and/or Codex (--runtime claude|codex|both, default both when ~/.codex exists; --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --dry-run --force --persona --no-telemetry --no-mirror-mcp --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
+  commands.set('sync', { summary: 'Sync Claude Code and Codex now: MCP servers both ways (3-way merge), skill links, Codex copies (--dry-run, --json, --no-mirror-mcp, same dirs as install)', run: guard(runSync) });
   commands.set('restore', { summary: 'Restore an installer backup by id, Claude or Codex files (--backup <id> --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --json)', run: guard(runRestore) });
   commands.set('upgrade', { summary: 'Update this install to the latest release tag (--to <tag> for another, --dry-run, --yes, --claude-home --claude-json --state-dir)', run: (args, io) => runUpgrade(args, io) });
   commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content (--runtime claude|codex|both)', run: guard(runUninstall) });

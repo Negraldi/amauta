@@ -4,6 +4,7 @@
 import { refreshRegistry } from '../registry/skill-registry.js';
 import { graphifyConnect } from '../graphify/connect.js';
 import { reviewStop } from '../review/stop.js';
+import { syncIfChanged } from '../install/fingerprint.js';
 
 export const handlers = new Map([
   ['skill-registry', async (payload) => {
@@ -13,6 +14,11 @@ export const handlers = new Map([
   }],
   ['review-stop', (payload) => reviewStop(payload)],
   ['graphify-connect', (payload) => graphifyConnect(payload)],
+  // Claude <-> Codex sync: a hash compare when nothing moved, the sync itself only when a source changed. Prints nothing.
+  ['sync-check', async () => {
+    await syncIfChanged({});
+    return null;
+  }],
 ]);
 
 async function readAll(stream) {

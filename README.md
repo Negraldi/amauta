@@ -27,17 +27,21 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see Safety)
 ### Codex
 
 `install`, `uninstall` and `status` take `--runtime claude|codex|both` (default `both` once `~/.codex` exists, else `claude`).
-The Codex target reuses the same manifest and content:
+Claude Code and Codex share one harness; neither is the master:
 
-| Claude | Codex |
+| Resource | How it is shared |
 | --- | --- |
-| `CLAUDE.md` blocks | the same blocks in `~/.codex/AGENTS.md` (your text is kept) |
-| `settings.json` hooks | `~/.codex/hooks.json`, same commands tagged `AMAUTA_RUNTIME=codex` (no SDD preflight or codegraph prompt hook; Codex asks you to trust new hooks, amauta never writes that state) |
-| `.claude.json` MCP servers | `[mcp_servers.engram]`, `[mcp_servers.amauta]`, ... in `~/.codex/config.toml` (same command, args, env; only those tables are touched) |
-| skills | the same skills in `~/.agents/skills` (SDD skills with `--with-sdd`) |
+| Memory | one `memory.db` and the same `engram` server entry in both (only `AMAUTA_RUNTIME=claude\|codex` differs); memories are found by project label in either runtime |
+| Skills | rendered once into the amauta store `<state dir>/skills/<name>`; `~/.claude/skills/<name>` and `~/.agents/skills/<name>` are symlinks to it (impeccable and archify included). An unedited real copy from an older install is replaced by the link; an edited one is kept and reported (`--force` replaces it) |
+| Personal skills | a real skill directory in either skills dir gets a symlink in the other; the real copy stays where you made it, nothing is copied or moved. Same name as a real directory on both sides: reported as a conflict |
+| MCP servers | every stdio server (`command`, `args`, `env`) goes both ways between `.claude.json` and `~/.codex/config.toml` as a 3-way merge against the last synced set (`<state dir>/mcp-sync.json`, hashes only). Changed or removed on one side only: copied. Changed differently on both: left as is and reported as a conflict in `amauta status` until you make one side match. Claude-only keys (`type`, ...) and Codex-only keys (`startup_timeout_sec`, ...) stay on their side. Non-stdio servers are listed and not synced. `--no-mirror-mcp` turns it off for a run |
+| Instructions, hooks | amauta writes both: `CLAUDE.md` blocks become the same blocks in `~/.codex/AGENTS.md`; hooks go to `~/.codex/hooks.json` with the same commands tagged `AMAUTA_RUNTIME=codex` (no SDD preflight or codegraph prompt hook; Codex asks you to trust new hooks, amauta never writes that state) |
 
-Output styles, agents, SDD commands, impeccable and archify are Claude-only and not installed. Redirect with `--codex-home` /
-`AMAUTA_CODEX_HOME` (else `CODEX_HOME`) and `--codex-skills-dir` / `AMAUTA_CODEX_SKILLS_DIR`. State lives in
+Output styles, agents and SDD commands are Claude-only. `amauta sync` runs the pass above on demand; a cheap `SessionStart`
+step (`hook sync-check`, silent, a hash compare when nothing moved) runs it by itself when a source changed. `amauta status`
+reports drift ("Codex out of sync"), MCP conflicts, and a parity section (MCP servers, skills and instruction blocks in one
+runtime and not the other, hooks without a Codex event; informational, `--json` adds a `parity` key). Redirect with
+`--codex-home` / `AMAUTA_CODEX_HOME` (else `CODEX_HOME`) and `--codex-skills-dir` / `AMAUTA_CODEX_SKILLS_DIR`. State lives in
 `<state dir>/codex-state.json`; backups and `amauta restore --backup ID` work for Codex files too.
 
 ## Upgrading
@@ -64,8 +68,9 @@ odd/tasks/           feature documents
 amauta --help
 amauta version
 amauta install   [--runtime claude|codex|both] [--claude-home DIR] [--claude-json FILE] [--codex-home DIR]
-                 [--codex-skills-dir DIR] [--state-dir DIR] [--dry-run] [--json]
+                 [--codex-skills-dir DIR] [--state-dir DIR] [--dry-run] [--no-mirror-mcp] [--json]
                  [--with-sdd|rea|context7|impeccable|archify] [--without-<module>] [--review-mode on|off]
+amauta sync      [--dry-run] [--json] [same dirs]     # Claude <-> Codex: MCP servers both ways, skill links, copies
 amauta restore   --backup ID [same dirs] [--json]    # undo an install from its backup (ids: YYYYMMDDTHHMMSSZ)
 amauta uninstall [same options]
 amauta status    [same options]
