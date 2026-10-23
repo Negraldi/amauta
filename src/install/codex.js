@@ -12,7 +12,7 @@ import { baseFileOf, planMcpSync } from './mcpsync.js';
 import { sourceFingerprint, syncRecordOf } from './fingerprint.js';
 import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, safeManagedPath, sha256, statOrNull, toJson, isObject } from './installer.js';
 import { applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
-import { desiredHooks, desiredMcpServers, isAmautaHook } from './servers.js';
+import { AMAUTA_SERVER_NAMES, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook, isStaleAmautaServer, staleAmautaHooks } from './servers.js';
 import { findOnPath } from '../codegraph/index.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
 import { packageVersion } from '../version.js';
@@ -92,6 +92,7 @@ async function plan(opts) {
   const archify = either(opts.withArchify, 'archify');
   const codegraph = (await findOnPath('codegraph', opts.searchPath)) !== null;
   const skipped = [];
+  const legacy = []; // amauta entries from an older checkout or adapter that this run replaces
   const created = prev?.created_files ?? [];
   const note = (file, existed) => {
     if (!existed && !created.includes(file) && prev === null) created.push(file);
@@ -156,6 +157,7 @@ async function plan(opts) {
   const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
   const wantedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
+  legacy.push(...staleAmautaHooks(hooksIn.data, wantedCommands));
   let hooks = removeHooksWhere(hooksIn.data, (c) => isAmautaHook(c) && !wantedCommands.has(c));
   hooks = ensureTimeouts(mergeHooks(hooks, wantedHooks), wantedHooks);
   if (!hooksIn.existed || !isDeepStrictEqual(hooks, hooksIn.data)) writes.push({ rel: 'hooks.json', path: hooksFile, data: Buffer.from(toJson(hooks), 'utf8') });
@@ -175,12 +177,19 @@ async function plan(opts) {
   const mcpAdded = {};
   for (const [name, value] of Object.entries(wanted)) {
     const cur = readMcpServer(toml, name);
-    if (!cur.found || ours(name) || isDeepStrictEqual(cur.value, value)) {
+    const old = cur.found && !ours(name) && isStaleAmautaServer(cur.value);
+    if (!cur.found || ours(name) || isDeepStrictEqual(cur.value, value) || old) {
+      if (old) legacy.push(`mcp ${name}`);
       toml = setMcpServer(toml, name, value);
       mcpAdded[name] = value;
     } else skipped.push(`config.toml:mcp_servers.${name}`);
   }
   for (const name of Object.keys(prev?.mcp_added ?? {})) if (!(name in wanted) && ours(name)) toml = removeMcpServer(toml, name);
+  for (const name of LEGACY_SERVER_ALIASES) {
+    if (name in wanted || !isStaleAmautaServer(readMcpServer(toml, name).value)) continue;
+    toml = removeMcpServer(toml, name);
+    legacy.push(`mcp ${name}`);
+  }
   // Every other stdio server goes both ways between .claude.json and config.toml (3-way merge against the last synced set).
   let mirror = { enabled: mirrorMcp, mirrored: [], toClaude: [], removed: [], conflicts: [], unsupported: [], unreadable: null };
   if (mirrorMcp) {
@@ -231,11 +240,11 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, makeState, linkPlan, managedNames: new Set(names), mirror, impeccable, manifest };
+  return { t, prev, writes: real, removes, skipped, legacy, makeState, linkPlan, managedNames: new Set(names), mirror, impeccable, manifest };
 }
 
 export async function installCodex(opts = {}) {
-  const { t, prev, writes, removes, skipped, makeState, mirror, linkPlan, managedNames, impeccable, manifest } = await plan(opts);
+  const { t, prev, writes, removes, skipped, legacy, makeState, mirror, linkPlan, managedNames, impeccable, manifest } = await plan(opts);
   const files = writes.map((w) => w.rel);
   const removed = removes.map((r) => r.rel);
   const touches = writes.length > 0 || removes.length > 0 || linkPlan.link.length > 0 || linkPlan.unlink.length > 0;
@@ -243,7 +252,7 @@ export async function installCodex(opts = {}) {
     const cs = resolveClaudeSource(opts);
     const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, dryRun: true, sides: [{ dir: path.join(cs.claudeHome, 'skills'), create: (await statOrNull(cs.claudeHome)) !== null }, { dir: t.codexSkillsDir }] });
     const pending = personal.linked.length > 0 || personal.removed.length > 0;
-    const dry = { dryRun: true, changed: touches || pending, files: [...files, ...personal.linked.map((n) => `skills/${n} (link)`)], removed, skipped, backup: null, mirror, personal };
+    const dry = { dryRun: true, changed: touches || pending, files: [...files, ...personal.linked.map((n) => `skills/${n} (link)`)], removed, skipped, legacy, backup: null, mirror, personal };
     if (impeccable) {
       const wanted = manifest.impeccable?.engine.version;
       dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
@@ -269,7 +278,7 @@ export async function installCodex(opts = {}) {
   if (stateChanged) await writeFileAtomic(statePath, stateText);
   const recordText = toJson({ fingerprint: await sourceFingerprint(opts) }); // what the next SessionStart check compares with
   if (await needsWrite(syncRecordOf(t.stateDir), recordText)) await writeFileAtomic(syncRecordOf(t.stateDir), recordText);
-  const result = { dryRun: false, changed: touches || stateChanged || !prev || personal.linked.length > 0 || personal.removed.length > 0, files, removed, skipped, backup, mirror, personal };
+  const result = { dryRun: false, changed: touches || stateChanged || !prev || personal.linked.length > 0 || personal.removed.length > 0, files, removed, skipped, legacy, backup, mirror, personal };
   if (impeccable) {
     // The engine is one shared store: whichever runtime installs the module prepares it (after the state is written, so a failed run is retried).
     result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: manifest.impeccable?.engine.version, searchPath: opts.searchPath });
@@ -317,14 +326,16 @@ export async function uninstallCodex(opts = {}) {
 
   const tomlFile = path.join(t.codexHome, 'config.toml');
   const tomlBuf = await readOrNull(tomlFile);
-  if (tomlBuf && state?.mcp_added) {
+  if (tomlBuf) {
     const before = tomlBuf.toString('utf8');
     let toml = before;
-    for (const [name, value] of Object.entries(state.mcp_added)) {
+    for (const [name, value] of Object.entries(state?.mcp_added ?? {})) {
       const cur = readMcpServer(toml, name);
       if (cur.found && isDeepStrictEqual(cur.value, value)) toml = removeMcpServer(toml, name);
-      else if (cur.found) kept.push(`mcp:${name}`);
+      else if (cur.found && !isStaleAmautaServer(cur.value)) kept.push(`mcp:${name}`);
     }
+    // Entries an older checkout or adapter left under amauta's names, whatever the install recorded.
+    for (const name of AMAUTA_SERVER_NAMES) if (isStaleAmautaServer(readMcpServer(toml, name).value)) toml = removeMcpServer(toml, name);
     if (toml !== before) {
       if (created.has(tomlFile) && toml.trim() === '') deletes.push(tomlFile);
       else writes.push({ path: tomlFile, data: Buffer.from(toml, 'utf8') });

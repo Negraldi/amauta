@@ -106,6 +106,7 @@ function printInstallSummary(r, io, subject) {
   } else {
     io.stdout.write('amauta: already installed, nothing to change\n');
   }
+  for (const l of r.legacy ?? []) io.stdout.write(`  replaced legacy amauta entry: ${l}\n`);
   for (const s of r.skipped) io.stdout.write(`  kept your edited file (use --force to overwrite): ${s}\n`);
 }
 

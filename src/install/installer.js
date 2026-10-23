@@ -14,7 +14,7 @@ import {
   renderAgent,
   resolveAssignment,
 } from './templating.js';
-import { desiredHooks, desiredMcpServers, isAmautaHook, shellQuote } from './servers.js';
+import { AMAUTA_SERVER_NAMES, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook, isStaleAmautaServer, shellQuote, staleAmautaHooks } from './servers.js';
 import { renderSddFiles } from './sdd.js';
 import { archifyCli } from './archify.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
@@ -70,7 +70,7 @@ async function readState(stateDir) {
 }
 
 const isOurs = (servers, prev, key) =>
-  key in servers && prev?.mcp_added?.[key] !== undefined && isDeepStrictEqual(servers[key], prev.mcp_added[key]);
+  key in servers && ((prev?.mcp_added?.[key] !== undefined && isDeepStrictEqual(servers[key], prev.mcp_added[key])) || (AMAUTA_SERVER_NAMES.includes(key) && isStaleAmautaServer(servers[key])));
 
 /**
  * Key under which our memory server is registered: "engram" when free (vendored prompts use
@@ -232,6 +232,7 @@ async function plan(opts) {
   const engramPrefix = engramToolPrefix(settingsIn.data, memoryKey ?? 'engram');
   const writes = [];
   const skipped = [];
+  const legacy = []; // amauta entries from an older checkout or adapter that this run replaces
   const managedFiles = {};
 
   // Managed files (output style, skills, agents).
@@ -305,6 +306,7 @@ async function plan(opts) {
   const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry, sdd });
   const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
   // Drop stale amauta hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
+  legacy.push(...staleAmautaHooks(settings, wantedCommands));
   settings = removeHooksWhere(settings, (c) => isAmautaHook(c) && !wantedCommands.has(c));
   settings = mergeHooks(settings, wantedHooks);
   // codegraph's own prompt hook: only when the tool is installed, never duplicated, and only removed again if we added it.
@@ -335,9 +337,15 @@ async function plan(opts) {
       servers[name] = value;
       mcpAdded[name] = value;
     } else if (isOurs(currentServers, prev, name)) {
-      servers[name] = value; // ours from an earlier install: refresh it
+      if (!isDeepStrictEqual(currentServers[name], value) && !(prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(currentServers[name], prev.mcp_added[name]))) legacy.push(`mcp ${name}`);
+      servers[name] = value; // ours from an earlier install (or an older checkout): refresh it
       mcpAdded[name] = value;
     }
+  }
+  for (const name of LEGACY_SERVER_ALIASES) {
+    if (name in wanted || !(name in servers) || !isStaleAmautaServer(servers[name])) continue;
+    delete servers[name];
+    legacy.push(`mcp ${name}`);
   }
   // Entries we added before that are no longer wanted (e.g. the old compiled engram) go away if untouched.
   for (const name of Object.keys(prev?.mcp_added ?? {})) {
@@ -396,17 +404,17 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas: prev?.impeccable === true, linkPlan, managedNames: new Set(namesOf(rendered)) };
+  return { t, prev, writes: real, removes, skipped, legacy, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas: prev?.impeccable === true, linkPlan, managedNames: new Set(namesOf(rendered)) };
 }
 
 export async function install(opts = {}) {
-  const { t, prev, writes, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas, linkPlan, managedNames } = await plan(opts);
+  const { t, prev, writes, removes, skipped, legacy, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas, linkPlan, managedNames } = await plan(opts);
   const files = writes.map((w) => w.rel);
   const removed = removes.map((r) => r.rel);
   const wanted = manifest.impeccable?.engine.version;
   const touches = writes.length > 0 || removes.length > 0 || rddChanged || linkPlan.link.length > 0 || linkPlan.unlink.length > 0;
   if (opts.dryRun) {
-    const dry = { dryRun: true, changed: touches, files, removed, skipped, state_changes: stateChanges, backup: null };
+    const dry = { dryRun: true, changed: touches, files, removed, skipped, legacy, state_changes: stateChanges, backup: null };
     if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
     return dry;
   }
@@ -425,7 +433,7 @@ export async function install(opts = {}) {
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
-  const result = { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, state_changes: stateChanges, backup };
+  const result = { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, legacy, state_changes: stateChanges, backup };
   if ((await statOrNull(path.join(t.stateDir, 'codex-state.json'))) !== null) {
     const c = resolveCodexTargets(opts);
     const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, sides: [{ dir: abs(t.claudeHome, 'skills') }, { dir: c.codexSkillsDir }] });
@@ -508,7 +516,7 @@ export async function uninstall(opts = {}) {
   if (cjIn.existed && state?.mcp_added && isObject(cjIn.data.mcpServers)) {
     const servers = { ...cjIn.data.mcpServers };
     for (const [name, value] of Object.entries(state.mcp_added)) {
-      if (name in servers && isDeepStrictEqual(servers[name], value)) delete servers[name];
+      if (name in servers && (isDeepStrictEqual(servers[name], value) || (AMAUTA_SERVER_NAMES.includes(name) && isStaleAmautaServer(servers[name])))) delete servers[name];
       else if (name in servers) kept.push(`mcp:${name}`);
     }
     const next = { ...cjIn.data, mcpServers: servers };
