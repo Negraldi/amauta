@@ -6,7 +6,7 @@ import { injectSection, removeSection, listSections } from '../core/markers.js';
 import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { createBackup, pruneEmptyDirs, restoreBackup } from '../core/backup.js';
-import { resolveTargets } from './paths.js';
+import { resolveCodexTargets, resolveTargets } from './paths.js';
 import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
 import {
   DEFAULT_MODEL_ASSIGNMENTS,
@@ -36,13 +36,13 @@ const CODEGRAPH_HOOK_TIMEOUT = 10;
 const hasCommand = (settings, event, command) =>
   (Array.isArray(settings.hooks?.[event]) ? settings.hooks[event] : []).some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h?.command === command));
 
-const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
-const toJson = (obj) => `${JSON.stringify(obj, null, 2)}\n`;
-const statOrNull = (p) => stat(p).then((s) => s, () => null);
-const readOrNull = (p) => readFile(p).then((b) => b, () => null);
-const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+export const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+export const toJson = (obj) => `${JSON.stringify(obj, null, 2)}\n`;
+export const statOrNull = (p) => stat(p).then((s) => s, () => null);
+export const readOrNull = (p) => readFile(p).then((b) => b, () => null);
+export const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-async function readJsonObject(file, label) {
+export async function readJsonObject(file, label) {
   const buf = await readOrNull(file);
   if (buf === null) return { data: {}, existed: false };
   let data;
@@ -84,7 +84,7 @@ function chooseMemoryKey({ settings, currentServers, prev }) {
 }
 
 /** Set `timeout` on installed hooks that lack one, matched by event and exact command from `owned`. */
-function ensureTimeouts(settings, owned) {
+export function ensureTimeouts(settings, owned) {
   let out = settings;
   for (const [event, entries] of Object.entries(owned)) {
     const want = new Map(entries.flatMap((e) => e.hooks).filter((h) => h.timeout).map((h) => [h.command, h.timeout]));
@@ -137,7 +137,7 @@ const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
  * no absolute paths, no `..`, the resolved target must stay inside claudeHome, and no component below claudeHome
  * may be a symlink (a symlinked parent would redirect the delete elsewhere).
  */
-async function safeManagedPath(claudeHome, rel) {
+export async function safeManagedPath(claudeHome, rel) {
   if (typeof rel !== 'string' || rel === '' || rel.includes('\\') || rel.includes('\0') || path.isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) return null;
   const parts = rel.split('/');
   if (parts.some((p) => p === '' || p === '.' || p === '..')) return null;
@@ -198,7 +198,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
   return files;
 }
 
-async function renderSections(manifest, persona) {
+export async function renderSections(manifest, persona) {
   const out = [];
   for (const s of manifest.claudeMd) {
     const source = s.source.startsWith('persona:') ? manifest.personas[persona].residual : s.source;
@@ -207,7 +207,7 @@ async function renderSections(manifest, persona) {
   return out;
 }
 
-const needsWrite = async (file, data, mode) => {
+export const needsWrite = async (file, data, mode) => {
   const st = await statOrNull(file);
   if (!st) return true;
   if (mode !== undefined && (st.mode & 0o777) !== mode) return true;
@@ -439,10 +439,11 @@ const BACKUP_ID = /^\d{8}T\d{6}Z(-\d{3})?$/;
 /** Restore one installer backup by id (its directory name under <stateDir>/backups); the id is matched strictly, never joined as a path. */
 export async function restore(opts = {}) {
   const t = resolveTargets(opts);
+  const c = resolveCodexTargets(opts); // a backup may hold Codex files too
   if (typeof opts.backup !== 'string' || !BACKUP_ID.test(opts.backup)) throw new Error(`invalid backup id: ${String(opts.backup)} (expected a name like 20261016T101500Z)`);
   const dir = path.join(t.stateDir, 'backups', opts.backup);
   if ((await statOrNull(dir)) === null) throw new Error(`no such backup: ${opts.backup}`);
-  const manifest = await restoreBackup(dir, { stop: t.claudeHome, allow: [t.claudeHome, t.claudeJson, t.stateDir] });
+  const manifest = await restoreBackup(dir, { stop: t.claudeHome, allow: [t.claudeHome, t.claudeJson, t.stateDir, c.codexHome, c.codexSkillsDir] });
   return { backup: opts.backup, restored: manifest.entries.map((e) => e.original_path) };
 }
 
