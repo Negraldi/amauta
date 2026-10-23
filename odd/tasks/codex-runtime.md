@@ -45,8 +45,13 @@ partitions (Codex could not read Claude's memories); this design has no such spl
   commit `17d1aea`. Route: delegated writer. Memory visibility pinned by a Python test (it passed without code
   change: the server ignores AMAUTA_RUNTIME). The skill-store code was written before its tests (TDD deviation, tests
   added right after and a RED seen for the portal change); other parts RED first.
-- [ ] K3 Codex usage: ingest `~/.codex/sessions` token usage into telemetry with `runtime=codex`; portal filters by
-  runtime.
+- [x] K3 Codex usage: rollouts under `<codex home>/sessions` -> `usage_messages` with `runtime='codex'` (one row per
+  `response_id`; usage and metadata only), backfill `--runtime codex|all`, Codex Stop/SubagentStop hook under
+  `AMAUTA_RUNTIME=codex`; portal runtime filter, badge, usage and home split (en+es). No prices for Codex models: tokens
+  only. Commits `18be050` (fixes: Codex SubagentStop in parity, impeccable engine from a Codex-only install), `7ee5dde`
+  (ingestion + schema), `167c6c5` (portal). Route: delegated writer. Schema: nullable-safe `runtime TEXT NOT NULL DEFAULT
+  'claude'` on `usage_messages` and `events`, added by an idempotent ensure step in `connect()` independent of
+  `user_version` (stays 7 on fresh DBs, 9 untouched on the user's DB). `npm test` exit 0: 719 Node + 784 Python.
 - [ ] K4 Switch the live machine: reinstall Claude from `~/amauta` (no path to `~/amauta-dev`), install Codex, retire
   `~/amauta-dev` and `~/amauta-dual`; real check (Codex reads Claude's "quipu", Claude reads Codex's "chasqui").
 - [ ] K5 Docs, CHANGELOG, v0.4.0.
@@ -68,7 +73,8 @@ TDD on (strict). Runner `npm test` in `~/amauta-codex`.
 - 2026-10-22: plan written after the real check exposed the partition bug; R3a writer stopped; worktree created.
 
 - 2026-10-23: K2 done (see the task line).
+- 2026-10-23: K3 done. Codex has SubagentStart/SubagentStop/SessionEnd/PreCompact/PostCompact hooks: parity no longer calls SubagentStop Claude-only. A Codex-only install with impeccable now prepares the shared engine; Codex uninstall removes it only when Claude does not use it. Portal UI tests were written after the JS (RED seen by reverting the static files).
 
 ## Next step
 
-K3 (Codex usage ingestion with runtime=codex). Open from K2: Codex-only install with impeccable does not run the npm engine; Codex has no SubagentStop event (the telemetry/usage hooks on it are written but never fire).
+K4 (switch the live machine). Run `python3 -P -m amauta.usage backfill --runtime all` once after reinstalling to import existing Codex sessions.
