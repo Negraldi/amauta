@@ -58,3 +58,12 @@ test('foreign shapes are reported, never merged: inline tables, quoted names, pa
   assert.equal(readMcpServer('[mcp_servers.other]\ncommand = "c"\n', 'engram').found, false);
   assert.throws(() => setMcpServer('[mcp_servers]\nengram = { command = "c" }\n', 'engram', ENGRAM), /parent/);
 });
+
+test('listMcpServers names the tables in file order; extra scalar keys round-trip through setMcpServer', async () => {
+  const { listMcpServers, setMcpServer, readMcpServer } = await import('../src/core/toml.js');
+  const text = '[mcp_servers.a]\ncommand = "x"\n\n[other]\nk = 1\n\n[mcp_servers.b]\ncommand = "y"\n\n[mcp_servers.b.env]\nK = "v"\n';
+  assert.deepEqual(listMcpServers(text), ['a', 'b']);
+  assert.deepEqual(listMcpServers(''), []);
+  const out = setMcpServer('', 'c', { command: 'z', args: ['1'], startup_timeout_sec: 30, enabled: true, tags: ['q'] });
+  assert.deepEqual(readMcpServer(out, 'c').value, { command: 'z', args: ['1'], startup_timeout_sec: 30, enabled: true, tags: ['q'] });
+});

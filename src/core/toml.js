@@ -258,12 +258,29 @@ export function readMcpServer(text, name) {
   return { found: ranges.length > 0 || parent, value: ok && !parent && ranges.length > 0 ? value : null, ranges, parent };
 }
 
+/** Names of the `[mcp_servers.<name>]` tables in a file (parent-table definitions excluded), in file order. */
+export function listMcpServers(text) {
+  const { lines } = splitLines(text);
+  const names = [];
+  for (const h of scanHeaders(lines)) if (h.path[0] === 'mcp_servers' && h.path.length >= 2 && !h.array && !names.includes(h.path[1])) names.push(h.path[1]);
+  return names;
+}
+
 /** TOML for one server entry: `[mcp_servers.<name>]` plus `[mcp_servers.<name>.env]` when it has env. */
+function renderScalar(v) {
+  if (typeof v === 'string') return quoteString(v);
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return `[${v.map(quoteString).join(', ')}]`;
+  return null;
+}
+
 export function renderMcpServer(name, value) {
   const { command, args, env, ...rest } = value;
-  if (Object.keys(rest).length > 0) throw new Error(`cannot render unsupported MCP keys: ${Object.keys(rest).join(', ')}`);
+  const unsupported = Object.keys(rest).filter((k) => renderScalar(rest[k]) === null);
+  if (unsupported.length > 0) throw new Error(`cannot render unsupported MCP keys: ${unsupported.join(', ')}`);
   const out = [`[mcp_servers.${quoteKey(name)}]`, `command = ${quoteString(command)}`];
   if (args !== undefined) out.push(`args = [${args.map(quoteString).join(', ')}]`);
+  for (const [k, v] of Object.entries(rest)) out.push(`${quoteKey(k)} = ${renderScalar(v)}`); // keys amauta does not own, kept as they were
   if (env && Object.keys(env).length > 0) {
     out.push('', `[mcp_servers.${quoteKey(name)}.env]`);
     for (const [k, v] of Object.entries(env)) out.push(`${quoteKey(k)} = ${quoteString(v)}`);

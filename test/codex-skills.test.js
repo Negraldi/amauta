@@ -59,7 +59,7 @@ test('uninstall keeps an edited skill and reports it; re-install is idempotent',
   await writeFile(path.join(t.skillsDir, 'doc-formats', 'SKILL.md'), 'edited\n');
   const un = await uninstallCodex(t.opts());
   assert.ok(un.kept.includes('skills/doc-formats/SKILL.md'));
-  assert.equal(await readFile(path.join(t.skillsDir, 'doc-formats', 'SKILL.md'), 'utf8'), 'edited\n');
+  assert.equal(await readFile(path.join(t.stateDir, 'skills', 'doc-formats', 'SKILL.md'), 'utf8'), 'edited\n');
 });
 
 test('status flags a modified or missing skill', async () => {
@@ -68,5 +68,5 @@ test('status flags a modified or missing skill', async () => {
   assert.equal((await statusCodex(t.opts())).ok, true);
   await writeFile(path.join(t.skillsDir, 'chained-pr', 'SKILL.md'), 'edited\n');
   const s = await statusCodex(t.opts());
-  assert.ok(s.items.some((i) => i.name === 'skill chained-pr/SKILL.md' && !i.ok && /modified/.test(i.detail)));
+  assert.ok(s.items.some((i) => i.name === 'skill skills/chained-pr/SKILL.md' && !i.ok && /modified/.test(i.detail)));
 });

@@ -84,6 +84,16 @@ const header = (io, runtime, show) => {
   if (show) io.stdout.write(`runtime ${runtime}\n`);
 };
 
+export function printMcpSync(m, io) {
+  if (!m) return;
+  if (m.mirrored.length > 0) io.stdout.write(`  mcp synced Claude -> Codex: ${m.mirrored.join(', ')}\n`);
+  if (m.toClaude.length > 0) io.stdout.write(`  mcp synced Codex -> Claude: ${m.toClaude.join(', ')}\n`);
+  if (m.removed.length > 0) io.stdout.write(`  mcp removed: ${m.removed.join(', ')}\n`);
+  for (const u of m.unsupported) io.stdout.write(`  mcp not synced: ${u.name} (${u.reason})\n`);
+  for (const n of m.conflicts) io.stdout.write(`  mcp conflict, changed differently in both runtimes (left as is): ${n}\n`);
+  if (m.unreadable) io.stdout.write(`  mcp sync skipped: could not read ${m.unreadable}\n`);
+}
+
 function printInstallSummary(r, io, subject) {
   if (r.dryRun) {
     io.stdout.write(`amauta: dry run, ${r.files.length} file(s) would be written${subject}\n`);
@@ -119,9 +129,7 @@ async function runInstall(opts, io) {
   if (c) {
     header(io, 'codex', multi);
     printInstallSummary(c, io, ' into Codex');
-    if (c.mirror?.mirrored.length > 0) io.stdout.write(`  mcp mirrored from Claude: ${c.mirror.mirrored.join(', ')}\n`);
-    for (const u of c.mirror?.unsupported ?? []) io.stdout.write(`  mcp not mirrored: ${u.name} (${u.reason})\n`);
-    for (const n of c.mirror?.differs ?? []) io.stdout.write(`  mcp differs, kept your Codex version: ${n}\n`);
+    printMcpSync(c.mirror, io);
   }
   return failed;
 }

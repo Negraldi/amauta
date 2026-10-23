@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, rm, stat } from 'node:fs/promises';
+import { lstat, readFile, readlink, rm, rmdir, stat } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
@@ -16,8 +16,9 @@ import {
 } from './templating.js';
 import { desiredHooks, desiredMcpServers, isAmautaHook, shellQuote } from './servers.js';
 import { renderSddFiles } from './sdd.js';
-import { renderArchifyFiles, archifyCli } from './archify.js';
-import { engineVersion, ensureEngine, removeEngine, renderImpeccableFiles } from './impeccable.js';
+import { archifyCli } from './archify.js';
+import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
+import { applyLinks, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks, removePersonalLinks, renderSkillFile, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
 import { packageVersion } from '../version.js';
 import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
 import { graphifyStatus, lastHookError } from '../graphify/probe.js';
@@ -131,6 +132,8 @@ function mergePermissions(settings, prev, overlay) {
 }
 
 const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
+/** Skills live in the amauta store (state dir); everything else under the Claude home. */
+const fileOf = (t, rel) => (isSkillKey(rel) ? storePathOf(t.stateDir, rel) : abs(t.claudeHome, rel));
 
 /**
  * Path of a managed_files key that is safe to delete, or null. state.json is plain data, so a key is untrusted:
@@ -154,31 +157,14 @@ export async function safeManagedPath(claudeHome, rel) {
   return target;
 }
 
-/** Markdown skill files may name helper code of this checkout; resolve those placeholders to shell-safe absolute values. */
-export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'python')) {
-  if (!rel.endsWith('.md')) return buf;
-  let text = buf.toString('utf8');
-  if (!text.includes('{{AMAUTA_')) return buf;
-  // The whole `NAME=value` assignment is quoted, so a checkout path with spaces or quotes still forms one `env` argument.
-  text = text.replaceAll('{{AMAUTA_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
-  return Buffer.from(text, 'utf8');
-}
+export { renderSkillFile };
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
-async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable, archify }) {
+async function renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable, archify, stateDir }) {
   const files = new Map();
   files.set(manifest.outputStyleTarget, await readAssetBuffer(manifest.personas[persona].outputStyle));
 
-  for (const skill of manifest.skills) {
-    const dir = `${manifest.skillsDir}/${skill}`;
-    for (const rel of await listFiles(assetPath(dir))) {
-      files.set(`skills/${skill}/${rel.split(path.sep).join('/')}`, renderSkillFile(rel, await readAssetBuffer(`${dir}/${rel.split(path.sep).join('/')}`)));
-    }
-  }
-  for (const rel of await listFiles(assetPath(manifest.sharedSkillsDir))) {
-    const posix = rel.split(path.sep).join('/');
-    files.set(`skills/_shared/${posix}`, await readAssetBuffer(`${manifest.sharedSkillsDir}/${posix}`));
-  }
+  for (const [rel, data] of await renderSkillSet(manifest, { sdd, impeccable, archify, stateDir })) files.set(rel, data);
 
   const footers = [];
   for (const f of manifest.agentFooters) footers.push({ id: f.id, body: await readAssetText(f.source) });
@@ -192,9 +178,7 @@ async function renderManagedFiles(manifest, { persona, assignments, engramPrefix
     });
     files.set(`agents/${agent.name}.md`, Buffer.from(text, 'utf8'));
   }
-  if (sdd) for (const [rel, data] of await renderSddFiles(manifest, { assignments, engramPrefix, footers })) files.set(rel, data);
-  if (impeccable) for (const [rel, data] of await renderImpeccableFiles(manifest, impeccable)) files.set(rel, data);
-  if (archify) for (const [rel, data] of await renderArchifyFiles(manifest)) files.set(rel, data);
+  if (sdd) for (const [rel, data] of await renderSddFiles(manifest, { assignments, engramPrefix, footers })) if (!isSkillKey(rel)) files.set(rel, data); // its skills are in the store set
   return files;
 }
 
@@ -251,9 +235,11 @@ async function plan(opts) {
   const managedFiles = {};
 
   // Managed files (output style, skills, agents).
-  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable: impeccable ? { claudeHome: t.claudeHome, stateDir: t.stateDir } : null, archify });
+  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable, archify, stateDir: t.stateDir });
+  const codexState = await readJsonFile(path.join(t.stateDir, 'codex-state.json'));
+  const otherKeeps = (rel) => isSkillKey(rel) && codexState?.managed_files?.[rel] !== undefined; // the Codex install still uses this store file
   for (const [rel, data] of rendered) {
-    const file = abs(t.claudeHome, rel);
+    const file = fileOf(t, rel);
     const existing = await readOrNull(file);
     if (existing === null) {
       writes.push({ rel, path: file, data });
@@ -271,8 +257,8 @@ async function plan(opts) {
   // removed only while byte-identical to what we wrote; an edited one is the user's and stays.
   const removes = [];
   for (const [rel, hash] of Object.entries(prev?.managed_files ?? {})) {
-    if (rendered.has(rel)) continue;
-    const file = await safeManagedPath(t.claudeHome, rel);
+    if (rendered.has(rel) || otherKeeps(rel)) continue;
+    const file = await safeManagedPath(isSkillKey(rel) ? t.stateDir : t.claudeHome, rel);
     if (file === null) {
       skipped.push(rel);
       continue;
@@ -282,6 +268,19 @@ async function plan(opts) {
     if (sha256(buf) === hash) removes.push({ rel, path: file });
     else skipped.push(rel);
   }
+
+  // Skill links: <claude home>/skills/<name> -> the amauta store. A real copy goes away only when every file in it is
+  // byte-equal to what amauta installed; an edited copy is kept and reported (--force replaces it).
+  const linkPlan = await planManagedLinks({ skillsDir: abs(t.claudeHome, 'skills'), storeDir: storeDirOf(t.stateDir), names: namesOf(rendered), prevLinks: prev?.skill_links ?? {}, rendered, prevHashes: prev?.managed_files ?? {}, force: opts.force === true });
+  for (const name of linkPlan.foreign) skipped.push(`skills/${name} (not linked: a different directory is there)`);
+  // A module turned off keeps its link while an edited file of it stays in the store.
+  const stillThere = (name) => skipped.some((x) => x.startsWith(`skills/${name}/`));
+  const keptLinks = linkPlan.unlink.filter((u) => stillThere(u.name));
+  linkPlan.unlink = linkPlan.unlink.filter((u) => !stillThere(u.name));
+  const skillLinks = {
+    ...Object.fromEntries(namesOf(rendered).filter((n) => !linkPlan.foreign.includes(n)).map((n) => [n, path.join(storeDirOf(t.stateDir), n)])),
+    ...Object.fromEntries(keptLinks.map((u) => [u.name, prev.skill_links[u.name]])),
+  };
 
   // CLAUDE.md sections.
   const sections = await renderSections(manifest, persona);
@@ -378,6 +377,7 @@ async function plan(opts) {
     ...(rddChanged ? { rdd_mode_recorded_at: new Date().toISOString() } : prev?.rdd_mode_recorded_at ? { rdd_mode_recorded_at: prev.rdd_mode_recorded_at } : {}),
     last_backup: lastBackup ?? prev?.last_backup ?? null,
     managed_files: managedFiles,
+    skill_links: skillLinks,
     claude_md_sections: sections.map((s) => s.id),
     settings_prev: { outputStyle: settingsPrevStyle },
     permissions_added: permissions.added,
@@ -396,15 +396,15 @@ async function plan(opts) {
 
   const real = [];
   for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas: prev?.impeccable === true };
+  return { t, prev, writes: real, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas: prev?.impeccable === true, linkPlan, managedNames: new Set(namesOf(rendered)) };
 }
 
 export async function install(opts = {}) {
-  const { t, prev, writes, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas } = await plan(opts);
+  const { t, prev, writes, removes, skipped, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas, linkPlan, managedNames } = await plan(opts);
   const files = writes.map((w) => w.rel);
   const removed = removes.map((r) => r.rel);
   const wanted = manifest.impeccable?.engine.version;
-  const touches = writes.length > 0 || removes.length > 0 || rddChanged;
+  const touches = writes.length > 0 || removes.length > 0 || rddChanged || linkPlan.link.length > 0 || linkPlan.unlink.length > 0;
   if (opts.dryRun) {
     const dry = { dryRun: true, changed: touches, files, removed, skipped, state_changes: stateChanges, backup: null };
     if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
@@ -418,13 +418,20 @@ export async function install(opts = {}) {
     for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
     for (const r of removes) {
       await rm(r.path, { force: true });
-      await pruneEmptyDirs(path.dirname(r.path), t.claudeHome);
+      await pruneEmptyDirs(path.dirname(r.path), isSkillKey(r.rel) ? storeDirOf(t.stateDir) : t.claudeHome);
     }
+    await applyLinks(linkPlan, abs(t.claudeHome, 'skills'));
   }
   const stateText = toJson(makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
   const result = { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, state_changes: stateChanges, backup };
+  if ((await statOrNull(path.join(t.stateDir, 'codex-state.json'))) !== null) {
+    const c = resolveCodexTargets(opts);
+    const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, sides: [{ dir: abs(t.claudeHome, 'skills') }, { dir: c.codexSkillsDir }] });
+    if (personal.linked.length > 0 || personal.removed.length > 0) result.changed = true;
+    result.personal = personal;
+  }
   if (impeccableWas && !impeccable) await removeEngine(t.stateDir);
   if (impeccable) {
     // After the state is written, so a failed or offline npm run is retried by the next install.
@@ -444,6 +451,9 @@ export async function restore(opts = {}) {
   const dir = path.join(t.stateDir, 'backups', opts.backup);
   if ((await statOrNull(dir)) === null) throw new Error(`no such backup: ${opts.backup}`);
   const manifest = await restoreBackup(dir, { stop: t.claudeHome, allow: [t.claudeHome, t.claudeJson, t.stateDir, c.codexHome, c.codexSkillsDir] });
+  // A restored-away store file leaves its link dangling: drop links that point into the store and lead nowhere.
+  await pruneEmptyTree(storeDirOf(t.stateDir));
+  for (const skillsDir of [path.join(t.claudeHome, 'skills'), c.codexSkillsDir]) await removeDanglingLinks(skillsDir, storeDirOf(t.stateDir));
   return { backup: opts.backup, restored: manifest.entries.map((e) => e.original_path) };
 }
 
@@ -510,16 +520,22 @@ export async function uninstall(opts = {}) {
   }
 
   // Managed files, only when byte-identical to what was installed.
+  const codexKept = (await readJsonFile(path.join(t.stateDir, 'codex-state.json')))?.managed_files ?? {};
   for (const [rel, hash] of Object.entries(state?.managed_files ?? {})) {
-    const file = await safeManagedPath(t.claudeHome, rel);
-    if (file === null) {
-      kept.push(rel);
-      continue;
+    // Skills sit in the amauta store (kept while the Codex install still lists the file); a pre-store install has real copies in the Claude home.
+    const candidates = isSkillKey(rel) ? [rel in codexKept ? null : [t.stateDir, rel], [t.claudeHome, rel]] : [[t.claudeHome, rel]];
+    for (const c of candidates) {
+      if (c === null) continue;
+      const file = await safeManagedPath(c[0], c[1]);
+      if (file === null) {
+        kept.push(rel);
+        continue;
+      }
+      const buf = await readOrNull(file);
+      if (buf === null) continue;
+      if (sha256(buf) === hash) deletes.push(file);
+      else kept.push(rel);
     }
-    const buf = await readOrNull(file);
-    if (buf === null) continue;
-    if (sha256(buf) === hash) deletes.push(file);
-    else kept.push(rel);
   }
 
   const statePath = statePathOf(t.stateDir);
@@ -533,8 +549,11 @@ export async function uninstall(opts = {}) {
   for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
   for (const file of deletes) {
     await rm(file, { force: true });
-    await pruneEmptyDirs(path.dirname(file), t.claudeHome);
+    await pruneEmptyDirs(path.dirname(file), file.startsWith(storeDirOf(t.stateDir) + path.sep) ? storeDirOf(t.stateDir) : t.claudeHome);
   }
+  await removeLinks(abs(t.claudeHome, 'skills'), state?.skill_links);
+  await rmdir(storeDirOf(t.stateDir)).catch(() => {}); // the store goes with the last runtime that used it
+  await removePersonalLinks({ stateDir: t.stateDir, skillsDir: abs(t.claudeHome, 'skills') });
   if (hadState) await rm(statePath, { force: true });
   if (state?.impeccable === true) await removeEngine(t.stateDir);
   return { changed: true, backup, removed: [...writes.map((w) => w.path), ...deletes], kept };
@@ -581,8 +600,12 @@ export async function status(opts = {}) {
   const servers = (await readJsonObject(t.claudeJson, '.claude.json')).data.mcpServers ?? {};
   for (const name of Object.keys(state.mcp_added ?? {})) add(`mcp ${name}`, name in servers, name in servers ? '' : 'missing');
 
+  for (const [name, target] of Object.entries(state.skill_links ?? {})) {
+    const cur = await readlink(abs(t.claudeHome, `skills/${name}`)).catch(() => null);
+    add(`skill link ${name}`, cur === target, cur === target ? '' : 'not linked to the amauta store');
+  }
   for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
-    const buf = await readOrNull(abs(t.claudeHome, rel));
+    const buf = await readOrNull(fileOf(t, rel));
     if (buf === null) add(`file ${rel}`, false, 'missing');
     else if (sha256(buf) !== hash) add(`file ${rel}`, false, 'modified');
     else add(`file ${rel}`, true);

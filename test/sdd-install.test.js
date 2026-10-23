@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile, mkdir, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir, rm, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,7 @@ const sddHooks = (settings) =>
   (settings.hooks?.PreToolUse ?? []).flatMap((e) => (e.hooks ?? []).filter((h) => /amauta\.sdd preflight-hook/.test(h.command)).map((h) => ({ matcher: e.matcher, ...h })));
 const tree = async (dir) => {
   const out = [];
-  const walk = async (d) => { for (const e of await readdir(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) await walk(p); else out.push(path.relative(dir, p)); } };
+  const walk = async (d) => { for (const e of await readdir(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory() || (e.isSymbolicLink() && (await stat(p)).isDirectory())) await walk(p); else out.push(path.relative(dir, p)); } };
   await walk(dir);
   return out.sort();
 };

@@ -36,9 +36,17 @@ def split_trigger(description):
     return (sentence.group(2).strip(), sentence.group(1).rstrip(".!?").strip()) if sentence else ("", after or None)
 
 
-def _readable(path: Path) -> bool:
+def _in_store(link: Path, store) -> bool:
+    """True for a skill directory link that points straight into the amauta skill store (`<state dir>/skills/<name>`)."""
     try:
-        return path.is_file() and not path.is_symlink() and not path.parent.is_symlink()
+        return store is not None and link.is_symlink() and link.resolve(strict=True) == (Path(store).resolve() / link.name)
+    except (OSError, RuntimeError):
+        return False
+
+
+def _readable(path: Path, store=None) -> bool:
+    try:
+        return path.is_file() and not path.is_symlink() and (not path.parent.is_symlink() or _in_store(path.parent, store))
     except OSError:
         return False
 
@@ -53,13 +61,13 @@ def _entry(source, ident, name, path, **extra):
     return {"id": ident, "name": name, "source": source, "description": description or None, "trigger": trigger, "path": str(path), **extra}
 
 
-def _skill_dirs(root: Path):
-    """Direct children of `root` that hold a SKILL.md (plain names only, no symlinks, bounded)."""
+def _skill_dirs(root: Path, store=None):
+    """Direct children of `root` that hold a SKILL.md (plain names only, bounded). Symlinks are ignored except links into the skill store."""
     try:
-        names = sorted(d.name for d in root.iterdir() if SKILL_NAME.match(d.name) and not d.is_symlink() and d.is_dir())
+        names = sorted(d.name for d in root.iterdir() if SKILL_NAME.match(d.name) and (not d.is_symlink() or _in_store(d, store)) and d.is_dir())
     except OSError:
         return []
-    return [(n, root / n / "SKILL.md") for n in names if _readable(root / n / "SKILL.md")][:MAX_PER_ROOT]
+    return [(n, root / n / "SKILL.md") for n in names if _readable(root / n / "SKILL.md", store)][:MAX_PER_ROOT]
 
 
 def _managed(portal):
@@ -105,7 +113,7 @@ def discover(portal):
     """Entries for every skill file found, in group order. Ids: `name`, `plugin:name`, `project/name`."""
     from . import wikiharness  # lazy: wikiharness imports this module
     found, managed = [], _managed(portal)
-    for name, path in _skill_dirs(portal.cfg.claude_home / "skills"):
+    for name, path in _skill_dirs(portal.cfg.claude_home / "skills", portal.cfg.state_dir / "skills"):
         found.append(_entry("installed" if name in managed else "user", name, name, path))
     taken, off = set(), None
     for plugin, name, path in _plugin_files(portal.cfg.claude_home / "plugins"):  # cache comes before marketplaces: the first copy wins

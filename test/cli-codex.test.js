@@ -125,8 +125,8 @@ test('--no-mirror-mcp skips the other Claude MCP servers; the default mirrors th
   r = run(['install'], w.env);
   assert.equal(r.status, 0, r.stderr);
   assert.match(await readFile(w.codex('config.toml'), 'utf8'), /\[mcp_servers\.mine\]/);
-  assert.match(r.stdout, /mcp mirrored from Claude: .*mine/);
-  assert.match(r.stdout, /mcp not mirrored: remote/);
+  assert.match(r.stdout, /mcp synced Claude -> Codex: .*mine/);
+  assert.match(r.stdout, /mcp not synced: remote/);
   r = run(['status'], w.env);
   assert.doesNotMatch(r.stdout, /topsecret/);
   assert.match(r.stdout, /mcp not mirrored/);

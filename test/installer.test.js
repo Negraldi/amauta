@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, mkdir, stat, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir, stat, readdir, rm, readlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +33,8 @@ async function snapshotTree(dir) {
   async function walk(d) {
     for (const e of await readdir(d, { withFileTypes: true })) {
       const full = path.join(d, e.name);
-      if (e.isDirectory()) await walk(full);
+      if (e.isSymbolicLink()) out[path.relative(dir, full)] = `link:${await readlink(full)}`;
+      else if (e.isDirectory()) await walk(full);
       else out[path.relative(dir, full)] = (await readFile(full)).toString('base64');
     }
   }

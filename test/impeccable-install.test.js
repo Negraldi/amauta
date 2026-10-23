@@ -66,10 +66,11 @@ test('--with-impeccable installs the rendered skill and the pinned engine throug
   assert.deepEqual(await t.npmCalls(), [NPM_ARGS(t.engine).join(' ')]);
   assert.equal(r.impeccable.engine, 'installed');
   const skillDir = path.join(t.claudeHome, 'skills', 'impeccable');
+  const storeSkillDir = path.join(t.stateDir, 'skills', 'impeccable');
   for (const f of ['SKILL.md', 'LICENSE', 'reference/audit.md', 'scripts/context.mjs', 'scripts/detect.mjs']) assert.ok(existsSync(path.join(skillDir, f)), f);
   const skill = await t.read('skills/impeccable/SKILL.md');
   assert.ok(!skill.includes('{{AMAUTA_'), 'placeholders rendered');
-  assert.ok(skill.includes(`node ${skillDir}/scripts/context.mjs`), 'absolute skill path');
+  assert.ok(skill.includes(`node ${storeSkillDir}/scripts/context.mjs`), 'absolute skill path');
   assert.ok(skill.includes(`node ${t.cli} detect`), 'engine CLI path');
   // scripts are copied byte for byte
   assert.deepEqual(await readFile(path.join(skillDir, 'scripts', 'detect.mjs')), await readFile(assetPath('skills/impeccable/scripts/detect.mjs')));

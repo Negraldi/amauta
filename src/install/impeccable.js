@@ -15,9 +15,9 @@ export const enginePaths = (stateDir) => {
 };
 
 /** Skill files (relative posix path -> Buffer); markdown gets the install-time paths, scripts stay byte for byte. */
-export async function renderImpeccableFiles(manifest, { claudeHome, stateDir }) {
+export async function renderImpeccableFiles(manifest, { stateDir }) {
   const { skillDir } = manifest.impeccable;
-  const dir = shellQuote(path.join(claudeHome, 'skills', 'impeccable'));
+  const dir = shellQuote(path.join(stateDir, 'skills', 'impeccable')); // the amauta skill store, reached through both runtimes' links
   const cli = `node ${shellQuote(enginePaths(stateDir).cli)}`;
   const files = new Map();
   for (const rel of await listFiles(assetPath(skillDir))) {
