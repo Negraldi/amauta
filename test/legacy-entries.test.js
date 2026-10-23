@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { installCodex, uninstallCodex } from '../src/install/codex.js';
 import { install, uninstall } from '../src/install/installer.js';
@@ -117,4 +117,63 @@ test('Claude side: legacy hooks and .claude.json amauta/engram from another chec
   assert.ok(r.skipped.every((x) => !x.includes('mcp')));
   await uninstall(o);
   assert.deepEqual(allCommands(JSON.parse(await readFile(sp, 'utf8')).hooks ?? {}), ['my-own-stop']);
+});
+
+// --- runtime-internal MCP servers are not synced ---
+import { statusCodex } from '../src/install/codex.js';
+import { hashOf } from '../src/install/mcpsync.js';
+
+const NODE_REPL = { command: '/usr/lib/chatgpt/node', args: ['repl.js'], env: { CODEX_HOME: '/h/.codex', CODEX_CLI_PATH: '/x/codex', NODE_REPL_MODE: '1' } };
+
+async function syncWorld(toml) {
+  const t = await codexSandbox({ 'config.toml': toml });
+  const claudeHome = path.join(t.root, 'claude');
+  const claudeJson = path.join(t.root, 'claude.json');
+  await writeFile(claudeJson, `${JSON.stringify({ mcpServers: { cmine: { type: 'stdio', command: 'cm' } } })}\n`);
+  t.all = (extra = {}) => t.opts({ claudeHome, claudeJson, ...extra });
+  t.claude = async () => (JSON.parse(await readFile(claudeJson, 'utf8')).mcpServers ?? {});
+  return t;
+}
+
+test('install never copies Codex node_repl to Claude, lists it in status, and syncs the rest', async () => {
+  const t = await syncWorld(setMcpServer(setMcpServer('', 'node_repl', NODE_REPL), 'cx', { command: 'cx' }));
+  const r = await installCodex(t.all());
+  const servers = await t.claude();
+  assert.ok(!('node_repl' in servers));
+  assert.ok('cx' in servers && 'cmine' in servers);
+  assert.deepEqual(r.mirror.excluded, ['node_repl']);
+  const s = await statusCodex(t.all());
+  assert.ok(s.notes.some((n) => n.name === 'mcp excluded from sync' && n.detail.includes('node_repl')));
+});
+
+test('a user exclude list in mcp-sync.json is honored and survives sync and uninstall', async () => {
+  const t = await syncWorld(setMcpServer('', 'cx', { command: 'cx' }));
+  await mkdir(t.stateDir, { recursive: true });
+  await writeFile(path.join(t.stateDir, 'mcp-sync.json'), JSON.stringify({ exclude: ['cx', 'cmine'] }));
+  await installCodex(t.all());
+  assert.deepEqual(Object.keys(await t.claude()), ['cmine']);
+  assert.equal(readMcpServer(await t.read('config.toml'), 'cmine').found, false);
+  await installCodex(t.all());
+  assert.deepEqual(JSON.parse(await readFile(path.join(t.stateDir, 'mcp-sync.json'), 'utf8')).exclude, ['cx', 'cmine']);
+  await uninstallCodex(t.all());
+  assert.deepEqual(JSON.parse(await readFile(path.join(t.stateDir, 'mcp-sync.json'), 'utf8')).exclude, ['cx', 'cmine']);
+});
+
+test('a node_repl copy an earlier sync wrote to Claude is removed when untouched, kept and reported when edited', async () => {
+  for (const edited of [false, true]) {
+    const t = await syncWorld(setMcpServer('', 'node_repl', NODE_REPL));
+    const copy = { type: 'stdio', ...NODE_REPL, ...(edited ? { note: 'mine' } : {}) };
+    await writeFile(t.all().claudeJson, `${JSON.stringify({ mcpServers: { node_repl: copy } })}\n`);
+    await mkdir(t.stateDir, { recursive: true });
+    await writeFile(path.join(t.stateDir, 'mcp-sync.json'), JSON.stringify({ schema: 'amauta.mcp-sync/v1', servers: { node_repl: hashOf(NODE_REPL) } }));
+    const r = await installCodex(t.all());
+    if (edited) {
+      assert.ok('node_repl' in (await t.claude()));
+      assert.deepEqual(r.mirror.staleExcluded, ['node_repl']);
+    } else {
+      assert.ok(!('node_repl' in (await t.claude())));
+      assert.deepEqual(r.mirror.removed, ['claude:node_repl']);
+    }
+    assert.equal(readMcpServer(await t.read('config.toml'), 'node_repl').found, true, 'the Codex original stays');
+  }
 });

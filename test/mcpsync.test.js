@@ -82,3 +82,43 @@ test('a corrupt .claude.json stops the sync without touching Codex', () => {
   assert.equal(r.report.unreadable, '.claude.json');
   assert.equal(r.claudeText, null);
 });
+
+const NODE_REPL = { command: '/usr/lib/chatgpt/node', args: ['repl.js'], env: { CODEX_HOME: '/h/.codex', NODE_REPL_X: '1' } };
+
+test('runtime-internal servers are never synced: built-in names, commands under an app bundle or runtime home, user list', () => {
+  const internalPaths = ['/usr/lib/chatgpt', '/opt/claude', '/home/u/.codex', '/home/u/.claude'];
+  const r = planMcpSync({
+    claudeText: claudeJson({ cl: withStdio({ command: '/home/u/.claude/plugins/x/srv' }), keep: withStdio(A), mine: withStdio({ command: 'mine' }) }),
+    tomlText: tomlOf({ node_repl: NODE_REPL, cx: { command: '/usr/lib/chatgpt/helper' }, oc: { command: '/opt/claude/bin/x' }, near: { command: '/opt/claude-tools/x' }, mine2: { command: 'm2' } }),
+    base: {}, exclude: ['mine'], internalPaths,
+  });
+  assert.deepEqual(r.report.excluded.sort(), ['cl', 'cx', 'mine', 'node_repl', 'oc']);
+  assert.deepEqual(r.report.toCodex.sort(), ['keep']);
+  assert.deepEqual(r.report.toClaude.sort(), ['mine2', 'near']);
+  assert.ok(!('node_repl' in claudeOut(r)) && !('cx' in claudeOut(r)));
+  assert.equal(readMcpServer(r.toml, 'cl').found, false);
+  assert.deepEqual(Object.keys(r.base).sort(), ['keep', 'mine2', 'near']);
+});
+
+test('a copy a previous sync wrote of an excluded server is removed only if byte-identical to what it wrote; otherwise reported', () => {
+  const internalPaths = ['/usr/lib/chatgpt'];
+  const base = { node_repl: hashOf(NODE_REPL) };
+  // Codex owns node_repl (command under the Codex bundle); Claude holds the copy the sync wrote.
+  let r = planMcpSync({ claudeText: claudeJson({ node_repl: withStdio(NODE_REPL) }), tomlText: tomlOf({ node_repl: NODE_REPL }), base, internalPaths });
+  assert.deepEqual(r.report.removedExcluded, ['claude:node_repl']);
+  assert.ok(!('node_repl' in claudeOut(r)), 'the copy is gone');
+  assert.equal(readMcpServer(r.toml, 'node_repl').found, true, 'the original stays');
+  assert.deepEqual(r.base, {});
+  // The copy was edited (extra key / different value): kept and reported.
+  r = planMcpSync({ claudeText: claudeJson({ node_repl: { ...withStdio(NODE_REPL), note: 'mine' } }), tomlText: tomlOf({ node_repl: NODE_REPL }), base, internalPaths });
+  assert.deepEqual(r.report.removedExcluded, []);
+  assert.deepEqual(r.report.staleExcluded, ['node_repl']);
+  assert.equal(r.claudeText, null);
+  r = planMcpSync({ claudeText: claudeJson({ node_repl: withStdio({ ...NODE_REPL, args: ['other.js'] }) }), tomlText: tomlOf({ node_repl: NODE_REPL }), base, internalPaths });
+  assert.deepEqual(r.report.staleExcluded, ['node_repl']);
+  // Unknown origin (user-excluded name): never removed, only reported.
+  r = planMcpSync({ claudeText: claudeJson({ foo: withStdio(A) }), tomlText: tomlOf({ foo: A }), base: { foo: hashOf(A) }, exclude: ['foo'] });
+  assert.deepEqual(r.report.removedExcluded, []);
+  assert.deepEqual(r.report.staleExcluded, ['foo']);
+  assert.equal(r.claudeText, null);
+});

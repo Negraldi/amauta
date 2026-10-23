@@ -191,26 +191,30 @@ async function plan(opts) {
     legacy.push(`mcp ${name}`);
   }
   // Every other stdio server goes both ways between .claude.json and config.toml (3-way merge against the last synced set).
-  let mirror = { enabled: mirrorMcp, mirrored: [], toClaude: [], removed: [], conflicts: [], unsupported: [], unreadable: null };
+  let mirror = { enabled: mirrorMcp, mirrored: [], toClaude: [], removed: [], conflicts: [], unsupported: [], excluded: [], staleExcluded: [], unreadable: null };
   if (mirrorMcp) {
     const source = resolveClaudeSource(opts);
     const claudeBuf = await readOrNull(source.claudeJson);
     const baseBuf = await readOrNull(baseFileOf(t.stateDir));
     let base = {};
+    let exclude = []; // the user's own list: <state dir>/mcp-sync.json { "exclude": [...] }
     try {
-      base = JSON.parse(baseBuf?.toString('utf8') ?? '{}').servers ?? {};
+      const parsed = JSON.parse(baseBuf?.toString('utf8') ?? '{}');
+      base = parsed.servers ?? {};
+      if (Array.isArray(parsed.exclude)) exclude = parsed.exclude.filter((n) => typeof n === 'string');
     } catch {
       base = {};
     }
+    const internalPaths = [{ path: '/usr/lib/chatgpt', runtime: 'codex' }, { path: '/opt/claude', runtime: 'claude' }, { path: t.codexHome, runtime: 'codex' }, { path: source.claudeHome, runtime: 'claude' }];
     if (claudeBuf !== null) {
-      const r = planMcpSync({ claudeText: claudeBuf.toString('utf8'), tomlText: toml, base, managed: new Set(Object.keys(wanted)) });
+      const r = planMcpSync({ claudeText: claudeBuf.toString('utf8'), tomlText: toml, base, managed: new Set(Object.keys(wanted)), exclude, internalPaths });
       toml = r.toml;
       const rp = r.report;
-      mirror = { enabled: true, mirrored: rp.toCodex, toClaude: rp.toClaude, removed: [...rp.removedFromCodex.map((n) => `codex:${n}`), ...rp.removedFromClaude.map((n) => `claude:${n}`)], conflicts: rp.conflicts, unsupported: rp.unsupported, unreadable: rp.unreadable };
+      mirror = { enabled: true, mirrored: rp.toCodex, toClaude: rp.toClaude, removed: [...rp.removedFromCodex.map((n) => `codex:${n}`), ...rp.removedFromClaude.map((n) => `claude:${n}`), ...rp.removedExcluded], excluded: rp.excluded, staleExcluded: rp.staleExcluded, conflicts: rp.conflicts, unsupported: rp.unsupported, unreadable: rp.unreadable };
       if (r.claudeText !== null) writes.push({ rel: '.claude.json', path: source.claudeJson, data: Buffer.from(r.claudeText, 'utf8'), mode: 0o600 });
       if (r.base !== base || baseBuf === null) {
-        const text = toJson({ schema: 'amauta.mcp-sync/v1', servers: r.base });
-        if (baseBuf?.toString('utf8') !== text && (Object.keys(r.base).length > 0 || baseBuf !== null)) writes.push({ rel: 'mcp-sync.json', path: baseFileOf(t.stateDir), data: Buffer.from(text, 'utf8') });
+        const text = toJson({ schema: 'amauta.mcp-sync/v1', servers: r.base, ...(exclude.length > 0 ? { exclude } : {}) });
+        if (baseBuf?.toString('utf8') !== text && (Object.keys(r.base).length > 0 || exclude.length > 0 || baseBuf !== null)) writes.push({ rel: 'mcp-sync.json', path: baseFileOf(t.stateDir), data: Buffer.from(text, 'utf8') });
       }
     }
   }
@@ -356,7 +360,16 @@ export async function uninstallCodex(opts = {}) {
     else kept.push(rel);
   }
 
-  if ((await statOrNull(baseFileOf(t.stateDir))) !== null) deletes.push(baseFileOf(t.stateDir));
+  const baseBuf = await readOrNull(baseFileOf(t.stateDir));
+  let keepExclude = [];
+  try {
+    const parsed = JSON.parse(baseBuf?.toString('utf8') ?? '{}');
+    if (Array.isArray(parsed.exclude)) keepExclude = parsed.exclude;
+  } catch {
+    keepExclude = [];
+  }
+  if (baseBuf !== null && keepExclude.length === 0) deletes.push(baseFileOf(t.stateDir));
+  else if (baseBuf !== null) writes.push({ path: baseFileOf(t.stateDir), data: Buffer.from(toJson({ schema: 'amauta.mcp-sync/v1', servers: {}, exclude: keepExclude }), 'utf8') }); // the user's own list outlives the install
   if ((await statOrNull(syncRecordOf(t.stateDir))) !== null) deletes.push(syncRecordOf(t.stateDir));
   const statePath = stateFileOf(t.stateDir);
   const hadState = (await statOrNull(statePath)) !== null;
@@ -418,6 +431,8 @@ export async function statusCodex(opts = {}) {
   for (const name of pending.mirror.conflicts) add(`mcp conflict ${name}`, false, 'changed differently in Claude and Codex; make one side match the other, then run: amauta sync');
   const notes = [];
   if ((state.mcp_unsupported ?? []).length > 0) notes.push({ name: 'mcp not mirrored', ok: true, detail: `${state.mcp_unsupported.join(', ')} (not stdio, or keys beyond command/args/env: kept where they are, not synced)` });
+  if (pending.mirror.excluded.length > 0) notes.push({ name: 'mcp excluded from sync', ok: true, detail: `${pending.mirror.excluded.join(', ')} (runtime-internal or in the exclude list of mcp-sync.json)` });
+  for (const n of pending.mirror.staleExcluded) notes.push({ name: `mcp excluded copy ${n}`, ok: true, detail: 'an earlier sync copied it to the other runtime and the copy was edited; remove it by hand' });
   notes.push({ name: 'hooks trust', ok: true, detail: 'Codex asks you to trust new or changed hooks in its own UI; amauta never writes [hooks.state]' });
   return { installed: true, ok: items.every((i) => i.ok), items, notes, state };
 }

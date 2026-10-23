@@ -77,6 +77,7 @@ TDD on (strict). Runner `npm test` in `~/amauta-codex`.
 
 - 2026-10-23: K2 done (see the task line).
 - 2026-10-23: K3 done. Codex has SubagentStart/SubagentStop/SessionEnd/PreCompact/PostCompact hooks: parity no longer calls SubagentStop Claude-only. A Codex-only install with impeccable now prepares the shared engine; Codex uninstall removes it only when Claude does not use it. Portal UI tests were written after the JS (RED seen by reverting the static files).
+- 2026-10-23: K4 rehearsal (install --runtime both on copies of the real configs) found two bugs. (1) Legacy entries from an abandoned adapter (env-prefixed `-m amauta.*` hooks, `bin/amauta.js` hooks from another checkout, `[mcp_servers.amauta]`/`amauta-memory` pointing to `amauta-dev`) were kept as foreign: now recognized as ours (`isAmautaHook`, `isStaleAmautaServer`), replaced on install, removed on uninstall (`amauta-memory` dropped), reported as "replaced legacy amauta entry"; a server edited but pointing at this checkout still counts as the user's; Claude side pinned by a test. Commit `30091e0`. (2) Two-way sync copied Codex `node_repl` into `.claude.json`: runtime-internal servers (built-in names, commands under `/usr/lib/chatgpt`, `/opt/claude`, the runtime homes, `exclude` list in `mcp-sync.json`) are never synced, listed in status, and an earlier copy is removed only when it still matches what the sync wrote (recorded hash), else reported. Commit recorded by `git log` (fix(install): never sync runtime-internal MCP servers). `npm test` exit 0: 732 Node + 784 Python.
 
 ## Next step
 

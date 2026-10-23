@@ -90,6 +90,8 @@ export function printMcpSync(m, io) {
   if (m.mirrored.length > 0) io.stdout.write(`  mcp synced Claude -> Codex: ${m.mirrored.join(', ')}\n`);
   if (m.toClaude.length > 0) io.stdout.write(`  mcp synced Codex -> Claude: ${m.toClaude.join(', ')}\n`);
   if (m.removed.length > 0) io.stdout.write(`  mcp removed: ${m.removed.join(', ')}\n`);
+  if (m.excluded?.length > 0) io.stdout.write(`  mcp not synced (runtime-internal or excluded): ${m.excluded.join(', ')}\n`);
+  for (const n of m.staleExcluded ?? []) io.stdout.write(`  mcp excluded server was copied by an earlier sync and edited since, remove it by hand: ${n}\n`);
   for (const u of m.unsupported) io.stdout.write(`  mcp not synced: ${u.name} (${u.reason})\n`);
   for (const n of m.conflicts) io.stdout.write(`  mcp conflict, changed differently in both runtimes (left as is): ${n}\n`);
   if (m.unreadable) io.stdout.write(`  mcp sync skipped: could not read ${m.unreadable}\n`);
