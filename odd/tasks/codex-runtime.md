@@ -54,10 +54,10 @@ partitions (Codex could not read Claude's memories); this design has no such spl
   `user_version` (stays 7 on fresh DBs, 9 untouched on the user's DB). `npm test` exit 0: 719 Node + 784 Python.
 - [ ] K4 Switch the live machine: reinstall Claude from `~/amauta` (no path to `~/amauta-dev`), install Codex, retire
   `~/amauta-dev` and `~/amauta-dual`; real check (Codex reads Claude's "quipu", Claude reads Codex's "chasqui").
-- [ ] K5 Docs, CHANGELOG, v0.4.0.
-- [ ] K6 Runtime-agnostic repository for GitHub: description, README, PRODUCT, NOTICE say "Claude Code and Codex"; `AGENTS.md` is the
+- [x] K5 Docs, CHANGELOG, v0.4.0. Commit `dda7fbf` (CHANGELOG 0.4.0, UPGRADING 0.3.1 -> 0.4.0, version in package.json and python/amauta/__init__.py; no test pinned the version). Route: delegated writer. `npm test` exit 0: 719 Node + 784 Python.
+- [x] K6 Runtime-agnostic repository for GitHub: description, README, PRODUCT, NOTICE say "Claude Code and Codex"; `AGENTS.md` is the
   repo instruction source and `CLAUDE.md` is the one-line pointer `@AGENTS.md`; `assets/claude/` renamed to `assets/core/`
-  (only manifest and one test referenced it; no on-disk key changes); `--help` wording symmetric.
+  (only manifest and one test referenced it; no on-disk key changes); `--help` wording symmetric. Commit `19f248f`. Route: delegated writer. Kept: `AMAUTA_CLAUDE_*` env names, `claude_home` state keys, `claude`/`codex` runtime tags and `CLAUDE.md` as the Claude file name (on-disk keys and real file names).
 
 ## Acceptance criteria
 
@@ -80,4 +80,4 @@ TDD on (strict). Runner `npm test` in `~/amauta-codex`.
 
 ## Next step
 
-K4 (switch the live machine). Run `python3 -P -m amauta.usage backfill --runtime all` once after reinstalling to import existing Codex sessions.
+K4 (switch the live machine) after the release PR for v0.4.0 is merged and tagged. Run `python3 -P -m amauta.usage backfill --runtime all` once after reinstalling to import existing Codex sessions.
