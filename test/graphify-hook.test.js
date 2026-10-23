@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, stat, utimes, access } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, chmod, rm, stat, utimes, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installHook, uninstallHook, BEGIN, END } from '../src/graphify/hook.js';
 import { main } from '../src/cli.js';
+import { tempDir } from './helpers/tmp.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
@@ -14,7 +15,7 @@ const GRAPH = JSON.stringify({ nodes: [{ id: 'a', label: 'A', file_type: 'code',
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function sandbox({ graphify = null } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-gfy-'));
+  const root = await tempDir('gl-gfy-');
   const t = { root, repo: path.join(root, 'repo'), state: path.join(root, 'state'), bin: path.join(root, 'bin'), log: path.join(root, 'graphify.log') };
   await mkdir(t.repo, { recursive: true });
   await mkdir(t.bin);
@@ -121,7 +122,7 @@ test('a hook that is not a shell script is refused and left untouched', async ()
 });
 
 test('outside a git repository nothing is written', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-nogit-'));
+  const root = await tempDir('gl-nogit-');
   await assert.rejects(installHook({ cwd: root, stateDir: path.join(root, 's') }), /not a git repository/);
   await rm(root, { recursive: true, force: true });
 });
