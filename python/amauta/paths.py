@@ -23,3 +23,17 @@ def claude_home(env=None, home: Path | None = None) -> Path:
     if configured:
         return Path(configured)
     return (home or Path.home()) / ".claude"
+
+
+def codex_home(env=None, home: Path | None = None) -> Path:
+    env = os.environ if env is None else env
+    configured = env.get("AMAUTA_CODEX_HOME")
+    if configured:
+        return Path(configured)
+    return (home or Path.home()) / ".codex"
+
+
+def runtime(env=None) -> str:
+    """The runtime that launched the hook: 'codex' when AMAUTA_RUNTIME says so, else 'claude' (anything else is ignored)."""
+    env = os.environ if env is None else env
+    return "codex" if env.get("AMAUTA_RUNTIME") == "codex" else "claude"

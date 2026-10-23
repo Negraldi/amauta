@@ -40,14 +40,15 @@ def record(payload: dict, payload_bytes: int, env=None) -> None:
         duration if isinstance(duration, int) and not isinstance(duration, bool) and duration >= 0 else None,
         payload_bytes,
         _ok(payload),
+        paths.runtime(env),
     )
     try:
         conn = mstore.connect(paths.db_path(env), busy_ms=BUSY_MS)
         try:
             with conn:
                 conn.execute(
-                    "INSERT INTO events (ts, session_id, event, tool_name, cwd, project, duration_ms, payload_bytes, ok) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO events (ts, session_id, event, tool_name, cwd, project, duration_ms, payload_bytes, ok, runtime) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     row,
                 )
             housekeeping.maybe_prune(conn, env)
