@@ -42,7 +42,7 @@ partitions (Codex could not read Claude's memories); this design has no such spl
 - [x] K2 Parity and sharing: neutral skill store + links (incl. impeccable/archify, personal skills both ways), two-way
   3-way MCP sync, memory entry identical (runtime tag only), `amauta sync` + SessionStart `sync-check` + drift in status,
   parity section. Commits `b9635aa` (mirror + runtime tag), `7e7b47e` (store, links, MCP sync), plus the sync/parity
-  commit recorded below. Route: delegated writer. Memory visibility pinned by a Python test (it passed without code
+  commit `17d1aea`. Route: delegated writer. Memory visibility pinned by a Python test (it passed without code
   change: the server ignores AMAUTA_RUNTIME). The skill-store code was written before its tests (TDD deviation, tests
   added right after and a RED seen for the portal change); other parts RED first.
 - [ ] K3 Codex usage: ingest `~/.codex/sessions` token usage into telemetry with `runtime=codex`; portal filters by
