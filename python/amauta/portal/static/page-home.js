@@ -18,7 +18,7 @@ function spendingBlock(sp) {
   const cols = sp.windows.map((w) => w.days);
   return h("div", null,
     h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("home.tokens")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
-      h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, label), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
+      h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, t(label)), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
     sp.runtimes && sp.runtimes.length > 1 ? h("div", null, h("h3", null, t("home.byRuntime")),
       h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("col.runtime")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
         h("tbody", null, sp.runtimes.map((r) => h("tr", null, h("td", null, runtimeName(r.runtime)), r.windows.map((w) => h("td", { class: "n" }, short(KINDS.reduce((a, [k]) => a + (w[k] || 0), 0))))))))) : null,

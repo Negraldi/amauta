@@ -148,6 +148,8 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   4.98:1 everywhere, no overflow at 390 px, no console errors; detector: long lines in Settings/Harness/Memory, flat
   type hierarchy on data pages. User decisions: search-only top bar; Mermaid in Harness with archify as a link;
   Activity opens with a sentence and the table.
+- 2026-11-07: N12a done: the Home spending table translated its token labels (`t(label)`); a test now fails on any
+  text-only element that shows a dictionary key. RED seen.
 
 ## Acceptance criteria
 

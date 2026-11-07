@@ -456,6 +456,13 @@ test('home: recent activity grouped by day is the main column; spending and heal
   assert.equal(env.document.getElementById('filters').hidden, true);
 });
 
+test('no page shows a raw dictionary key such as tok.input (impeccable critique P1)', async () => {
+  const { env } = await boot('#/home', { '/api/wiki/home': HOME });
+  const textOnly = (e) => e.tagName && (e.children ?? []).every((c) => !c.tagName); // an element holding only text
+  const leaks = tree(view(env)).filter((e) => textOnly(e) && /^[a-z]+\.[a-z_]+(\.[a-z_]+)*$/.test((e.textContent || '').trim()));
+  assert.deepEqual(leaks.map((e) => e.textContent), []);
+});
+
 test('home teaches when there is no activity, no usage data and no install', async () => {
   const empty = { activity: [], spending: { available: false, windows: [], cache_hit_ratio: null, top_models: [] }, health: { installed: false } };
   const { env } = await boot('#/home', { '/api/wiki/home': empty });
