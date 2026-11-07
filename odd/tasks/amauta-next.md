@@ -52,7 +52,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 Phase 1a, structure and hygiene
 
 - [x] N0 Plan, decisions (ADR 0001-0008) and the intake template.
-- [ ] N1 Windows and Codex probe script for the user's machine (hook shell, `decision: block`, Codex agents, hooks
+- [x] N1 Windows and Codex probe script for the user's machine (hook shell, `decision: block`, Codex agents, hooks
   inside subagents, resuming a subagent, latency). Not installed; results update this plan.
 - [ ] N2 Green baseline: `test_portal_wiki_impact` depends on the environment.
 - [ ] N3 Module registry `MODULES.json` + architecture test (every file in one module; layer import rules) +
