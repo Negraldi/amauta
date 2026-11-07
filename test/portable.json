@@ -1,0 +1,16 @@
+{
+  "note": "Tests that must pass on native Windows (CI windows-latest, plan N9). Grow this list as suites become portable.",
+  "node": [
+    "test/architecture.test.js",
+    "test/simplicity.test.js",
+    "test/platform.test.js",
+    "test/probe.test.js",
+    "test/markers.test.js",
+    "test/jsonmerge.test.js",
+    "test/toml.test.js",
+    "test/templating.test.js"
+  ],
+  "python": [
+    "python.tests.test_oscompat"
+  ]
+}

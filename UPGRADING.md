@@ -1,5 +1,19 @@
 # Upgrading
 
+## From 0.4.0 to 0.5.0 (in progress on `feat/amauta-next`)
+
+```bash
+amauta upgrade --to v0.5.0
+```
+
+- Hook commands change form: one command per event, `node <amauta>/bin/amauta.js hook event <Event> --state-dir DIR
+  --with handler,... [--runtime codex]`. Install replaces the old per-handler commands (`hook review-stop`,
+  `env PYTHONPATH=... python3 -m amauta.telemetry hook`, the SDD shell guard) and keeps your own hooks.
+- Codex asks you to trust the changed hook commands once, the first time it starts after the upgrade.
+- `--python <interpreter>` (or `AMAUTA_PYTHON`) chooses the Python used by the hooks and the memory server; it must be
+  3.11 or newer and is remembered. Without it nothing changes (`python3`).
+- Rollback: `amauta upgrade --to v0.4.0` writes the old hook commands back.
+
 ## From 0.3.1 to 0.4.0
 
 ```bash

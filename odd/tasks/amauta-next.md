@@ -72,7 +72,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   `graph/lock.py`.
 - [ ] N8b Copy fallback when a junction cannot be created (kept current by `amauta sync`); a portable
   `{{AMAUTA_SDD}}` command in the SDD assets (today `env PYTHONPATH=... python3`).
-- [ ] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
+- [x] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
 
 ### Phase 1c, portal
 
