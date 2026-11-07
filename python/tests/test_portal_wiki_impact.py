@@ -84,6 +84,9 @@ class HomeRankingTest(ImpactBase):
     def test_ranking_lists_skills_with_enough_sessions_by_error_rate_delta(self):
         self.add_sessions("good-skill", exposed_errors=0, control_errors=2)
         self.add_sessions("bad-skill", exposed_errors=3, control_errors=0, project="delta")
+        # The shared fixture's sessions have fixed dates and leave the 30-day window as time passes; load one more skill
+        # inside the window so the count below does not depend on the day the suite runs.
+        self.add_sessions("low-sample-skill", exposed_errors=0, control_errors=0, n=1, project="epsilon")
         rk = self.get("/api/wiki/home")["impact"]
         self.assertTrue(rk["available"])
         self.assertEqual(rk["note"], NOTE)
@@ -92,7 +95,7 @@ class HomeRankingTest(ImpactBase):
         best = rk["best"][0]
         self.assertEqual((best["sessions"], best["n"], best["verdict"]), (5, 25, "better"))
         self.assertLess(best["delta"], 0)
-        self.assertGreaterEqual(rk["tracked"], 3)  # includes work-unit-commits and the loaded fixture skills
+        self.assertGreaterEqual(rk["tracked"], 3)  # the two ranked skills plus the low-sample one
         self.assertEqual(rk["ranked"], 2)  # the rest is below the n floor and never ranked
 
     def test_ranking_is_capped_and_empty_without_usage(self):
