@@ -21,7 +21,7 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 | `sdd` | optional | `python/amauta/sdd/`, `assets/sdd/` | Spec-driven development (`--with-sdd`) |
 | `archify` | optional | `assets/skills/archify/` | Diagram skill (`--with-archify`, vendored) |
 | `impeccable` | optional | `assets/skills/impeccable/` | Design skill (`--with-impeccable`, vendored) |
-| `extras` | extra | `python/amauta/extras/` | Optional extras reached only through `amauta.extensions` (ADR 0009) |
+| `extras` | extra | `python/amauta/extras/` | Optional extras reached only through `amauta.extensions` (ADR 0009): skill impact, wiki explanations |
 | `scripts` | tooling | `scripts/` | gentle-ai migration and the runtime probe |
 
 ## Extension points
@@ -30,6 +30,10 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 | --- | --- | --- |
 | `home.impact` | `portal/wikihome.py` (Home rail) | `extras/skill_impact` |
 | `skill.impact` | `portal/wikiusage.py` (skill page) | `extras/skill_impact` |
+| `harness.explain` | `portal/wikiharness.py` (component page) | `extras/wiki_explain` |
+| `harness.pending` | `portal/wikiharness.py` (catalog) | `extras/wiki_explain` |
+| `lint.categories` | `portal/wikilint.py` | `extras/wiki_explain` (stale notes) |
+| `portal.explain_request` | `portal/server.py` (`POST /api/harness/explain`) | `extras/wiki_explain` |
 
 ## Recorded exceptions
 

@@ -18,8 +18,8 @@ test('the amauta-wiki-explain skill is shipped with a trigger description and th
   assert.ok(front, 'frontmatter');
   assert.match(front[1], new RegExp(`^name: ${SKILL}$`, 'm'));
   assert.match(front[1], /^description: ".*Trigger:.*wiki explanation requests.*"$/m);
-  assert.match(text, /python3 -P -m amauta\.portal\.wikiexplain list/);
-  assert.match(text, /python3 -P -m amauta\.portal\.wikiexplain write --kind .* --id .* --file/);
+  assert.match(text, /python3 -P -m amauta\.extras\.wiki_explain list/);
+  assert.match(text, /python3 -P -m amauta\.extras\.wiki_explain write --kind .* --id .* --file/);
   assert.match(text, /source_hash|source material/i);
   assert.match(text, /never (invent|guess)|do not invent/i);
   assert.match(text, /secret|credential/i);
@@ -29,11 +29,11 @@ test('the amauta-wiki-explain skill is shipped with a trigger description and th
 });
 
 test('the commands the skill names exist in the Python module', () => {
-  const r = spawnSync('python3', ['-P', '-m', 'amauta.portal.wikiexplain', '--help'], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: path.join(repoRoot, 'python') } });
+  const r = spawnSync('python3', ['-P', '-m', 'amauta.extras.wiki_explain', '--help'], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: path.join(repoRoot, 'python') } });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /\blist\b/);
   assert.match(r.stdout, /\bwrite\b/);
-  const w = spawnSync('python3', ['-P', '-m', 'amauta.portal.wikiexplain', 'write', '--help'], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: path.join(repoRoot, 'python') } });
+  const w = spawnSync('python3', ['-P', '-m', 'amauta.extras.wiki_explain', 'write', '--help'], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: path.join(repoRoot, 'python') } });
   for (const flag of ['--kind', '--id', '--file']) assert.match(w.stdout, new RegExp(flag));
 });
 

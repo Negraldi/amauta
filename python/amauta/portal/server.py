@@ -11,7 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiexplain, wikiprobe
+from .. import extensions
+from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiprobe
 from . import wikiharness
 from .api import Portal
 
@@ -310,12 +311,8 @@ class Handler(BaseHTTPRequestHandler):
         body = self._settings_body(EXPLAIN_MAX_BODY)
         if body is None:
             return
-        try:
-            result = wikiexplain.request(self.server.portal, body)
-        except wikiexplain.ExplainError as err:
-            return self._json(err.status, err.body())
-        wikiharness.forget(self.server.portal)
-        self._json(200, result)
+        status, payload = extensions.call("portal.explain_request", self.server.portal, body, default=(404, {"error": "wiki explanations are not installed"}))
+        self._json(status, payload)
 
     def _not_allowed(self):
         self._json(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})

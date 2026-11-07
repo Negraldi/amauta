@@ -3,7 +3,7 @@
 The portal never calls a model. A person (or a Claude Code session running the `amauta-wiki-explain` skill) does the writing:
 
   1. The portal's "Request explanation" button appends {kind, id, requested_at, source_hash} to `<state>/wiki/requests.jsonl` (deduplicated, capped).
-  2. `python3 -P -m amauta.portal.wikiexplain list` prints the pending requests with the component's source material as JSON.
+  2. `python3 -P -m amauta.extras.wiki_explain list` prints the pending requests with the component's source material as JSON.
   3. `... write --kind K --id I --file note.md` stores `<state>/wiki/notes/<kind>/<slug>.md` (frontmatter: source_hash, written_at) and removes the request.
   4. The component page renders the note under "Explanation"; wiki lint flags notes whose source_hash no longer matches the component.
 
@@ -24,9 +24,9 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import paths
-from . import wikiharness
-from .wikiusage import parse_frontmatter
+from ... import paths
+from ...portal import wikiharness
+from ...portal.wikiusage import parse_frontmatter
 
 ALLOWED = ("hook", "mcp", "mcptool", "connector", "tool", "agent", "command", "plugin", "outputstyle")
 MAX_ID = 200
@@ -286,8 +286,8 @@ def write_note(portal, kind, ident, text) -> Path:
 
 # ---- command line ------------------------------------------------------------------------------------------------
 def _portal(args):
-    from .api import Portal
-    from .config import Config
+    from ...portal.api import Portal
+    from ...portal.config import Config
     return Portal(Config(state_dir=paths.state_dir(), claude_home=args.claude_home or paths.claude_home(), repos=args.repo))
 
 
@@ -328,7 +328,7 @@ def _write(args) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog="amauta.portal.wikiexplain", description="Process the wiki explanation requests (the portal itself never calls a model).")
+    p = argparse.ArgumentParser(prog="amauta.extras.wiki_explain", description="Process the wiki explanation requests (the portal itself never calls a model).")
     p.add_argument("--repo", action="append", default=[], help="a project the portal knows (repeatable); defaults to the configured ones")
     p.add_argument("--claude-home")
     sub = p.add_subparsers(dest="cmd", required=True)

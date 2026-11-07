@@ -14,6 +14,7 @@ import stat
 import time
 from pathlib import Path
 
+from .. import extensions
 from . import wikisecret
 from .wikihooks import HOOK_SUMMARIES, known_hook  # noqa: F401 (HOOK_SUMMARIES re-exported for the i18n tests)
 from .api import NotFound
@@ -485,14 +486,10 @@ def build_page(portal, e):
     pg["backlinks"] = [r for r in (_ref_of(entries, k) for k in e["backlinks"]) if r]
     if e.get("usage_col") and e.get("usage_name"):
         _add_usage(portal, pg, e)
-    add_explain(portal, pg, e)
+    explain = extensions.call("harness.explain", portal, e)  # the wiki_explain extra, when present
+    if explain is not None:
+        pg["explain"] = explain
     return pg
-
-
-def add_explain(portal, pg, e):
-    from . import wikiexplain  # lazy: wikiexplain imports this module
-    if e["kind"] in wikiexplain.ALLOWED:
-        pg["explain"] = wikiexplain.page_block(portal, e)
 
 
 def _add_usage(portal, pg, e):
@@ -536,8 +533,8 @@ def groups(portal, q=None):
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
             out.append({"kind": kind, "label": label, "items": items})
             total += len(items)
-    from . import wikiexplain
-    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": len(wikiexplain.pending(portal))}
+    pending = extensions.call("harness.pending", portal, default=0)
+    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending}
 
 
 def search(kind):

@@ -17,6 +17,12 @@
   "python/amauta/extras/skill_impact/skillimpact.py": {
    "long": 14
   },
+  "python/amauta/extras/wiki_explain/__init__.py": {
+   "long": 1
+  },
+  "python/amauta/extras/wiki_explain/wikiexplain.py": {
+   "long": 5
+  },
   "python/amauta/graph/__main__.py": {
    "long": 2
   },
@@ -131,21 +137,18 @@
   "python/amauta/portal/wikibase.py": {
    "long": 2
   },
-  "python/amauta/portal/wikiexplain.py": {
-   "long": 5
-  },
   "python/amauta/portal/wikifeature.py": {
    "long": 6
   },
   "python/amauta/portal/wikiharness.py": {
-   "lines": 593,
+   "lines": 590,
    "long": 21
   },
   "python/amauta/portal/wikihome.py": {
    "long": 5
   },
   "python/amauta/portal/wikilint.py": {
-   "long": 17
+   "long": 16
   },
   "python/amauta/portal/wikimem.py": {
    "long": 14

@@ -133,6 +133,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   orchestrator should work like it: run processes from the orchestrator and show their command lines (terminal output)
   integrated in its UI. This changes S1 from "links and health only" to a real execution feature; redesign S1 then.
 
+- In N12 (portal page map) use the vendored impeccable skill (`assets/skills/impeccable`, https://impeccable.style/) to
+  improve the design: critique and audit the current portal first, then polish the new pages; before/after screenshots.
+
 ## Acceptance criteria
 
 - `npm test` exit 0 on every commit, RED seen first for behavior changes; CI green on the three OSes (Windows subset).

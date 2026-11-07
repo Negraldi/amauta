@@ -286,7 +286,7 @@ config explains. Components of a plugin that `settings.json` disables (`enabledP
   descriptions and parameter names in `<state>/wiki/mcp-tools.json`. Env goes to the process only.
 - **Request explanation** (`POST /api/harness/explain`, `{"kind", "id"}`): queues a request in `<state>/wiki/requests.jsonl`. The portal never calls a model:
   ask Claude Code to process the wiki explanation requests (shipped skill `amauta-wiki-explain`), which uses
-  `python3 -P -m amauta.portal.wikiexplain list` and `... write --kind K --id I --file note.md`. Notes live in `<state>/wiki/notes/<kind>/` with the
+  `python3 -P -m amauta.extras.wiki_explain list` and `... write --kind K --id I --file note.md`. Notes live in `<state>/wiki/notes/<kind>/` with the
   hash of the source they were written from; the lint flags notes whose component changed.
 
 ### Settings editor (`#/settings`)
