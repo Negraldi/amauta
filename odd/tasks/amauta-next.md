@@ -55,7 +55,7 @@ Phase 1a, structure and hygiene
 - [x] N1 Windows and Codex probe script for the user's machine (hook shell, `decision: block`, Codex agents, hooks
   inside subagents, resuming a subagent, latency). Not installed; results update this plan.
 - [x] N2 Green baseline: `test_portal_wiki_impact` depends on the environment.
-- [ ] N3 Module registry `MODULES.json` + architecture test (every file in one module; layer import rules) +
+- [x] N3 Module registry `MODULES.json` + architecture test (every file in one module; layer import rules) +
   `docs/architecture.md` + `docs/modules.md`.
 - [ ] N4 Simplicity ratchet test with recorded baseline; header comment required in new or changed files.
 - [ ] N5 Installer: one `plan()` over runtime adapters (claude, codex); split `planMcpSync`.
@@ -114,6 +114,11 @@ Phase 3, sibling projects
 - [ ] S1 Portal links and `status` health for configured sibling projects (oga_catalog, harness-pipelines); MCP
   registration needs nothing new (two-way MCP sync); `ml-experiments` skill ships with the pipelines sibling; phase 3
   audit; v0.7.0.
+
+## User preferences to ask about later
+
+- Before D10/D11: ask the user about aesthetics. Default agent names should reference the Inca empire (rulers,
+  nobles, officials); the persona stays `gentleman` by default.
 
 ## Acceptance criteria
 
