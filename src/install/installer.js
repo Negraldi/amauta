@@ -1,4 +1,4 @@
-import { readlink, rm, rmdir } from 'node:fs/promises';
+import { rm, rmdir } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { removeSection, listSections } from '../core/markers.js';
@@ -22,7 +22,7 @@ import { renderSddFiles } from './sdd.js';
 import { archifyCli } from './archify.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
 import {
-  applyLinks, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks,
+  applyLinks, isOurSkillDir, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks,
   removePersonalLinks, renderSkillFile, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills
 } from './skillstore.js';
 import { packageVersion } from '../version.js';
@@ -521,8 +521,8 @@ export async function status(opts = {}) {
   for (const name of Object.keys(state.mcp_added ?? {})) add(`mcp ${name}`, name in servers, name in servers ? '' : 'missing');
 
   for (const [name, target] of Object.entries(state.skill_links ?? {})) {
-    const cur = await readlink(abs(t.claudeHome, `skills/${name}`)).catch(() => null);
-    add(`skill link ${name}`, cur === target, cur === target ? '' : 'not linked to the amauta store');
+    const ok = await isOurSkillDir(abs(t.claudeHome, `skills/${name}`), target); // a link, or the copy made where links fail
+    add(`skill link ${name}`, ok, ok ? '' : 'not linked to the amauta store');
   }
   for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
     const buf = await readOrNull(fileOf(t, rel));

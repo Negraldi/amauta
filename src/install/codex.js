@@ -1,4 +1,4 @@
-import { readlink, rm, rmdir } from 'node:fs/promises';
+import { rm, rmdir } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
@@ -18,7 +18,7 @@ import {
 } from './files.js';
 import { applyPlan, planInstructionBlocks, planManagedFiles, planOwnedHooks, planSkillLinks, realWrites, touchesDisk } from './steps.js';
 import {
-  applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet,
+  applyLinks, isOurSkillDir, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet,
   storeDirOf, storePathOf, syncPersonalSkills
 } from './skillstore.js';
 import {
@@ -413,8 +413,8 @@ export async function statusCodex(opts = {}) {
     add(`mcp ${name}`, ok, ok ? '' : 'missing');
   }
   for (const [name, target] of Object.entries(state.skill_links ?? {})) {
-    const cur = await readlink(path.join(t.codexSkillsDir, name)).catch(() => null);
-    add(`skill link ${name}`, cur === target, cur === target ? '' : 'not linked to the amauta store');
+    const ok = await isOurSkillDir(path.join(t.codexSkillsDir, name), target); // a link, or the copy made where links fail
+    add(`skill link ${name}`, ok, ok ? '' : 'not linked to the amauta store');
   }
   for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
     const buf = await readOrNull(storePathOf(t.stateDir, rel));

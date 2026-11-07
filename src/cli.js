@@ -1,5 +1,6 @@
 import { packageVersion } from './version.js';
 import { runHook } from './hooks/index.js';
+import { runPythonModule } from './install/python.js';
 import { registerInstallCommands } from './install/cli.js';
 import { registerReviewCommands } from './review/cli.js';
 import { registerPortalCommands } from './portal/cli.js';
@@ -31,6 +32,11 @@ export function helpText() {
 commands.set('hook', {
   summary: 'Hook entrypoint used by Claude Code and Codex (skill-registry, review-stop, graphify-connect)',
   run: (args, io) => runHook(args[0], io, args.slice(1)),
+});
+
+commands.set('sdd', {
+  summary: 'Run the SDD status module (status [change] --cwd DIR --json, continue [change]); used by the SDD skills',
+  run: (args, io) => runPythonModule('amauta.sdd', args, io),
 });
 
 registerInstallCommands(commands);

@@ -79,7 +79,9 @@ test('no placeholder survives rendering and commands point at our status module'
   assert.ok(files.length > 30);
   for (const f of files) assert.ok(!(await t.read(f)).includes('{{'), `placeholder left in ${f}`);
   const status_ = await t.read('commands/amauta-sdd-status.md');
-  assert.ok(status_.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m amauta.sdd status [change] --cwd <repo> --json --instructions`));
+  // A plain node invocation, portable to Windows (plan N8b): no `env`, no `python3` on the command line.
+  assert.ok(status_.includes(`node ${path.join(repo, 'bin', 'amauta.js')} sdd status [change] --cwd <repo> --json --instructions`), status_);
+  assert.ok(!status_.includes('env PYTHONPATH'));
   assert.ok(!(await t.read('skills/_shared/sdd-status-contract.md')).includes('gentle-ai sdd-'));
   for (const f of files.filter((x) => x.startsWith('commands/'))) assert.ok(!/gentle-sdd-/.test(await t.read(f)), `${f} still names /gentle-sdd-*`);
   await t.cleanup();
@@ -312,4 +314,16 @@ test('the preflight command is a plain node invocation with no shell syntax (por
   const cmd = desiredHooks({ stateDir: '/s', sdd: true }).PreToolUse[0].hooks[0].command;
   assert.ok(!/[|;&$`]|\bif\b|\bthen\b/.test(cmd), cmd);
   assert.match(cmd, /^node /);
+});
+
+test('`amauta sdd` runs the Python SDD module with the chosen interpreter and passes its exit status', async () => {
+  const t = await sandbox();
+  const r = spawnSync(process.execPath, [path.join(repo, 'bin', 'amauta.js'), 'sdd', 'status', '--cwd', t.root, '--json'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(typeof JSON.parse(r.stdout), 'object');
+  const bad = spawnSync(process.execPath, [path.join(repo, 'bin', 'amauta.js'), 'sdd', 'status', '--cwd', t.root],
+    { encoding: 'utf8', env: { ...process.env, AMAUTA_PYTHON: path.join(t.root, 'no-python') } });
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /no-python/);
+  await t.cleanup();
 });

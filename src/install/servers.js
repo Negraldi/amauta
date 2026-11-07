@@ -41,8 +41,8 @@ export const isAmautaHook = (command) =>
   /(^|[\s/'"])amauta\.js['"]?\s+hook(\s|$)/.test(command) || /(^|\s)-m\s+amauta\.[a-z_]+(\s|$)/.test(command) || command.startsWith('amauta ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
   /amauta\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
-/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`). */
-export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m amauta.sdd`;
+/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`): `amauta sdd`, portable to Windows. */
+export const sddCommand = () => `node ${shellQuote(BIN)} sdd`;
 
 /** The decision the SDD preflight prints when it cannot run for an `sdd-*` dispatch (fail closed, src/hooks/dispatch.js). */
 export const PREFLIGHT_DENY = JSON.stringify({

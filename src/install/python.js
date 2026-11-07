@@ -5,8 +5,11 @@
  * checked once with `-c` to be at least 3.11; the default is not probed (as before 0.5). Side effects: one short
  * child process when an interpreter was chosen. Failure mode: throws before anything is written.
  */
-import { spawnSync } from 'node:child_process';
-import { DEFAULT_PYTHON } from './servers.js';
+import { spawn, spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { readStateObject } from './files.js';
+import { resolveTargets } from './paths.js';
+import { DEFAULT_PYTHON, PYTHON_PATH } from './servers.js';
 
 export function resolvePython(opts, ...recorded) {
   const chosen = opts.python ?? process.env.AMAUTA_PYTHON;
@@ -17,4 +20,25 @@ export function resolvePython(opts, ...recorded) {
     throw new Error(`${chosen} is not a Python 3.11 or newer interpreter (amauta needs one). Nothing was changed.`);
   }
   return chosen;
+}
+
+/** The interpreter at run time: AMAUTA_PYTHON, else the one install recorded in state, else `python3`. */
+export async function installedPython(env = process.env) {
+  if (env.AMAUTA_PYTHON) return env.AMAUTA_PYTHON;
+  const state = await readStateObject(path.join(resolveTargets({}, env).stateDir, 'state.json'));
+  return typeof state?.python === 'string' && state.python ? state.python : DEFAULT_PYTHON;
+}
+
+/** `python -P -m <module> <args>` with amauta's PYTHONPATH, stdio passed through; resolves the exit status. */
+export async function runPythonModule(module, args, io = {}) {
+  const python = await installedPython();
+  const env = { ...process.env, PYTHONPATH: PYTHON_PATH };
+  return new Promise((resolve) => {
+    const child = spawn(python, ['-P', '-m', module, ...args], { env, stdio: 'inherit', windowsHide: true });
+    child.on('error', (err) => {
+      (io.stderr ?? process.stderr).write(`amauta: cannot start ${python}: ${err.message}\n`);
+      resolve(127);
+    });
+    child.on('close', (code) => resolve(code ?? 1));
+  });
 }

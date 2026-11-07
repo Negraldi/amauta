@@ -70,7 +70,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   hooks and MCP servers); junction or managed copy for skill links, PATHEXT, process-tree kill (Job Objects from
   Python, `taskkill /T` from Node), Windows paths and permissions, CRLF; fix `os.kill(pid, 0)` and `SIGHUP` in
   `graph/lock.py`.
-- [ ] N8b Copy fallback when a junction cannot be created (kept current by `amauta sync`); a portable
+- [x] N8b Copy fallback when a junction cannot be created (kept current by `amauta sync`); a portable
   `{{AMAUTA_SDD}}` command in the SDD assets (today `env PYTHONPATH=... python3`).
 - [x] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
 
@@ -163,6 +163,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-07: N8 part 2: the marker injector keeps a CRLF-only document CRLF; the portal path guard refuses Windows
   drive roots, SystemRoot, Program Files, ProgramData and TEMP/TMP (TEMP even under the home directory), compared
   case-insensitively. The copy fallback and the SDD asset command moved to N8b.
+- 2026-11-07: N8b done. When a skill link cannot be created, the store directory is copied with a `.amauta-copy`
+  marker naming its origin; planning treats a marked copy as managed (left alone when equal to the rendered skill,
+  re-copied when stale, so install and sync keep it current), uninstall and status recognise it, and an unmarked
+  directory stays the user's. `{{AMAUTA_SDD}}` renders as `node <bin> sdd`; the new `amauta sdd` command runs the
+  Python module with AMAUTA_PYTHON or the interpreter recorded in state. Link failures are simulated with an
+  injected link function.
 
 ## Next step
 
