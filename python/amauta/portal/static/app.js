@@ -177,7 +177,14 @@ async function renderRoute(route, changed) {
   if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
   const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, component: viewComponents, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
-  return views[kind]();
+  const out = await views[kind]();
+  return out.some(hasTitle) ? out : [pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)), ...out];
+}
+// Every page opens with exactly one title (impeccable critique, plan N12b); views that build their own h1 keep it.
+const PAGE_TITLES = { harness: "nav.harnessPage" };
+const hasTitle = (n) => Boolean(n && n.tagName) && (String(n.tagName).toLowerCase() === "h1" || Array.from(n.children || []).some(hasTitle));
+function pageHead(title, intro) {
+  return h("header", { class: "page-head" }, h("h1", null, title), intro ? h("p", { class: "lead" }, intro) : null);
 }
 
 function renderNav(route) {

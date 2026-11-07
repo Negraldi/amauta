@@ -463,6 +463,22 @@ test('no page shows a raw dictionary key such as tok.input (impeccable critique 
   assert.deepEqual(leaks.map((e) => e.textContent), []);
 });
 
+test('every page opens with its title (impeccable critique P1: one page skeleton)', async () => {
+  const stubs = {
+    '/api/wiki/home': HOME, '/api/memories': { available: true, items: [], types: [] }, '/api/memory-files': { items: [] },
+    '/api/graphify': { repos: [] }, '/api/projects': { projects: [] }, '/api/sessions': { available: true, projects: [], sessions: [] },
+    '/api/harness': { installed: false }, '/api/archify': { installed: false }, '/api/harness/components': null,
+  };
+  for (const [hash, title] of [['#/memory', 'Memory'], ['#/usage', 'Usage'], ['#/session', 'Sessions'], ['#/harness', 'Harness'], ['#/home', null]]) {
+    const { env } = await boot(hash, stubs);
+    assert.doesNotMatch(view(env).textContent, /^Error/, `${hash} rendered the error panel`);
+    const first = tree(view(env)).find((e) => /^h[1-6]$/.test(e.tagName)); // the first heading in reading order
+    assert.equal(first?.tagName, 'h1', `${hash}: first heading is ${first?.tagName}`);
+    if (title) assert.equal(first.textContent, title, hash);
+    assert.equal(tree(view(env)).filter((e) => e.tagName === 'h1').length, 1, `${hash}: one h1`);
+  }
+});
+
 test('home teaches when there is no activity, no usage data and no install', async () => {
   const empty = { activity: [], spending: { available: false, windows: [], cache_hit_ratio: null, top_models: [] }, health: { installed: false } };
   const { env } = await boot('#/home', { '/api/wiki/home': empty });

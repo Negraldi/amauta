@@ -150,6 +150,8 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   Activity opens with a sentence and the table.
 - 2026-11-07: N12a done: the Home spending table translated its token labels (`t(label)`); a test now fails on any
   text-only element that shows a dictionary key. RED seen.
+- 2026-11-07: N12b done: `renderRoute` gives every page exactly one title (a `pageHead` header for views without an
+  h1: Memory, Usage, Sessions, Tools, MCP, Harness). RED seen.
 
 ## Acceptance criteria
 
