@@ -12,16 +12,17 @@ test('findOnPath finds an executable on POSIX and a PATHEXT match on Windows', a
   await writeFile(path.join(dir, 'tool'), '#!/bin/sh\n');
   await chmod(path.join(dir, 'tool'), 0o755);
   await writeFile(path.join(dir, 'other.CMD'), '@echo off\n');
-  assert.equal(await findOnPath('tool', dir), path.join(dir, 'tool'));
-  assert.equal(await findOnPath('other', dir), null);
+  const posix = { platform: 'linux' };
+  assert.equal(await findOnPath('tool', dir, posix), path.join(dir, 'tool'));
+  assert.equal(await findOnPath('other', dir, posix), null);
   const win = { platform: 'win32', pathext: '.EXE;.CMD' };
   assert.equal(await findOnPath('other', dir, win), path.join(dir, 'other.CMD'));
   assert.equal(await findOnPath('other.CMD', dir, win), path.join(dir, 'other.CMD'));
 });
 
 test('quoteArg keeps the POSIX quoting and uses double quotes and forward slashes on Windows', () => {
-  assert.equal(quoteArg('/a/b.js'), '/a/b.js');
-  assert.equal(quoteArg('/my dir/b.js'), "'/my dir/b.js'");
+  assert.equal(quoteArg('/a/b.js', 'linux'), '/a/b.js');
+  assert.equal(quoteArg('/my dir/b.js', 'linux'), "'/my dir/b.js'");
   assert.equal(quoteArg('C:\\Program Files\\amauta\\bin\\amauta.js', 'win32'), '"C:/Program Files/amauta/bin/amauta.js"');
   assert.throws(() => quoteArg('C:\\a"b', 'win32'), /cannot be quoted/);
 });

@@ -82,7 +82,7 @@ function hasHeader(rel, text) {
 }
 
 export function measure(root, rel) {
-  const text = readFileSync(path.join(root, rel), 'utf8');
+  const text = readFileSync(path.join(root, rel), 'utf8').replaceAll('\r\n', '\n'); // a CRLF checkout measures the same
   const lines = text.replace(/\n$/, '').split('\n');
   const fn = rel.endsWith('.py') ? longestPyFunction(lines) : /\.m?js$/.test(rel) ? longestJsFunction(lines) : 0;
   return { lines: lines.length, long: lines.filter((l) => l.length > LIMITS.line).length, fn, header: hasHeader(rel, text) };

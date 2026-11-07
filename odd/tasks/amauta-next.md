@@ -73,6 +73,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] N8b Copy fallback when a junction cannot be created (kept current by `amauta sync`); a portable
   `{{AMAUTA_SDD}}` command in the SDD assets (today `env PYTHONPATH=... python3`).
 - [x] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
+- [ ] N9b Make the full suite green on macOS: 22 failures in the first CI run (graphify hook and semantic pass, codegraph
+  project-dir checks with /private temp dirs, the portal start in e2e, ENOEXEC from fake launchers). The macOS job does
+  not block until then.
 
 ### Phase 1c, portal
 
