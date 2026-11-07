@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { repoRoot } from './assets.js';
 
-const PYTHON_PATH = path.join(repoRoot, 'python');
+export const PYTHON_PATH = path.join(repoRoot, 'python');
 
 /** Our Python memory MCP server (stdlib only; replaces the compiled engram binary). */
 export const memoryServer = (stateDir) => ({
@@ -37,28 +37,11 @@ export const isAmautaHook = (command) =>
   /(^|[\s/'"])amauta\.js['"]?\s+hook(\s|$)/.test(command) || /(^|\s)-m\s+amauta\.[a-z_]+(\s|$)/.test(command) || command.startsWith('amauta ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
   /amauta\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
-const hook = (name, timeout) => ({
-  type: 'command',
-  command: `node ${shellQuote(BIN)} hook ${name}`,
-  ...(timeout ? { timeout } : {}),
-});
-
-const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop', 'SubagentStop'];
-
-/** Local-only telemetry hook: `env` form works in Claude Code hook command strings (run through a shell). */
-const pythonHook = (stateDir, module, timeout) => ({
-  type: 'command',
-  timeout,
-  command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`AMAUTA_STATE_DIR=${stateDir}`), `python3 -P -m ${module} hook`].join(' '),
-});
-const telemetryHook = (stateDir) => pythonHook(stateDir, 'amauta.telemetry', 5);
-/** Transcript usage ingestion: only after a turn or subagent ends. */
-const USAGE_EVENTS = ['Stop', 'SubagentStop'];
-
-/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`) and the preflight hook command. */
+/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`). */
 export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m amauta.sdd`;
 
-const PREFLIGHT_DENY = JSON.stringify({
+/** The decision the SDD preflight prints when it cannot run for an `sdd-*` dispatch (fail closed, src/hooks/dispatch.js). */
+export const PREFLIGHT_DENY = JSON.stringify({
   hookSpecificOutput: {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
@@ -67,34 +50,30 @@ const PREFLIGHT_DENY = JSON.stringify({
 });
 
 /**
- * Preflight hook command with a shell-level fail-closed guard. Claude Code only blocks on exit 2 or an explicit deny,
- * so a bare launcher failure would otherwise fail open. The shell reads the payload, runs the Python hook under
- * `timeout 20` when timeout(1) exists (so a hang is cut off before the 30 s hook timeout kills the whole shell, which
- * would fail open), and prints the hook's own output only when it succeeded. When it failed (cannot start, crash,
- * non-zero exit, hang) any partial output is discarded and the deny decision is printed, but only for `sdd-*`
- * dispatches: other agents stay silent. Residual gaps: no `sh`, or no timeout(1) and a hung hook.
+ * Handlers per event and the event's timeout (seconds, the sum of the handlers' own bounds plus slack). One command
+ * per event runs them in this order (src/hooks/dispatch.js); the handler names are written into the command.
  */
-export const sddPreflightCommand = () => {
-  const readPayload = `in=$(cat); T=; command -v timeout >/dev/null 2>&1 && T='timeout 20'`;
-  const onSuccess = `[ -z "$out" ] || printf '%s\\n' "$out"`;
-  const onFailure = `printf '%s' "$in" | grep -q '"subagent_type" *: *"sdd-' && printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}`;
-  const run = `if out=$(printf '%s' "$in" | $T ${sddCommand()} preflight-hook); then ${onSuccess}; else ${onFailure}; fi`;
-  // Trailing `true`: a failing branch (e.g. closed stdout) must still exit 0, a non-blocking hook error rather than exit 2.
-  return [readPayload, run, 'true'].join('; ');
-};
+const EVENT_PLAN = [
+  { event: 'UserPromptSubmit', base: ['skill-registry'], telemetry: ['telemetry'], timeout: 20 },
+  { event: 'SessionStart', base: ['review-stop', 'graphify-connect', 'sync-check'], telemetry: ['telemetry'], timeout: 60 },
+  { event: 'Stop', base: ['review-stop'], telemetry: ['telemetry', 'usage'], timeout: 60 },
+  { event: 'PostToolUse', base: [], telemetry: ['telemetry'], timeout: 10 },
+  { event: 'SubagentStop', base: [], telemetry: ['telemetry', 'usage'], timeout: 20 },
+];
 
-/** Hook entries registered in settings.json. */
-export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
-  const hooks = {
-    UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry', 10)] }],
-    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30), hook('graphify-connect', 10), hook('sync-check', 10)] }],
-    Stop: [{ matcher: '', hooks: [hook('review-stop', 60)] }],
-  };
-  if (telemetry) {
-    for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
-    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'amauta.usage', 10)] });
+const eventCommand = (event, names, stateDir, runtime) =>
+  [`node ${shellQuote(BIN)} hook event ${event}`, ...(stateDir ? [`--state-dir ${shellQuote(stateDir)}`] : []), `--with ${names.join(',')}`,
+    ...(runtime ? [`--runtime ${runtime}`] : [])].join(' ');
+
+/** Hook entries registered in settings.json (Claude) or hooks.json (Codex, `runtime: 'codex'`): one per event. */
+export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime } = {}) {
+  const hooks = {};
+  for (const p of EVENT_PLAN) {
+    const names = [...p.base, ...(telemetry ? p.telemetry : [])];
+    if (names.length === 0) continue;
+    hooks[p.event] = [{ matcher: '', hooks: [{ type: 'command', command: eventCommand(p.event, names, stateDir, runtime), timeout: p.timeout }] }];
   }
-  if (sdd) (hooks.PreToolUse ??= []).push({ matcher: 'Agent', hooks: [{ type: 'command', command: sddPreflightCommand(), timeout: 30 }] });
+  if (sdd) hooks.PreToolUse = [{ matcher: 'Agent', hooks: [{ type: 'command', command: eventCommand('PreToolUse', ['sdd-preflight'], stateDir, runtime), timeout: 30 }] }];
   return hooks;
 }
 

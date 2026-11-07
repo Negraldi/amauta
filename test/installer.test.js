@@ -86,9 +86,12 @@ test('fresh install creates every component', async () => {
   assert.deepEqual(settings.permissions.deny, SECRET_DENY, 'secret-read deny set is installed');
   assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default
   const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
-  assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, `node ${bin} hook skill-registry`);
-  assert.equal(settings.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact');
-  assert.equal(settings.hooks.Stop[0].hooks[0].command, `node ${bin} hook review-stop`);
+  // One dispatcher command per event, with its handlers in order (plan N7).
+  const cmd = (event) => settings.hooks[event][0].hooks[0].command;
+  assert.equal(cmd('UserPromptSubmit'), `node ${bin} hook event UserPromptSubmit --state-dir ${t.stateDir} --with skill-registry,telemetry`);
+  assert.equal(settings.hooks.SessionStart[0].matcher, '');
+  assert.match(cmd('SessionStart'), / --with review-stop,graphify-connect,sync-check,telemetry$/);
+  assert.match(cmd('Stop'), / --with review-stop,telemetry,usage$/);
 
   const cj = await readJson(t.claudeJson);
   assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['amauta', 'engram']); // rea and context7 are opt-in
@@ -120,7 +123,7 @@ test('install keeps pre-existing user content', async () => {
   assert.deepEqual(settings.permissions.allow, ['Bash(ls)']);
   assert.deepEqual(settings.permissions.deny, ['Bash(custom-deny)', ...SECRET_DENY]);
   assert.ok(settings.permissions.ask.includes('Bash(rm -rf*)'));
-  assert.equal(settings.hooks.Stop.length, 4); // mine + review-stop + telemetry + usage
+  assert.equal(settings.hooks.Stop.length, 2); // mine + one amauta dispatcher (review-stop, telemetry, usage)
   assert.equal(settings.hooks.Stop[0].hooks[0].command, 'my-own-stop-hook');
   assert.deepEqual(settings.enabledPlugins, { 'other@market': true });
 
@@ -315,7 +318,7 @@ test('install replaces legacy PATH-based amauta hooks and keeps user hooks; unin
   const cmds = (await readJson(t.p('settings.json'))).hooks.Stop.flatMap((e) => e.hooks.map((h) => h.command));
   assert.ok(!cmds.includes('amauta hook review-stop'));
   assert.ok(cmds.includes('echo mine'));
-  assert.ok(cmds.some((c) => /^node \S+amauta\.js hook review-stop$/.test(c)));
+  assert.ok(cmds.some((c) => /^node \S+amauta\.js hook event Stop .*--with review-stop/.test(c)));
   // A hand-written quoted variant is also recognised on uninstall.
   const s = await readJson(t.p('settings.json'));
   s.hooks.Stop.push({ matcher: '', hooks: [{ type: 'command', command: "node '/my dir/bin/amauta.js' hook review-stop" }] });
@@ -380,7 +383,7 @@ test('every hook amauta registers, including the codegraph prompt hook, carries 
   const settings = await readJson(t.p('settings.json'));
   const hooks = Object.values(settings.hooks).flatMap((es) => es.flatMap((e) => e.hooks));
   assert.ok(hooks.some((h) => h.command === 'codegraph prompt-hook'));
-  assert.ok(hooks.length >= 8);
+  assert.ok(hooks.length >= 7); // one dispatcher per event (6 with sdd and telemetry) plus codegraph's own
   for (const h of hooks) assert.ok(Number.isInteger(h.timeout) && h.timeout > 0 && h.timeout <= 60, `no sane timeout on: ${h.command}`);
   await t.cleanup();
 });

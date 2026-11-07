@@ -30,7 +30,7 @@ export function helpText() {
 
 commands.set('hook', {
   summary: 'Hook entrypoint used by Claude Code and Codex (skill-registry, review-stop, graphify-connect)',
-  run: (args, io) => runHook(args[0], io),
+  run: (args, io) => runHook(args[0], io, args.slice(1)),
 });
 
 registerInstallCommands(commands);

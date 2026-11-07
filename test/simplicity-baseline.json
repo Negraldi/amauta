@@ -116,8 +116,8 @@
    "long": 6
   },
   "python/amauta/portal/wikiharness.py": {
-   "lines": 601,
-   "long": 26
+   "lines": 593,
+   "long": 21
   },
   "python/amauta/portal/wikihome.py": {
    "long": 5
@@ -218,8 +218,8 @@
    "noHeader": true
   },
   "src/install/codex.js": {
-   "lines": 460,
-   "long": 26,
+   "lines": 458,
+   "long": 25,
    "fn": 93,
    "noHeader": true
   },

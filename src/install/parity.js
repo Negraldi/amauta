@@ -24,6 +24,8 @@ const json = async (file) => {
 
 /** Short readable name of a hook command (never the whole command line). */
 export function hookName(command) {
+  const dispatcher = /amauta\.js['"]?\s+hook\s+event\s+(\S+).*?--with\s+([\w,-]+)/.exec(command);
+  if (dispatcher) return `amauta ${dispatcher[2]}`;
   const m = /amauta\.js['"]?\s+hook\s+(\S+)/.exec(command) ?? /-m\s+amauta\.(\w+)['"]?\s+hook/.exec(command);
   if (m) return `amauta ${m[1]}`;
   const first = command.trim().split(/\s+/).find((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) && w !== 'env') ?? command;
@@ -83,7 +85,7 @@ export async function computeParity(opts = {}) {
   const noCodexEvent = claudeHooks.filter((h) => !CODEX_HOOK_EVENTS.includes(h.event)).map((h) => ({ event: h.event, name: hookName(h.command) }));
   const have = new Set(codexHooks.map((h) => `${h.event}|${hookName(h.command)}`));
   const missingInCodex = claudeHooks
-    .filter((h) => CODEX_HOOK_EVENTS.includes(h.event) && isAmautaHook(h.command) && !/preflight-hook/.test(h.command))
+    .filter((h) => CODEX_HOOK_EVENTS.includes(h.event) && isAmautaHook(h.command) && !/preflight-hook|sdd-preflight/.test(h.command))
     .map((h) => ({ event: h.event, name: hookName(h.command) }))
     .filter((h) => !have.has(`${h.event}|${h.name}`));
   return { present: true, mcp, skills, instructions, hooks: { noCodexEvent, missingInCodex } };

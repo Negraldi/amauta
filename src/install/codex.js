@@ -24,7 +24,7 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
 /**
  * Codex is a second target of the Claude installer: the same manifest, the same content, other paths.
  *   CLAUDE.md blocks        -> <codex home>/AGENTS.md blocks (same marker injector)
- *   settings.json hooks     -> <codex home>/hooks.json (same hook schema; every command carries AMAUTA_RUNTIME=codex)
+ *   settings.json hooks     -> <codex home>/hooks.json (same hook schema; every command passes --runtime codex)
  *   ~/.claude/skills        -> ~/.agents/skills (the same skill set; SDD skills only with --with-sdd)
  *   .claude.json mcpServers -> <codex home>/config.toml [mcp_servers.<same name>] (same command, args and env)
  * Claude-only assets have no Codex meaning and are never installed: output styles (a Claude Code setting) and the
@@ -33,11 +33,9 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  * skills (their rendering is tied to the Claude home).
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
-const RUNTIME_ENV = 'AMAUTA_RUNTIME=codex';
 /** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */
 export function desiredCodexHooks({ stateDir, telemetry }) {
-  const hooks = desiredHooks({ stateDir, telemetry, sdd: false });
-  return Object.fromEntries(Object.entries(hooks).map(([event, entries]) => [event, entries.map((e) => ({ ...e, hooks: e.hooks.map((h) => ({ ...h, command: `${RUNTIME_ENV} ${h.command}` })) }))]));
+  return desiredHooks({ stateDir, telemetry, sdd: false, runtime: 'codex' });
 }
 
 /** The Claude MCP entries for Codex's TOML (no `type`: Codex infers stdio from `command`). Memory is always `engram`. */

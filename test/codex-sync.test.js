@@ -90,11 +90,11 @@ test('status reports drift until a sync, and keeps the exit code logic of proble
 test('SessionStart carries the sync-check step in both runtimes, after the existing steps', async () => {
   const hooks = desiredHooks({ stateDir: '/s', telemetry: false });
   const cmds = hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command));
-  assert.ok(cmds.at(-1).endsWith('hook sync-check'));
+  assert.match(cmds.at(-1), / --with review-stop,graphify-connect,sync-check$/);
   const t = await world();
   await installCodex(t.all());
   const codexHooks = JSON.parse(await t.read('hooks.json')).hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command));
-  assert.ok(codexHooks.some((c) => c.startsWith('AMAUTA_RUNTIME=codex ') && c.endsWith('hook sync-check')));
+  assert.ok(codexHooks.some((c) => / --with \S*sync-check\S* --runtime codex$/.test(c)));
 });
 
 test('CLI: the sync-check hook prints nothing and exits 0; `amauta sync` reports and --dry-run changes nothing', async () => {

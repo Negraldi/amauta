@@ -63,9 +63,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 1b, Windows
 
-- [ ] N7 One Node dispatcher per hook event; resolved Python interpreter in state; SDD preflight in Node; single Stop
-  policy (one combined block, at most two per turn, honours `stop_hook_active`).
-- [ ] N8 Platform layer: junction or managed copy for skill links, PATHEXT, process-tree kill (Job Objects from
+- [x] N7 One Node dispatcher per hook event; SDD preflight in Node; single Stop policy (one combined block, at most
+  two per turn, honours `stop_hook_active`). The interpreter is `AMAUTA_PYTHON` or `python3`; resolving it at install
+  time moves to N8.
+- [ ] N8 Platform layer: Python interpreter resolved at install (`--python`, `AMAUTA_PYTHON`, stored in state, used by
+  hooks and MCP servers); junction or managed copy for skill links, PATHEXT, process-tree kill (Job Objects from
   Python, `taskkill /T` from Node), Windows paths and permissions, CRLF; fix `os.kill(pid, 0)` and `SIGHUP` in
   `graph/lock.py`.
 - [ ] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
@@ -120,6 +122,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - Before D10/D11: ask the user about aesthetics. Default agent names should reference the Inca empire (rulers,
   nobles, officials); the persona stays `gentleman` by default.
 
+- Before phase 3: review the user's `orquestador-etl.zip` (uploaded 2026-11-07, not opened yet) in depth. The pipeline
+  orchestrator should work like it: run processes from the orchestrator and show their command lines (terminal output)
+  integrated in its UI. This changes S1 from "links and health only" to a real execution feature; redesign S1 then.
+
 ## Acceptance criteria
 
 - `npm test` exit 0 on every commit, RED seen first for behavior changes; CI green on the three OSes (Windows subset).
@@ -137,6 +143,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   plan function is now under 60 lines; `planMcpSync` split into classify / settleExcluded / syncOne. Kernel install
   code grew by 85 lines (headers and shared step docs); phase 1 still has to come out smaller overall (N10 moves
   extras out). 309 installer and Codex tests green without changes.
+- 2026-11-07: N7 done. Hooks are now `node <bin> hook event <Event> --state-dir DIR --with a,b [--runtime codex]`, one
+  per event, so `env`, `sh`, `timeout` and the `AMAUTA_RUNTIME=codex` prefix are gone from commands. Old single-handler
+  names still run for commands an earlier install wrote; install replaces them. Tests that pinned the old command
+  text were updated to the new form (24, same intent); the shell-level SDD guard tests became dispatcher tests
+  (missing Python, failing Python, partial output, hang cut by `AMAUTA_PREFLIGHT_TIMEOUT_MS`). Stop keeps a 60 s
+  timeout. Portal and `status` parity name the dispatcher by its handlers. RED seen for each new behavior.
 
 ## Next step
 

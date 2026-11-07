@@ -124,7 +124,7 @@ test('the hook entrypoint fails open: exit 0, empty stdout, also with bad input'
 
 test('amauta install registers graphify-connect on SessionStart with a timeout', () => {
   const entries = desiredHooks({ stateDir: '/x' }).SessionStart.flatMap((e) => e.hooks);
-  const h = entries.find((x) => /hook graphify-connect$/.test(x.command));
+  const h = entries.find((x) => /hook event SessionStart .*--with \S*graphify-connect/.test(x.command));
   assert.ok(h, 'registered');
   assert.ok(h.timeout > 0);
 });

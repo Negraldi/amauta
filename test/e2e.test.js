@@ -136,7 +136,7 @@ test('every registered hook command runs under sh -c and exits 0', async () => {
       assert.equal(r.status, 0, `${event}: ${command}\n${r.stderr}`);
     }
   }
-  const pre = hookCommands('PreToolUse').find((h) => /preflight-hook/.test(h.command));
+  const pre = hookCommands('PreToolUse').find((h) => /--with sdd-preflight/.test(h.command));
   const agent = (type) => ({ ...base, hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: type, prompt: 'x' } });
   const denied = runHook(pre.command, agent('sdd-apply'));
   assert.equal(denied.status, 0);
