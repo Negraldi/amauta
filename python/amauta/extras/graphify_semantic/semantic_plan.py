@@ -1,4 +1,4 @@
-"""Deterministic half of the in-session semantic pass: python3 -P -m amauta.graph.semantic_plan <plan|validate|merge>.
+"""Deterministic half of the in-session semantic pass: python3 -P -m amauta.extras.graphify_semantic <plan|validate|merge>.
 
 The orchestrator (a Claude Code session, see assets/skills/graphify-semantic) does the one non-deterministic step:
 dispatching one Haiku subagent per chunk. Everything around it lives here:
@@ -30,10 +30,11 @@ import time
 import uuid
 from pathlib import Path
 
-from .. import paths
-from ..memory import store as mstore
-from . import pptx, sync
-from .lock import LockHeld, graphify_lock
+from ... import paths
+from ...graph import sync
+from ...graph.lock import LockHeld, graphify_lock
+from ...memory import store as mstore
+from . import pptx
 
 DEFAULT_MODEL = "claude-haiku-5-5"
 DEFAULT_CHUNK_SIZE = 25
@@ -604,7 +605,7 @@ def cmd_merge(args) -> tuple[dict, int]:
     for r in reports:
         if not r["valid"]:
             skipped.append(r["num"])
-            sys.stderr.write(f"amauta.graph.semantic_plan: skipping chunk {r['num']}: {'; '.join(r['errors'][:3])}\n")
+            sys.stderr.write(f"amauta.extras.graphify_semantic: skipping chunk {r['num']}: {'; '.join(r['errors'][:3])}\n")
             continue
         merged_nums.append(r["num"])
         sem_nodes += r["data"]["nodes"]
@@ -628,7 +629,8 @@ def cmd_merge(args) -> tuple[dict, int]:
     report.update(written=result["written"], nodes_after=result["nodes"] if result["written"] else before,
                   edges_after=result["edges"] if result["written"] else report["edges_before"], cache_entries=result["cache_entries"])
     if not result["written"]:
-        sys.stderr.write("amauta.graph.semantic_plan: graphify refused to overwrite graph.json (shrink guard); nothing else was changed\n")
+        sys.stderr.write("amauta.extras.graphify_semantic: graphify refused to overwrite graph.json (shrink guard); "
+                         "nothing else was changed\n")
         return report, EXIT_REFUSED
     if not args.no_sync:
         conn = mstore.connect(paths.db_path())
@@ -644,7 +646,8 @@ def cmd_merge(args) -> tuple[dict, int]:
 # ------------------------------------------------------------------------------------------------------------ CLI
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="amauta.graph.semantic_plan", description="Plan, save, validate and merge an in-session semantic pass.")
+    p = argparse.ArgumentParser(prog="amauta.extras.graphify_semantic",
+                                description="Plan, save, validate and merge an in-session semantic pass.")
     sub = p.add_subparsers(dest="cmd", required=True)
     sv = sub.add_parser("save-chunk", help="validate a subagent's JSON reply (stdin or --input) and save it as chunk N")
     sv.add_argument("num", type=int, help="chunk number from the plan")
@@ -683,10 +686,10 @@ def main(argv=None) -> int:
             with graphify_lock(Path(args.repo).resolve()):
                 result, code = cmd_merge(args)
     except LockHeld as err:
-        sys.stderr.write(f"amauta.graph.semantic_plan: {err}\n")
+        sys.stderr.write(f"amauta.extras.graphify_semantic: {err}\n")
         return EXIT_LOCKED
     except (SemanticError, sync.GraphError) as err:
-        sys.stderr.write(f"amauta.graph.semantic_plan: {err}\n")
+        sys.stderr.write(f"amauta.extras.graphify_semantic: {err}\n")
         return EXIT_ERROR
     sys.stdout.write(json.dumps(result, ensure_ascii=False) + "\n")
     return code

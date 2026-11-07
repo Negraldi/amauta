@@ -79,7 +79,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 1c, portal
 
-- [ ] N10 `extras/` with a route registry: skill impact, theme editor, wikiexplain, graphify semantic + PPTX.
+- [x] N10 `extras/` with a route registry: skill impact, theme editor, wikiexplain, graphify semantic + PPTX.
 - [x] N11 Split `app.js` by page (core `app.js`, nine `page-*.js`, `boot.js` last).
 - [ ] N11b i18n: one dictionary file per language (the dictionaries are read synchronously at boot; needs a loading
   change, not a mechanical move).
@@ -183,6 +183,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   total of long lines is unchanged (972) and one fewer file is over 400 lines; the ratchet now accepts a `"use strict"`
   directive before the header comment. Tests that searched the text of `app.js` search the whole UI. N10 (extras) now
   follows N11, so the theme editor and the other extras move out of single page files.
+- 2026-11-07: N10 done (ADR 0009): `python/amauta/extensions.py` finds `python/amauta/extras/<name>/` packages and their
+  `POINTS`; skill_impact, wiki_explain, theme_editor (backend) and graphify_semantic (with PPTX) moved there, each
+  removable by deleting its folder. Their CLIs are `python3 -P -m amauta.extras.<name>`. Moved code keeps its debt; the
+  repository total of long lines went from 972 to 970. The theme editor's page script stays in the portal (it shows
+  only System, Light and Dark without the extra); the skills that call Python with `env PYTHONPATH=...`
+  (wiki-explain, graphify-semantic) still need the portable form used for SDD (follow-up N8c).
 
 ## Next step
 

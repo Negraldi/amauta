@@ -3,7 +3,7 @@ import io
 import json
 import unittest
 
-from python.amauta.graph import semantic_plan as sp
+from python.amauta.extras.graphify_semantic import semantic_plan as sp
 
 from .test_semantic_plan import Base
 

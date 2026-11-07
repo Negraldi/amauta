@@ -5,7 +5,7 @@ import time
 import unittest
 from pathlib import Path
 
-from python.amauta.graph import semantic_plan as sp
+from python.amauta.extras.graphify_semantic import semantic_plan as sp
 
 from .test_semantic_plan import Base, good_chunk, node, run_main, write_graph
 

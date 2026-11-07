@@ -11,6 +11,10 @@
   "bin/amauta.js": {
    "noHeader": true
   },
+  "python/amauta/extras/graphify_semantic/semantic_plan.py": {
+   "lines": 699,
+   "long": 8
+  },
   "python/amauta/extras/skill_impact/skillhist.py": {
    "long": 12
   },
@@ -37,10 +41,6 @@
   },
   "python/amauta/graph/refresh.py": {
    "long": 1
-  },
-  "python/amauta/graph/semantic_plan.py": {
-   "lines": 696,
-   "long": 9
   },
   "python/amauta/graph/sync.py": {
    "long": 3
