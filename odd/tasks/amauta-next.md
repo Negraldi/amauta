@@ -58,7 +58,7 @@ Phase 1a, structure and hygiene
 - [x] N3 Module registry `MODULES.json` + architecture test (every file in one module; layer import rules) +
   `docs/architecture.md` + `docs/modules.md`.
 - [x] N4 Simplicity ratchet test with recorded baseline; header comment required in new or changed files.
-- [ ] N5 Installer: one `plan()` over runtime adapters (claude, codex); split `planMcpSync`.
+- [x] N5 Installer: one `plan()` over runtime adapters (claude, codex); split `planMcpSync`.
 - [ ] N6 `docs/odd.md`: task file format (incl. Criteria, Contracts, Review) with a format test.
 
 Phase 1b, Windows
@@ -129,7 +129,14 @@ Phase 3, sibling projects
 
 ## Progress
 
-- 2026-11-07: plan approved by the user; branch created.
+- 2026-11-07: plan approved by the user; branch created. N0 `ef2ebd6`, N1 `14c908e`, N2 `95c560a` (the failure was the
+  run date, not the environment: fixture dates left the 30-day window), N3 `d13da2c`, N4 `1075081`. Route: inline.
+- 2026-11-07: N5 done as shared steps (`src/install/steps.js`, `files.js`) that both runtime plans compose, rather than
+  one generic plan with adapter objects: the two runtimes differ in settings vs hooks.json, MCP JSON vs TOML with the
+  two-way mirror, and option stickiness, and a single generic plan would hide those differences behind flags. Each
+  plan function is now under 60 lines; `planMcpSync` split into classify / settleExcluded / syncOne. Kernel install
+  code grew by 85 lines (headers and shared step docs); phase 1 still has to come out smaller overall (N10 moves
+  extras out). 309 installer and Codex tests green without changes.
 
 ## Next step
 

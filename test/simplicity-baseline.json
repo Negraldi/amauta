@@ -218,9 +218,9 @@
    "noHeader": true
   },
   "src/install/codex.js": {
-   "lines": 472,
-   "long": 29,
-   "fn": 188,
+   "lines": 460,
+   "long": 26,
+   "fn": 93,
    "noHeader": true
   },
   "src/install/fingerprint.js": {
@@ -232,14 +232,13 @@
    "noHeader": true
   },
   "src/install/installer.js": {
-   "lines": 642,
-   "long": 36,
-   "fn": 206,
+   "lines": 555,
+   "long": 24,
+   "fn": 101,
    "noHeader": true
   },
   "src/install/mcpsync.js": {
    "long": 6,
-   "fn": 153,
    "noHeader": true
   },
   "src/install/parity.js": {
