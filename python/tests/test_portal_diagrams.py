@@ -43,39 +43,6 @@ class LabelTest(unittest.TestCase):
         self.assertEqual(diagrams.label("#quot;"), '"#35;quot#59;"')
 
 
-class ArchitectureTest(unittest.TestCase):
-    HS = {"installed": True, "version": "0.1.0", "persona": "neutral", "rdd_mode": "on", "skills": 15, "agents": 12,
-          "hooks": [{"event": "Stop", "kind": "usage"}, {"event": "Stop", "kind": "other"}, {"event": "SessionStart", "kind": "review-stop"}],
-          "mcp_servers": [{"name": "amauta-memory", "type": "stdio", "command": "python3"}]}
-
-    def test_architecture_shows_hooks_servers_counts_and_state_dir(self):
-        src = diagrams.architecture(self.HS, "/home/u/.amauta")
-        self.assertTrue(src.startswith("flowchart "))
-        for needle in ("Stop", "SessionStart", "usage", "review-stop", "amauta-memory", "15 skills", "12 agents", "/home/u/.amauta", "0.1.0"):
-            self.assertIn(needle, src)
-
-    def test_not_installed_gives_none(self):
-        self.assertIsNone(diagrams.architecture({"installed": False, "hooks": [], "mcp_servers": []}, "/x"))
-
-    def test_hostile_names_never_break_out_of_their_node(self):
-        hs = {**self.HS, "version": HOSTILE[0], "mcp_servers": [{"name": t, "type": HOSTILE[1], "command": "x"} for t in HOSTILE],
-              "hooks": [{"event": t, "kind": "other"} for t in HOSTILE]}
-        src = diagrams.architecture(hs, HOSTILE[2])
-        self.assertNotIn("alert(1)\n", src)
-        self.assertNotIn("<img", src)
-        for line in body_lines(src):
-            self.assertFalse(re.match(r"\s*click\b", line), line)
-        ids = re.findall(r"^\s*(n\d+)\[", src, re.M)
-        self.assertEqual(len(ids), len(set(ids)))
-
-    def test_caps_events_and_servers(self):
-        hs = {**self.HS, "hooks": [{"event": f"E{i}", "kind": "other"} for i in range(100)],
-              "mcp_servers": [{"name": f"s{i}", "type": "stdio", "command": "c"} for i in range(100)]}
-        src = diagrams.architecture(hs, "/s")
-        self.assertLessEqual(len(re.findall(r"^\s*n\d+\[", src, re.M)), 2 * diagrams.MAX_ITEMS + 8)
-        self.assertIn("more", src)
-
-
 class OddTest(unittest.TestCase):
     @staticmethod
     def tasks(n, phases=1, **extra):
@@ -228,3 +195,43 @@ class StaticMermaidTest(ServerBase):
         status, headers, data = self.request("GET", "/api/archify")
         self.assertEqual(status, 200)
         self.assertIn("fallback", json.loads(data))
+
+
+class WorkflowTest(unittest.TestCase):
+    """Harness page diagram (plan N12e): the session flow of the harness model, from the real install state."""
+
+    DISPATCH = "node /r/bin/amauta.js hook event {} --state-dir /s --with {}"
+    HS = {"installed": True, "version": "0.5.0", "skills": 15, "agents": 4,
+          "hooks": [{"event": "Stop", "kind": "amauta", "handlers": ["review-stop", "telemetry", "usage"]},
+                    {"event": "SessionStart", "kind": "amauta", "handlers": ["review-stop", "graphify-connect", "sync-check"]},
+                    {"event": "UserPromptSubmit", "kind": "amauta", "handlers": ["skill-registry"]},
+                    {"event": "Stop", "kind": "other"}],
+          "mcp_servers": [{"name": "engram", "type": "stdio", "command": "python3"}, {"name": "amauta", "type": "stdio", "command": "node"},
+                          {"name": "context7", "type": "stdio", "command": "npx"}]}
+
+    def test_hook_kind_recognises_the_dispatcher_and_lists_its_handlers(self):
+        cmd = self.DISPATCH.format("Stop", "review-stop,telemetry,usage") + " --runtime codex"
+        self.assertEqual(api._hook_kind(cmd), "amauta")
+        self.assertEqual(api._hook_handlers(cmd), ["review-stop", "telemetry", "usage"])
+        self.assertEqual(api._hook_handlers("echo mine --with a,b"), [])
+
+    def test_events_appear_in_session_order_with_their_handlers_and_the_stores(self):
+        src = diagrams.workflow(self.HS, "/home/u/.amauta")
+        self.assertTrue(src.startswith("flowchart "))
+        order = [src.index(e) for e in ("SessionStart", "UserPromptSubmit", "Stop: ")]
+        self.assertEqual(order, sorted(order), "events follow the order of a session")
+        for needle in ("graphify-connect", "skill-registry", "review-stop", "memory.db", "engram", "Stop policy", "1 hook of your own", "context7", "Portal"):
+            self.assertIn(needle, src)
+        self.assertGreaterEqual(src.count("subgraph "), 3)
+        self.assertEqual(src.count("subgraph "), src.count("\n  end"))
+
+    def test_hostile_handler_and_server_names_stay_inside_quoted_labels(self):
+        hs = dict(self.HS, hooks=[{"event": "Stop", "kind": "amauta", "handlers": ['x"]\n  click n0 call alert(1)']}],
+                  mcp_servers=[{"name": "end", "type": "stdio", "command": "x"}])
+        src = diagrams.workflow(hs, "/s")
+        for line in src.split("\n"):
+            self.assertFalse(line.strip().startswith(("click", "end ", "style ")), line)  # no injected directive
+        self.assertTrue(any(line.strip().startswith("n") and "click n0" in line and '["' in line for line in src.split("\n")))
+
+    def test_not_installed_gives_none(self):
+        self.assertIsNone(diagrams.workflow({"installed": False, "hooks": [], "mcp_servers": []}, "/x"))

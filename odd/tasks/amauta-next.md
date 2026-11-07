@@ -152,6 +152,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   text-only element that shows a dictionary key. RED seen.
 - 2026-11-07: N12b done: `renderRoute` gives every page exactly one title (a `pageHead` header for views without an
   h1: Memory, Usage, Sessions, Tools, MCP, Harness). RED seen.
+- 2026-11-07: N12e done first, at the user's request: the Harness diagram is the harness model as one session flow
+  (runtime, hook events in session order with their handlers, dispatcher, Stop policy, memory.db, the MCP servers,
+  the read-only portal), drawn in Mermaid with the portal's light tokens; archify is one link to its own route, never
+  framed. Fixed on the way: since N7 the Harness hooks table showed every amauta hook as "other" (the API now knows the
+  dispatcher and its handlers). The hostile-label Mermaid parse test covers the new diagram and its subgraphs.
 
 ## Acceptance criteria
 

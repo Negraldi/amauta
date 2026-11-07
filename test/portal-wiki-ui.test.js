@@ -390,22 +390,20 @@ test('a feature page draws the task grid once and notes a capped document; a nod
   assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
 });
 
-test('the Harness page embeds archify in a sandboxed iframe on its own route, and falls back to Mermaid with the reason', async () => {
+test('the Harness page shows the session flow in Mermaid and links archify, never frames it (plan N12e)', async () => {
   const url = '/archify/' + 'a'.repeat(64) + '.html';
   const harness = { '/api/harness': { installed: true, version: '1', hooks: [], mcp_servers: [], components: [], managed_files: 0, telemetry: false, rdd_mode: 'on', persona: 'neutral' } };
-  let { env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url, components: 12, fallback: 'flowchart LR\n  n0["A"]' } });
-  let frames = tree(view(env)).filter((e) => e.tagName === 'iframe');
-  assert.equal(frames.length, 1);
-  assert.equal(frames[0].getAttribute('src'), url);
-  assert.equal(frames[0].getAttribute('sandbox'), 'allow-scripts'); // never allow-same-origin
-  assert.match(view(env).textContent, /12 components drawn by archify/);
-  assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 0);
-  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url: 'https://evil.example/x.html', components: 1, fallback: 'flowchart LR\n  n0["A"]' } }));
-  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0, 'only our own route is ever framed');
-  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: false, reason: XSS, fallback: 'flowchart LR\n  n0["A"]' } }));
-  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0);
+  const flow = 'flowchart LR\n  n0["A"]';
+  let { env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url, components: 12, fallback: flow } });
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0, 'no foreign visual language in the page');
+  assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 1, 'the Mermaid session flow is the diagram');
+  assert.match(view(env).textContent, /How a session flows through the harness/);
+  const full = tree(view(env)).filter((e) => e.tagName === 'a' && e.getAttribute('href') === url);
+  assert.equal(full.length, 1, 'archify is one link to its own route');
+  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url: 'https://evil.example/x.html', components: 1, fallback: flow } }));
+  assert.ok(!hrefs(view(env)).includes('https://evil.example/x.html'), 'only our own archify route is ever linked');
+  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: false, reason: XSS, fallback: flow } }));
   assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 1);
-  assert.ok(view(env).textContent.includes(XSS));
   assert.equal(tree(view(env)).filter((e) => e.tagName === 'img').length, 0);
 });
 

@@ -15,6 +15,7 @@ from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import codex, ingest
 from .. import extensions
+from .wikihooks import hook_handlers as _hook_handlers, hook_kind as _hook_kind
 from . import archify, diagrams, wikifeature
 
 MAX_TEXT = 200_000
@@ -482,7 +483,7 @@ class Portal:
             for entry in entries if isinstance(entries, list) else []:
                 for h in (entry.get("hooks") or []) if isinstance(entry, dict) else []:
                     cmd = h.get("command", "") if isinstance(h, dict) else ""
-                    hooks.append({"event": event, "kind": _hook_kind(cmd)})  # command text of other tools is never exposed
+                    hooks.append({"event": event, "kind": _hook_kind(cmd), "handlers": _hook_handlers(cmd)})  # never other tools' commands
         cj = self._read_json(state.get("claude_json") or "")
         servers = []
         for name, spec in (cj.get("mcpServers") or {}).items():
@@ -516,9 +517,10 @@ class Portal:
 
     # ---- diagrams (Mermaid source is generated here, from the data the views above already use) --------------
     def archify_view(self, q):
-        """Harness architecture drawn by the vendored archify CLI (rendered now, cached by input hash) plus the Mermaid text diagram as the fallback."""
+        """The harness session flow as Mermaid (`fallback`, the page's diagram since N12e) plus, when archify is installed, the
+        full architecture it renders (cached by input hash), which the page links to."""
         hs = self.harness({})
-        fallback = diagrams.architecture(hs, self.cfg.state_dir)
+        fallback = diagrams.workflow(hs, self.cfg.state_dir)
         if not hs.get("installed"):
             return {"installed": False, "available": False, "reason": "amauta is not installed", "fallback": fallback}
         stores = [{"label": "memory.db", "detail": "memories, graph, usage"}] if self.cfg.db_path.exists() else []
@@ -605,15 +607,6 @@ def _valid_price(v) -> bool:
 
 
 _OBS_COLUMNS = {"id", "title", "content", "type", "project", "topic_key", "updated_at"}
-
-
-def _hook_kind(cmd: str) -> str:
-    for kind, pat in (("telemetry", r"amauta\.telemetry"), ("usage", r"amauta\.usage"), ("skill-registry", r"amauta\.js\S*\s+hook\s+skill-registry"),
-                      ("review-stop", r"amauta\.js\S*\s+hook\s+review-stop"),
-                      ("graphify-connect", r"amauta\.js\S*\s+hook\s+graphify-connect")):
-        if re.search(pat, cmd):
-            return kind
-    return "other"
 
 
 _ROUTES = {

@@ -2,6 +2,8 @@
 node ids are generated (`n0`, `n1`, ...), never taken from data, and every label goes through `label()`."""
 from __future__ import annotations
 
+import os
+
 import re
 
 MAX_ITEMS = 40  # hooks events, servers and ODD tasks per diagram
@@ -47,6 +49,15 @@ class _Builder:
     def edge(self, a, b, text=None):
         self.lines.append(f"  {a} -->|{label(text, 30)}| {b}" if text else f"  {a} --> {b}")
 
+    def group(self, title, build):
+        """A subgraph: `build()` adds its nodes; returns the subgraph id, which edges may use like a node."""
+        gid = f"g{self.n}"
+        self.n += 1
+        self.lines.append(f"  subgraph {gid}[{label(title)}]")
+        build()
+        self.lines.append("  end")
+        return gid
+
     def render(self, styles=()) -> str:
         self.lines.extend(f"  {s}" for s in styles)
         for cls, ids in self.classes.items():
@@ -54,9 +65,9 @@ class _Builder:
         return "\n".join(self.lines)
 
 
-_STYLE = {
-    "root": "classDef root fill:#dbe7ff,stroke:#2457c5,color:#1d1f23",
-    "group": "classDef group fill:#eeeeea,stroke:#62666d,color:#1d1f23",
+_STYLE = {  # the light portal tokens (diagrams sit on a white card): accent-soft, sidebar, ink
+    "root": "classDef root fill:#dcf4f5,stroke:#007277,color:#161f1f",
+    "group": "classDef group fill:#eff5f5,stroke:#d5dcdd,color:#161f1f",
     "done": "classDef done fill:#cdeedd,stroke:#2f9e6f,color:#1d1f23",
     "pending": "classDef pending fill:#ffe3c2,stroke:#d9822b,color:#1d1f23",
     "blocked": "classDef blocked fill:#fbd5d5,stroke:#b42318,stroke-width:3px,stroke-dasharray:4 2,color:#1d1f23",
@@ -68,34 +79,72 @@ def _styles(b):
     return [_STYLE[c] for c in b.classes if c in _STYLE]
 
 
-def architecture(hs: dict, state_dir) -> str | None:
-    """Install state as a diagram: amauta at the centre, hooks per event, MCP servers, skills/agents counts, state dir."""
+def _tilde(path) -> str:
+    """A path under the home directory written with ~ (shorter in a diagram label)."""
+    home, text = os.path.expanduser("~"), str(path)
+    return "~" + text[len(home):] if home not in ("", "/") and (text == home or text.startswith(home + os.sep)) else text
+
+
+SESSION_ORDER = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "SubagentStop", "Stop")
+AMAUTA_SERVERS = ("engram", "amauta-memory", "amauta")
+
+
+def workflow(hs: dict, state_dir) -> str | None:
+    """The harness model as one session flow (plan N12e): the runtime fires hook events in session order, one
+    dispatcher per event runs amauta's handlers, they write memory.db, the MCP servers serve the agent, the Stop policy
+    may block once more, and the portal only reads. Built from the install state; every label is quoted."""
     if not hs.get("installed"):
         return None
     b = _Builder("LR")
-    head = " ".join(str(x) for x in ("amauta", hs.get("version")) if x)
-    root = b.node(head, "root")
-    meta = " · ".join(str(x) for x in (f"persona {hs['persona']}" if hs.get("persona") else None, f"RDD {hs['rdd_mode']}" if hs.get("rdd_mode") else None) if x)
-    if meta:
-        b.edge(root, b.node(meta, "group"))
-    by_event: dict[str, dict[str, int]] = {}
+    handlers = {}
+    own = 0
     for h in hs.get("hooks") or []:
-        kinds = by_event.setdefault(str(h.get("event")), {})
-        kinds[str(h.get("kind"))] = kinds.get(str(h.get("kind")), 0) + 1
-    events = sorted(by_event)
-    for ev in events[:MAX_ITEMS]:
-        kinds = ", ".join(k if c == 1 else f"{k} x{c}" for k, c in sorted(by_event[ev].items()))
-        b.edge(root, b.node(f"{ev}: {kinds}"), "hook")
-    if len(events) > MAX_ITEMS:
-        b.edge(root, b.node(f"{len(events) - MAX_ITEMS} more hook events", "group"), "hook")
-    servers = hs.get("mcp_servers") or []
-    for s in servers[:MAX_ITEMS]:
-        b.edge(root, b.node(f"{s.get('name')} ({s.get('type')})"), "MCP")
-    if len(servers) > MAX_ITEMS:
-        b.edge(root, b.node(f"{len(servers) - MAX_ITEMS} more MCP servers", "group"), "MCP")
-    b.edge(root, b.node(f"{int(hs.get('skills') or 0)} skills", "group"))
-    b.edge(root, b.node(f"{int(hs.get('agents') or 0)} agents", "group"))
-    b.edge(root, b.node(f"state dir {state_dir}", "group", limit=80))
+        if h.get("kind") == "amauta":
+            handlers.setdefault(str(h.get("event")), []).extend(str(x) for x in h.get("handlers") or [])
+        else:
+            own += 1
+    events = sorted(handlers, key=lambda e: (SESSION_ORDER.index(e) if e in SESSION_ORDER else len(SESSION_ORDER), e))
+    runtime = {}
+    b.group("Claude Code · Codex", lambda: runtime.setdefault("id", b.node("one session", "root")))
+    ids = []
+
+    def event_nodes():
+        for ev in events[:MAX_ITEMS]:
+            ids.append(b.node(f"{ev}: {', '.join(handlers[ev])}", limit=90))
+        if own:
+            ids.append(b.node(f"{own} hook of your own" if own == 1 else f"{own} hooks of your own", "group"))
+
+    hooks_group = b.group("Hook events, in session order", event_nodes)
+    if ids:
+        b.edge(runtime["id"], ids[0], "fires")
+        for a, c in zip(ids, ids[1:]):
+            b.edge(a, c)
+    kernel = {}
+
+    def kernel_nodes():
+        kernel["dispatch"] = b.node("dispatcher: one process per event")
+        kernel["policy"] = b.node("Stop policy: one combined block, at most two per turn")
+        kernel["db"] = b.node(f"memory.db in {_tilde(state_dir)}", limit=80)
+
+    b.group("amauta kernel", kernel_nodes)
+    b.edge(hooks_group, kernel["dispatch"], "runs handlers")
+    b.edge(kernel["dispatch"], kernel["db"], "telemetry, usage")
+    if "Stop" in handlers:
+        b.edge(ids[events.index("Stop")] if events.index("Stop") < len(ids) else hooks_group, kernel["policy"], "may block")
+    servers = [s for s in hs.get("mcp_servers") or [] if s.get("name") not in AMAUTA_SERVERS]
+
+    def mcp_nodes():
+        kernel["engram"] = b.node("MCP engram: memory")
+        kernel["mcp"] = b.node("MCP amauta: skills, review, ODD")
+        if servers:
+            b.node("other MCP servers: " + ", ".join(str(s.get("name")) for s in servers[:MAX_ITEMS]), "group")
+
+    b.group("MCP servers the agent calls", mcp_nodes)
+    b.edge(runtime["id"], kernel["engram"], "stdio")
+    b.edge(runtime["id"], kernel["mcp"], "stdio")
+    b.edge(kernel["engram"], kernel["db"], "reads, writes")
+    portal = b.node(f"Portal: reads only · {int(hs.get('skills') or 0)} skills, {int(hs.get('agents') or 0)} agents", "group")
+    b.edge(portal, kernel["db"], "reads")
     return b.render(_styles(b))
 
 

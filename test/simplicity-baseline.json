@@ -52,8 +52,8 @@
    "long": 2
   },
   "python/amauta/portal/api.py": {
-   "lines": 626,
-   "long": 34
+   "lines": 619,
+   "long": 32
   },
   "python/amauta/portal/archify.py": {
    "long": 11,
@@ -63,7 +63,7 @@
    "noHeader": true
   },
   "python/amauta/portal/diagrams.py": {
-   "long": 2
+   "long": 1
   },
   "python/amauta/portal/graphsync.py": {
    "long": 4
@@ -84,7 +84,7 @@
    "long": 3
   },
   "python/amauta/portal/static/i18n.js": {
-   "lines": 1460,
+   "lines": 1454,
    "long": 110
   },
   "python/amauta/portal/static/index.html": {
@@ -99,7 +99,7 @@
    "long": 14
   },
   "python/amauta/portal/static/page-harness.js": {
-   "long": 18
+   "long": 16
   },
   "python/amauta/portal/static/page-home.js": {
    "long": 12

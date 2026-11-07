@@ -70,14 +70,21 @@ async function api(path, params = {}) {
 // Mermaid is vendored (/static/mermaid.min.js, no CDN) and loaded on first use. Source text is generated server-side with every label
 // escaped, and mermaid itself runs with securityLevel "strict"; the SVG it returns is parsed into an inert document and adopted as nodes, never assigned as an HTML string.
 let mermaidReady = null;
+// Diagram colors: the sRGB of style.css's light OKLCH tokens (Mermaid's theme engine reads hex only); the font follows --sans.
+const mermaidTheme = () => ({
+  background: "#ffffff", primaryColor: "#ffffff", primaryBorderColor: "#4e5758", primaryTextColor: "#161f1f", lineColor: "#4e5758",
+  clusterBkg: "#eff5f5", clusterBorder: "#d5dcdd", edgeLabelBackground: "#ffffff", tertiaryColor: "#dcf4f5", fontSize: "13px",
+  fontFamily: (globalThis.getComputedStyle && getComputedStyle(document.documentElement).getPropertyValue("--sans").trim()) || "sans-serif",
+});
 function loadMermaid() {
   mermaidReady ||= new Promise((resolve, reject) => {
     const tag = document.createElement("script");
     tag.src = "/static/mermaid.min.js";
     tag.onload = () => {
       try {
-        // Always the light theme: the diagram sits on a white card (see .diagram), so label colors stay readable in a dark page too.
-        window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "default", suppressErrorRendering: true });
+        // The diagram always sits on a white card (see .diagram), so it uses the light portal tokens in both page themes.
+        const config = { startOnLoad: false, securityLevel: "strict", theme: "base", suppressErrorRendering: true };
+        window.mermaid.initialize({ ...config, themeVariables: mermaidTheme() });
         resolve(window.mermaid);
       } catch (err) { reject(err); }
     };

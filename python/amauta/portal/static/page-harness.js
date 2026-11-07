@@ -54,16 +54,13 @@ async function graphifyPanel() {
   return panel(t("graph.panel"), ...(anyReady ? [] : [graphEmptyState(pr && pr.projects)]), ...blocks.map((b) => b.el));
 }
 
-// Harness architecture: the archify page lives on its own route with its own sandboxing CSP and is shown in a sandboxed iframe (scripts only, no
-// same-origin), so the portal's script-src 'self' is untouched. Without node/archify the server sends the Mermaid text diagram instead.
+// Harness diagram (plan N12e): the session flow of the harness model in the portal's own Mermaid style. archify, when
+// installed, is only a link to its own route (/archify/<hash>.html, sandboxed by its own CSP); it is never framed here.
 function archifyBlock(d) {
   if (!d.installed) return null;
-  if (d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)) {
-    return panel(t("harness.architecture"), h("iframe", { class: "archify-frame", src: d.url, sandbox: "allow-scripts", title: t("harness.archifyTitle"), referrerpolicy: "no-referrer" }),
-      h("p", { class: "muted" }, t("harness.drawn", { n: fmt(d.components) })));
-  }
-  return panel(t("harness.architecture"), d.fallback ? diagramBox(d.fallback, t("harness.installArch")) : null,
-    h("p", { class: "muted" }, d.reason ? t("harness.fallbackReason", { reason: ts(d.reason) }) : t("harness.fallback")));
+  const full = d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)
+    ? h("p", null, h("a", { href: d.url, target: "_blank", rel: "noopener" }, t("harness.drawn", { n: fmt(d.components) }))) : null;
+  return panel(t("harness.architecture"), d.fallback ? diagramBox(d.fallback, t("harness.installArch")) : null, full);
 }
 
 async function viewHarness() {

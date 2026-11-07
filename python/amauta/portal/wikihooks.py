@@ -65,3 +65,19 @@ def known_hook(command):
         what = " ".join(HANDLER_SUMMARIES[n] for n in names)
         return f"amauta hooks: {', '.join(names)}", what, " ".join(HANDLER_SUMMARIES_ES[n] for n in names)
     return next(((short, what, None) for needle, short, what in HOOK_SUMMARIES if needle in command), None)
+
+
+def hook_handlers(cmd: str) -> list:
+    """Handler names of amauta's per-event dispatcher command (amauta's own names only), else []."""
+    m = DISPATCH.search(cmd)
+    return [n for n in m.group(1).split(",") if n] if m else []
+
+
+def hook_kind(cmd: str) -> str:
+    """A short kind for the Harness hooks table; never the command text of other tools."""
+    if DISPATCH.search(cmd):
+        return "amauta"
+    if re.search(r"amauta\.(telemetry|usage)", cmd):
+        return re.search(r"amauta\.(telemetry|usage)", cmd).group(1)  # commands an earlier install wrote
+    m = re.search(r"amauta\.js\S*\s+hook\s+(skill-registry|review-stop|graphify-connect)", cmd)
+    return m.group(1) if m else "other"

@@ -65,7 +65,7 @@ test('the Harness page draws the architecture diagram and loads mermaid once', a
   assert.equal(log.init[0].startOnLoad, false);
   assert.deepEqual(log.render, [ARCH]);
   assert.equal(log.parsedAs, 'text/html');
-  assert.match(env.document.getElementById('view').textContent, /Architecture/);
+  assert.match(env.document.getElementById('view').textContent, /How a session flows through the harness/);
 });
 
 test('the separate Diagrams page is gone: old links land on Harness and the page never asks /api/diagrams', async () => {
