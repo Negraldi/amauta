@@ -80,7 +80,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 ### Phase 1c, portal
 
 - [ ] N10 `extras/` with a route registry: skill impact, theme editor, wikiexplain, graphify semantic + PPTX.
-- [ ] N11 Split `app.js` by page and i18n into one JSON per language.
+- [x] N11 Split `app.js` by page (core `app.js`, nine `page-*.js`, `boot.js` last).
+- [ ] N11b i18n: one dictionary file per language (the dictionaries are read synchronously at boot; needs a loading
+  change, not a mechanical move).
 - [ ] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut).
 - [ ] N13 README <= 200 lines with details in `docs/`; phase 1 audit; v0.5.0.
 
@@ -172,6 +174,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   directory stays the user's. `{{AMAUTA_SDD}}` renders as `node <bin> sdd`; the new `amauta sdd` command runs the
   Python module with AMAUTA_PYTHON or the interpreter recorded in state. Link failures are simulated with an
   injected link function.
+- 2026-11-07: CI on 66c9a0a: Windows portable subset and Ubuntu green; macOS red with the known N9b failures.
+- 2026-11-07: N11: `app.js` (1,326 lines) split by line range into a 321-line core, nine page files and `boot.js`, loaded
+  in that order (index.html, the static whitelist and the test boot list). Moved code keeps its debt: the repository
+  total of long lines is unchanged (972) and one fewer file is over 400 lines; the ratchet now accepts a `"use strict"`
+  directive before the header comment. Tests that searched the text of `app.js` search the whole UI. N10 (extras) now
+  follows N11, so the theme editor and the other extras move out of single page files.
 
 ## Next step
 

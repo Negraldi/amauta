@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
-import { STATIC } from './helpers/portalboot.js';
+import { STATIC, readApp } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const css = await read('style.css');
 const html = await read('index.html');
-const app = await read('app.js');
+const app = await readApp();
 const design = await readFile(path.join(STATIC, '..', '..', '..', '..', 'docs', 'DESIGN.md'), 'utf8');
 
 // ---- OKLCH -> sRGB -> WCAG contrast ------------------------------------------------------------------------

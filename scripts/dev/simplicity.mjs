@@ -75,7 +75,7 @@ function longestPyFunction(lines) {
 }
 
 function hasHeader(rel, text) {
-  const body = text.replace(/^#![^\n]*\n/, '').trimStart();
+  const body = text.replace(/^#![^\n]*\n/, '').replace(/^["']use strict["'];\s*/, '').trimStart(); // the directive may come first
   if (rel.endsWith('.py')) return body.startsWith('"""') || body.startsWith("'''") || body.startsWith('#');
   if (rel.endsWith('.html')) return body.startsWith('<!--') || /^<!doctype html>\s*<!--/i.test(body);
   return body.startsWith('//') || body.startsWith('/*');

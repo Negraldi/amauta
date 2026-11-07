@@ -69,15 +69,14 @@
    "long": 14
   },
   "python/amauta/portal/static/app.js": {
-   "lines": 1326,
-   "long": 209,
-   "fn": 150,
-   "noHeader": true
+   "long": 32
+  },
+  "python/amauta/portal/static/boot.js": {
+   "long": 3
   },
   "python/amauta/portal/static/i18n.js": {
    "lines": 1460,
-   "long": 110,
-   "noHeader": true
+   "long": 110
   },
   "python/amauta/portal/static/index.html": {
    "long": 7,
@@ -85,19 +84,42 @@
   },
   "python/amauta/portal/static/markdown.js": {
    "long": 15,
-   "fn": 67,
-   "noHeader": true
+   "fn": 67
+  },
+  "python/amauta/portal/static/page-activity.js": {
+   "long": 14
+  },
+  "python/amauta/portal/static/page-harness.js": {
+   "long": 18
+  },
+  "python/amauta/portal/static/page-home.js": {
+   "long": 12
+  },
+  "python/amauta/portal/static/page-memory.js": {
+   "long": 8
+  },
+  "python/amauta/portal/static/page-projects.js": {
+   "long": 16
+  },
+  "python/amauta/portal/static/page-settings.js": {
+   "long": 28,
+   "fn": 133
+  },
+  "python/amauta/portal/static/page-themes.js": {
+   "long": 25,
+   "fn": 150
+  },
+  "python/amauta/portal/static/page-wiki.js": {
+   "long": 53
   },
   "python/amauta/portal/static/style.css": {
    "long": 35
   },
   "python/amauta/portal/static/theme.js": {
-   "long": 15,
-   "noHeader": true
+   "long": 15
   },
   "python/amauta/portal/static/wikiroute.js": {
-   "long": 21,
-   "noHeader": true
+   "long": 21
   },
   "python/amauta/portal/themes.py": {
    "long": 5

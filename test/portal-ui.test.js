@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeEnv, Element } from './helpers/fakedom.js';
-import { runPortal } from './helpers/portalboot.js';
+import { APP_SCRIPTS, runPortal, readApp } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
@@ -48,11 +48,11 @@ const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === '
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 
 test('static files: no innerHTML-style sinks, no external URLs, no inline script or style', async () => {
-  const js = await read('app.js');
+  const js = await readApp();
   for (const sink of ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'new Function', 'localStorage']) assert.ok(!js.includes(sink), sink);
   const html = await read('index.html');
   const css = await read('style.css');
-  for (const [name, text] of [['app.js', js], ['index.html', html], ['style.css', css]]) assert.ok(!/https?:\/\/(?!www\.w3\.org\/2000\/svg)/.test(text), `${name} references an external URL`);
+  for (const [name, text] of [['the UI scripts', js], ['index.html', html], ['style.css', css]]) assert.ok(!/https?:\/\/(?!www\.w3\.org\/2000\/svg)/.test(text), `${name} references an external URL`);
   assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
   assert.match(html, /name="portal-token" content="__PORTAL_TOKEN__"/);
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'inline script');
@@ -63,9 +63,11 @@ test('static files: no innerHTML-style sinks, no external URLs, no inline script
   assert.match(css, /overflow-wrap:\s*anywhere/); // long titles must not force horizontal scroll at 375px
 });
 
-test('app.js is valid JavaScript', async () => {
-  const r = spawnSync(process.execPath, ['--check', path.join(STATIC, 'app.js')], { encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
+test('every UI script is valid JavaScript', async () => {
+  for (const file of APP_SCRIPTS) {
+    const r = spawnSync(process.execPath, ['--check', path.join(STATIC, file)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${file}: ${r.stderr}`);
+  }
 });
 
 test('overview (now under #/usage) renders KPIs, chart and the dropped counter; data strings only become text', async () => {
@@ -211,7 +213,7 @@ test('graph memory: API failures are shown inline', async () => {
 });
 
 test('the page sends a token-authenticated heartbeat every 10 seconds', async () => {
-  const js = await read('app.js');
+  const js = await readApp();
   assert.match(js, /\/api\/heartbeat/);
   assert.match(js, /setInterval\(heartbeat, 10000\)/);
   assert.match(js, /heartbeat[\s\S]{0,200}X-Portal-Token/);

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
 import { makeEnv } from './helpers/fakedom.js';
-import { runPortal, STATIC } from './helpers/portalboot.js';
+import { runPortal, STATIC, APP_SCRIPTS } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const XSS = '<img src=x onerror=alert(1)>';
@@ -286,8 +286,8 @@ test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none 
   const html = await read('index.html');
   const css = await read('style.css');
   assert.match(html, /<dialog id="palette"/);
-  const order = [...html.matchAll(/<script src="\/static\/([\w.]+)"><\/script>/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', 'app.js']);
+  const order = [...html.matchAll(/<script src="\/static\/([\w.-]+)"><\/script>/g)].map((m) => m[1]);
+  assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', ...APP_SCRIPTS]);
   assert.match(html, /<main id="view"/);
   assert.match(html, /<nav class="sidebar"[^>]*aria-label/);
   assert.match(css, /@font-face\s*{[^}]*Source Serif 4[^}]*\/static\/fonts\/source-serif-4-latin-400-normal\.woff2/);

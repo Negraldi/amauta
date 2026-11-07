@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeEnv, Element } from './helpers/fakedom.js';
-import { runPortal } from './helpers/portalboot.js';
+import { runPortal, readApp } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
@@ -47,7 +47,7 @@ async function boot(hash, { failRender = false, page } = {}) {
 }
 
 test('app.js initializes mermaid strictly, without auto-start, from the vendored file only', async () => {
-  const js = await read('app.js');
+  const js = await readApp();
   assert.match(js, /startOnLoad:\s*false/);
   assert.match(js, /securityLevel:\s*"strict"/);
   assert.doesNotMatch(js, /securityLevel:\s*"(loose|antiscript|sandbox)"/);

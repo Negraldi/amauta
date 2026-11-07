@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
-import { STATIC } from './helpers/portalboot.js';
+import { STATIC, readApp } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const ctx = {};
@@ -12,7 +12,7 @@ const I = ctx.AmautaI18n;
 const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;
-const app = await read('app.js');
+const app = await readApp();
 const html = await read('index.html');
 const plain = (x) => JSON.parse(JSON.stringify(x));
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
