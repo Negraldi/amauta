@@ -1,5 +1,5 @@
 "use strict";
-// Boot: wires the search palette, the top bar and the hash router, then renders the first page. Loaded last.
+// Boot: wires the search palette, the filters, the theme and language pickers and the router, then renders the first page. Loaded last.
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 let searchTimer = null;

@@ -1,8 +1,8 @@
 "use strict";
-// Themes: the top-bar picker and the theme editor (#/themes).
+// Themes: the sidebar picker and the theme editor (#/themes).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
-// ---- Themes: picker in the top bar, and the editor page (list, live preview, save, import, export) ----------------------------------
+// ---- Themes: picker in the sidebar, and the editor page (list, live preview, save, import, export) ----------------------------------
 // A theme reaches the page only through TH.applyChoice / TH.previewTheme (CSSOM custom properties and data-theme). The viewer's choice lives in
 // browser storage through TH.storage() (try/catch: the page works without it); the theme files themselves are stored by the server through guarded writes.
 const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateTheme({ name: th.name, base: th.base, tokens: th.tokens }).ok);

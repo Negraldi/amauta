@@ -292,6 +292,14 @@ test('every text in index.html belongs to an element whose id app.js fills from 
 });
 
 // ---- markdown.js shows two fixed texts; the page passes them translated ------------------------------------------------
+test('the top bar holds only the menu toggle and search; filters sit in a page bar, theme and language in the sidebar (plan N12c)', () => {
+  const topbar = /<header class="topbar">([\s\S]*?)<\/header>/.exec(html)[1];
+  assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]), ['nav-toggle', 'search-open', 'search-text']);
+  const sidebar = /<nav class="sidebar"[\s\S]*?<\/nav>/.exec(html)[0];
+  for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.match(sidebar, new RegExp(`id="${id}"`), id);
+  assert.match(html, /<\/header>\s*<div class="page-bar" id="filters"/);
+});
+
 test('markdown rendering takes its tooltip and table label from the caller', async () => {
   const { makeEnv } = await import('./helpers/fakedom.js');
   const mctx = {};

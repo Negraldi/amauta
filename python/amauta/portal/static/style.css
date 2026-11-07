@@ -66,10 +66,14 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); padding: var(--s3) var(--s5); border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: var(--z-sticky); }
 .search-trigger { display: inline-flex; align-items: center; gap: var(--s3); min-width: 16rem; justify-content: space-between; color: var(--ink-muted); }
 .nav-toggle { display: none; }
-.filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin-left: auto; }
-.filters[hidden] { display: none; }
-.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); }
-.filters[hidden] + .prefs { margin-left: auto; }
+/* Usage filters: a bar above the pages that use them (Activity, sessions, tools, MCP servers). */
+.page-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); padding: var(--s3) var(--s5);
+  border-bottom: 1px solid var(--line); background: var(--sidebar); }
+.page-bar[hidden] { display: none; }
+/* Theme and language: the sidebar footer, reachable from every page. */
+.prefs { display: grid; gap: var(--s2); border-top: 1px solid var(--line); margin: var(--s4) 0; padding: var(--s3) var(--s2) 0;
+  font-size: 0.8125rem; }
+.prefs label { display: grid; gap: var(--s1); color: var(--ink-muted); }
 #view { overflow-wrap: break-word; padding: var(--s5) var(--s5) var(--s7); outline: none; }
 
 /* ---- controls ---- */
@@ -206,14 +210,14 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   .shell[data-nav="open"] .sidebar { transform: none; visibility: visible; transition-delay: 0s; }
   .nav-toggle { display: inline-block; }
   .topbar { padding: var(--s3) var(--s4); }
+  .page-bar { padding: var(--s3) var(--s4); }
   #view { padding: var(--s4) var(--s4) var(--s6); }
 }
 @media (max-width: 560px) {
   .search-trigger { min-width: 0; flex: 1 1 auto; }
-  .filters { margin-left: 0; width: 100%; }
-  .prefs { width: 100%; }
-  .filters label { flex: 1 1 100%; }
-  .filters select { width: 100%; }
+  .page-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end; }
+  .page-bar label { display: grid; gap: var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }
+  .page-bar select { width: 100%; }
   h1 { font-size: 1.5rem; }
   .pal-snip { display: none; }
   .meta { grid-template-columns: 1fr; }

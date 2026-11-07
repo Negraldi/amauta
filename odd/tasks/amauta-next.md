@@ -157,6 +157,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   the read-only portal), drawn in Mermaid with the portal's light tokens; archify is one link to its own route, never
   framed. Fixed on the way: since N7 the Harness hooks table showed every amauta hook as "other" (the API now knows the
   dispatcher and its handlers). The hostile-label Mermaid parse test covers the new diagram and its subgraphs.
+- 2026-11-07: N12e follow-up: the diagram left wide gaps; hook events now wrap in numbered rows of three beside the
+  MCP servers and the kernel reads left to right (about 1.7:1, fits the card).
+- 2026-11-07: N12c done: the top bar holds only the menu toggle and search. Range, project, runtime and Refresh usage
+  sit in a page bar shown only on the pages that use them. Theme and language moved to the sidebar footer, not
+  Settings: a language switch re-renders the page you are on and the theme editor keeps its draft, which needs the
+  pickers on every page. RED seen (index.html layout test).
 
 ## Acceptance criteria
 
@@ -216,4 +222,4 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-N0.
+N12d (page map with hash sub-routes and redirects), then N12f, N12g, N12h.

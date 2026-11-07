@@ -107,7 +107,7 @@ test('the page works when localStorage is missing or throws', async () => {
   }
 });
 
-test('the top bar links to the editor and the sidebar lists the Themes page', async () => {
+test('the sidebar picker links to the editor and the sidebar lists the Themes page', async () => {
   const { env } = await boot();
   const links = tree(env.document.getElementById('nav')).filter((e) => e.tagName === 'a').map((a) => a.getAttribute('href'));
   assert.ok(links.includes('#/themes'));
