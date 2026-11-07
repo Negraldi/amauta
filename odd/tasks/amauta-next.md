@@ -84,7 +84,13 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] N11 Split `app.js` by page (core `app.js`, nine `page-*.js`, `boot.js` last).
 - [ ] N11b i18n: one dictionary file per language (the dictionaries are read synchronously at boot; needs a loading
   change, not a mechanical move).
-- [ ] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut).
+- [ ] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut). Design from the impeccable
+  critique of 2026-11-07 (below), in this order: N12a raw i18n key on Home (P1 bug, TDD); N12b one `pageHead` on every
+  page; N12c top bar search-only (theme and language to Settings; range, project, runtime and Refresh usage in the
+  Activity header); N12d page map with hash sub-routes for tabs (`#/memory/lint`) and redirects from the old routes;
+  N12e Harness diagram in Mermaid, archify behind "open full diagram"; N12f Activity opens with one summary sentence
+  then the daily chart and the sortable table (no stat tiles); N12g P3 copy (plurals via `tn()`, jargon, empty-table
+  messages, 72ch reading width); N12h impeccable `polish` pass with before/after screenshots; Windows launcher.
 - [ ] N13 README <= 200 lines with details in `docs/`; phase 1 audit; v0.5.0.
 
 ### Phase 2a, data security
@@ -136,6 +142,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 - In N12 (portal page map) use the vendored impeccable skill (`assets/skills/impeccable`, https://impeccable.style/) to
   improve the design: critique and audit the current portal first, then polish the new pages; before/after screenshots.
+
+- Impeccable critique of the portal (2026-11-07, two isolated assessments, not degraded): no AI-slop verdict except the
+  archify iframe and stat-tile rows; Nielsen 2/4 on match-to-real-world, consistency and error recovery; contrast >=
+  4.98:1 everywhere, no overflow at 390 px, no console errors; detector: long lines in Settings/Harness/Memory, flat
+  type hierarchy on data pages. User decisions: search-only top bar; Mermaid in Harness with archify as a link;
+  Activity opens with a sentence and the table.
 
 ## Acceptance criteria
 
