@@ -182,7 +182,8 @@ async function renderRoute(route, changed) {
 }
 // Every page opens with exactly one title (impeccable critique, plan N12b); views that build their own h1 keep it.
 const PAGE_TITLES = { harness: "nav.harnessPage" };
-const hasTitle = (n) => Boolean(n && n.tagName) && (String(n.tagName).toLowerCase() === "h1" || Array.from(n.children || []).some(hasTitle));
+const isH1 = (n) => String(n.tagName).toLowerCase() === "h1";
+const hasTitle = (n) => Boolean(n && n.tagName) && (isH1(n) || Array.from(n.children || []).some(hasTitle));
 function pageHead(title, intro) {
   return h("header", { class: "page-head" }, h("h1", null, title), intro ? h("p", { class: "lead" }, intro) : null);
 }
