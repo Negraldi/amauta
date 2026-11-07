@@ -49,7 +49,15 @@ function stripOrphans(lines, id) {
   for (const i of [...orphans].sort((a, b) => b - a)) lines.splice(i, 1);
 }
 
+/** A document written with CRLF only keeps CRLF; anything else is treated as LF (the default). */
+const isCrlf = (text) => text.includes('\r\n') && !/(^|[^\r])\n/.test(text);
+
 export function injectSection(text, id, body) {
+  if (isCrlf(text)) return injectLf(text.replaceAll('\r\n', '\n'), id, body.replaceAll('\r\n', '\n')).replaceAll('\n', '\r\n');
+  return injectLf(text, id, body);
+}
+
+function injectLf(text, id, body) {
   const lines = text.split('\n');
   stripOrphans(lines, id);
   const { pairs } = scan(lines, id);

@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from . import wikifeature, wikisess
 from . import graphsync
@@ -38,6 +39,32 @@ def home_dir(cfg_home=None):
     return Path(os.path.realpath(cfg_home or os.path.expanduser("~")))
 
 
+WINDOWS_TREE_VARS = ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "TEMP", "TMP")
+
+
+def system_trees(platform=sys.platform, env=os.environ):
+    """Directories a project may not live in: the POSIX trees, or on Windows the ones its environment names."""
+    if platform != "win32":
+        return list(SYSTEM_TREES)
+    return [env[v] for v in WINDOWS_TREE_VARS if env.get(v)]
+
+
+def in_system_tree(path, home, trees, platform=sys.platform):
+    """True for a drive or filesystem root, or a path inside one of `trees` that is not under the home directory."""
+    P = PureWindowsPath if platform == "win32" else PurePosixPath
+    norm = (lambda p: P(str(p).lower())) if platform == "win32" else P  # Windows paths are case-insensitive
+    real, home_p = norm(path), norm(home)
+    if real == P(real.anchor):
+        return True
+    under_home = home_p == real or home_p in real.parents
+    for tree in map(norm, trees):
+        if real == tree or tree in real.parents:
+            # A tree inside the home directory (TEMP on Windows) is refused even there; others only outside home.
+            if home_p in tree.parents or not under_home:
+                return True
+    return False
+
+
 def check_repo(raw, home):
     """The normalized (resolved) directory for a configured path; ConfigError says which rule failed."""
     if not isinstance(raw, str):
@@ -49,9 +76,9 @@ def check_repo(raw, home):
     real = Path(os.path.realpath(raw))
     if not real.is_dir():
         raise ConfigError(f"not an existing directory: {raw[:80]}")
-    if real == home or real == Path("/"):
+    if real == home or real == Path(real.anchor):
         raise ConfigError(f"path must not be / or your home directory itself: {raw[:80]}")
-    if home not in real.parents and any(real == Path(t) or Path(t) in real.parents for t in SYSTEM_TREES):
+    if in_system_tree(real, home, system_trees() if sys.platform == "win32" else SYSTEM_TREES):
         raise ConfigError(f"path must not be inside a system directory (/etc, /usr, /var, /tmp ...): {raw[:80]}")
     return real
 

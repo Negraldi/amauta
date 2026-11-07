@@ -66,10 +66,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] N7 One Node dispatcher per hook event; SDD preflight in Node; single Stop policy (one combined block, at most
   two per turn, honours `stop_hook_active`). The interpreter is `AMAUTA_PYTHON` or `python3`; resolving it at install
   time moves to N8.
-- [ ] N8 Platform layer: Python interpreter resolved at install (`--python`, `AMAUTA_PYTHON`, stored in state, used by
+- [x] N8 Platform layer: Python interpreter resolved at install (`--python`, `AMAUTA_PYTHON`, stored in state, used by
   hooks and MCP servers); junction or managed copy for skill links, PATHEXT, process-tree kill (Job Objects from
   Python, `taskkill /T` from Node), Windows paths and permissions, CRLF; fix `os.kill(pid, 0)` and `SIGHUP` in
   `graph/lock.py`.
+- [ ] N8b Copy fallback when a junction cannot be created (kept current by `amauta sync`); a portable
+  `{{AMAUTA_SDD}}` command in the SDD assets (today `env PYTHONPATH=... python3`).
 - [ ] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
 
 ### Phase 1c, portal
@@ -158,6 +160,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   platform; real Windows behavior waits for CI (N9) and the user's probe. Left for N8 part 2: CRLF in the marker
   injector, Windows system paths in the portal path guards, the copy fallback when a junction cannot be created, and
   the `{{AMAUTA_SDD}}` command in SDD assets (still `env PYTHONPATH=... python3`).
+- 2026-11-07: N8 part 2: the marker injector keeps a CRLF-only document CRLF; the portal path guard refuses Windows
+  drive roots, SystemRoot, Program Files, ProgramData and TEMP/TMP (TEMP even under the home directory), compared
+  case-insensitively. The copy fallback and the SDD asset command moved to N8b.
 
 ## Next step
 

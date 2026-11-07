@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import threading
+import unittest
 from unittest import mock
 from pathlib import Path
 
@@ -370,3 +371,23 @@ class LinkedWorktreeTest(ProjectBase):
         self.assertEqual(self.names(), ["repo"])
         (self.f["state"] / "portal.json").write_text(json.dumps({"repos": [str(wt)], "auto_discover": True}))
         self.assertEqual(self.names(), ["repo", "main-dev"])
+
+
+class WindowsSystemTreesTest(unittest.TestCase):
+    """Plan N8: on Windows the guard refuses the drive root, Windows, Program Files, ProgramData and the temp dirs."""
+
+    ENV = {"SystemRoot": r"C:\Windows", "ProgramFiles": r"C:\Program Files", "ProgramFiles(x86)": r"C:\Program Files (x86)",
+           "ProgramData": r"C:\ProgramData", "TEMP": r"C:\Users\ana\AppData\Local\Temp"}
+
+    def test_windows_trees_come_from_the_environment_and_match_case_insensitively(self):
+        from python.amauta.portal import projects
+        trees = projects.system_trees("win32", self.ENV)
+        home = r"C:\Users\ana"
+        for bad in (r"C:\\", r"c:\windows\System32", r"C:\Program Files\x", r"C:\ProgramData\y", r"C:\Users\ana\AppData\Local\Temp\t"):
+            self.assertTrue(projects.in_system_tree(bad, home, trees, "win32"), bad)
+        for ok in (r"C:\Users\ana\code\proj", r"D:\datos\proyecto"):
+            self.assertFalse(projects.in_system_tree(ok, home, trees, "win32"), ok)
+
+    def test_posix_trees_are_unchanged(self):
+        from python.amauta.portal import projects
+        self.assertEqual(projects.system_trees("linux", {}), list(projects.SYSTEM_TREES))
