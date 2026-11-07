@@ -257,8 +257,8 @@ test('app.js has no user-visible text outside t(), tn() and ts()', () => {
 });
 
 test('navigation labels and page headings are keys, not literals', () => {
-  assert.match(app, /const SECTIONS = \[\s*\["nav\.knowledge"/);
-  for (const k of ['nav.home', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings']) assert.match(app, new RegExp(`"${k.replace('.', '\\.')}"`), k);
+  assert.match(app, /const SECTIONS = \[\["home", "#\/home", "nav\.home"\]/);
+  for (const k of ['nav.home', 'nav.activity', 'nav.tabs', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings']) assert.match(app, new RegExp(`"${k.replace('.', '\\.')}"`), k);
   for (const heading of [/h\("h1", null, "/, /h\("h2", null, "/, /h\("h3", null, "/, /panel\("/, /teach\("/]) assert.doesNotMatch(app, heading, String(heading));
 });
 

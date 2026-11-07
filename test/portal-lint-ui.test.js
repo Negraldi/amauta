@@ -54,10 +54,9 @@ test('review wording stays conservative: candidates are labelled, never asserted
   assert.doesNotMatch(view(env).textContent, /contradict/i);
 });
 
-test('the sidebar links to Lint and the Range/Project filters are hidden there', async () => {
+test('the Memory tabs link to Lint and the Range/Project filters are hidden there', async () => {
   const env = await boot();
-  const nav = env.document.getElementById('nav');
-  assert.ok(tree(nav).some((e) => e.tagName === 'a' && e.attrs.href === '#/lint'));
+  assert.ok(tree(env.document.getElementById('view')).some((e) => e.tagName === 'a' && e.attrs.href === '#/lint'));
   assert.equal(env.document.getElementById('filters').hidden, true);
 });
 

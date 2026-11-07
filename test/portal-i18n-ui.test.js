@@ -35,13 +35,13 @@ const switchTo = async (env, value) => { const p = $(env, 'lang-picker'); p.valu
 test('the default language comes from the browser: Spanish for es*, English otherwise, and <html lang> follows', async () => {
   const es = await boot({ language: 'es-MX' });
   assert.equal(lang(es.env), 'es');
-  assert.match(nav(es.env).textContent, /Conocimiento/);
+  assert.match(nav(es.env).textContent, /Actividad/);
   assert.match(nav(es.env).textContent, /Proyectos/);
   assert.equal($(es.env, 'lang-picker').value, 'es');
   for (const language of ['en-GB', 'fr-FR', '']) {
     const en = await boot({ language });
     assert.equal(lang(en.env), 'en', language);
-    assert.match(nav(en.env).textContent, /Knowledge/);
+    assert.match(nav(en.env).textContent, /Activity/);
     assert.equal($(en.env, 'lang-picker').value, 'en');
   }
 });

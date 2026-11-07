@@ -12,6 +12,10 @@ amauta upgrade --to v0.5.0
 - Codex asks you to trust the changed hook commands once, the first time it starts after the upgrade.
 - `--python <interpreter>` (or `AMAUTA_PYTHON`) chooses the Python used by the hooks and the memory server; it must be
   3.11 or newer and is remembered. Without it nothing changes (`python3`).
+- Portal: the sidebar has six pages (Home, Projects, Memory, Activity, Harness, Settings); the other pages are tabs
+  of those (Activity: Usage, Sessions, Tools, MCP servers; Memory: Lint; Projects: ODD features, Graph; Harness:
+  Skills, Components; Settings: Themes). Every old address keeps working; `#/activity` opens Usage. The top bar holds
+  only search: the usage filters sit above the pages that use them, theme and language at the foot of the sidebar.
 - Rollback: `amauta upgrade --to v0.4.0` writes the old hook commands back.
 
 ## From 0.3.1 to 0.4.0

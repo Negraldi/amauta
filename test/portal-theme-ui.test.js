@@ -107,10 +107,10 @@ test('the page works when localStorage is missing or throws', async () => {
   }
 });
 
-test('the sidebar picker links to the editor and the sidebar lists the Themes page', async () => {
-  const { env } = await boot();
-  const links = tree(env.document.getElementById('nav')).filter((e) => e.tagName === 'a').map((a) => a.getAttribute('href'));
-  assert.ok(links.includes('#/themes'));
+test('the sidebar picker links to the editor and the Settings tabs list the Themes page', async () => {
+  const { env } = await boot({ hash: '#/themes' });
+  const tabs = tree(view(env)).find((e) => e.tagName === 'nav');
+  assert.ok(tree(tabs).some((e) => e.tagName === 'a' && e.getAttribute('href') === '#/themes'));
 });
 
 // ---- the editor ----------------------------------------------------------------------------------------------------

@@ -176,13 +176,24 @@ test('existing views stay reachable as pages: legacy hashes, list routes and usa
   assert.match(view(env).textContent, /No usage data yet/);  // the old overview stays reachable under #/usage
 });
 
-test('the sidebar lists every section, marks the current page and shows recent changes as links', async () => {
+test('a page that belongs to a group shows the group tabs and the sidebar marks the group (plan N12d)', async () => {
+  const { env } = await boot('#/tool');
+  const byHref = Object.fromEntries(tree(env.document.getElementById('nav')).filter((e) => e.tagName === 'a').map((a) => [a.getAttribute('href'), a]));
+  assert.equal(byHref['#/activity'].getAttribute('aria-current'), 'page');
+  const tabs = tree(view(env)).find((e) => e.tagName === 'nav');
+  assert.ok(tabs, 'tab bar');
+  assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool', '#/mcp']);
+  assert.equal(tree(tabs).find((e) => e.attrs.href === '#/tool').getAttribute('aria-current'), 'page');
+  const mem = await boot('#/memory');
+  assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav')), ['#/memory', '#/lint']);
+});
+
+test('the sidebar lists the six pages, marks the current one and shows recent changes as links (plan N12d)', async () => {
   const { env } = await boot('#/memory');
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  for (const h of ['#/home', '#/memory', '#/skill', '#/tool', '#/mcp', '#/session', '#/feature', '#/node', '#/harness', '#/usage', '#/settings']) assert.ok(byHref[h], h);
-  assert.equal(byHref['#/diagrams'], undefined, 'no Diagrams entry in the sidebar');
+  assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/home', '#/project', '#/memory', '#/activity', '#/harness', '#/settings']);
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
   assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
   const recent = env.document.getElementById('recent');

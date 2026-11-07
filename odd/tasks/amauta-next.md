@@ -163,6 +163,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   sit in a page bar shown only on the pages that use them. Theme and language moved to the sidebar footer, not
   Settings: a language switch re-renders the page you are on and the theme editor keeps its draft, which needs the
   pickers on every page. RED seen (index.html layout test).
+- 2026-11-07: N12d done: six sidebar pages (`HUBS`, `hubOf` in `wikiroute.js`); the list routes of a page show as its
+  tabs (also over an error panel). Routes keep their own hashes instead of nesting (`#/memory/lint` would collide with
+  a memory whose topic key is `lint`); `#/activity[/sessions|tools|mcp]` is the one new address. UPGRADING notes.
+  RED seen (sidebar, tabs and route tests).
 
 ## Acceptance criteria
 
@@ -222,4 +226,4 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-N12d (page map with hash sub-routes and redirects), then N12f, N12g, N12h.
+N12f (Activity opens with a sentence, the daily chart and the table), then N12g, N12h.

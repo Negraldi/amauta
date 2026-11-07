@@ -7,12 +7,12 @@ const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
 const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThis.AmautaTheme, I = globalThis.AmautaI18n; // i18n.js, theme.js, markdown.js and wikiroute.js load first (see index.html)
 const { t, tn, ts } = I; // t(key, params): portal chrome; tn(key, n, params): plural; ts(text): English text sent by the server (see i18n.js)
-const SECTIONS = [
-  ["nav.knowledge", [["home", "nav.home"], ["project", "nav.project"], ["memory", "nav.memory"], ["feature", "nav.feature"], ["node", "nav.node"]]],
-  ["nav.harness", [["skill", "nav.skill"], ["tool", "nav.tool"], ["mcp", "nav.mcp"], ["component", "nav.component"], ["session", "nav.session"], ["harness", "nav.harnessPage"]]],
-  ["nav.spending", [["usage", "nav.usage"]]],
-  ["nav.manage", [["lint", "nav.lint"], ["themes", "nav.themes"], ["settings", "nav.settings"]]],
-];
+// The sidebar: six pages (ADR 0005); each links to its hub route, and the page's other routes show as tabs.
+const SECTIONS = [["home", "#/home", "nav.home"], ["project", "#/project", "nav.project"], ["memory", "#/memory", "nav.memory"],
+  ["activity", "#/activity", "nav.activity"], ["harness", "#/harness", "nav.harnessPage"], ["settings", "#/settings", "nav.settings"]];
+const TAB_LABELS = { usage: "nav.usage", session: "nav.session", tool: "nav.tool", mcp: "nav.mcp", project: "nav.project",
+  feature: "nav.feature", node: "nav.node", memory: "nav.memory", lint: "nav.lint", harness: "nav.harnessPage", skill: "nav.skill",
+  component: "nav.component", settings: "nav.settings", themes: "nav.themes" };
 const KINDS = [["input", "tok.input"], ["output", "tok.output"], ["cache_read", "tok.cache_read"], ["cache_write", "tok.cache_write"]];
 const kindLabel = (kind) => (Object.prototype.hasOwnProperty.call(R.KINDS, kind) ? t(`kind.${kind}`) : kind);
 
@@ -185,7 +185,9 @@ async function renderRoute(route, changed) {
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
   const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, component: viewComponents, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
   const out = await views[kind]();
-  return out.some(hasTitle) ? out : [pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)), ...out];
+  const tabs = tabBar(route);
+  const page = out.some(hasTitle) ? out : [pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)), ...out];
+  return tabs ? [tabs, ...page] : page;
 }
 // Every page opens with exactly one title (impeccable critique, plan N12b); views that build their own h1 keep it.
 const PAGE_TITLES = { harness: "nav.harnessPage" };
@@ -196,8 +198,16 @@ function pageHead(title, intro) {
 }
 
 function renderNav(route) {
-  $("nav").replaceChildren(...SECTIONS.map(([heading, items]) => h("section", { class: "nav-section" }, h("h2", null, t(heading)),
-    h("ul", null, items.map(([k, label]) => h("li", null, link(k, "", t(label), { "aria-current": k === route.kind ? "page" : false })))))));
+  const hub = R.hubOf(route.kind);
+  const item = ([k, href, label]) => h("li", null, h("a", { href, "aria-current": k === hub ? "page" : false }, t(label)));
+  $("nav").replaceChildren(h("ul", null, SECTIONS.map(item)));
+}
+// The tabs of a sidebar page, on its list routes only (an item page keeps its own breadcrumb).
+function tabBar(route) {
+  const tabs = R.HUBS[R.hubOf(route.kind)] || [];
+  if (route.id || tabs.length < 2 || !tabs.includes(route.kind)) return null;
+  const tab = (k) => link(k, "", t(TAB_LABELS[k]), { "aria-current": k === route.kind ? "page" : false });
+  return h("nav", { class: "tabs", "aria-label": t("nav.tabs") }, tabs.map(tab));
 }
 
 let renderSeq = 0;
@@ -220,7 +230,10 @@ async function render() {
     state.shown = key;
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {
-    if (seq === renderSeq) { $("view").replaceChildren(panel(t("common.error"), h("p", { class: "warn" }, String(err.message || err)))); state.shown = key; }
+    if (seq !== renderSeq) return;
+    const error = panel(t("common.error"), h("p", { class: "warn" }, String(err.message || err)));
+    $("view").replaceChildren(...[tabBar(route), error].filter(Boolean)); // the tabs stay usable
+    state.shown = key;
   } finally {
     if (seq === renderSeq) $("view").setAttribute("aria-busy", "false");
   }

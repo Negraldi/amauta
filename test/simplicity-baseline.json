@@ -78,13 +78,13 @@
    "long": 14
   },
   "python/amauta/portal/static/app.js": {
-   "long": 32
+   "long": 28
   },
   "python/amauta/portal/static/boot.js": {
    "long": 3
   },
   "python/amauta/portal/static/i18n.js": {
-   "lines": 1454,
+   "lines": 1452,
    "long": 110
   },
   "python/amauta/portal/static/index.html": {
@@ -128,7 +128,7 @@
    "long": 15
   },
   "python/amauta/portal/static/wikiroute.js": {
-   "long": 21
+   "long": 20
   },
   "python/amauta/portal/wiki.py": {
    "lines": 451,
