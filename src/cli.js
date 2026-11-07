@@ -34,6 +34,17 @@ commands.set('hook', {
   run: (args, io) => runHook(args[0], io, args.slice(1)),
 });
 
+commands.set('py', {
+  summary: 'Run one of amauta\'s Python modules (amauta.*) with the interpreter install chose; used by skills',
+  run: (args, io) => {
+    if (!/^amauta(\.[A-Za-z_][\w]*)+$/.test(args[0] ?? '')) {
+      io.stderr.write('amauta py: only amauta.* modules can be run this way\n');
+      return 2;
+    }
+    return runPythonModule(args[0], args.slice(1), io);
+  },
+});
+
 commands.set('sdd', {
   summary: 'Run the SDD status module (status [change] --cwd DIR --json, continue [change]); used by the SDD skills',
   run: (args, io) => runPythonModule('amauta.sdd', args, io),

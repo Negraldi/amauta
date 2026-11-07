@@ -29,7 +29,9 @@ export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'pytho
   if (!rel.endsWith('.md')) return buf;
   let text = buf.toString('utf8');
   if (!text.includes('{{AMAUTA_')) return buf;
-  // The whole `NAME=value` assignment is quoted, so a checkout path with spaces or quotes still forms one `env` argument.
+  // `amauta py <module>` (plan N8c): a plain node invocation, portable to Windows, that runs our Python modules with the
+  // interpreter install resolved. The older `env PYTHONPATH=...` form stays rendered for a skill an earlier release wrote.
+  text = text.replaceAll('{{AMAUTA_PY}}', `node ${shellQuote(path.join(repoRoot, 'bin', 'amauta.js'))} py`);
   text = text.replaceAll('{{AMAUTA_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
   return Buffer.from(text, 'utf8');
 }

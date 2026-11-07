@@ -18,8 +18,8 @@ test('the amauta-wiki-explain skill is shipped with a trigger description and th
   assert.ok(front, 'frontmatter');
   assert.match(front[1], new RegExp(`^name: ${SKILL}$`, 'm'));
   assert.match(front[1], /^description: ".*Trigger:.*wiki explanation requests.*"$/m);
-  assert.match(text, /python3 -P -m amauta\.extras\.wiki_explain list/);
-  assert.match(text, /python3 -P -m amauta\.extras\.wiki_explain write --kind .* --id .* --file/);
+  assert.match(text, /\{\{AMAUTA_PY\}\} amauta\.extras\.wiki_explain list/);
+  assert.match(text, /\{\{AMAUTA_PY\}\} amauta\.extras\.wiki_explain write --kind .* --id .* --file/);
   assert.match(text, /source_hash|source material/i);
   assert.match(text, /never (invent|guess)|do not invent/i);
   assert.match(text, /secret|credential/i);
@@ -45,7 +45,8 @@ test('install renders the helper path, status tracks the skill and uninstall rem
     const file = path.join(opts.claudeHome, 'skills', SKILL, 'SKILL.md');
     const text = await readFile(file, 'utf8');
     assert.ok(!text.includes('{{'), 'unresolved placeholder');
-    assert.ok(text.includes(`PYTHONPATH=${path.join(repoRoot, 'python')}`), 'absolute helper path');
+    assert.ok(text.includes(`node ${path.join(repoRoot, 'bin', 'amauta.js')} py amauta.extras.wiki_explain list`), 'portable helper command (plan N8c)');
+    assert.ok(!text.includes('PYTHONPATH='), 'no env PYTHONPATH prefix');
     const s = await status(opts);
     assert.ok(s.items.find((i) => i.name === `file skills/${SKILL}/SKILL.md`)?.ok, 'status tracks the managed skill file');
     await uninstall(opts);

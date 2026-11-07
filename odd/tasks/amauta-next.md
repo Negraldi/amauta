@@ -72,6 +72,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   `graph/lock.py`.
 - [x] N8b Copy fallback when a junction cannot be created (kept current by `amauta sync`); a portable
   `{{AMAUTA_SDD}}` command in the SDD assets (today `env PYTHONPATH=... python3`).
+- [x] N8c `amauta-wiki-explain` and `graphify-semantic` skills call Python through `node <bin> py` (portable).
 - [x] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
 - [ ] N9b Make the full suite green on macOS: 22 failures in the first CI run (graphify hook and semantic pass, codegraph
   project-dir checks with /private temp dirs, the portal start in e2e, ENOEXEC from fake launchers). The macOS job does
@@ -189,6 +190,8 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   repository total of long lines went from 972 to 970. The theme editor's page script stays in the portal (it shows
   only System, Light and Dark without the extra); the skills that call Python with `env PYTHONPATH=...`
   (wiki-explain, graphify-semantic) still need the portable form used for SDD (follow-up N8c).
+- 2026-11-07: N8c done: `{{AMAUTA_PY}}` renders `node <bin> py`; `amauta py <module>` runs only `amauta.*` modules with
+  the interpreter install chose. Both skills use it; the old placeholder still renders for skills an earlier release wrote.
 
 ## Next step
 

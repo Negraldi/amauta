@@ -66,12 +66,13 @@ test('the graphify-semantic skill is vendored with a trigger description and the
   assert.ok(text.length < 6000, `skill is ${text.length} chars; keep it concise`);
 });
 
-test('the rendered helper command survives a checkout path with spaces and quotes (it is shell-quoted)', () => {
-  const dir = "/tmp/a b/it's/python";
-  const out = renderSkillFile('graphify-semantic/SKILL.md', Buffer.from('Prefix: `env {{AMAUTA_PYTHONPATH_ENV}} python3 -P -m x`'), dir).toString('utf8');
-  const frag = out.match(/`env (.*) python3/)[1];
-  const r = spawnSync('sh', ['-c', `set -- ${frag}; printf '%s' "$1"`], { encoding: 'utf8' });
-  assert.equal(r.stdout, `PYTHONPATH=${dir}`);
+test('`amauta py` runs only amauta modules with the chosen interpreter (the skills\' portable helper, plan N8c)', () => {
+  const bin = path.join(repoRoot, 'bin', 'amauta.js');
+  const ok = spawnSync(process.execPath, [bin, 'py', 'amauta.extras.graphify_semantic', '--help'], { encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stderr);
+  const refused = spawnSync(process.execPath, [bin, 'py', 'os'], { encoding: 'utf8' });
+  assert.equal(refused.status, 2);
+  assert.match(refused.stderr, /only amauta\.\* modules/);
 });
 
 test('install renders the helper path, status lists the skill, uninstall removes it', async () => {
@@ -81,7 +82,7 @@ test('install renders the helper path, status lists the skill, uninstall removes
     const file = path.join(t.claudeHome, 'skills', 'graphify-semantic', 'SKILL.md');
     const text = await readFile(file, 'utf8');
     assert.ok(!text.includes('{{'), 'unresolved placeholder');
-    assert.ok(text.includes(`PYTHONPATH=${path.join(repoRoot, 'python')} python3 -P -m amauta.extras.graphify_semantic`) || text.includes(`'PYTHONPATH=${path.join(repoRoot, 'python')}' python3 -P -m amauta.extras.graphify_semantic`), 'absolute helper command');
+    assert.ok(text.includes(`node ${path.join(repoRoot, 'bin', 'amauta.js')} py amauta.extras.graphify_semantic`), 'portable helper command');
     const s = await status(t.opts());
     const item = s.items.find((i) => i.name === 'file skills/graphify-semantic/SKILL.md');
     assert.ok(item?.ok, 'status tracks the managed skill file');
