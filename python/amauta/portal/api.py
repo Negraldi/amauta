@@ -14,6 +14,7 @@ from ..graph import query as graph_query
 from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import codex, ingest
+from .. import extensions
 from . import archify, diagrams, wikifeature
 
 MAX_TEXT = 200_000
@@ -105,8 +106,7 @@ class Portal:
         return wikiharness.groups(self, q)
 
     def themes(self, q):
-        from . import themes
-        return themes.list_themes(self.cfg.state_dir)
+        return extensions.call("themes.list", self.cfg.state_dir, default=[])  # the theme_editor extra, when present
 
     def projects(self, q):
         from . import projects

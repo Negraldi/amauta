@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
 from .. import extensions
-from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiprobe
+from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, wikiprobe
 from . import wikiharness
 from .api import Portal
 
@@ -34,7 +34,7 @@ PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
 EXPLAIN_PATH = "/api/harness/explain"
 EXPLAIN_MAX_BODY = 1024  # {"kind": ..., "id": ...}; ids are at most 200 characters
 THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
-THEMES_WRITES = {"/api/themes": themes_mod.write_theme, "/api/themes/delete": lambda state, body: themes_mod.delete_theme(state, body.get("slug"))}
+THEMES_WRITES = {"/api/themes": "themes.write", "/api/themes/delete": "themes.delete"}  # extension points of the theme_editor extra
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
@@ -289,11 +289,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self._settings_body(THEMES_MAX_BODY)
         if body is None:
             return
-        try:
-            result = action(self.server.portal.cfg.state_dir, body)
-        except themes_mod.ThemeError as err:
-            return self._json(err.status, err.body())
-        self._json(200, result)
+        missing = (404, {"error": "the theme editor is not installed"})
+        status, payload = extensions.call(action, self.server.portal.cfg.state_dir, body, default=missing)
+        self._json(status, payload)
 
     def _probe_write(self):
         """Ask the configured local stdio MCP servers for their tools (see wikiprobe): same guard and body rules as the other writes, closed schema."""

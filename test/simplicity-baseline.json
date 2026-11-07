@@ -17,6 +17,9 @@
   "python/amauta/extras/skill_impact/skillimpact.py": {
    "long": 14
   },
+  "python/amauta/extras/theme_editor/themes.py": {
+   "long": 5
+  },
   "python/amauta/extras/wiki_explain/__init__.py": {
    "long": 1
   },
@@ -69,7 +72,7 @@
    "long": 11
   },
   "python/amauta/portal/server.py": {
-   "long": 13
+   "long": 12
   },
   "python/amauta/portal/settings.py": {
    "long": 14
@@ -126,9 +129,6 @@
   },
   "python/amauta/portal/static/wikiroute.js": {
    "long": 21
-  },
-  "python/amauta/portal/themes.py": {
-   "long": 5
   },
   "python/amauta/portal/wiki.py": {
    "lines": 451,

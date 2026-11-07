@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from python.amauta.portal import themes
+from python.amauta.extras.theme_editor import themes
 from python.tests.test_portal_server import ServerBase
 
 LIGHT = {"name": "Paper", "base": "light", "tokens": {"bg": "oklch(0.98 0.01 90)", "accent": "#0a6e78"}}
