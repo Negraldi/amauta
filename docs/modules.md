@@ -21,7 +21,15 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 | `sdd` | optional | `python/amauta/sdd/`, `assets/sdd/` | Spec-driven development (`--with-sdd`) |
 | `archify` | optional | `assets/skills/archify/` | Diagram skill (`--with-archify`, vendored) |
 | `impeccable` | optional | `assets/skills/impeccable/` | Design skill (`--with-impeccable`, vendored) |
+| `extras` | extra | `python/amauta/extras/` | Optional extras reached only through `amauta.extensions` (ADR 0009) |
 | `scripts` | tooling | `scripts/` | gentle-ai migration and the runtime probe |
+
+## Extension points
+
+| Point | Called by | Provided by |
+| --- | --- | --- |
+| `home.impact` | `portal/wikihome.py` (Home rail) | `extras/skill_impact` |
+| `skill.impact` | `portal/wikiusage.py` (skill page) | `extras/skill_impact` |
 
 ## Recorded exceptions
 

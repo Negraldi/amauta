@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .api import columns, has_table
+from ...portal.api import columns, has_table
 
 NOTE = "Correlation, not causation: sessions that load a skill differ in other ways too."
 MIN_SESSIONS = 5  # below this on either side a metric is suppressed: the numbers would only be noise

@@ -7,10 +7,10 @@ import os
 import subprocess
 from datetime import datetime, timezone
 
-from ..memory import store as mstore
+from ...memory import store as mstore
+from ...portal.api import has_table, ro_connect
+from ...portal.wikiusage import SKILL_NAME
 from . import skillimpact as si
-from .api import has_table, ro_connect
-from .wikiusage import SKILL_NAME
 
 GIT_TIMEOUT = 5
 SKILL_DIRS = ("assets/skills", "skills", ".claude/skills")

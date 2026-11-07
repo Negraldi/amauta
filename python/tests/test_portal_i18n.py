@@ -3,7 +3,8 @@ import re
 import unittest
 from pathlib import Path
 
-from python.amauta.portal import projects, skillhist, skillimpact, wikilint, wikimem, wikiskills, wikiusage
+from python.amauta.extras.skill_impact import skillhist, skillimpact
+from python.amauta.portal import projects, wikilint, wikimem, wikiskills, wikiusage
 from python.tests.test_portal_server import ServerBase
 from python.tests.test_portal_wiki import WikiBase
 

@@ -8,7 +8,7 @@
     "pillar": { "imports": ["kernel"] },
     "integration": { "imports": ["kernel"], "note": "glue to external tools detected on PATH" },
     "optional": { "imports": ["kernel"], "note": "installed with --with-X" },
-    "extra": { "imports": ["kernel"], "note": "python/amauta/extras/; the kernel never imports it" },
+    "extra": { "imports": ["kernel", "pillar"], "note": "python/amauta/extras/; nothing imports an extra statically (ADR 0009)" },
     "tooling": { "imports": ["entry", "kernel", "pillar", "integration", "optional", "extra", "tooling"], "note": "developer and migration scripts" }
   },
   "modules": [
@@ -16,7 +16,7 @@
     { "id": "hooks", "layer": "entry", "paths": ["src/hooks/"], "purpose": "hook entrypoints for Claude Code and Codex" },
     { "id": "mcp-server", "layer": "entry", "paths": ["src/mcp/"], "purpose": "the amauta MCP server (registry, review, ODD status)" },
 
-    { "id": "core", "layer": "kernel", "paths": ["src/core/", "src/util/", "src/version.js", "python/amauta/__init__.py", "python/amauta/paths.py", "python/amauta/oscompat.py"], "purpose": "marker injector, JSON and TOML merge, atomic writes, backups, git helpers, paths" },
+    { "id": "core", "layer": "kernel", "paths": ["src/core/", "src/util/", "src/version.js", "python/amauta/__init__.py", "python/amauta/paths.py", "python/amauta/oscompat.py", "python/amauta/extensions.py"], "purpose": "marker injector, JSON and TOML merge, atomic writes, backups, git helpers, paths" },
     { "id": "install", "layer": "kernel", "paths": ["src/install/", "assets/manifest.json", "assets/core/", "assets/generic/"], "purpose": "install, uninstall, status, sync for both runtimes; always-on instruction blocks" },
     { "id": "skills", "layer": "kernel", "paths": ["src/registry/", "assets/skills/"], "purpose": "skill registry and the shared stack and workflow skills" },
     { "id": "memory", "layer": "kernel", "paths": ["python/amauta/memory/", "assets/engram/"], "purpose": "engram-compatible SQLite memory and its MCP server" },
@@ -32,6 +32,8 @@
     { "id": "sdd", "layer": "optional", "paths": ["python/amauta/sdd/", "assets/sdd/"], "purpose": "spec-driven development (--with-sdd)" },
     { "id": "archify", "layer": "optional", "paths": ["assets/skills/archify/"], "purpose": "diagram skill (--with-archify)", "vendored": true },
     { "id": "impeccable", "layer": "optional", "paths": ["assets/skills/impeccable/"], "purpose": "design skill (--with-impeccable)", "vendored": true },
+
+    { "id": "extras", "layer": "extra", "paths": ["python/amauta/extras/"], "purpose": "optional extras found by the extension registry (skill impact)" },
 
     { "id": "scripts", "layer": "tooling", "paths": ["scripts/"], "purpose": "gentle-ai migration and the runtime probe" }
   ],

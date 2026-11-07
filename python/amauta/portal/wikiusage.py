@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
+from .. import extensions
 from . import wikisess
 from .api import NotFound, columns, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref, strip_title_h1
@@ -141,8 +142,7 @@ def usage_page(kind):
                 if server:
                     pg["links"] = [_ref("mcp", server[0])]
             if kind == "skill":
-                from . import skillhist  # lazy: skillhist imports this module for SKILL_NAME
-                pg["impact"] = skillhist.block(portal, ident)
+                pg["impact"] = extensions.call("skill.impact", portal, ident)  # the skill_impact extra, when present
             return pg
         finally:
             if conn is not None:

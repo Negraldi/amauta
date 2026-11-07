@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from python.amauta.memory import store as mstore
-from python.amauta.portal import skillimpact
+from python.amauta.extras.skill_impact import skillimpact
 from python.amauta.usage import ingest
 from python.tests import portal_fixtures as fx
 from python.tests.test_portal_wiki import WikiBase

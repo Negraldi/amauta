@@ -12,7 +12,7 @@ kernel      core · install · skills · memory · telemetry · graph-store   (+
 pillars     portal · odd · code-security · data-security (planned)
 integration code-graph (codegraph, graphify on PATH)
 optional    sdd · archify · impeccable · context7 · rea   (--with-X)
-extras      python/amauta/extras/ (planned; never imported by the kernel)
+extras      python/amauta/extras/ (skill impact; reached through amauta.extensions)
 tooling     scripts/ (migration, runtime probe)
 ```
 
@@ -25,7 +25,7 @@ tooling     scripts/ (migration, runtime probe)
 | pillar | kernel | pillars never import each other |
 | integration | kernel | glue to external tools found on PATH, never vendored |
 | optional | kernel | installed with `--with-X`, removed by uninstall |
-| extra | kernel | the kernel never imports an extra |
+| extra | kernel, pillar | nothing imports an extra statically; reached through `amauta.extensions` (ADR 0009) |
 | tooling | anything | not part of an installed runtime path |
 
 `MODULES.json` assigns every file under `bin/`, `src/`, `python/amauta/`, `assets/` and `scripts/` to exactly one
