@@ -168,7 +168,7 @@ test('amauta MCP server: initialize, tools/list and odd_tasks_status', async () 
   await withMcp(mcp['amauta'], async ({ tools, callTool }) => {
     for (const t of ['odd_tasks_status', 'review_assess', 'skill_registry_refresh', 'review_mode_status']) assert.ok(tools.includes(t), t);
     const out = JSON.parse(await callTool('odd_tasks_status', { cwd: project.dir }));
-    assert.deepEqual(out.files, [{ file: 'odd/tasks/demo.md', done: 1, total: 2, next: 'T2 second' }]);
+    assert.deepEqual(out.files, [{ file: 'odd/tasks/demo.md', done: 1, total: 2, blocked: 0, next: 'T2 second' }]);
     assert.deepEqual(out.next, { file: 'odd/tasks/demo.md', item: 'T2 second' });
   });
 });

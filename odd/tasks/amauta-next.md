@@ -49,7 +49,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Tasks
 
-Phase 1a, structure and hygiene
+### Phase 1a, structure and hygiene
 
 - [x] N0 Plan, decisions (ADR 0001-0008) and the intake template.
 - [x] N1 Windows and Codex probe script for the user's machine (hook shell, `decision: block`, Codex agents, hooks
@@ -59,9 +59,9 @@ Phase 1a, structure and hygiene
   `docs/architecture.md` + `docs/modules.md`.
 - [x] N4 Simplicity ratchet test with recorded baseline; header comment required in new or changed files.
 - [x] N5 Installer: one `plan()` over runtime adapters (claude, codex); split `planMcpSync`.
-- [ ] N6 `docs/odd.md`: task file format (incl. Criteria, Contracts, Review) with a format test.
+- [x] N6 `docs/odd.md`: task file format (incl. Criteria, Contracts, Review) with a format test.
 
-Phase 1b, Windows
+### Phase 1b, Windows
 
 - [ ] N7 One Node dispatcher per hook event; resolved Python interpreter in state; SDD preflight in Node; single Stop
   policy (one combined block, at most two per turn, honours `stop_hook_active`).
@@ -70,14 +70,14 @@ Phase 1b, Windows
   `graph/lock.py`.
 - [ ] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
 
-Phase 1c, portal
+### Phase 1c, portal
 
 - [ ] N10 `extras/` with a route registry: skill impact, theme editor, wikiexplain, graphify semantic + PPTX.
 - [ ] N11 Split `app.js` by page and i18n into one JSON per language.
 - [ ] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut).
 - [ ] N13 README <= 200 lines with details in `docs/`; phase 1 audit; v0.5.0.
 
-Phase 2a, data security
+### Phase 2a, data security
 
 - [ ] D1 Intake records for the corporate privacy pieces.
 - [ ] D2 Detector catalog (secrets, Ecuadorian cedula and RUC, Luhn cards, email, +593 phones, IBAN), generated
@@ -86,7 +86,7 @@ Phase 2a, data security
 - [ ] D4 Privacy hook (data files outside test/fixture/example paths plus configured paths; always ask, never deny;
   secrets in prompts only warn) and `amauta privacy scan|redact|pseudonymize`.
 
-Phase 2b, code security
+### Phase 2b, code security
 
 - [ ] D5 Checks engine, safe checkers, error baseline per file, edit hook (`PostToolUse`).
 - [ ] D6 Per-project trust (`amauta check trust`), code-executing checkers, project check at Stop under the single
@@ -94,7 +94,7 @@ Phase 2b, code security
 - [ ] D7 Secrets in edited code; gitleaks, semgrep and bandit when on PATH.
 - [ ] D8 ODD rule: a task is not checked off while its checks fail.
 
-Phase 2c, data content, communication and profiles
+### Phase 2c, data content, communication and profiles
 
 - [ ] D9 Data skill with five references (analytical review, transformation, enrichment, metrics and cohorts,
   provenance), `powerbi-report` v19 with PBIR tools (model diff, layout auditor, DAX linter as warnings, cascading
@@ -109,7 +109,7 @@ Phase 2c, data content, communication and profiles
 - [ ] D13 `amauta profile harvest` and `amauta profile import` (agent archive layout) producing a reviewable draft.
 - [ ] D14 Portal Security page (counts only), settings toggles, profile shown per project; phase 2 audit; v0.6.0.
 
-Phase 3, sibling projects
+### Phase 3, sibling projects
 
 - [ ] S1 Portal links and `status` health for configured sibling projects (oga_catalog, harness-pipelines); MCP
   registration needs nothing new (two-way MCP sync); `ml-experiments` skill ships with the pipelines sibling; phase 3

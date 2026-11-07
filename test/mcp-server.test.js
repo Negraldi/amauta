@@ -111,8 +111,8 @@ test('odd_tasks_status reports per-file progress and the next unchecked item', a
   const [res] = await exchange([call(1, 'odd_tasks_status', { cwd: root })]);
   assert.deepEqual(payload(res), {
     files: [
-      { file: 'odd/tasks/a.md', done: 1, total: 3, next: 'T2 next' },
-      { file: 'odd/tasks/b.md', done: 1, total: 1, next: null },
+      { file: 'odd/tasks/a.md', done: 1, total: 2, blocked: 0, next: 'T2 next' }, // the nested box is a note (docs/odd.md)
+      { file: 'odd/tasks/b.md', done: 1, total: 1, blocked: 0, next: null },
     ],
     next: { file: 'odd/tasks/a.md', item: 'T2 next' },
   });

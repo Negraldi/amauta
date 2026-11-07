@@ -38,5 +38,5 @@ the same direction rules by convention.
 
 ## Where things live
 
-Module by module: [modules.md](modules.md). Task files and their format: `odd/tasks/` and [odd.md](odd.md) (planned).
+Module by module: [modules.md](modules.md). Task files and their format: `odd/tasks/` and [odd.md](odd.md).
 Decisions: [decisions/](decisions/README.md). Outside code taken into amauta: [intake/](intake/README.md).
