@@ -26,7 +26,8 @@ const readPayload = () => {
 /** True when this session already got a block, so a block is sent at most once per session. */
 const blockedBefore = (session) => {
   try {
-    return readFileSync(log, 'utf8').split('\n').some((l) => l.includes('"blocked":true') && l.includes(`"session":${JSON.stringify(session)}`));
+    const mark = `"session":${JSON.stringify(session)}`;
+    return readFileSync(log, 'utf8').split('\n').some((l) => l.includes('"blocked":true') && l.includes(mark));
   } catch {
     return false;
   }
@@ -34,7 +35,8 @@ const blockedBefore = (session) => {
 
 function decide(payload) {
   if (mode === 'ask') {
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: 'amauta probe: ask reached the user' } };
+    const reason = 'amauta probe: ask reached the user';
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } };
   }
   if (mode === 'block' && !blockedBefore(payload.session_id ?? null)) {
     return { decision: 'block', reason: `amauta probe: ${payload.hook_event_name ?? 'hook'} block reached the agent` };

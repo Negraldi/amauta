@@ -57,7 +57,7 @@ Phase 1a, structure and hygiene
 - [x] N2 Green baseline: `test_portal_wiki_impact` depends on the environment.
 - [x] N3 Module registry `MODULES.json` + architecture test (every file in one module; layer import rules) +
   `docs/architecture.md` + `docs/modules.md`.
-- [ ] N4 Simplicity ratchet test with recorded baseline; header comment required in new or changed files.
+- [x] N4 Simplicity ratchet test with recorded baseline; header comment required in new or changed files.
 - [ ] N5 Installer: one `plan()` over runtime adapters (claude, codex); split `planMcpSync`.
 - [ ] N6 `docs/odd.md`: task file format (incl. Criteria, Contracts, Review) with a format test.
 
