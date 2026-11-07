@@ -11,11 +11,21 @@ import { loadManifest } from './assets.js';
 import { baseFileOf, planMcpSync } from './mcpsync.js';
 import { sourceFingerprint, syncRecordOf } from './fingerprint.js';
 import { renderSections } from './installer.js';
-import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, safeManagedPath, sha256, statOrNull, toJson, isObject } from './files.js';
+import { resolvePython } from './python.js';
+import {
+  ensureTimeouts, needsWrite, readJsonObject, readOrNull, readStateObject, safeManagedPath, sha256, statOrNull,
+  toJson, isObject
+} from './files.js';
 import { applyPlan, planInstructionBlocks, planManagedFiles, planOwnedHooks, planSkillLinks, realWrites, touchesDisk } from './steps.js';
-import { applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
-import { AMAUTA_SERVER_NAMES, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook, isStaleAmautaServer, staleAmautaHooks } from './servers.js';
-import { findOnPath } from '../codegraph/index.js';
+import {
+  applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet,
+  storeDirOf, storePathOf, syncPersonalSkills
+} from './skillstore.js';
+import {
+  AMAUTA_SERVER_NAMES, DEFAULT_PYTHON, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook,
+  isStaleAmautaServer, staleAmautaHooks
+} from './servers.js';
+import { findOnPath } from '../core/platform.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
 import { packageVersion } from '../version.js';
 
@@ -34,13 +44,13 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
 /** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */
-export function desiredCodexHooks({ stateDir, telemetry }) {
-  return desiredHooks({ stateDir, telemetry, sdd: false, runtime: 'codex' });
+export function desiredCodexHooks({ stateDir, telemetry, python }) {
+  return desiredHooks({ stateDir, telemetry, sdd: false, runtime: 'codex', python });
 }
 
 /** The Claude MCP entries for Codex's TOML (no `type`: Codex infers stdio from `command`). Memory is always `engram`. */
-export function desiredCodexServers({ stateDir, rea, context7, codegraph }) {
-  const { memory, ...rest } = desiredMcpServers({ stateDir, rea, context7 });
+export function desiredCodexServers({ stateDir, rea, context7, codegraph, python }) {
+  const { memory, ...rest } = desiredMcpServers({ stateDir, rea, context7, python });
   if (!codegraph) delete rest.codegraph;
   const strip = ({ type: _type, ...value }) => value;
   const out = Object.fromEntries(Object.entries({ engram: memory, ...rest }).map(([name, value]) => [name, strip(value)]));
@@ -53,27 +63,8 @@ const SHARED_SERVERS = ['rea', 'context7', 'codegraph'];
 
 const stateFileOf = (stateDir) => path.join(stateDir, 'codex-state.json');
 
-async function readCodexState(stateDir) {
-  const buf = await readOrNull(stateFileOf(stateDir));
-  if (!buf) return null;
-  try {
-    const state = JSON.parse(buf.toString('utf8'));
-    return isObject(state) && state.schema === CODEX_STATE_SCHEMA ? state : null;
-  } catch {
-    return null;
-  }
-}
-
-async function readClaudeState(stateDir) {
-  const buf = await readOrNull(path.join(stateDir, 'state.json'));
-  if (!buf) return null;
-  try {
-    const state = JSON.parse(buf.toString('utf8'));
-    return isObject(state) ? state : null;
-  } catch {
-    return null;
-  }
-}
+const readCodexState = (stateDir) => readStateObject(stateFileOf(stateDir), CODEX_STATE_SCHEMA);
+const readClaudeState = (stateDir) => readStateObject(path.join(stateDir, 'state.json'));
 
 /** Options for a Codex install: sticky like Claude's; a first Codex install follows what Claude already has. */
 async function resolveCodexOptions(opts, manifest, prev, claudeState) {
@@ -91,6 +82,7 @@ async function resolveCodexOptions(opts, manifest, prev, claudeState) {
     impeccable: either(opts.withImpeccable, 'impeccable'),
     archify: either(opts.withArchify, 'archify'),
     codegraph: (await findOnPath('codegraph', opts.searchPath)) !== null,
+    python: resolvePython(opts, prev?.python, claudeState?.python),
   };
 }
 
@@ -190,6 +182,7 @@ function codexState({ t, prev, o, md, managed, links, mcpAdded, mirror, created 
     context7: o.context7,
     mcp_added: mcpAdded,
     mcp_unsupported: mirror.unsupported.map((u) => u.name),
+    ...(o.python !== DEFAULT_PYTHON ? { python: o.python } : {}),
     created_files: created,
   });
 }
@@ -226,7 +219,7 @@ async function plan(opts) {
   // hooks.json
   const hooksFile = path.join(t.codexHome, 'hooks.json');
   const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
-  const wantedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry: o.telemetry });
+  const wantedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry: o.telemetry, python: o.python });
   const hooksPlan = planOwnedHooks(hooksIn.data, wantedHooks);
   legacy.push(...hooksPlan.legacy);
   const hooks = ensureTimeouts(hooksPlan.doc, wantedHooks);
@@ -239,7 +232,7 @@ async function plan(opts) {
   const tomlBuf = await readOrNull(tomlFile);
   const tomlBefore = tomlBuf ? tomlBuf.toString('utf8') : '';
   const claudeBuf = await readOrNull(resolveClaudeSource(opts).claudeJson);
-  const wanted = desiredCodexServers({ stateDir: t.stateDir, rea: o.rea, context7: o.context7, codegraph: o.codegraph });
+  const wanted = desiredCodexServers({ stateDir: t.stateDir, ...o });
   const own = planOwnServers({ toml: tomlBefore, wanted, prev, claudeNames: claudeServerNames(claudeBuf), legacy, skipped });
   const { toml, mirror } = await planMirror({ opts, t, toml: own.toml, oneWay: own.oneWay, claudeBuf, writes });
   if (!tomlBuf || toml !== tomlBefore) writes.push({ rel: 'config.toml', path: tomlFile, data: Buffer.from(toml, 'utf8') });
@@ -407,7 +400,8 @@ export async function statusCodex(opts = {}) {
 
   const hooks = (await readJsonObject(path.join(t.codexHome, 'hooks.json'), 'hooks.json')).data;
   const commands = (event) => (Array.isArray(hooks.hooks?.[event]) ? hooks.hooks[event] : []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  for (const [event, entries] of Object.entries(desiredCodexHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true }))) {
+  const expectedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, python: state.python });
+  for (const [event, entries] of Object.entries(expectedHooks)) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);
       add(`hook ${event}`, ok, ok ? cmd : 'missing');

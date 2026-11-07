@@ -8,6 +8,7 @@ const OPTIONS = {
   'claude-home': { type: 'string' },
   'claude-json': { type: 'string' },
   'state-dir': { type: 'string' },
+  python: { type: 'string' },
   'codex-home': { type: 'string' },
   'codex-skills-dir': { type: 'string' },
   runtime: { type: 'string' }, // claude | codex | both (default: both when a Codex home exists)
@@ -45,6 +46,7 @@ function parse(args) {
     claudeHome: values['claude-home'],
     claudeJson: values['claude-json'],
     stateDir: values['state-dir'],
+    python: values.python,
     codexHome: values['codex-home'],
     codexSkillsDir: values['codex-skills-dir'],
     runtime: parseRuntime(values.runtime),

@@ -149,6 +149,15 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   text were updated to the new form (24, same intent); the shell-level SDD guard tests became dispatcher tests
   (missing Python, failing Python, partial output, hang cut by `AMAUTA_PREFLIGHT_TIMEOUT_MS`). Stop keeps a 60 s
   timeout. Portal and `status` parity name the dispatcher by its handlers. RED seen for each new behavior.
+- 2026-11-07: N8 part 1: `src/core/platform.js` (PATHEXT lookup, Windows quoting with double quotes and forward
+  slashes, junction link type, `taskkill /T /F`), `python/amauta/oscompat.py` (process liveness through the process
+  handle on Windows instead of `os.kill(pid, 0)`, start tokens, no SIGHUP), used by `graph/lock.py`, the skill store,
+  graphify and the installers; POSIX file modes are not compared on Windows; `--python` / `AMAUTA_PYTHON` resolved at
+  install (>= 3.11, sticky, stored as `python` in state, passed to hook commands and the memory server, honoured by
+  status). Three copies of the state reader became `readStateObject`. Windows branches are tested with an injected
+  platform; real Windows behavior waits for CI (N9) and the user's probe. Left for N8 part 2: CRLF in the marker
+  injector, Windows system paths in the portal path guards, the copy fallback when a junction cannot be created, and
+  the `{{AMAUTA_SDD}}` command in SDD assets (still `env PYTHONPATH=... python3`).
 
 ## Next step
 

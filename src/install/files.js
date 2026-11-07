@@ -29,11 +29,22 @@ export async function readJsonObject(file, label) {
   return { data, existed: true };
 }
 
+/** A state file as an object, or null when missing, unparsable, not an object or (with `schema`) of another schema. */
+export async function readStateObject(file, schema) {
+  const buf = await readOrNull(file);
+  try {
+    const state = buf ? JSON.parse(buf.toString('utf8')) : null;
+    return isObject(state) && (schema === undefined || state.schema === schema) ? state : null;
+  } catch {
+    return null;
+  }
+}
+
 /** True when `file` is missing, has another mode than `mode` (when given) or other bytes than `data`. */
 export const needsWrite = async (file, data, mode) => {
   const st = await statOrNull(file);
   if (!st) return true;
-  if (mode !== undefined && (st.mode & 0o777) !== mode) return true;
+  if (mode !== undefined && process.platform !== 'win32' && (st.mode & 0o777) !== mode) return true; // Windows has no POSIX modes
   const current = await readOrNull(file);
   return !current || !current.equals(Buffer.isBuffer(data) ? data : Buffer.from(data));
 };

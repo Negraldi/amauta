@@ -147,12 +147,13 @@ export async function dispatchEvent(opts) {
   return event === 'Stop' ? applyStopPolicy(merged, payload, dir) : merged;
 }
 
-/** `hook event <Event> [--state-dir DIR] --with a,b [--runtime codex]` from the CLI. */
+/** `hook event <Event> [--state-dir DIR] --with a,b [--python EXE] [--runtime codex]` from the CLI. */
 export function parseEventArgs(args) {
   const [event, ...rest] = args;
   const opt = (name) => {
     const i = rest.indexOf(name);
     return i >= 0 ? rest[i + 1] : undefined;
   };
-  return { event, stateDir: opt('--state-dir'), names: (opt('--with') ?? '').split(',').filter(Boolean), runtime: opt('--runtime') };
+  const names = (opt('--with') ?? '').split(',').filter(Boolean);
+  return { event, stateDir: opt('--state-dir'), names, runtime: opt('--runtime'), python: opt('--python') };
 }

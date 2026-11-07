@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFile, rm, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { assetPath, listFiles, readAssetBuffer } from './assets.js';
-import { findOnPath } from '../codegraph/index.js';
+import { findOnPath } from '../core/platform.js';
 import { shellQuote } from './servers.js';
 
 const posix = (rel) => rel.split(path.sep).join('/');

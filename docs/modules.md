@@ -8,7 +8,7 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 | `cli` | entry | `bin/`, `src/cli.js` | Command router |
 | `hooks` | entry | `src/hooks/` | Hook entrypoints; fail open, return at most one decision |
 | `mcp-server` | entry | `src/mcp/` | The `amauta` MCP server: skill registry, review assess, ODD status |
-| `core` | kernel | `src/core/`, `src/util/`, `src/version.js`, `python/amauta/__init__.py`, `python/amauta/paths.py` | Marker injector, JSON and TOML merge, atomic writes, backups, git helpers, paths |
+| `core` | kernel | `src/core/`, `src/util/`, `src/version.js`, `python/amauta/__init__.py`, `python/amauta/paths.py`, `python/amauta/oscompat.py` | Marker injector, JSON and TOML merge, atomic writes, backups, git helpers, paths, platform layer (`src/core/platform.js`, `oscompat.py`) |
 | `install` | kernel | `src/install/`, `assets/manifest.json`, `assets/core/`, `assets/generic/` | Install, uninstall, status and sync for both runtimes; always-on instruction blocks |
 | `skills` | kernel | `src/registry/`, `assets/skills/` | Skill registry and the shared stack and workflow skills |
 | `memory` | kernel | `python/amauta/memory/`, `assets/engram/` | Engram-compatible SQLite memory and its MCP server |
@@ -27,4 +27,4 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 
 | From | To | Why |
 | --- | --- | --- |
-| `install` | `code-graph` | `status` reports codegraph and graphify; `findOnPath` moves to the platform layer (plan N8) |
+| `install` | `code-graph` | `status` reports the codegraph and graphify versions and the last graphify hook error |

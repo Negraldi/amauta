@@ -1,12 +1,15 @@
 import path from 'node:path';
+import { quoteArg } from '../core/platform.js';
 import { repoRoot } from './assets.js';
 
 export const PYTHON_PATH = path.join(repoRoot, 'python');
+/** The interpreter used when install was not told one (`--python`, AMAUTA_PYTHON); commands then carry no flag. */
+export const DEFAULT_PYTHON = 'python3';
 
 /** Our Python memory MCP server (stdlib only; replaces the compiled engram binary). */
-export const memoryServer = (stateDir) => ({
+export const memoryServer = (stateDir, python = DEFAULT_PYTHON) => ({
   type: 'stdio',
-  command: 'python3',
+  command: python,
   args: ['-P', '-m', 'amauta.memory', 'serve'],
   // AMAUTA_RUNTIME only labels where the server runs; memories are partitioned by project alone, never by runtime.
   env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir, AMAUTA_RUNTIME: 'claude' },
@@ -16,9 +19,9 @@ export const memoryServer = (stateDir) => ({
  * MCP servers registered in .claude.json (added only when absent).
  * The memory server is returned separately (`memory`) because its key depends on what the user already has.
  */
-export function desiredMcpServers({ stateDir, rea = false, context7 = false } = {}) {
+export function desiredMcpServers({ stateDir, rea = false, context7 = false, python } = {}) {
   return {
-    memory: memoryServer(stateDir),
+    memory: memoryServer(stateDir, python),
     codegraph: { type: 'stdio', command: 'codegraph', args: ['serve', '--mcp'] },
     'amauta': { type: 'stdio', command: 'node', args: [path.join(repoRoot, 'src', 'mcp', 'server.js')] },
     // Opt-in (--with-context7 / --with-rea): third-party servers that run unsandboxed; rea alone lists ~300 tools.
@@ -30,7 +33,8 @@ export function desiredMcpServers({ stateDir, rea = false, context7 = false } = 
 const BIN = path.join(repoRoot, 'bin', 'amauta.js');
 
 /** Quote a path for a POSIX shell only when it contains unsafe characters. */
-export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.replaceAll("'", `'\\''`)}'`);
+/** One argument of a hook or MCP command line, quoted for the platform's hook shell (src/core/platform.js). */
+export const shellQuote = (p) => quoteArg(p);
 
 /** True for any hook command amauta registered (absolute `node .../amauta.js hook X` or legacy `amauta ...`). */
 export const isAmautaHook = (command) =>
@@ -61,19 +65,20 @@ const EVENT_PLAN = [
   { event: 'SubagentStop', base: [], telemetry: ['telemetry', 'usage'], timeout: 20 },
 ];
 
-const eventCommand = (event, names, stateDir, runtime) =>
+const eventCommand = (event, names, { stateDir, runtime, python }) =>
   [`node ${shellQuote(BIN)} hook event ${event}`, ...(stateDir ? [`--state-dir ${shellQuote(stateDir)}`] : []), `--with ${names.join(',')}`,
-    ...(runtime ? [`--runtime ${runtime}`] : [])].join(' ');
+    ...(python && python !== DEFAULT_PYTHON ? [`--python ${shellQuote(python)}`] : []), ...(runtime ? [`--runtime ${runtime}`] : [])].join(' ');
 
 /** Hook entries registered in settings.json (Claude) or hooks.json (Codex, `runtime: 'codex'`): one per event. */
-export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime } = {}) {
+export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime, python } = {}) {
+  const where = { stateDir, runtime, python };
   const hooks = {};
   for (const p of EVENT_PLAN) {
     const names = [...p.base, ...(telemetry ? p.telemetry : [])];
     if (names.length === 0) continue;
-    hooks[p.event] = [{ matcher: '', hooks: [{ type: 'command', command: eventCommand(p.event, names, stateDir, runtime), timeout: p.timeout }] }];
+    hooks[p.event] = [{ matcher: '', hooks: [{ type: 'command', command: eventCommand(p.event, names, where), timeout: p.timeout }] }];
   }
-  if (sdd) hooks.PreToolUse = [{ matcher: 'Agent', hooks: [{ type: 'command', command: eventCommand('PreToolUse', ['sdd-preflight'], stateDir, runtime), timeout: 30 }] }];
+  if (sdd) hooks.PreToolUse = [{ matcher: 'Agent', hooks: [{ type: 'command', command: eventCommand('PreToolUse', ['sdd-preflight'], where), timeout: 30 }] }];
   return hooks;
 }
 

@@ -7,6 +7,7 @@ import { renderImpeccableFiles } from './impeccable.js';
 import { renderArchifyFiles } from './archify.js';
 import { shellQuote } from './servers.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
+import { linkType } from '../core/platform.js';
 
 /**
  * The amauta skill store: managed skills are rendered once into `<state dir>/skills/<name>`, and every runtime reaches
@@ -112,7 +113,7 @@ export async function applyLinks({ link, unlink }, skillsDir) {
   if (link.length > 0) await mkdir(skillsDir, { recursive: true });
   for (const l of link) {
     if (l.replace) await rm(l.dest, { recursive: true, force: true });
-    await symlink(l.target, l.dest);
+    await symlink(l.target, l.dest, linkType());
   }
   for (const u of unlink) await rm(u.dest, { force: true });
 }
@@ -192,7 +193,7 @@ export async function syncPersonalSkills({ stateDir, sides, managed = new Set(),
           linked.push(name);
           if (!dryRun) {
             await mkdir(to.dir, { recursive: true });
-            await symlink(target, dest);
+            await symlink(target, dest, linkType());
           }
           next[dest] = target;
         } else if (!(st.isSymbolicLink() && (await readlinkOrNull(dest)) === target)) conflicts.push(name); // something else already lives there

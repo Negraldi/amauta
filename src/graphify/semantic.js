@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { killTree } from '../core/platform.js';
 import os from 'node:os';
 import { rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -55,7 +56,7 @@ export function streamMasker(secret) {
   };
 }
 
-const killGroup = (child) => { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } } };
+const killGroup = (child) => killTree(child.pid); // process group on POSIX, taskkill /T on Windows
 
 /**
  * Run a command. The secret is masked in everything we hand back, on the raw stream (a chunk boundary or a missing

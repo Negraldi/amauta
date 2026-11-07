@@ -34,6 +34,8 @@ import time
 import uuid
 from pathlib import Path
 
+from .. import oscompat
+
 LOCK_NAME = "amauta-graphify.lock"
 STALE_SECONDS = 15 * 60
 TAKEOVER_ATTEMPTS = 3
@@ -58,24 +60,12 @@ def lock_path(repo: Path) -> Path | None:
 
 
 def start_token(pid: int) -> str:
-    """`<boot_id>:<starttime>` of a process from /proc, or '' when unavailable (same format as the hook's ptok)."""
-    try:
-        boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
-        stat = Path(f"/proc/{pid}/stat").read_text()
-        fields = stat.rsplit(") ", 1)[1].split()
-        return f"{boot}:{fields[19]}"
-    except (OSError, IndexError):
-        return ""
+    """`<boot_id>:<starttime>` of a process (same format as the hook's ptok), or '' when unavailable (oscompat)."""
+    return oscompat.start_token(pid)
 
 
 def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return oscompat.pid_alive(pid)  # never os.kill(pid, 0): on Windows that sends CTRL_C_EVENT
 
 
 def _stale(lock: Path) -> bool:
@@ -182,7 +172,7 @@ def graphify_lock(repo: Path):
     if threading.current_thread() is threading.main_thread():
         def bail(signum, _frame):
             raise SystemExit(128 + signum)  # unwinds through `finally`, so the lock is released
-        for sig in (signal.SIGTERM, signal.SIGHUP):
+        for sig in oscompat.exit_signals():  # no SIGHUP on Windows
             restore[sig] = signal.signal(sig, bail)
     try:
         yield lock

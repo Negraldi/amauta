@@ -203,7 +203,7 @@
    "noHeader": true
   },
   "src/graphify/semantic.js": {
-   "long": 10,
+   "long": 9,
    "fn": 72,
    "noHeader": true
   },
@@ -218,8 +218,8 @@
    "noHeader": true
   },
   "src/install/codex.js": {
-   "lines": 458,
-   "long": 25,
+   "lines": 452,
+   "long": 23,
    "fn": 93,
    "noHeader": true
   },
@@ -232,8 +232,8 @@
    "noHeader": true
   },
   "src/install/installer.js": {
-   "lines": 555,
-   "long": 24,
+   "lines": 554,
+   "long": 22,
    "fn": 101,
    "noHeader": true
   },

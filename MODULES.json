@@ -16,7 +16,7 @@
     { "id": "hooks", "layer": "entry", "paths": ["src/hooks/"], "purpose": "hook entrypoints for Claude Code and Codex" },
     { "id": "mcp-server", "layer": "entry", "paths": ["src/mcp/"], "purpose": "the amauta MCP server (registry, review, ODD status)" },
 
-    { "id": "core", "layer": "kernel", "paths": ["src/core/", "src/util/", "src/version.js", "python/amauta/__init__.py", "python/amauta/paths.py"], "purpose": "marker injector, JSON and TOML merge, atomic writes, backups, git helpers, paths" },
+    { "id": "core", "layer": "kernel", "paths": ["src/core/", "src/util/", "src/version.js", "python/amauta/__init__.py", "python/amauta/paths.py", "python/amauta/oscompat.py"], "purpose": "marker injector, JSON and TOML merge, atomic writes, backups, git helpers, paths" },
     { "id": "install", "layer": "kernel", "paths": ["src/install/", "assets/manifest.json", "assets/core/", "assets/generic/"], "purpose": "install, uninstall, status, sync for both runtimes; always-on instruction blocks" },
     { "id": "skills", "layer": "kernel", "paths": ["src/registry/", "assets/skills/"], "purpose": "skill registry and the shared stack and workflow skills" },
     { "id": "memory", "layer": "kernel", "paths": ["python/amauta/memory/", "assets/engram/"], "purpose": "engram-compatible SQLite memory and its MCP server" },
@@ -36,6 +36,6 @@
     { "id": "scripts", "layer": "tooling", "paths": ["scripts/"], "purpose": "gentle-ai migration and the runtime probe" }
   ],
   "exceptions": [
-    { "from": "install", "to": "code-graph", "why": "status reports codegraph and graphify; findOnPath moves to the platform layer in N8" }
+    { "from": "install", "to": "code-graph", "why": "status reports the codegraph and graphify versions and the last graphify hook error" }
   ]
 }

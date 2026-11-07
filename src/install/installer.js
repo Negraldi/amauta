@@ -1,28 +1,33 @@
-import { createHash } from 'node:crypto';
-import { lstat, readFile, readlink, rm, rmdir, stat } from 'node:fs/promises';
+import { readlink, rm, rmdir } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
-import { injectSection, removeSection, listSections } from '../core/markers.js';
+import { removeSection, listSections } from '../core/markers.js';
 import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
-import { ensureTimeouts, isObject, needsWrite, readJsonObject, readOrNull, safeManagedPath, sha256, statOrNull, toJson } from './files.js';
+import {
+  ensureTimeouts, isObject, needsWrite, readJsonObject, readOrNull, readStateObject, safeManagedPath, sha256,
+  statOrNull, toJson
+} from './files.js';
+import { resolvePython } from './python.js';
 import { applyPlan, planInstructionBlocks, planManagedFiles, planOwnedHooks, planSkillLinks, realWrites, touchesDisk } from './steps.js';
 import { createBackup, pruneEmptyDirs, restoreBackup } from '../core/backup.js';
 import { resolveCodexTargets, resolveTargets } from './paths.js';
-import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
+import { loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
+import { DEFAULT_MODEL_ASSIGNMENTS, engramToolPrefix, renderAgent, resolveAssignment } from './templating.js';
 import {
-  DEFAULT_MODEL_ASSIGNMENTS,
-  engramToolPrefix,
-  renderAgent,
-  resolveAssignment,
-} from './templating.js';
-import { AMAUTA_SERVER_NAMES, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook, isStaleAmautaServer, shellQuote, staleAmautaHooks } from './servers.js';
+  AMAUTA_SERVER_NAMES, DEFAULT_PYTHON, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook,
+  isStaleAmautaServer, staleAmautaHooks
+} from './servers.js';
 import { renderSddFiles } from './sdd.js';
 import { archifyCli } from './archify.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
-import { applyLinks, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks, removePersonalLinks, renderSkillFile, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
+import {
+  applyLinks, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks,
+  removePersonalLinks, renderSkillFile, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills
+} from './skillstore.js';
 import { packageVersion } from '../version.js';
-import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
+import { CODEGRAPH_HINT, codegraphStatus } from '../codegraph/index.js';
+import { findOnPath } from '../core/platform.js';
 import { graphifyStatus, lastHookError } from '../graphify/probe.js';
 
 export const STATE_SCHEMA = 'amauta.state/v1';
@@ -43,16 +48,7 @@ export { ensureTimeouts, isObject, needsWrite, readJsonObject, readOrNull, safeM
 
 const statePathOf = (stateDir) => path.join(stateDir, 'state.json');
 
-async function readState(stateDir) {
-  const buf = await readOrNull(statePathOf(stateDir));
-  if (!buf) return null;
-  try {
-    const state = JSON.parse(buf.toString('utf8'));
-    return isObject(state) ? state : null;
-  } catch {
-    return null;
-  }
-}
+const readState = (stateDir) => readStateObject(statePathOf(stateDir));
 
 const isOurs = (servers, prev, key) =>
   key in servers && ((prev?.mcp_added?.[key] !== undefined && isDeepStrictEqual(servers[key], prev.mcp_added[key])) || (AMAUTA_SERVER_NAMES.includes(key) && isStaleAmautaServer(servers[key])));
@@ -165,6 +161,7 @@ async function resolveOptions(opts, manifest, prev, settings, currentServers) {
     context7: optIn(opts.withContext7, 'context7'),
     memoryKey,
     engramPrefix: engramToolPrefix(settings, memoryKey ?? 'engram'),
+    python: resolvePython(opts, prev?.python),
   };
 }
 
@@ -192,7 +189,7 @@ async function planSettings({ manifest, t, prev, o, settingsIn }) {
   const permissions = mergePermissions(settingsIn.data, prev, overlay);
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
   if (permissions.changed) settings = { ...settings, permissions: permissions.value };
-  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry: o.telemetry, sdd: o.sdd });
+  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry: o.telemetry, sdd: o.sdd, python: o.python });
   const hooks = planOwnedHooks(settings, wantedHooks); // drops stale amauta commands (e.g. PATH-based ones) first
   const codegraph = planCodegraphHook(settingsIn.data, hooks.doc, prev, o.codegraphOnPath);
   // Hooks we own keep a timeout across upgrades (mergeHooks keeps an older entry as is when its command did not change).
@@ -210,7 +207,7 @@ async function planSettings({ manifest, t, prev, o, settingsIn }) {
 /** .claude.json MCP servers: added only when absent; ours from an earlier install are refreshed; a user's entry stays. */
 async function planClaudeMcp({ t, prev, o, claudeJsonIn, currentServers }) {
   const legacy = [];
-  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir, rea: o.rea, context7: o.context7 });
+  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir, rea: o.rea, context7: o.context7, python: o.python });
   if (o.memoryKey) wanted[o.memoryKey] = memory;
   if (!o.codegraphOnPath && !isOurs(currentServers, prev, 'codegraph')) delete wanted.codegraph; // external tool: only when present
   const mcpAdded = {};
@@ -230,7 +227,7 @@ async function planClaudeMcp({ t, prev, o, claudeJsonIn, currentServers }) {
   // Entries we added before that are no longer wanted (e.g. the old compiled engram) go away if untouched.
   for (const name of Object.keys(prev?.mcp_added ?? {})) if (!(name in wanted) && isOurs(currentServers, prev, name)) delete servers[name];
   const claudeJson = { ...claudeJsonIn.data, mcpServers: servers };
-  const wrongMode = ((await statOrNull(t.claudeJson))?.mode & 0o777) !== 0o600;
+  const wrongMode = process.platform !== 'win32' && ((await statOrNull(t.claudeJson))?.mode & 0o777) !== 0o600; // no POSIX modes on Windows
   const changed = !claudeJsonIn.existed || !isDeepStrictEqual(claudeJson, claudeJsonIn.data) || wrongMode;
   const write = changed ? { rel: '.claude.json', path: t.claudeJson, data: Buffer.from(toJson(claudeJson), 'utf8'), mode: 0o600 } : null;
   return { write, legacy, mcpAdded };
@@ -274,6 +271,7 @@ function claudeState({ t, prev, o, rddMode, rddChanged, managed, links, md, sett
     rea: o.rea,
     context7: o.context7,
     codegraph_hook_added: settingsPlan.codegraphHookAdded,
+    ...(o.python !== DEFAULT_PYTHON ? { python: o.python } : {}),
     created_files: created,
   });
 }
@@ -495,7 +493,8 @@ export async function status(opts = {}) {
 
   const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
   const commands = (event) => (settings.hooks?.[event] ?? []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  for (const [event, entries] of Object.entries(desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, sdd: state.sdd === true }))) {
+  const expectedHooks = desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, sdd: state.sdd === true, python: state.python });
+  for (const [event, entries] of Object.entries(expectedHooks)) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);
       add(`hook ${event}`, ok, ok ? cmd : 'missing');
