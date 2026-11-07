@@ -49,11 +49,14 @@ class _Builder:
     def edge(self, a, b, text=None):
         self.lines.append(f"  {a} -->|{label(text, 30)}| {b}" if text else f"  {a} --> {b}")
 
-    def group(self, title, build):
-        """A subgraph: `build()` adds its nodes; returns the subgraph id, which edges may use like a node."""
+    def group(self, title, build, direction=None):
+        """A subgraph: `build()` adds its nodes; returns the subgraph id, which edges may use like a node. Mermaid keeps a
+        subgraph's own `direction` only while edges from outside reach the subgraph, not the nodes inside it."""
         gid = f"g{self.n}"
         self.n += 1
         self.lines.append(f"  subgraph {gid}[{label(title)}]")
+        if direction:
+            self.lines.append(f"  direction {direction}")
         build()
         self.lines.append("  end")
         return gid
@@ -87,64 +90,60 @@ def _tilde(path) -> str:
 
 SESSION_ORDER = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "SubagentStop", "Stop")
 AMAUTA_SERVERS = ("engram", "amauta-memory", "amauta")
+HOOK_COLUMNS = 3  # hook events per row in the session-flow diagram
 
 
 def workflow(hs: dict, state_dir) -> str | None:
-    """The harness model as one session flow (plan N12e): the runtime fires hook events in session order, one
-    dispatcher per event runs amauta's handlers, they write memory.db, the MCP servers serve the agent, the Stop policy
-    may block once more, and the portal only reads. Built from the install state; every label is quoted."""
+    """The harness model as one session flow (plan N12e), top to bottom: the session; the hook events in session order
+    (rows of HOOK_COLUMNS, numbered) beside the MCP servers the agent calls; the kernel (one dispatcher per event,
+    memory.db, the Stop policy); the read-only portal. Built from the install state; every label is quoted. Edges join
+    groups, so each group keeps its own direction."""
     if not hs.get("installed"):
         return None
-    b = _Builder("LR")
-    handlers = {}
-    own = 0
+    b = _Builder("TB")
+    handlers, own = {}, 0
     for h in hs.get("hooks") or []:
         if h.get("kind") == "amauta":
             handlers.setdefault(str(h.get("event")), []).extend(str(x) for x in h.get("handlers") or [])
         else:
             own += 1
     events = sorted(handlers, key=lambda e: (SESSION_ORDER.index(e) if e in SESSION_ORDER else len(SESSION_ORDER), e))
-    runtime = {}
-    b.group("Claude Code · Codex", lambda: runtime.setdefault("id", b.node("one session", "root")))
-    ids = []
+    runtime = b.node("Claude Code · Codex: one session", "root")
 
     def event_nodes():
-        for ev in events[:MAX_ITEMS]:
-            ids.append(b.node(f"{ev}: {', '.join(handlers[ev])}", limit=90))
+        ids = [b.node(f"{i}. {ev}: {', '.join(handlers[ev])}", limit=90) for i, ev in enumerate(events[:MAX_ITEMS], 1)]
         if own:
             ids.append(b.node(f"{own} hook of your own" if own == 1 else f"{own} hooks of your own", "group"))
+        for r in range(0, len(ids), HOOK_COLUMNS):  # rows of HOOK_COLUMNS; unlinked rows stack, which keeps the group compact
+            row = ids[r:r + HOOK_COLUMNS]
+            for a, c in zip(row, row[1:]):
+                b.edge(a, c)
 
-    hooks_group = b.group("Hook events, in session order", event_nodes)
-    if ids:
-        b.edge(runtime["id"], ids[0], "fires")
-        for a, c in zip(ids, ids[1:]):
-            b.edge(a, c)
-    kernel = {}
-
-    def kernel_nodes():
-        kernel["dispatch"] = b.node("dispatcher: one process per event")
-        kernel["policy"] = b.node("Stop policy: one combined block, at most two per turn")
-        kernel["db"] = b.node(f"memory.db in {_tilde(state_dir)}", limit=80)
-
-    b.group("amauta kernel", kernel_nodes)
-    b.edge(hooks_group, kernel["dispatch"], "runs handlers")
-    b.edge(kernel["dispatch"], kernel["db"], "telemetry, usage")
-    if "Stop" in handlers:
-        b.edge(ids[events.index("Stop")] if events.index("Stop") < len(ids) else hooks_group, kernel["policy"], "may block")
+    hooks_group = b.group("Hook events, in session order", event_nodes, "LR")
     servers = [s for s in hs.get("mcp_servers") or [] if s.get("name") not in AMAUTA_SERVERS]
 
     def mcp_nodes():
-        kernel["engram"] = b.node("MCP engram: memory")
-        kernel["mcp"] = b.node("MCP amauta: skills, review, ODD")
+        b.node("MCP engram: memory")
+        b.node("MCP amauta: skills, review, ODD")
         if servers:
             b.node("other MCP servers: " + ", ".join(str(s.get("name")) for s in servers[:MAX_ITEMS]), "group")
 
-    b.group("MCP servers the agent calls", mcp_nodes)
-    b.edge(runtime["id"], kernel["engram"], "stdio")
-    b.edge(runtime["id"], kernel["mcp"], "stdio")
-    b.edge(kernel["engram"], kernel["db"], "reads, writes")
-    portal = b.node(f"Portal: reads only · {int(hs.get('skills') or 0)} skills, {int(hs.get('agents') or 0)} agents", "group")
-    b.edge(portal, kernel["db"], "reads")
+    mcp_group = b.group("MCP servers the agent calls", mcp_nodes, "TB")
+
+    def kernel_nodes():
+        dispatch = b.node("dispatcher: one process per event")
+        db = b.node(f"memory.db in {_tilde(state_dir)}", limit=80)
+        b.edge(dispatch, db, "telemetry, usage")
+        if "Stop" in handlers:
+            b.edge(dispatch, b.node("Stop policy: one combined block, at most two per turn"), "on Stop")
+
+    kernel = b.group("amauta kernel", kernel_nodes, "LR")
+    b.edge(runtime, hooks_group, "fires")
+    b.edge(runtime, mcp_group, "stdio")
+    b.edge(hooks_group, kernel, "runs handlers")
+    b.edge(mcp_group, kernel, "memory reads, writes")
+    portal = b.node(f"Portal: reads memory.db only · {int(hs.get('skills') or 0)} skills, {int(hs.get('agents') or 0)} agents", "group")
+    b.edge(kernel, portal, "read by")
     return b.render(_styles(b))
 
 

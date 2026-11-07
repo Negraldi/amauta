@@ -225,6 +225,15 @@ class WorkflowTest(unittest.TestCase):
         self.assertGreaterEqual(src.count("subgraph "), 3)
         self.assertEqual(src.count("subgraph "), src.count("\n  end"))
 
+    def test_hook_events_are_numbered_and_wrap_in_rows(self):
+        hooks = [{"event": e, "kind": "amauta", "handlers": ["telemetry"]} for e in diagrams.SESSION_ORDER]
+        src = diagrams.workflow(dict(self.HS, hooks=hooks), "/s")
+        self.assertIn('"1. SessionStart: telemetry"', src)
+        self.assertIn('"6. Stop: telemetry"', src)
+        ids = {e: re.search(rf'(n\d+)\["\d\. {e}:', src).group(1) for e in diagrams.SESSION_ORDER}
+        self.assertIn(f"{ids['SessionStart']} --> {ids['UserPromptSubmit']}", src)
+        self.assertNotIn(f"{ids['PreToolUse']} --> {ids['PostToolUse']}", src, "a new row starts without a link")
+
     def test_hostile_handler_and_server_names_stay_inside_quoted_labels(self):
         hs = dict(self.HS, hooks=[{"event": "Stop", "kind": "amauta", "handlers": ['x"]\n  click n0 call alert(1)']}],
                   mcp_servers=[{"name": "end", "type": "stdio", "command": "x"}])
