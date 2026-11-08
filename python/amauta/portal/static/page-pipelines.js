@@ -22,7 +22,7 @@ function pipeSummaryText(projects) {
   const parts = [[all.length, all.length === 1 ? "pipe.sumOne" : "pipe.sumTotal"],
     [count((p) => p.last && ["failed", "timeout", "abandoned"].includes(p.last.status)), "pipe.sumFailed"],
     [count((p) => p.last && p.last.status === "running"), "pipe.sumRunning"],
-    [count((p) => p.schedule_state === "missed"), "pipe.sumMissed"]];
+    [count((p) => (p.schedules || []).some((sc) => sc.state === "missed")), "pipe.sumMissed"]];
   return parts.filter(([n], i) => i === 0 || n).map(([n, key]) => t(key, { n: fmt(n) })).join(" · ");
 }
 
@@ -92,11 +92,30 @@ function scheduleText(s) {
   return t("pipe.sched.daily", { at: s.at });
 }
 
-function scheduleLine(p) {
-  if (!p.schedule) return null;
-  const state = p.schedule_state === "missed" ? h("span", { class: "warn" }, ` ▲ ${t("pipe.missed")}`)
-    : p.schedule_state === "never" ? h("span", { class: "muted" }, " ", codeSpans(t("pipe.neverScheduled", { id: p.id }))) : null;
-  return h("p", null, `⏲ ${scheduleText(p.schedule)}.`, state);
+// One line per schedule: when, the mode it runs in, and whether its last run happened.
+function scheduleLines(p) {
+  return (p.schedules || []).map((sc) => {
+    const state = sc.state === "missed" ? h("span", { class: "warn" }, ` ▲ ${t("pipe.missed")}`)
+      : sc.state === "never" ? h("span", { class: "muted" }, " ", codeSpans(t("pipe.neverScheduled", { id: p.id }))) : null;
+    return h("p", null, `⏲ ${scheduleText(sc)}${sc.mode ? ` · ${sc.mode}` : ""}.`, state);
+  });
+}
+
+// The steps by level: a level's steps need only earlier levels, so they may run side by side (ADR 0011).
+function flowRow(p, items) {
+  const ids = p.ids || p.steps.map((_, i) => String(i));
+  const levels = p.levels || [ids];
+  const cols = levels.map((level) => h("ol", { class: "pipe-level" }, level.map((id) => items[ids.indexOf(id)])));
+  return h("div", { class: "pipe-steps", role: "group", "aria-label": t("pipe.steps") }, cols);
+}
+
+// The mode picker; `apply(mode)` marks the steps outside it.
+function modePicker(p, apply) {
+  if (!p.modes || !p.modes.length) return null;
+  const pick = h("select", { "aria-label": t("pipe.mode") }, p.modes.map((m) => h("option", { value: m }, m)));
+  pick.value = p.default_mode;
+  pick.addEventListener("change", (e) => apply(e.target.value));
+  return h("label", { class: "pipe-mode" }, `${t("pipe.mode")} `, pick);
 }
 
 // Recent runs as marks, oldest first; a mark replays that run in the console.
@@ -104,7 +123,7 @@ function historyStrip(p, open) {
   if (!p.history || !p.history.length) return null;
   const marks = [...p.history].reverse().map((r) => {
     const label = t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
-      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) });
+      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) }) + (r.mode ? ` · ${r.mode}` : "");
     const attrs = { type: "button", class: "hist-mark", "data-status": r.status, "aria-label": label, title: label };
     const b = h("button", attrs, STEP_MARK[r.status] || "?");
     b.addEventListener("click", () => open(r.run));
@@ -145,15 +164,22 @@ function pipelineCard(pr, p) {
   const actions = h("div", { class: "actions" });
   const checked = h("div", { class: "pipe-check" });
   const recent = p.history && p.history[0] && p.history[0].steps;
-  const items = p.steps.map((name, i) => stepItem({ name, n: i + 1, type: (p.types || [])[i], enabled: pr.trusted,
+  const items = p.steps.map((name, i) => stepItem({ name, n: i + 1, id: (p.ids || [])[i], type: (p.types || [])[i], enabled: pr.trusted,
     seconds: recent && recent[i] && recent[i].status !== "skipped" ? recent[i].seconds : null, onlyThis: (n, step) => ask(n, step) }));
   if (recent) recent.forEach((st, i) => items[i] && items[i].setStatus(st.status));
-  const flow = h("ol", { class: "pipe-steps", "aria-label": t("pipe.steps") }, items);
+  let mode = p.default_mode || null;
+  const applyMode = (m) => {
+    mode = m;
+    const outside = (i) => Boolean(m && p.step_modes && p.step_modes[i] && !p.step_modes[i].includes(m));
+    items.forEach((li, i) => li.setAttribute("data-off", String(outside(i))));
+  };
+  applyMode(mode);
   const parts = { items, con, line, actions, idle: () => idle() };
   const card = h("article", { class: "pipe-card" }, p.category ? h("span", { class: "badge" }, p.category) : null, h("h3", null, p.name),
-    p.description ? h("p", null, p.description) : null, flow, scheduleLine(p), line, ...lastDetails(p),
-    historyStrip(p, (run) => followRun(pr, p, run, parts, false)), actions, checked, con.box);
+    p.description ? h("p", null, p.description) : null, modePicker(p, applyMode), flowRow(p, items), ...scheduleLines(p), line,
+    ...lastDetails(p), historyStrip(p, (run) => followRun(pr, p, run, parts, false)), actions, checked, con.box);
   card.pipeline = p;
+  parts.card = card;
   const idle = () => {
     const run = h("button", { type: "button", class: "primary", disabled: !pr.trusted }, t("pipe.run"));
     run.addEventListener("click", () => ask(null));
@@ -164,17 +190,20 @@ function pipelineCard(pr, p) {
     const no = h("button", { type: "button" }, t("common.goBack"));
     yes.addEventListener("click", () => start(n));
     no.addEventListener("click", idle);
-    const question = n ? t("pipe.confirmStep", { n, step, name: p.name }) : t("pipe.confirm", { name: p.name });
+    const question = n ? t("pipe.confirmStep", { n, step, name: p.name })
+      : mode ? t("pipe.confirmMode", { name: p.name, mode }) : t("pipe.confirm", { name: p.name });
     actions.replaceChildren(h("p", null, question), yes, no);
     yes.focus();
   };
   const start = async (n) => {
     actions.replaceChildren(h("p", { role: "status", class: "muted" }, t("pipe.starting")));
     const failed = (err) => ({ ok: false, data: { error: String(err.message || err) } });
-    const body = n ? { project: pr.path, id: p.id, step: n } : { project: pr.path, id: p.id };
+    const body = n ? { project: pr.path, id: p.id, step: n } : { project: pr.path, id: p.id, ...(mode ? { mode } : {}) };
     const res = await postJson("/api/pipelines/run", body).catch(failed);
-    if (!res.ok) { actions.replaceChildren(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`)); return; }
-    followRun(pr, p, res.data.run, parts);
+    if (res.ok) { followRun(pr, p, res.data.run, parts); return; }
+    const back = h("button", { type: "button" }, t("common.goBack"));
+    back.addEventListener("click", idle);
+    actions.replaceChildren(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`), back);
   };
   idle();
   if (p.last && p.last.status === "running") followRun(pr, p, p.last.run, parts);

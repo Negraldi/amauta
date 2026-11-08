@@ -15,7 +15,7 @@ function fmtClock(seconds) {
 }
 
 // A step in the flow row: mark (never color alone), number and name, its kind, its last duration, and Only this.
-function stepItem({ name, n, type, seconds, enabled, onlyThis }) {
+function stepItem({ name, n, id, type, seconds, enabled, onlyThis }) {
   const mark = h("span", { class: "pipe-mark", "aria-hidden": "true" }, STEP_MARK.idle);
   const state = h("span", { class: "sr-only" }, ` (${t("pipe.s.idle")})`);
   const time = h("span", { class: "muted" }, seconds == null ? "" : ` ${R.fmtDecimal(seconds, 1)} s`);
@@ -23,7 +23,8 @@ function stepItem({ name, n, type, seconds, enabled, onlyThis }) {
   const only = h("button", { type: "button", class: "link", disabled: !enabled, "aria-label": onlyLabel }, t("pipe.only"));
   only.addEventListener("click", () => onlyThis(n, name));
   const kind = type ? h("span", { class: "pipe-kind" }, t(`pipe.type.${type}`)) : null;
-  const li = h("li", { "data-status": "idle" }, mark, " ", h("span", null, `${n}. ${name}`), state, " ", kind, time, " ", only);
+  const label = h("span", null, `${n}. ${name}`);
+  const li = h("li", { "data-status": "idle", "data-id": id || String(n) }, mark, " ", label, state, " ", kind, time, " ", only);
   li.setStatus = (status) => {
     li.setAttribute("data-status", status);
     mark.textContent = STEP_MARK[status] || "?";
@@ -117,9 +118,18 @@ document.addEventListener("visibilitychange", () => {
 // this page (a cancel button, the timer, a notice at the end); otherwise a past run is replayed into the console.
 function followRun(pr, p, run, parts, live = true) {
   const { items, con, line, actions, idle } = parts;
+  const mine = (parts.token = (parts.token || 0) + 1); // a newer follow on this card, or leaving the page, ends this one
+  const current = () => parts.token === mine && parts.card?.isConnected !== false;
   if (live) {
     const stop = h("button", { type: "button" }, t("pipe.cancel"));
-    stop.addEventListener("click", () => postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(() => {}));
+    stop.addEventListener("click", async () => {
+      stop.setAttribute("disabled", "");
+      stop.disabled = true;
+      stop.textContent = t("pipe.cancelling");
+      const failed = (e) => ({ ok: false, data: { error: e.message } });
+      const res = await postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(failed);
+      if (!res.ok) actions.append(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`));
+    });
     actions.replaceChildren(stop);
   }
   items.forEach((li) => { li.setStatus("idle"); li.setSeconds(null); });
@@ -127,6 +137,7 @@ function followRun(pr, p, run, parts, live = true) {
   const began = Date.now();
   let cursor = 0; // a byte offset into the run's events file, returned by the server as `next`
   const poll = async () => {
+    if (!current()) return;
     let r;
     try {
       r = await api("pipelines/events", { project: pr.path, run, after: cursor });
@@ -134,6 +145,7 @@ function followRun(pr, p, run, parts, live = true) {
       setTimeout(poll, PIPE_POLL_MS * 3); // the server may be restarting: try again later
       return;
     }
+    if (!current()) return;
     cursor = r.next ?? cursor;
     for (const e of r.events) {
       if (e.kind === "line") con.add(e);
@@ -147,7 +159,11 @@ function followRun(pr, p, run, parts, live = true) {
         if (live) pipeNotice(p.name, e.status, e.seconds);
       }
     }
-    if (r.done) { if (live) idle(); return; }
+    if (r.done) {
+      if (r.error) line.textContent = `▲ ${ts(r.error)}`;
+      if (live) idle();
+      return;
+    }
     if (live) {
       const elapsed = fmtClock((Date.now() - began) / 1000);
       line.textContent = p.typical ? t("pipe.runningUsual", { elapsed, typical: fmtClock(p.typical) }) : t("pipe.runningFor", { elapsed });

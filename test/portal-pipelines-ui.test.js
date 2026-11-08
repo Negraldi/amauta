@@ -13,7 +13,7 @@ const XSS = '<img src=x onerror=alert(1)>';
 const LIST = { available: true, projects: [
   { name: 'repo', path: '/work/repo', trusted: true, error: null, pipelines: [
     { id: 'weekly', name: 'Weekly sales', description: 'Refresh and report', category: 'Sales', steps: ['Extract', 'Report'],
-      types: ['python', 'command'], typical: 75, schedule: { at: '07:30', days: ['mon'] }, schedule_state: 'missed',
+      types: ['python', 'command'], typical: 75, schedules: [{ at: '07:30', days: ['mon'], state: 'missed' }],
       last: { status: 'failed', started: '2026-11-08T10:00:00+00:00', seconds: 1.6, trigger: 'schedule', run: 'weekly-1.jsonl' },
       history: [
         { run: 'weekly-1.jsonl', status: 'failed', started: '2026-11-08T10:00:00+00:00', seconds: 1.6, trigger: 'schedule', failure: 'connection lost',
@@ -21,7 +21,7 @@ const LIST = { available: true, projects: [
           outputs: [{ path: 'out/sales.parquet', bytes: 2048, modified: '2026-11-08T10:00:01+00:00' }] },
         { run: 'weekly-0.jsonl', status: 'ok', started: '2026-11-01T10:00:00+00:00', seconds: 1.4, trigger: 'portal', failure: null, steps: [], outputs: [] }] },
     { id: 'monthly', name: 'Monthly close', description: '', category: 'Finance', steps: ['Close'], types: ['r'], typical: null,
-      schedule: { at: '06:00', day_of_month: 1 }, schedule_state: 'never', last: null, history: [] }] },
+      schedules: [{ at: '06:00', day_of_month: 1, state: 'never' }], last: null, history: [] }] },
   { name: 'other', path: '/work/other', trusted: false, error: null, pipelines: [{ id: 'p', name: 'P', description: '', steps: ['S'],
     last: { status: 'abandoned', started: '2026-11-07T10:00:00+00:00', seconds: null, trigger: 'cli', run: 'p-1.jsonl' } }] },
 ] };
@@ -34,7 +34,7 @@ const EVENTS = [
   { kind: 'step-end', step: 1, name: 'Report', status: 'failed', seconds: 0.4 }, { kind: 'run-end', status: 'failed', seconds: 1.6 },
 ];
 
-async function boot(setup = () => {}) {
+async function boot(setup = () => {}, list = LIST) {
   const copied = [];
   const posts = [];
   const polls = [];
@@ -43,13 +43,19 @@ async function boot(setup = () => {}) {
     '/api/pipelines/check': async (opts, url) => ({ findings: new URL(url, 'http://x').searchParams.get('id') === 'weekly'
       ? [{ pipeline: 'weekly', step: 'Report', level: 'error', message: 'etl/report.py does not exist' }] : [] }),
     '/api/wiki/home': { activity: [], spending: { available: false }, impact: null, health: { installed: false } },
-    '/api/pipelines': LIST, '/api/wiki/recent': { items: [] }, '/api/sessions': { projects: [] }, '/api/projects': { projects: [], auto_discover: true, config_repos: [] },
-    '/api/pipelines/run': async (opts) => { posts.push({ path: 'run', headers: opts.headers, body: JSON.parse(opts.body) }); return { run: 'weekly-2.jsonl' }; },
+    '/api/pipelines': list, '/api/wiki/recent': { items: [] }, '/api/sessions': { projects: [] }, '/api/projects': { projects: [], auto_discover: true, config_repos: [] },
+    '/api/pipelines/run': async (opts) => {
+      const body = JSON.parse(opts.body);
+      posts.push({ path: 'run', headers: opts.headers, body });
+      return body.id === 'monthly' ? { __status: 409, error: 'this pipeline is already running' } : { run: 'weekly-2.jsonl' };
+    },
     '/api/pipelines/cancel': async (opts) => { posts.push({ path: 'cancel', body: JSON.parse(opts.body) }); return { ok: true }; },
     '/api/pipelines/events': async (opts, url) => {
       const after = Number(new URL(url, 'http://x').searchParams.get('after'));
+      const run = new URL(url, 'http://x').searchParams.get('run');
       polls.push(after);
-      polled.push(new URL(url, 'http://x').searchParams.get('run'));
+      polled.push(run);
+      if (run === 'weekly-0.jsonl') return { events: after ? [] : [{ kind: 'line', step: 0, name: 'Extract', text: 'zero' }], next: 1, done: false };
       const upto = after === 0 ? 3 : EVENTS.length; // the run arrives in two polls
       return { events: EVENTS.slice(after, upto), next: upto, done: upto === EVENTS.length }; // `next`: an offset
     },
@@ -182,6 +188,7 @@ test('history marks, the first failure, step types and durations, outputs and th
   marks[0].click();
   await tick(60);
   assert.equal(polled.at(-1), 'weekly-0.jsonl', 'a mark opens that run in the console');
+  marks[1].click(); // weekly-0 never ends in this fixture: opening another run stops its loop
 });
 
 test('a running pipeline shows its time against the usual one; the end leaves a notice and marks the tab title', async () => {
@@ -232,4 +239,64 @@ test('the home page carries the same summary, linked to the tab', async () => {
   const rail = tree(view).find((e) => e.tagName === 'aside');
   assert.match(rail.textContent, /3 pipelines · 2 failed last time/);
   assert.ok(tree(rail).some((e) => e.tagName === 'a' && e.attrs.href === '#/pipelines'));
+});
+
+const MODEL = { available: true, projects: [{ name: 'ml', path: '/work/ml', trusted: true, error: null, pipelines: [
+  { id: 'model', name: 'Churn model', description: '', category: '', steps: ['Features', 'Train', 'Predict', 'Report'],
+    ids: ['features', 'train', 'predict', 'report'], types: ['python', 'python', 'python', 'command'],
+    needs: [[], ['features'], ['features', 'train'], []], step_modes: [null, ['train', 'train-predict'], ['train-predict', 'predict'], null],
+    levels: [['features', 'report'], ['train'], ['predict']], modes: ['train', 'train-predict', 'predict'], default_mode: 'predict',
+    schedules: [{ at: '06:00', days: ['mon'], mode: 'train', state: 'ok' }, { every_minutes: 60, mode: 'predict', state: 'missed' }],
+    typical: null, last: null, history: [] }] }] };
+
+test('a DAG is drawn by levels, with a mode picker that marks the steps outside the mode and goes with the run', async () => {
+  const { view, posts } = await boot(() => {}, MODEL);
+  const card = cards(view)[0];
+  const levels = tree(card).filter((e) => e.tagName === 'ol' && e.className === 'pipe-level');
+  assert.deepEqual(levels.map((l) => tree(l).filter((e) => e.tagName === 'li').length), [2, 1, 1]);
+  const picker = tree(card).find((e) => e.tagName === 'select' && e.attrs['aria-label'] === 'Mode');
+  assert.deepEqual(picker.options.map((o) => o.textContent), ['train', 'train-predict', 'predict']);
+  assert.equal(picker.value, 'predict');
+  const off = () => tree(card).filter((e) => e.tagName === 'li' && e.attrs['data-off'] === 'true').map((e) => e.attrs['data-id']);
+  assert.deepEqual(off(), ['train']);
+  picker.value = 'train';
+  picker.listeners.change[0]({ target: picker });
+  assert.deepEqual(off(), ['predict']);
+  assert.match(card.textContent, /Mondays at 06:00 · train/);
+  assert.match(card.textContent, /Every hour · predict/);
+  buttons(view, 'Run')[0].click();
+  assert.match(view.textContent, /in mode train/);
+  buttons(view, 'Run now')[0].click();
+  await tick(40);
+  assert.deepEqual(posts[0].body, { project: '/work/ml', id: 'model', mode: 'train' });
+});
+
+test('one follow loop per card: opening another run stops the first', async () => {
+  const { view, polled } = await boot();
+  const marks = tree(cards(view)[0]).filter((e) => e.tagName === 'button' && e.className === 'hist-mark');
+  marks[0].click(); // weekly-0 never ends in this fixture
+  await tick(800);
+  marks[1].click();
+  await tick(60);
+  const before = polled.filter((r) => r === 'weekly-0.jsonl').length;
+  await tick(1600);
+  assert.equal(polled.filter((r) => r === 'weekly-0.jsonl').length, before, 'the first loop stopped');
+});
+
+test('a start error offers a way back, and cancel says it is cancelling', async () => {
+  const { view } = await boot();
+  const monthly = cards(view)[1];
+  tree(monthly).find((e) => e.tagName === 'button' && e.textContent === 'Run').click();
+  tree(monthly).find((e) => e.tagName === 'button' && e.textContent === 'Run now').click();
+  await tick(40);
+  assert.match(monthly.textContent, /already running/);
+  tree(monthly).find((e) => e.tagName === 'button' && e.textContent === 'Go back').click();
+  assert.ok(tree(monthly).some((e) => e.tagName === 'button' && e.textContent === 'Run'));
+  buttons(view, 'Run')[0].click();
+  buttons(view, 'Run now')[0].click();
+  await tick(60);
+  const stop = buttons(view, 'Cancel run')[0];
+  stop.click();
+  assert.equal(stop.getAttribute('disabled'), '');
+  assert.equal(stop.textContent, 'Cancelling...');
 });
