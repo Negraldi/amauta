@@ -75,6 +75,10 @@ class OutsideHomeTest(ProjectBase):
         patcher = mock.patch.object(projects, "SYSTEM_TREES", ("/proc", "/sys", "/dev", "/run", "/etc", "/usr", "/boot", "/var"))
         patcher.start()
         self.addCleanup(patcher.stop)
+        # On macOS the temp tree is /private/var/folders: keep /private/etc (where /etc resolves) and drop the rest of /private.
+        mac = mock.patch.object(projects, "MACOS_TREES", ("/private/etc", "/System", "/Library"))
+        mac.start()
+        self.addCleanup(mac.stop)
 
     def test_an_absolute_existing_directory_outside_home_is_accepted(self):
         self.assertEqual(projects.check_repo(str(self.data), self.fake_home), self.data.resolve())
