@@ -189,6 +189,19 @@ class PortalPointsTest(Base):
         card = next(p for p in pp.list_pipelines(self.portal)["projects"][0]["pipelines"] if p["id"] == "m")
         self.assertEqual(card["history"][0]["mode"], "predict")
 
+    def test_one_broken_project_does_not_empty_the_tab(self):
+        from unittest import mock
+        real = pp.config.load
+
+        def load(repo, *a, **k):
+            if Path(repo) == self.repo:
+                raise TypeError("unhashable type: 'list'")
+            return real(repo, *a, **k)
+        with mock.patch.object(pp.config, "load", load):
+            r = pp.list_pipelines(self.portal)
+        proj = next(p for p in r["projects"] if p["path"] == str(self.repo))
+        self.assertIn("unhashable", proj["error"])
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

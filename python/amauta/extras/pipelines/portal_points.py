@@ -70,7 +70,7 @@ def list_pipelines(portal):
     for repo in portal.repos():
         try:
             pipelines, error = config.load(repo), None
-        except config.ConfigError as e:
+        except Exception as e:  # noqa: BLE001 - one project's broken file must not empty the tab for the others
             pipelines, error = [], str(e)
         if not pipelines and not error:
             continue

@@ -74,7 +74,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
   that step as failed instead of the runner; a step's process group is stopped after it ends, pipe or not.
 - [x] V2 Lock: a stale lock is replaced under a guard, so exactly one taker wins; adopt writes atomically; on Windows an
   access-denied holder counts as alive.
-- [ ] V3 Config: NUL characters, wrong types (`args` string, `timeout: true`, `enabled: "false"`, unhashable modes,
+- [x] V3 Config: NUL characters, wrong types (`args` string, `timeout: true`, `enabled: "false"`, unhashable modes,
   duplicate modes), `default_mode` without `modes`, extra fields on a pipeline step, and `enabled: false` on it;
   parsing does not mutate its input; a UTF-8 BOM is accepted; one bad project does not empty the Pipelines tab.
 - [ ] V4 Store and portal: a run summary keeps steps in pipeline order with their id; a schedule without mode matches
@@ -102,7 +102,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 ## Next step
 
-V3: failing tests for the config types the review found (NUL, args as a string, timeout true, enabled "false").
+V4: failing tests for step order in the run summary and the schedule key of the default mode.
 - 2026-11-08: D1-D3 and R3-R11 inline, commit `6ff3aa1`. RED seen: graph module missing (D1 suite), nine runner tests
   (parallel timing, branch failure, modes, background child 8 s, SIGTERM without run-end, PYTHONPATH, symlink and
   missing cwd, copy2 output, private key body leaked with the old runner), schedule tests (hourly /MO 120, PATH,
@@ -120,4 +120,8 @@ V3: failing tests for the config types the review found (NUL, args as a string, 
 - 2026-11-08: V2 inline. RED: eight processes on a stale lock gave two winners; 1,825 of the reader's samples saw no
   holder while adopt rewrote the lock. Stale replacement now runs under an OS file lock (`<lock>.guard`), adopt renames
   a new file over the lock; Windows treats access denied as alive. Race test green three times in a row.
+- 2026-11-08: V3 inline. RED: NUL in argv, cwd and interpreter, `timeout: true`, `enabled: "false"`, `args` as a
+  string, duplicate modes, an unhashable step mode and `default_mode` without modes were accepted; a pipeline step
+  took `timeout: "junk"` and ignored `enabled: false`; parsing twice lost a schedule's mode; a BOM was refused; one
+  project raising TypeError emptied the tab. GREEN.
 

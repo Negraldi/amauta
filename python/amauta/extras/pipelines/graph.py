@@ -53,10 +53,19 @@ def with_ids(pid, raw):
     return out
 
 
+PIPELINE_STEP = {"type", "pipeline", "id", "name", "needs", "modes", "enabled"}
+
+
 def _inline(s, inner):
     """The steps of a used pipeline, renamed under the step `s` that uses it, and the ids that end the expansion."""
+    extra = set(s) - PIPELINE_STEP
+    if extra or type(s.get("enabled", True)) is not bool:
+        raise GraphError(f"step {s['id']}: a pipeline step takes only {', '.join(sorted(PIPELINE_STEP))} "
+                         f"(enabled true or false){': not ' + ', '.join(sorted(extra)) if extra else ''}")
     needed = {n for t in inner for n in t["needs"]}
+    off = s.get("enabled", True) is False  # an off pipeline step turns off every step it brings
     steps = [{**t, "id": f"{s['id']}.{t['id']}", "name": f"{s['name']} › {t['name']}", "modes": s.get("modes"),
+              "enabled": t["enabled"] and not off,
               "needs": [f"{s['id']}.{n}" for n in t["needs"]] or list(s["needs"])} for t in inner]
     return steps, [f"{s['id']}.{t['id']}" for t in inner if t["id"] not in needed]
 

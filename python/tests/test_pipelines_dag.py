@@ -295,3 +295,30 @@ class SecondReviewRunTest(Run):
         except ProcessLookupError:
             alive = False
         self.assertFalse(alive, "the step's leftover child must be stopped")
+
+
+class SecondReviewConfigTest(Base):
+    """Second review, V3: types that slipped through, input mutation, BOM, pipeline steps."""
+
+    def test_wrong_types_and_nul_characters_are_refused(self):
+        for bad in ({"argv": ["echo\u0000x"]}, {"argv": ["x"], "cwd": "a\u0000"}, {"argv": ["x"], "timeout": True},
+                    {"argv": ["x"], "enabled": "false"}, {"argv": ["x"], "interpreter": "py\u0000"}):
+            self.refused({"id": "p", "steps": [{"type": "command", **bad}]}, msg=str(bad))
+        self.refused({"id": "p", "steps": [{"type": "python", "script": "a.py", "args": "--week"}]}, msg="args as a string")
+        self.refused({"id": "p", "modes": ["a", "a"], "steps": [CMD("1")]}, msg="duplicate modes")
+        self.refused({"id": "p", "modes": ["a"], "steps": [{"modes": [["a"]], **CMD("1")}]}, msg="unhashable step mode")
+        self.refused({"id": "p", "default_mode": "x", "steps": [CMD("1")]}, msg="default_mode without modes")
+
+    def test_a_pipeline_step_takes_only_its_own_fields_and_can_be_off(self):
+        inner = {"id": "x", "steps": [{"id": "s1", **CMD("1")}, {"id": "s2", **CMD("1")}]}
+        self.refused(inner, {"id": "p", "steps": [{"type": "pipeline", "pipeline": "x", "timeout": "junk"}]}, msg="extra field")
+        self.define(inner, {"id": "p", "steps": [{"id": "x", "type": "pipeline", "pipeline": "x", "enabled": False}]})
+        self.assertEqual([s["enabled"] for s in self.load("p")["steps"]], [False, False])
+
+    def test_parsing_does_not_change_its_input_and_a_bom_is_fine(self):
+        data = {"pipelines": [{"id": "m", "modes": ["train"], "schedule": [{"at": "07:00", "mode": "train"}], "steps": [CMD("1")]}]}
+        first, second = config.parse(data), config.parse(data)
+        self.assertEqual(first[0]["schedules"], second[0]["schedules"])
+        (self.repo / ".amauta").mkdir(exist_ok=True)
+        (self.repo / ".amauta" / "pipelines.json").write_bytes(b"\xef\xbb\xbf" + json.dumps({"pipelines": [{"id": "p", "steps": [CMD("1")]}]}).encode())
+        self.assertEqual(config.load(self.repo)[0]["id"], "p")

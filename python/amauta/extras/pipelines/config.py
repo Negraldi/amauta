@@ -45,14 +45,27 @@ def _int(s, key, default, low, high, i):
     return value
 
 
+def _no_nul(value, where):
+    """A NUL character cannot reach a program's argv, path or environment: refuse it anywhere in a step."""
+    items = value.values() if isinstance(value, dict) else value if isinstance(value, list) else [value]
+    for v in items:
+        if isinstance(v, (dict, list)):
+            _no_nul(v, where)
+        elif isinstance(v, str) and "\0" in v:
+            raise ConfigError(f"{where}: a value holds a NUL character")
+
+
 def _step(i, s):
     if not isinstance(s, dict) or s.get("type") not in TYPES:
         raise ConfigError(f"step {i + 1}: type must be one of {', '.join(sorted(TYPES))}")
-    out = {"name": str(s.get("name") or f"Step {i + 1}")[:80], "type": s["type"], "enabled": s.get("enabled", True) is not False}
+    _no_nul(s, f"step {i + 1}")
+    if type(s.get("enabled", True)) is not bool:
+        raise ConfigError(f"step {i + 1}: enabled must be true or false")
+    out = {"name": str(s.get("name") or f"Step {i + 1}")[:80], "type": s["type"], "enabled": s.get("enabled", True)}
     if "pipeline" in s:
         raise ConfigError(f"step {i + 1}: `pipeline` belongs to a step of type pipeline")
     timeout = s.get("timeout", 3600)
-    if not isinstance(timeout, int) or not 0 < timeout <= MAX_TIMEOUT:
+    if type(timeout) is not int or not 0 < timeout <= MAX_TIMEOUT:
         raise ConfigError(f"step {i + 1}: timeout must be 1 to {MAX_TIMEOUT} seconds")
     out["timeout"] = timeout
     out["cwd"] = _inside(s["cwd"], f"step {i + 1}: cwd") if "cwd" in s else "."
@@ -69,8 +82,13 @@ def _step(i, s):
         out["argv"] = argv
     elif s["type"] in ("python", "r"):
         out["script"] = _inside(s.get("script"), f"step {i + 1}: script")
-        out["args"] = [str(a) for a in s.get("args", []) if isinstance(a, (str, int, float))]
-        if isinstance(s.get("interpreter"), str):
+        args = s.get("args", [])
+        if type(args) is not list or not all(type(a) in (str, int, float) for a in args):
+            raise ConfigError(f"step {i + 1}: args must be a list of strings or numbers")
+        out["args"] = [str(a) for a in args]
+        if "interpreter" in s:
+            if not isinstance(s["interpreter"], str) or not s["interpreter"]:
+                raise ConfigError(f"step {i + 1}: interpreter must be a program name or path")
             out["interpreter"] = s["interpreter"]
     else:
         out["path"] = _inside(s.get("path"), f"step {i + 1}: path")
@@ -88,6 +106,7 @@ def _schedules(pid, value, modes):
     items = value if isinstance(value, list) else [value]
     out = []
     for sched in items:
+        sched = dict(sched) if isinstance(sched, dict) else sched  # never change the caller's data
         mode = sched.pop("mode", None) if isinstance(sched, dict) else None
         entry = _schedule(pid, sched)
         if mode is not None:
@@ -103,6 +122,10 @@ def _modes(p):
     modes = p.get("modes", [])
     if not isinstance(modes, list) or not all(isinstance(m, str) and graph.STEP_ID.match(m) for m in modes):
         raise ConfigError(f"{p['id']}: modes must be a list of ids (lowercase letters, digits, '-' and '_')")
+    if len(set(modes)) != len(modes):
+        raise ConfigError(f"{p['id']}: modes are listed twice")
+    if "default_mode" in p and not modes:
+        raise ConfigError(f"{p['id']}: default_mode needs modes")
     default = p.get("default_mode", modes[0] if modes else None)
     if modes and default not in modes:
         raise ConfigError(f"{p['id']}: default_mode must be one of {', '.join(modes)}")
@@ -117,7 +140,8 @@ def _pipeline(p, by_id):
     except graph.GraphError as e:
         raise ConfigError(str(e)) from None
     for st in steps:
-        if st["modes"] is not None and (not isinstance(st["modes"], list) or not set(st["modes"]) <= set(modes) or not st["modes"]):
+        sm = st["modes"]
+        if sm is not None and (type(sm) is not list or not sm or not all(isinstance(m, str) and m in modes for m in sm)):
             raise ConfigError(f"{p['id']}: step {st['id']}: modes must be some of the pipeline's modes ({', '.join(modes) or 'none'})")
     parallel = p.get("max_parallel", 4)
     if type(parallel) is not int or not 1 <= parallel <= 16:
@@ -181,7 +205,7 @@ def load(repo):
     f = Path(repo) / FILE
     if not f.is_file():
         return []
-    text = f.read_text(encoding="utf-8")
+    text = f.read_text(encoding="utf-8-sig")  # a byte order mark (Windows Notepad) is fine
     if secretlike.contains_secret(text):
         raise ConfigError(f"{FILE} holds a secret-like value; keep credentials in the scripts' own configuration")
     try:
