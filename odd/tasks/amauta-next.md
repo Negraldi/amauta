@@ -127,9 +127,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 3, sibling projects
 
-- [ ] S1 Portal links and `status` health for configured sibling projects (oga_catalog, harness-pipelines); MCP
-  registration needs nothing new (two-way MCP sync); `ml-experiments` skill ships with the pipelines sibling; phase 3
-  audit; v0.7.0.
+- [ ] S1 Pipelines (ADR 0010, redesigned after the orchestrator review): S1a engine and `amauta pipeline
+  list|run|status` (`.amauta/pipelines.json`, steps command|python|r|notebook, JSON-lines events, secrets redacted);
+  S1b portal Pipelines tab (start as a separate process, trusted projects only, step diagram, live console); S1c
+  `schedule-hint` for Task Scheduler, cron and launchd, docs; S1d links and health for the remaining sibling project
+  (oga_catalog); phase 3 audit; v0.7.0.
 
 ## User preferences to ask about later
 
@@ -328,6 +330,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   `--no-checks`, Settings), each project's profile on the Projects page; phase 2 audit in
   `docs/audits/2026-11-08-phase-2.md`; version 0.6.0. RED seen for each part.
 
+- 2026-11-08: orchestrator archive reviewed (local FastAPI server, Windows COM steps, polling console; it holds private
+  hosts and names, none copied). User decisions: a Pipelines page in amauta; command and script steps only; schedules
+  left to the operating system. ADR 0010.
+
 ## Next step
 
-Phase 3 S1: review the orchestrator archive first, then redesign S1 (the orchestrator runs processes and shows their output). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 3: S1a pipeline engine and CLI, then S1b portal tab, S1c schedule hints, S1d oga_catalog links. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
