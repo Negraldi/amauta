@@ -2,7 +2,8 @@
 
 A step starts once every step it needs is done, at most `max_parallel` at a time. Done means ok, or skipped because
 the step is off (`enabled: false`), outside the run's mode, or outside an "only this step" run. A failed, timed-out or
-cancelled step skips only the steps that need it (reason "needs"); other branches finish. A failure or timeout is
+cancelled step skips the steps that need it and, through them, everything below (reason "needs"); other branches
+finish. An error inside a step (not its program's) ends that step as failed. A failure or timeout is
 tried again up to `retries` times, `retry_delay` seconds apart; a step that exits 0 but did not change each of its
 `outputs` has failed.
 
@@ -117,7 +118,11 @@ def _attempts(i, step, ctx):
 def _one(i, step, ctx):
     ctx["ev"].emit("step-start", step=i, id=step["id"], name=step["name"])
     s0 = time.monotonic()
-    result, attempts, outputs = _attempts(i, step, ctx)
+    try:
+        result, attempts, outputs = _attempts(i, step, ctx)
+    except Exception as e:  # noqa: BLE001 - one step's error ends that step, never the run
+        ctx["ev"].line(i, step, f"error: {type(e).__name__}: {e}")
+        result, attempts, outputs = "failed", 1, []
     ctx["ev"].emit("step-end", step=i, id=step["id"], name=step["name"], status=result, seconds=round(time.monotonic() - s0, 1),
                    attempts=attempts, outputs=outputs)
     return result
@@ -136,8 +141,8 @@ def _schedule(pipeline, ctx, only, mode):
     steps, status, running = pipeline["steps"], {}, {}
     index = {s["id"]: i for i, s in enumerate(steps)}
 
-    def settle(i, st, reason):
-        status[st["id"]] = "skipped" if reason else None
+    def settle(i, st, reason):  # a skip for needs or a cancel blocks what needs it; off, mode and only do not
+        status[st["id"]] = ("blocked" if reason in ("needs", "cancelled") else "skipped") if reason else None
         if reason:
             ctx["ev"].emit("step-end", step=i, id=st["id"], name=st["name"], status="skipped", seconds=0, reason=reason)
     with ThreadPoolExecutor(max_workers=pipeline["max_parallel"]) as pool:

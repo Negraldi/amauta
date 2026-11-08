@@ -251,3 +251,47 @@ class LoopTest(Base):
         self.assertEqual(r.returncode, 1)
         self.assertIn("a is already running", r.stdout + r.stderr)
         self.assertLess(time.time() - t0, 30)
+
+
+class SecondReviewRunTest(Run):
+    """Second review, V1."""
+
+    def test_a_failure_blocks_the_whole_chain_below_it(self):
+        self.define({"id": "p", "steps": [{"id": "a", **CMD("import sys; sys.exit(1)")}, {"id": "b", **CMD("print('B ran')")},
+                                          {"id": "c", **CMD("print('C ran')")}]})
+        code, ev = self.run_events("p")
+        self.assertEqual(self.ends(ev), {"a": "failed", "b": "skipped", "c": "skipped"})
+        self.assertNotIn("C ran", json.dumps(ev))
+        self.assertEqual({e["id"]: e.get("reason") for e in ev if e["kind"] == "step-end" and e["id"] != "a"}, {"b": "needs", "c": "needs"})
+
+    def test_an_error_inside_a_step_fails_that_step_only(self):
+        from unittest import mock
+        from python.amauta.extras.pipelines import proc
+        self.define({"id": "p", "steps": [{"id": "bad", "needs": [], **CMD("1")}, {"id": "good", "needs": [], **CMD("print('ok')")}]})
+        real = proc.run
+
+        def boom(step, *a, **k):
+            if step["id"] == "bad":
+                raise ValueError("embedded null byte")
+            return real(step, *a, **k)
+        with mock.patch.object(proc, "run", boom):
+            code, ev = self.run_events("p")
+        self.assertEqual((code, self.ends(ev)), (1, {"bad": "failed", "good": "ok"}))
+        self.assertTrue(any("embedded null byte" in e.get("text", "") for e in ev))
+
+    @unittest.skipIf(sys.platform == "win32", "process groups")
+    def test_a_background_child_without_the_pipe_is_stopped_when_the_step_ends(self):
+        import os
+        pidfile = Path(self.tmp.name) / "child.pid"
+        code = ("import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)'], "
+                f"stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); open({str(pidfile)!r}, 'w').write(str(p.pid))")
+        self.define({"id": "p", "steps": [{"id": "a", **CMD(code)}]})
+        self.run_events("p")
+        pid = int(pidfile.read_text())
+        time.sleep(0.5)
+        try:
+            os.kill(pid, 0)
+            alive = not Path(f"/proc/{pid}/status").exists() or "zombie" not in Path(f"/proc/{pid}/status").read_text()
+        except ProcessLookupError:
+            alive = False
+        self.assertFalse(alive, "the step's leftover child must be stopped")

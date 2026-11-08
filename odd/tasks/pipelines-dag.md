@@ -68,6 +68,22 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
   in the summary of a run.
 - [x] D5 Docs: ADR 0011, docs/pipelines.md, CHANGELOG, the explainer page corrected (review part A) and extended.
 
+### Second independent review (2026-11-08, on `40a9295`)
+
+- [x] V1 Runner: a skip for `needs` blocks the whole chain below it (0.6 behavior); an exception inside a step ends
+  that step as failed instead of the runner; a step's process group is stopped after it ends, pipe or not.
+- [ ] V2 Lock: a stale lock is replaced under a guard, so exactly one taker wins; adopt writes atomically; on Windows an
+  access-denied holder counts as alive.
+- [ ] V3 Config: NUL characters, wrong types (`args` string, `timeout: true`, `enabled: "false"`, unhashable modes,
+  duplicate modes), `default_mode` without `modes`, extra fields on a pipeline step, and `enabled: false` on it;
+  parsing does not mutate its input; a UTF-8 BOM is accepted; one bad project does not empty the Pipelines tab.
+- [ ] V4 Store and portal: a run summary keeps steps in pipeline order with their id; a schedule without mode matches
+  the default mode's runs; steps started from the portal do not see amauta's module folder; following an abandoned or
+  never-started run ends; run file names are unique within a second; the runner refuses a pipelines.json that changed
+  between the portal's trust check and its start.
+- [ ] V5 CLI and hints: `--step 0` is refused; `%` is escaped in cron lines; the orphan case after SIGKILL and pid
+  reuse are documented limits.
+
 ## Acceptance criteria
 
 - Each review finding confirmed by an experiment has a test that failed before its fix.
@@ -86,8 +102,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 ## Next step
 
-None: closed. Follow-ups outside this feature: a refreshed history after a live run ends (the card keeps the history
-it loaded), Windows job objects so a step's leftovers stop there too.
+V2: failing test with eight processes taking a stale lock at once (exactly one must win).
 - 2026-11-08: D1-D3 and R3-R11 inline, commit `6ff3aa1`. RED seen: graph module missing (D1 suite), nine runner tests
   (parallel timing, branch failure, modes, background child 8 s, SIGTERM without run-end, PYTHONPATH, symlink and
   missing cwd, copy2 output, private key body leaked with the old runner), schedule tests (hourly /MO 120, PATH,
@@ -99,4 +114,7 @@ it loaded), Windows job objects so a step's leftovers stop there too.
 - 2026-11-08: D5: ADR 0011, docs/pipelines.md (DAG, reuse, modes, limits), CHANGELOG Unreleased, the explainer page
   rewritten against the code (review part A: cancel flow, who polls, who writes what, check in the portal, honest
   limits, no "real browser" claim). Documentation only: link and format checks.
+- 2026-11-08: second independent review on `40a9295` (16 confirmed, 6 suspected, no flaky test in 6 runs). V1 inline:
+  RED for C running after A failed in a line (a "needs" skip counted as done), a step error ending the runner, and a
+  child with stdout to /dev/null outliving its step; GREEN.
 

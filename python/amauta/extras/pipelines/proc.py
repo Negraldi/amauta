@@ -115,4 +115,9 @@ def run(step, repo, python, env, cancel, on_line):
     done.set()
     proc.wait()
     watcher.join(timeout=5)
+    if not WINDOWS:  # a step owns its process group: stop what it left behind, with or without its output
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
     return stop["why"] or ("ok" if proc.returncode == 0 else "failed")
