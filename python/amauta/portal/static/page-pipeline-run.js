@@ -125,17 +125,17 @@ function followRun(pr, p, run, parts, live = true) {
   items.forEach((li) => { li.setStatus("idle"); li.setSeconds(null); });
   con.reset();
   const began = Date.now();
-  let seen = 0;
+  let cursor = 0; // a byte offset into the run's events file, returned by the server as `next`
   const poll = async () => {
     let r;
     try {
-      r = await api("pipelines/events", { project: pr.path, run, after: seen });
+      r = await api("pipelines/events", { project: pr.path, run, after: cursor });
     } catch (_) {
       setTimeout(poll, PIPE_POLL_MS * 3); // the server may be restarting: try again later
       return;
     }
+    cursor = r.next ?? cursor;
     for (const e of r.events) {
-      seen++;
       if (e.kind === "line") con.add(e);
       if (e.kind === "step-start") items[e.step]?.setStatus("running");
       if (e.kind === "step-end" && items[e.step]) {

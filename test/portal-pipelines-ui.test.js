@@ -50,7 +50,7 @@ async function boot(setup = () => {}) {
       polls.push(after);
       polled.push(new URL(url, 'http://x').searchParams.get('run'));
       const upto = after === 0 ? 3 : EVENTS.length; // the run arrives in two polls
-      return { events: EVENTS.slice(after, upto), done: upto === EVENTS.length };
+      return { events: EVENTS.slice(after, upto), next: upto, done: upto === EVENTS.length }; // `next`: an offset
     },
   });
   env.location.hash = '#/pipelines';

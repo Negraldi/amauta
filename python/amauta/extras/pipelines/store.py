@@ -35,33 +35,55 @@ def new_run(state_dir, repo, pipeline_id):
     return d / f"{pipeline_id}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}.jsonl"
 
 
-def read_events(path, after=0):
-    """Events after the first `after` ones (the portal polls with the count it already has)."""
+def read_from(path, offset=0):
+    """(events, next offset): the whole lines after byte `offset`. Lines end with "\n" only (an event's text may hold
+    U+2028 or NEL); a last line without its newline is still being written and waits for the next read."""
     try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        with open(path, "rb") as f:
+            f.seek(offset)
+            data = f.read()
     except OSError:
-        return []
+        return [], offset
+    end = data.rfind(b"\n") + 1
     out = []
-    for line in lines[after:]:
+    for raw in data[:end].split(b"\n")[:-1]:
         try:
-            out.append(json.loads(line))
+            out.append(json.loads(raw.decode("utf-8")))
         except ValueError:
-            break  # a line still being written
-    return out
+            continue  # a damaged line is skipped, never a reason to stop reading
+    return out, offset + end
+
+
+def read_events(path):
+    return read_from(path)[0]
+
+
+_summaries = {}  # path -> ((size, mtime_ns), summary): a finished run's file does not change
+
+
+def _cached(f):
+    try:
+        st = f.stat()
+    except OSError:
+        return None
+    key = (st.st_size, st.st_mtime_ns)
+    hit = _summaries.get(str(f))
+    if hit and hit[0] == key:
+        return hit[1]
+    run = _summary(f, read_events(f))
+    _summaries[str(f)] = (key, run)
+    return run
 
 
 def last_runs(state_dir, repo):
-    """{pipeline id: {"status", "events", "started"}} for the newest run of each pipeline; a run without its end is running."""
+    """{pipeline id: {"status", "events", "started", "seconds", "trigger"}} for the newest run of each pipeline."""
     out = {}
     d = runs_dir(state_dir, repo)
     for f in sorted(d.glob("*.jsonl")) if d.is_dir() else []:
-        events = read_events(f)
-        start = next((e for e in events if e.get("kind") == "run-start"), None)
-        if start is None:
-            continue
-        end = next((e for e in reversed(events) if e.get("kind") == "run-end"), None)
-        out[start["pipeline"]] = {"status": end["status"] if end else "running", "events": str(f), "started": start["t"],
-                                  "seconds": end.get("seconds") if end else None, "trigger": start.get("trigger", "cli")}
+        run = _cached(f)
+        if run is not None:
+            out[run["pipeline"]] = {"status": run["status"], "events": str(f), "started": run["started"],
+                                    "seconds": run["seconds"], "trigger": run["trigger"]}
     return out
 
 
@@ -85,7 +107,7 @@ def history(state_dir, repo):
     out = {}
     d = runs_dir(state_dir, repo)
     for f in sorted(d.glob("*.jsonl"), reverse=True) if d.is_dir() else []:
-        run = _summary(f, read_events(f))
+        run = _cached(f)
         if run is None:
             continue
         h = out.setdefault(run["pipeline"], {"runs": [], "last_scheduled": None, "ok": []})

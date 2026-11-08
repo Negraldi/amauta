@@ -368,3 +368,30 @@ class CheckTest(Base):
             code = main(["check", "--cwd", str(self.repo), "--state-dir", str(self.state)])
         self.assertEqual(code, 1)
         self.assertIn("etl/gone.py", out.getvalue())
+
+
+class EventsFileTest(Base):
+    """Review R1: the events file is read line by line on "\\n" only, a partial last line waits, and by byte offset."""
+
+    def test_a_unicode_line_separator_in_output_does_not_hide_the_end(self):
+        from python.amauta.extras.pipelines import store
+        self.define({"id": "u", "steps": [{"name": "U", "type": "command", "argv": [PY, "-c", "print('a\\u2028b\\x85c')"]}]})
+        events = self.root / "u.jsonl"
+        self.assertEqual(runner.run(self.repo, "u", events, python=PY), 0)
+        kinds = [e["kind"] for e in store.read_events(events)]
+        self.assertEqual(kinds[-1], "run-end")
+        self.assertIn("a b\x85c", [e.get("text") for e in store.read_events(events)])
+
+    def test_reading_by_offset_returns_whole_lines_only(self):
+        from python.amauta.extras.pipelines import store
+        f = self.root / "p.jsonl"
+        f.write_bytes(b'{"kind": "a"}\n{"kind": "b"}\n{"kind": "c"')
+        got, nxt = store.read_from(f, 0)
+        self.assertEqual([e["kind"] for e in got], ["a", "b"])
+        self.assertEqual(nxt, len(b'{"kind": "a"}\n{"kind": "b"}\n'))
+        with open(f, "ab") as out:
+            out.write(b'}\n')
+        got, nxt2 = store.read_from(f, nxt)
+        self.assertEqual(([e["kind"] for e in got], nxt2), (["c"], f.stat().st_size))
+        self.assertEqual(store.read_from(f, nxt2), ([], nxt2))
+        self.assertEqual(store.read_from(self.root / "missing.jsonl", 0), ([], 0))

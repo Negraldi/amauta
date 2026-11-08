@@ -109,8 +109,14 @@ def events(portal, q):
     if f is None:
         return {"events": [], "done": True, "error": "unknown run"}
     after = int(first("after")) if first("after").isdigit() else 0
-    got = store.read_events(f, after)
-    return {"events": got, "done": any(e.get("kind") == "run-end" for e in store.read_events(f, max(after - 1, 0)) + got)}
+    got, nxt = store.read_from(f, after)
+    return {"events": got, "next": nxt, "done": any(e.get("kind") == "run-end" for e in got) or _ended(f, nxt)}
+
+
+def _ended(f, offset):
+    """True when the run already ended before `offset` (the page asks again after it has the last event)."""
+    tail = store.read_from(f, max(0, offset - 4096))[0] if offset else []
+    return any(e.get("kind") == "run-end" for e in tail)
 
 
 def cancel(portal, body):
