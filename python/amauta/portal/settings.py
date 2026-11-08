@@ -24,7 +24,10 @@ from pathlib import Path
 PERSONAS = ("gentleman", "neutral")
 ONOFF = ("on", "off")
 MODULES = ("sdd", "rea", "context7", "impeccable", "archify")
-TOP_KEYS = {"persona", "review_mode", "telemetry", "modules", "repair"}
+SWITCHES = ("review_mode", "telemetry", "privacy", "checks")  # on/off settings; privacy and checks since plan D14
+SIMPLE = ("persona", *SWITCHES)
+KEPT = (*SIMPLE, "modules")  # what a change records and an undo restores
+TOP_KEYS = {*KEPT, "repair"}
 TOKEN_TTL = 300.0  # seconds an apply token stays valid
 MAX_PENDING = 8
 MAX_PREVIEWS = 2  # dry runs allowed at the same time
@@ -64,12 +67,12 @@ def validate(body, current: dict) -> dict:
     unknown = sorted(set(body) - TOP_KEYS)
     if unknown:
         raise SettingsError(400, f"unknown setting: {unknown[0][:40]}")
-    desired = {"persona": current["persona"], "review_mode": current["review_mode"], "telemetry": current["telemetry"], "modules": dict(current["modules"])}
+    desired = {**{k: current[k] for k in SIMPLE}, "modules": dict(current["modules"])}
     if "persona" in body:
         if body["persona"] not in PERSONAS:
             raise SettingsError(400, "persona must be gentleman or neutral")
         desired["persona"] = body["persona"]
-    for key in ("review_mode", "telemetry"):
+    for key in SWITCHES:
         if key in body:
             if body[key] not in ONOFF:
                 raise SettingsError(400, f"{key} must be on or off")
@@ -127,6 +130,8 @@ class Settings:
             "persona": persona,
             "review_mode": "on" if s.get("rdd_mode") == "on" else "off",
             "telemetry": "off" if (state is not None and s.get("telemetry") is False) else "on",
+            "privacy": "off" if s.get("privacy") is False else "on",
+            "checks": "off" if s.get("checks") is False else "on",
             "modules": {m: _onoff(s.get(m)) for m in MODULES},
         }
 
@@ -135,7 +140,7 @@ class Settings:
         return {
             "installed": self._state() is not None,
             "current": self.current(),
-            "allowed": {"persona": list(PERSONAS), "review_mode": list(ONOFF), "telemetry": list(ONOFF), "modules": list(MODULES), "module_values": list(ONOFF)},
+            "allowed": {"persona": list(PERSONAS), **{k: list(ONOFF) for k in SWITCHES}, "modules": list(MODULES), "module_values": list(ONOFF)},
             "undo": {"available": eligible is not None, "backup": eligible["backup"] if eligible else None, "ts": eligible["ts"] if eligible else None},
         }
 
@@ -144,8 +149,7 @@ class Settings:
         argv = [*self._installer_prefix(), "install", "--json", *self._targets(), "--persona", desired["persona"], "--review-mode", desired["review_mode"]]
         if dry_run:
             argv.append("--dry-run")
-        if desired["telemetry"] == "off":
-            argv.append("--no-telemetry")
+        argv += [f"--no-{k}" for k in ("telemetry", "privacy", "checks") if desired[k] == "off"]
         for name in MODULES:
             argv.append(f"--with-{name}" if desired["modules"][name] == "on" else f"--without-{name}")
         return argv
@@ -223,7 +227,7 @@ class Settings:
             self._preview_slots.release()
 
     def _diff(self, current: dict, desired: dict) -> list:
-        changes = [{"key": k, "from": current[k], "to": desired[k]} for k in ("persona", "review_mode", "telemetry") if current[k] != desired[k]]
+        changes = [{"key": k, "from": current[k], "to": desired[k]} for k in SIMPLE if current[k] != desired[k]]
         return changes + [{"key": f"module:{m}", "from": current["modules"][m], "to": desired["modules"][m]} for m in MODULES if current["modules"][m] != desired["modules"][m]]
 
     def preview(self, body) -> dict:
@@ -263,12 +267,12 @@ class Settings:
                 if created:
                     # The installer got far enough to make a backup: keep it visible, it is not an undo target.
                     self._log({"action": "apply_failed", "ts": _now(), "status": "timeout" if err.status == 504 else "failed", "backup": created[-1], "of": entry_base.get("of"), "from": before,
-                               "to": {k: desired[k] for k in ("persona", "review_mode", "telemetry", "modules")}})
+                               "to": {k: desired[k] for k in KEPT}})
                     err.extra["backup"] = created[-1]
                 raise
             backup = result.get("backup")
             backup_id = os.path.basename(backup) if isinstance(backup, str) and backup else None
-            self._log({**entry_base, "ts": _now(), "changes": result.get("state_changes") or {}, "from": before, "to": {k: desired[k] for k in ("persona", "review_mode", "telemetry", "modules")},
+            self._log({**entry_base, "ts": _now(), "changes": result.get("state_changes") or {}, "from": before, "to": {k: desired[k] for k in KEPT},
                        "backup": backup_id, "state_hash_after": self.state_hash()})
             out = {"ok": True, "backup": backup_id, "changed": bool(result.get("changed")), "files": result.get("files") or [], "removed": result.get("removed") or [],
                    "skipped": result.get("skipped") or [], "state_changes": result.get("state_changes") or {}, "undo_available": backup_id is not None}
@@ -291,7 +295,7 @@ class Settings:
 
     def _revalidate(self, desired: dict) -> dict:
         # The stored set was produced by `validate`; checking it again against the closed lists keeps apply independent of the preview code path.
-        check = validate({k: desired[k] for k in ("persona", "review_mode", "telemetry", "modules")} | {"repair": desired.get("repair") is True}, self.current())
+        check = validate({k: desired[k] for k in KEPT} | {"repair": desired.get("repair") is True}, self.current())
         if _canonical(check) != _canonical(desired):
             raise SettingsError(400, "the stored preview is not valid, preview again")
         return check
@@ -336,11 +340,11 @@ class Settings:
         entry = self._undo_candidate()
         if entry is None:
             raise SettingsError(409, "there is no portal change to undo")
-        if self.current() != {k: entry["to"].get(k) for k in ("persona", "review_mode", "telemetry", "modules")}:
+        if self.current() != {k: entry["to"].get(k, "on" if k in ("privacy", "checks") else None) for k in KEPT}:
             raise SettingsError(409, "the settings changed after that apply (another install or edit), so undo was refused")
         prev = entry["from"]
         try:
-            desired = validate({k: prev.get(k) for k in ("persona", "review_mode", "telemetry", "modules")}, self.current())
+            desired = validate({k: prev[k] for k in KEPT if k in prev}, self.current())
         except SettingsError:
             raise SettingsError(409, "the recorded previous settings are not valid, so undo was refused") from None
         return entry, desired

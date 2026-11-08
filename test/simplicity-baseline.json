@@ -6,7 +6,7 @@
   "line": 140,
   "readme": 200
  },
- "readme": 116,
+ "readme": 120,
  "files": {
   "bin/amauta.js": {
    "noHeader": true
@@ -75,7 +75,7 @@
    "long": 12
   },
   "python/amauta/portal/settings.py": {
-   "long": 14
+   "long": 11
   },
   "python/amauta/portal/static/app.js": {
    "long": 28
@@ -257,7 +257,7 @@
   },
   "src/install/installer.js": {
    "lines": 554,
-   "long": 22,
+   "long": 21,
    "fn": 101,
    "noHeader": true
   },

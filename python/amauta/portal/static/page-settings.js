@@ -8,6 +8,8 @@ const SETTING_OPTIONS = [
   ["persona", "set.persona", [["gentleman", "set.gentleman"], ["neutral", "set.neutral"]], "set.persona.help"],
   ["review_mode", "set.review", [["off", "set.off"], ["on", "set.on"]], "set.review.help"],
   ["telemetry", "set.telemetry", [["on", "set.on"], ["off", "set.off"]], "set.telemetry.help"],
+  ["privacy", "set.privacy", [["on", "set.on"], ["off", "set.off"]], "set.privacy.help"],
+  ["checks", "set.checks", [["on", "set.on"], ["off", "set.off"]], "set.checks.help"],
 ];
 const SETTING_MODULES = [
   ["sdd", "set.mod.sdd", "set.mod.sdd.help"],
@@ -39,7 +41,9 @@ function planBlock(res) {
 }
 function settingLabel(key) {
   if (key.startsWith("module:")) return t("set.moduleN", { name: key.slice(7) });
-  return { persona: t("set.persona"), review_mode: t("set.review"), telemetry: t("set.telemetry") }[key] || key;
+  const labels = { persona: "set.persona", review_mode: "set.review", telemetry: "set.telemetry", privacy: "set.privacy",
+    checks: "set.checks" };
+  return labels[key] ? t(labels[key]) : key;
 }
 
 // Settings > Projects: the paths saved in portal.json and the auto-discover switch. Every change is one guarded POST; the server validates the paths.

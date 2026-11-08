@@ -16,7 +16,7 @@ import { loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets
 import { DEFAULT_MODEL_ASSIGNMENTS, engramToolPrefix, renderAgent, resolveAssignment } from './templating.js';
 import {
   AMAUTA_SERVER_NAMES, DEFAULT_PYTHON, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook,
-  isStaleAmautaServer, staleAmautaHooks
+  hookSwitches, isStaleAmautaServer, staleAmautaHooks
 } from './servers.js';
 import { renderSddFiles } from './sdd.js';
 import { archifyCli } from './archify.js';
@@ -152,7 +152,7 @@ async function resolveOptions(opts, manifest, prev, settings, currentServers) {
   return {
     persona,
     assignments: { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) },
-    telemetry: opts.telemetry !== false,
+    telemetry: opts.telemetry !== false, privacy: opts.privacy !== false, checks: opts.checks !== false, // --no-* (plan D14)
     sdd: sticky(opts.withSdd, 'sdd'),
     impeccable: sticky(opts.withImpeccable, 'impeccable'), // optional design skill + pinned npm engine
     archify: sticky(opts.withArchify, 'archify'), // optional diagram skill (pure Node, vendored)
@@ -189,7 +189,7 @@ async function planSettings({ manifest, t, prev, o, settingsIn }) {
   const permissions = mergePermissions(settingsIn.data, prev, overlay);
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
   if (permissions.changed) settings = { ...settings, permissions: permissions.value };
-  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry: o.telemetry, sdd: o.sdd, python: o.python });
+  const wantedHooks = desiredHooks({ ...o, stateDir: t.stateDir }); // the switches resolveOptions chose
   const hooks = planOwnedHooks(settings, wantedHooks); // drops stale amauta commands (e.g. PATH-based ones) first
   const codegraph = planCodegraphHook(settingsIn.data, hooks.doc, prev, o.codegraphOnPath);
   // Hooks we own keep a timeout across upgrades (mergeHooks keeps an older entry as is when its command did not change).
@@ -264,7 +264,7 @@ function claudeState({ t, prev, o, rddMode, rddChanged, managed, links, md, sett
     ...(legacyDenyOf(prev).length > 0 ? { legacy_deny: legacyDenyOf(prev) } : {}),
     mcp_added: mcp.mcpAdded,
     memory_server_key: o.memoryKey,
-    telemetry: o.telemetry,
+    telemetry: o.telemetry, privacy: o.privacy, checks: o.checks,
     sdd: o.sdd,
     impeccable: o.impeccable,
     archify: o.archify,
@@ -493,7 +493,7 @@ export async function status(opts = {}) {
 
   const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
   const commands = (event) => (settings.hooks?.[event] ?? []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  const expectedHooks = desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, sdd: state.sdd === true, python: state.python });
+  const expectedHooks = desiredHooks({ stateDir: t.stateDir, ...hookSwitches(state) });
   for (const [event, entries] of Object.entries(expectedHooks)) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);

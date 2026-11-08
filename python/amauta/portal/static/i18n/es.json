@@ -526,5 +526,9 @@
  "uot.summary.other": "{n} llamadas en los {days} días hasta {last}.",
  "harness.review": "Modo de revisión",
  "table.empty": "No hay nada que mostrar para esta selección.",
- "common.show": "Mostrar"
+ "common.show": "Mostrar",
+ "set.privacy": "Hook de privacidad",
+ "set.privacy.help": "Activado: Claude pregunta antes de leer un archivo de datos (CSV, Excel, Parquet, una base de datos) fuera de las carpetas de pruebas y ejemplos, y usted recibe un aviso cuando un mensaje parece contener un secreto. Desactivado: esos hooks se eliminan.",
+ "set.checks": "Comprobaciones",
+ "set.checks.help": "Activado: después de una edición y antes de terminar, se revisan la sintaxis y los secretos de los archivos cambiados y los errores nuevos vuelven a Claude. Desactivado: esos hooks se eliminan."
 }

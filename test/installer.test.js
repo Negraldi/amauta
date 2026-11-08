@@ -572,3 +572,17 @@ test('status lists the permission rules (ask and deny) and the CLAUDE.md budget 
   assert.ok([...st.permissions.ask, ...st.permissions.deny].every((r) => r.present));
   await t.cleanup();
 });
+
+test('--no-privacy and --no-checks are recorded in state and remove their hooks (plan D14)', async () => {
+  const t = await sandbox();
+  await install(t.opts({ privacy: false, checks: false }));
+  const state = await readJson(path.join(t.stateDir, 'state.json'));
+  assert.equal(state.privacy, false);
+  assert.equal(state.checks, false);
+  const commands = Object.values((await readJson(t.p('settings.json'))).hooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command)));
+  assert.ok(commands.every((c) => !/--with (.*,)?(privacy|checks)\b/.test(c)), commands.join('\n'));
+  const s = await status(t.opts({ privacy: false, checks: false }));
+  assert.ok(s.items.filter((i) => /hook/.test(i.name)).every((i) => i.ok), 'status agrees with the recorded choice');
+  await install(t.opts());
+  assert.equal((await readJson(path.join(t.stateDir, 'state.json'))).privacy, true, 'on again by default');
+});

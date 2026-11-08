@@ -15,7 +15,7 @@ const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;
 
-const CURRENT = { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } };
+const CURRENT = { persona: 'gentleman', review_mode: 'off', telemetry: 'on', privacy: 'on', checks: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } };
 const draftOf = (over = {}) => ({ ...CURRENT, ...over, modules: { ...CURRENT.modules, ...(over.modules || {}) } });
 
 test('settingsChanges and settingsBody describe only what differs, from the closed list', () => {
@@ -184,4 +184,10 @@ test('without an install the page says so, and no DOM node gets raw HTML', async
   const { env } = await boot({ '/api/settings': async () => ({ ...SETTINGS, installed: false }) });
   assert.match(view(env).textContent, /not installed yet/);
   assert.ok(tree(view(env)).every((e) => Object.keys(e.attrs).every((k) => !k.startsWith('on'))));
+});
+
+test('the privacy hook and the checks are switches like telemetry (plan D14)', () => {
+  const d = { ...CURRENT, modules: { ...CURRENT.modules }, privacy: 'off', checks: 'off' };
+  assert.deepEqual(plain(R.settingsChanges(CURRENT, d)).map((c) => [c.key, c.from, c.to]), [['privacy', 'on', 'off'], ['checks', 'on', 'off']]);
+  assert.deepEqual(plain(R.settingsBody(CURRENT, d, false)), { privacy: 'off', checks: 'off' });
 });

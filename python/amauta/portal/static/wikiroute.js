@@ -233,7 +233,8 @@
   }
 
   // Settings editor (pure). `current` and `draft` have the shape of GET /api/settings `current`.
-  const SETTING_LABELS = { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" };
+  const SETTING_LABELS = { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry", privacy: "Privacy hook",
+    checks: "Checks" };
   const MODULE_NAMES = ["sdd", "rea", "context7", "impeccable", "archify"];
   function settingsChanges(current, draft) {
     const out = [];

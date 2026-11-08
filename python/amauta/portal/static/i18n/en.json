@@ -526,5 +526,9 @@
  "uot.summary.other": "{n} calls in the {days} days up to {last}.",
  "harness.review": "Review mode",
  "table.empty": "Nothing to show for this selection.",
- "common.show": "Show"
+ "common.show": "Show",
+ "set.privacy": "Privacy hook",
+ "set.privacy.help": "On: Claude asks before reading a data file (CSV, Excel, Parquet, a database) outside test and example folders, and you get a warning when a prompt seems to hold a secret. Off: those hooks are removed.",
+ "set.checks": "Checks",
+ "set.checks.help": "On: after an edit and before stopping, syntax and secret checks run on the changed files and new errors come back to Claude. Off: those hooks are removed."
 }

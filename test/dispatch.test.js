@@ -89,3 +89,14 @@ test('the privacy handler asks before a data file is read and warns about a secr
     payload: { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: '/w/x.csv' } } });
   assert.equal(broken, null, 'fails open: never a deny');
 });
+
+test('privacy and checks can be switched off at install (plan D14): their hooks go away, the rest stays', () => {
+  const off = desiredHooks({ stateDir: '/s', telemetry: true, sdd: true, privacy: false, checks: false });
+  assert.deepEqual(off.PreToolUse.map((e) => e.matcher), ['Agent'], 'only the SDD preflight');
+  assert.doesNotMatch(off.UserPromptSubmit[0].hooks[0].command, /privacy/);
+  assert.ok(off.PostToolUse.every((e) => !/--with checks/.test(e.hooks[0].command)));
+  assert.match(off.Stop[0].hooks[0].command, /--with review-stop,telemetry,usage$/);
+  const codexOff = desiredCodexHooks({ stateDir: '/s', telemetry: false, privacy: false, checks: false });
+  assert.match(codexOff.UserPromptSubmit[0].hooks[0].command, /--with skill-registry --runtime codex$/);
+  assert.match(codexOff.Stop[0].hooks[0].command, /--with review-stop --runtime codex$/);
+});

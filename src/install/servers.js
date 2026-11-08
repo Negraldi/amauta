@@ -72,12 +72,17 @@ const eventCommand = (event, names, { stateDir, runtime, python }) =>
   [`node ${shellQuote(BIN)} hook event ${event}`, ...(stateDir ? [`--state-dir ${shellQuote(stateDir)}`] : []), `--with ${names.join(',')}`,
     ...(python && python !== DEFAULT_PYTHON ? [`--python ${shellQuote(python)}`] : []), ...(runtime ? [`--runtime ${runtime}`] : [])].join(' ');
 
+/** The hook switches recorded in state.json; privacy and checks are on unless an install said `--no-...` (plan D14). */
+export const hookSwitches = (s) => ({ telemetry: s.telemetry === true, sdd: s.sdd === true, python: s.python, privacy: s.privacy !== false,
+  checks: s.checks !== false });
+
 /** Hook entries registered in settings.json (Claude) or hooks.json (Codex, `runtime: 'codex'`): one per event. */
-export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime, python } = {}) {
+export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime, python, privacy = true, checks = true } = {}) {
   const where = { stateDir, runtime, python };
   const hooks = {};
   for (const p of EVENT_PLAN) {
-    const names = [...p.base, ...(telemetry ? p.telemetry : [])];
+    const off = new Set([...(privacy ? [] : ['privacy']), ...(checks ? [] : ['checks'])]); // plan D14 switches
+    const names = [...p.base.filter((n) => !off.has(n)), ...(telemetry ? p.telemetry : [])];
     if (names.length === 0) continue;
     hooks[p.event] = [{ matcher: '', hooks: [{ type: 'command', command: eventCommand(p.event, names, where), timeout: p.timeout }] }];
   }
@@ -85,11 +90,11 @@ export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime
   // Data files reach the model through Read; Codex reads through its shell, so it gets only the prompt check (plan D4).
   const entry = (matcher, names, timeout, event = 'PreToolUse') =>
     ({ matcher, hooks: [{ type: 'command', command: eventCommand(event, names, where), timeout }] });
-  if (runtime !== 'codex') pre.push(entry(PRIVACY_MATCHER, ['privacy'], 10));
+  if (runtime !== 'codex' && privacy) pre.push(entry(PRIVACY_MATCHER, ['privacy'], 10));
   if (sdd) pre.push(entry('Agent', ['sdd-preflight'], 30));
   if (pre.length) hooks.PreToolUse = pre;
   // The edit check (plan D5): Claude's edit tools only; Codex edits arrive as patches through its shell.
-  if (runtime !== 'codex') hooks.PostToolUse = [...(hooks.PostToolUse ?? []), entry(EDIT_MATCHER, ['checks'], 60, 'PostToolUse')];
+  if (runtime !== 'codex' && checks) hooks.PostToolUse = [...(hooks.PostToolUse ?? []), entry(EDIT_MATCHER, ['checks'], 60, 'PostToolUse')];
   return hooks;
 }
 

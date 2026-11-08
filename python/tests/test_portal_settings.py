@@ -122,10 +122,23 @@ class ReadTest(SettingsBase):
         status, data, _ = http_call(self.port, "GET", "/api/settings")
         self.assertEqual(status, 200)
         self.assertFalse(data["installed"])
-        self.assertEqual(data["current"], {"persona": "gentleman", "review_mode": "off", "telemetry": "on", "modules": {m: "off" for m in ("sdd", "rea", "context7", "impeccable", "archify")}})
+        self.assertEqual(data["current"], {"persona": "gentleman", "review_mode": "off", "telemetry": "on", "privacy": "on", "checks": "on",
+                                           "modules": {m: "off" for m in ("sdd", "rea", "context7", "impeccable", "archify")}})
         self.assertEqual(data["allowed"]["persona"], ["gentleman", "neutral"])
         self.assertEqual(data["allowed"]["modules"], ["sdd", "rea", "context7", "impeccable", "archify"])
         self.assertEqual(data["undo"], {"available": False, "backup": None, "ts": None})
+
+    def test_privacy_and_checks_switches_reach_the_installer(self):
+        """Plan D14: the privacy hook and the checks are settings like telemetry; off becomes --no-privacy / --no-checks."""
+        self.write_state(privacy=False, checks=True)
+        _, data, _ = http_call(self.port, "GET", "/api/settings")
+        self.assertEqual((data["current"]["privacy"], data["current"]["checks"]), ("off", "on"))
+        self.preview({"checks": "off"})
+        argv = self.calls()[-1]["argv"]
+        self.assertIn("--no-privacy", argv)
+        self.assertIn("--no-checks", argv)
+        status, data, _ = self.post("/api/settings/preview", {"checks": "maybe"})
+        self.assertEqual(status, 400)
 
     def test_current_values_come_from_the_state_file(self):
         self.write_state(persona="neutral", rdd_mode="on", telemetry=False, sdd=True, rea=True)

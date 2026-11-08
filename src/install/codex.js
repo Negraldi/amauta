@@ -23,7 +23,7 @@ import {
 } from './skillstore.js';
 import {
   AMAUTA_SERVER_NAMES, DEFAULT_PYTHON, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook,
-  isStaleAmautaServer, staleAmautaHooks
+  hookSwitches, isStaleAmautaServer, staleAmautaHooks
 } from './servers.js';
 import { findOnPath } from '../core/platform.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
@@ -44,8 +44,8 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
 /** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */
-export function desiredCodexHooks({ stateDir, telemetry, python }) {
-  return desiredHooks({ stateDir, telemetry, sdd: false, runtime: 'codex', python });
+export function desiredCodexHooks({ stateDir, telemetry, python, privacy = true, checks = true }) {
+  return desiredHooks({ stateDir, telemetry, sdd: false, runtime: 'codex', python, privacy, checks });
 }
 
 /** The Claude MCP entries for Codex's TOML (no `type`: Codex infers stdio from `command`). Memory is always `engram`. */
@@ -75,7 +75,7 @@ async function resolveCodexOptions(opts, manifest, prev, claudeState) {
   const either = (flag, key) => (flag === false ? false : flag === true || prev?.[key] === true || claudeState?.[key] === true);
   return {
     persona,
-    telemetry: opts.telemetry !== false,
+    telemetry: opts.telemetry !== false, privacy: opts.privacy !== false, checks: opts.checks !== false,
     sdd: sticky(opts.withSdd, 'sdd'),
     rea: sticky(opts.withRea, 'rea'),
     context7: sticky(opts.withContext7, 'context7'),
@@ -174,7 +174,7 @@ function codexState({ t, prev, o, md, managed, links, mcpAdded, mirror, created 
     agents_md_sections: md.ids,
     managed_files: managed.managedFiles,
     skill_links: links.skillLinks,
-    telemetry: o.telemetry,
+    telemetry: o.telemetry, privacy: o.privacy, checks: o.checks,
     sdd: o.sdd,
     impeccable: o.impeccable,
     archify: o.archify,
@@ -219,7 +219,7 @@ async function plan(opts) {
   // hooks.json
   const hooksFile = path.join(t.codexHome, 'hooks.json');
   const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
-  const wantedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry: o.telemetry, python: o.python });
+  const wantedHooks = desiredCodexHooks({ ...o, stateDir: t.stateDir }); // the switches resolveCodexOptions chose
   const hooksPlan = planOwnedHooks(hooksIn.data, wantedHooks);
   legacy.push(...hooksPlan.legacy);
   const hooks = ensureTimeouts(hooksPlan.doc, wantedHooks);
@@ -400,7 +400,7 @@ export async function statusCodex(opts = {}) {
 
   const hooks = (await readJsonObject(path.join(t.codexHome, 'hooks.json'), 'hooks.json')).data;
   const commands = (event) => (Array.isArray(hooks.hooks?.[event]) ? hooks.hooks[event] : []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  const expectedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, python: state.python });
+  const expectedHooks = desiredCodexHooks({ stateDir: t.stateDir, ...hookSwitches(state) });
   for (const [event, entries] of Object.entries(expectedHooks)) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);
