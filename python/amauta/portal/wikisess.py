@@ -81,3 +81,8 @@ def label(portal, session_id, project, model, messages, first_ts):
     n = int(messages or 0)
     middle = info.get("prompt") or f"{model or 'unknown model'}, {n} message{'' if n == 1 else 's'}"
     return SEP.join(p for p in (repo, middle, (first_ts or "")[:10]) if p)
+
+
+def what(n):
+    """The recent-changes line of a session; one message is singular (the client translates both forms)."""
+    return "session, 1 message" if n == 1 else f"session, {n} messages"

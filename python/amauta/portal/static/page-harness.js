@@ -13,7 +13,7 @@ function graphDiagram(repo, node, depth) {
 
 // One block per --repo: stats, searchable node list, neighbors of the selected node. Data only ever becomes text.
 function graphRepo(r) {
-  if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason ? ts(r.reason) : t("graph.notAvailable"))) };
+  if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason ? codeSpans(ts(r.reason)) : t("graph.notAvailable"))) };
   const q = h("input", { type: "search", placeholder: t("graph.searchNodes"), "aria-label": t("graph.searchNodesLabel") });
   const depth = h("select", { "aria-label": t("graph.depth") }, [1, 2, 3].map((d) => h("option", { value: String(d) }, t("graph.depthN", { n: d }))));
   const list = h("div", null);
@@ -33,7 +33,7 @@ function graphRepo(r) {
   const ready = load();
   return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { nodes: fmt(r.nodes), edges: fmt(r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: fmt(r.sql_tables || 0) })),
     h("p", { class: "muted" }, t("graph.semantic", { pending: r.semantic_pending ? t("common.yes") : t("common.no"), last: r.semantic_at ? t("graph.lastRun", { at: R.fmtDateTime(r.semantic_at), model: r.semantic_model || t("graph.unknownModel") }) : t("common.never") })),
-    h("div", { class: "filters" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph"))), list, near) };
+    h("div", { class: "controls" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph"))), list, near) };
 }
 
 // Graph memory is filled per project by graphify; when nothing is mirrored yet, say how, and list the projects that already have a graph.

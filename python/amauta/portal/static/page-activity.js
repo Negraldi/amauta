@@ -39,7 +39,7 @@ async function viewUsage() {
   const linkKind = { skills: "skill", tools: "tool", mcp_servers: "mcp", mcp_tools: "tool" }[state.usageKind];
   const cols = [{ key: "name", label: t("col.name"), render: linkKind ? (v) => link(linkKind, v, v) : undefined }, { key: "count", label: t("col.calls"), num: true }, { key: "sessions", label: t("nav.session"), num: true }, { key: "last_used", label: t("col.lastUsed") }];
   return [
-    h("div", { class: "tabs" }, kinds.map(([k, l]) => h("button", { type: "button", "aria-pressed": state.usageKind === k, onclick: () => { state.usageKind = k; render(); } }, `${l} (${fmt(tl[k].length)})`))),
+    h("div", { class: "segmented", role: "group", "aria-label": t("common.show") }, kinds.map(([k, l]) => h("button", { type: "button", "aria-pressed": String(state.usageKind === k), onclick: () => { state.usageKind = k; render(); } }, `${l} (${fmt(tl[k].length)})`))),
     panel(kinds.find(([k]) => k === state.usageKind)[1], tl[state.usageKind].length ? table("usage-" + state.usageKind, cols, tl[state.usageKind]) : empty(t("usage.nothingRange"))),
   ];
 }

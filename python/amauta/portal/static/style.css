@@ -88,8 +88,12 @@ button:hover:not(:disabled), select:hover { border-color: var(--accent); }
 button:active:not(:disabled) { background: var(--accent-soft); }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 input[type="search"] { min-width: 14rem; }
-.tabs { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s3) 0; }
-.tabs button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+/* A switch between views of one list (memory source, usage kind): one bordered group, not page tabs. */
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; margin: 0 0 var(--s4);
+  border: 1px solid var(--line); border-radius: 8px; }
+.segmented button { border: 0; background: transparent; color: var(--ink-muted); padding: var(--s1) var(--s3); }
+.segmented button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
 .row-link { cursor: pointer; color: var(--accent); background: none; border: 0; padding: 0; text-align: left; }
 .row-link:hover { text-decoration: underline; border: 0; }
 
@@ -114,6 +118,7 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .refs, .items { list-style: none; margin: 0; padding: 0; }
 .refs li, .items li { padding: var(--s1) 0; }
 .items li { border-bottom: 1px solid var(--line); padding: var(--s2) 0; }
+.items li:last-child { border-bottom: 0; } /* the next section's rule closes the list */
 .chip { display: inline-block; margin-left: var(--s2); font-size: 0.8125rem; border: 1px solid var(--line); border-radius: 999px; padding: 0 var(--s2); color: var(--ink-muted); }
 .chip-done { color: var(--ok); }
 .chip-warning { color: var(--warn); }
@@ -220,13 +225,14 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   #view { padding: var(--s4) var(--s4) var(--s6); }
 }
 @media (max-width: 560px) {
+  .diagram svg { max-width: none; min-width: 40rem; } /* readable labels; the box scrolls sideways (plan N12h) */
   .search-trigger { min-width: 0; flex: 1 1 auto; }
   .page-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end; }
   .page-bar label { display: grid; gap: var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }
   .page-bar select { width: 100%; }
   h1 { font-size: 1.5rem; }
   .pal-snip { display: none; }
-  .meta { grid-template-columns: 1fr; }
+  .meta { grid-template-columns: minmax(5rem, 40%) minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }

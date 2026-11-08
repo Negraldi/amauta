@@ -344,7 +344,7 @@ def _recent_sessions(portal, limit):
         rows = conn.execute("SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u WHERE u.ts IS NOT NULL "
                             "GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", (limit,)).fetchall()
         return [{"kind": "session", "id": r["session_id"], "title": wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"]), "ts": _iso(r["last_ts"]),
-                 "what": f"session, {r['n']} messages"} for r in rows]
+                 "what": wikisess.what(r["n"])} for r in rows]
     finally:
         conn.close()
 

@@ -8,7 +8,8 @@
     "test/markers.test.js",
     "test/jsonmerge.test.js",
     "test/toml.test.js",
-    "test/templating.test.js"
+    "test/templating.test.js",
+    "test/portal-windows.test.js"
   ],
   "python": [
     "python.tests.test_oscompat"

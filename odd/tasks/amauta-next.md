@@ -84,7 +84,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] N11 Split `app.js` by page (core `app.js`, nine `page-*.js`, `boot.js` last).
 - [x] N11b i18n: one dictionary file per language (the dictionaries are read synchronously at boot; needs a loading
   change, not a mechanical move).
-- [ ] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut). Design from the impeccable
+- [x] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut). Design from the impeccable
   critique of 2026-11-07 (below), in this order: N12a raw i18n key on Home (P1 bug, TDD); N12b one `pageHead` on every
   page; N12c top bar search-only (theme and language to Settings; range, project, runtime and Refresh usage in the
   Activity header); N12d page map with hash sub-routes for tabs (`#/memory/lint`) and redirects from the old routes;
@@ -175,6 +175,14 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-08: N12g done: no "(s)" plurals (counts go through `tn()` or a "Label: n" form), "RDD mode" reads
   "Review mode" with On/Off, the `flag` origin reads "--repo option", an empty table says "Nothing to show for this
   selection" instead of a bare header, prose is capped at 72ch. RED seen.
+- 2026-11-08: N12h done. Polish pass (impeccable `polish` checklist, before/after screenshots of 8 routes at 1440 and
+  390 px in light and dark, no console errors, no overflow): the memory-source and usage-kind switches become one
+  segmented control with a working pressed state (`aria-pressed` was `""`, so it never showed); the search rows got
+  their spacing back (`.controls`, lost in N12c); server notes show `code` spans instead of raw backticks; "1 messages"
+  in the recent feed; Settings shows "now Gentleman" like its select; the health list stays two columns on a phone;
+  no double rule under each day; the Harness diagram scrolls sideways on a phone instead of shrinking. Windows
+  launcher: Edge, then Chrome from their install folders, else explorer; `install-launcher` writes a Start menu
+  shortcut through PowerShell with every path passed as an environment variable. RED seen for each.
 
 ## Acceptance criteria
 
@@ -234,4 +242,4 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-N12h (polish pass with before/after screenshots; Windows launcher), then N13.
+N13 (README <= 200 lines, phase 1 audit, v0.5.0); N9b stays open (macOS).

@@ -16,7 +16,8 @@ const SETTING_MODULES = [
   ["impeccable", "set.mod.impeccable", "set.mod.impeccable.help"],
   ["archify", "set.mod.archify", "set.mod.archify.help"],
 ];
-const valueLabel = (v) => (v === "on" ? t("common.on") : v === "off" ? t("common.off") : v);
+const PERSONA_LABELS = Object.fromEntries(SETTING_OPTIONS[0][2]); // "now Gentleman" matches the select (plan N12h)
+const valueLabel = (v) => (v === "on" ? t("common.on") : v === "off" ? t("common.off") : PERSONA_LABELS[v] ? t(PERSONA_LABELS[v]) : v);
 const setDisabled = (el, on) => { if (on) el.setAttribute("disabled", ""); else el.removeAttribute("disabled"); };
 
 async function postJson(path, body) {

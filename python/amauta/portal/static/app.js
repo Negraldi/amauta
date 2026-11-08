@@ -122,6 +122,8 @@ const runtimeBadge = (v) => h("span", { class: `badge rt-${v === "codex" ? "code
 function card(label, value, extra) { return h("div", { class: "card" }, h("div", { class: "v" }, value), h("div", { class: "l" }, label), extra); }
 function panel(title, ...kids) { return h("section", { class: "panel" }, title ? h("h2", null, title) : null, ...kids); }
 function empty(text) { return h("p", { class: "muted" }, text); }
+// Server notes mark commands with `backticks`: show those parts as code, as text nodes like everything else (plan N12h).
+const codeSpans = (text) => String(text).split("`").map((part, i) => (i % 2 ? h("code", null, part) : part));
 
 // Sortable table: columns = [{key, label, num, render}], rows = array of objects.
 function table(id, columns, rows, onRow) {

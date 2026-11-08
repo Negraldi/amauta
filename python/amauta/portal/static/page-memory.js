@@ -19,8 +19,8 @@ async function viewMemories() {
   await load();
   const files = await api("memory-files");
   return [
-    h("div", { class: "tabs" }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(([k, l]) => h("button", { type: "button", "aria-pressed": state.memSource === k, onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
-    panel(t("mem.searchPanel"), h("div", { class: "filters" }, q, type, h("button", { type: "button", onclick: load }, t("common.search"))), mine),
+    h("div", { class: "segmented", role: "group", "aria-label": t("common.show") }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String(state.memSource === k), onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
+    panel(t("mem.searchPanel"), h("div", { class: "controls" }, q, type, h("button", { type: "button", onclick: load }, t("common.search"))), mine),
     panel(t("mem.files", { n: fmt(files.items.length) }), files.items.length ? table("mfiles", [{ key: "name", label: t("col.file"), href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: t("kind.project") }, { key: "size", label: t("col.bytes"), num: true }, { key: "mtime", label: t("col.modified") }], files.items) : empty(t("mem.noFiles"))),
     await graphifyPanel(),
   ];

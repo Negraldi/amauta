@@ -84,7 +84,7 @@ test('the page lists every option of the closed list with its current value and 
 test('changing an option marks it with words and a symbol (not color alone) and enables the preview', async () => {
   const { env } = await boot();
   choose(env, 'set-persona', 'neutral');
-  assert.match(view(env).textContent, /◆ changed, was gentleman/);
+  assert.match(view(env).textContent, /◆ changed, was Gentleman/);
   assert.equal(button(env, 'Preview changes').attrs.disabled, undefined);
   choose(env, 'set-persona', 'gentleman');
   assert.doesNotMatch(view(env).textContent, /changed, was/);
@@ -103,7 +103,7 @@ test('Preview changes posts only the changed keys with the token and a JSON cont
   assert.equal(posts[0].headers['Content-Type'], 'application/json');
   assert.deepEqual(posts[0].body, { persona: 'neutral', modules: { sdd: 'on' } });
   const v = view(env);
-  assert.match(v.textContent, /Persona: gentleman → neutral/);
+  assert.match(v.textContent, /Persona: Gentleman → Neutral/);
   assert.match(v.textContent, /Module sdd: off → on/);
   assert.match(v.textContent, /Files written: 3\. Removed: 1\. Kept because you edited them: 1\./);
   assert.match(v.textContent, /settings\.json/);
@@ -140,7 +140,7 @@ test('Undo previews what reverting changes, asks for confirmation, then posts th
   assert.equal(posts.filter((p) => p.path === 'undo-preview').length, 1);
   assert.deepEqual(posts.find((p) => p.path === 'undo-preview').body, {});
   assert.equal(posts.filter((p) => p.path === 'undo').length, 0, 'a preview alone changes nothing');
-  assert.match(view(env).textContent, /Persona: neutral → gentleman/);
+  assert.match(view(env).textContent, /Persona: Neutral → Gentleman/);
   assert.match(view(env).textContent, /re-runs the installer/);
   button(env, 'Revert these changes').click(); await tick();
   assert.equal(posts.filter((p) => p.path === 'undo').length, 0, 'the first click only asks');

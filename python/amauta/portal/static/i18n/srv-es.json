@@ -238,5 +238,6 @@
  "the request queue is a link or not a regular file": "la cola de solicitudes es un enlace o no es un archivo normal",
  "could not write the request": "no se pudo escribir la solicitud",
  "the wiki directory is not a plain directory": "el directorio del wiki no es un directorio normal",
- "could not create the wiki directory": "no se pudo crear el directorio del wiki"
+ "could not create the wiki directory": "no se pudo crear el directorio del wiki",
+ "session, 1 message": "sesión, 1 mensaje"
 }

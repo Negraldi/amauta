@@ -168,7 +168,7 @@ async function viewSkillCatalog() {
   box.addEventListener("input", paint);
   paint();
   return [h("h1", null, t("nav.skill")), h("p", { class: "muted" }, t("skills.intro", { n: fmt(cat.total) })),
-    h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("skills.where"))])];
+    h("div", { class: "controls" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("skills.where"))])];
 }
 
 // A curated component carries its own Spanish text in `i18n.es`; every other text is the server's English (or the user's own words) run through ts().
@@ -245,7 +245,7 @@ async function viewComponents() {
   box.addEventListener("input", paint);
   paint();
   return [h("h1", null, t("nav.component")), h("p", { class: "muted" }, t("components.intro", { n: fmt(cat.total) })),
-    ...(cat.refresh && cat.refresh.servers ? [refreshControl(null)] : []), h("div", { class: "filters" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("components.where"))])];
+    ...(cat.refresh && cat.refresh.servers ? [refreshControl(null)] : []), h("div", { class: "controls" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("components.where"))])];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.

@@ -326,9 +326,11 @@ iframe from its own route (`/archify/<hash>.html`) under a separate CSP. Without
 `amauta portal launch` picks a free port on 127.0.0.1, starts the portal detached (log in `<state>/portal/portal.log`, run file
 `<state>/portal/run.json`) and opens Google Chrome/Chromium (`AMAUTA_BROWSER` overrides) as an `--app=` window with its own profile
 (`<state>/portal/browser-profile`). When the window closes the server gets SIGTERM (SIGKILL after 5 s) unless another launcher is still
-attached; a second launch reuses the running server; without a Chromium-family browser it falls back to `xdg-open`. The page sends a
+attached; a second launch reuses the running server; without a Chromium-family browser it falls back to `xdg-open`. On Windows
+it opens Edge or Chrome from their install folders, else `explorer.exe`. The page sends a
 heartbeat every 10 s and a launched server (`--idle-exit`, default 30 s) exits once the heartbeats stop. `install-launcher` writes
-`~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) with `Terminal=false`.
+`~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) with `Terminal=false`;
+on Windows it writes the Start menu shortcut `amauta.lnk` through PowerShell.
 
 ### Security
 

@@ -525,5 +525,6 @@
  "uot.summary.one": "1 call in the {days} days up to {last}.",
  "uot.summary.other": "{n} calls in the {days} days up to {last}.",
  "harness.review": "Review mode",
- "table.empty": "Nothing to show for this selection."
+ "table.empty": "Nothing to show for this selection.",
+ "common.show": "Show"
 }
