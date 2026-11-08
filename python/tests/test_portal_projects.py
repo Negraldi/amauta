@@ -69,6 +69,7 @@ class OutsideHomeTest(ProjectBase):
         super().setUp()
         self.fake_home = self.root / "home"
         self.fake_home.mkdir()
+        self.fake_home = self.fake_home.resolve()  # like home_dir(); macOS: /var is /private/var
         self.data = self.root / "mnt" / "datos"
         self.data.mkdir(parents=True)
         # The temp tree lives under /tmp, itself a system tree, so the tests use a narrower list for the "elsewhere" case.
