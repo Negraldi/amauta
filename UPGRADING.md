@@ -1,5 +1,18 @@
 # Upgrading
 
+## From 0.5.0 to 0.6.0
+
+```bash
+amauta upgrade --to v0.6.0
+```
+
+- New hooks: the privacy hook (UserPromptSubmit; PreToolUse on Read in Claude Code) and the checks (PostToolUse on
+  edits in Claude Code; Stop in both runtimes). Codex asks you to trust the changed hook commands once.
+- Turn them off with `amauta install --no-privacy` or `--no-checks`, or in the portal's Settings.
+- Code-executing checkers (tsc, eslint, mypy, cargo) run only in projects you trust: `amauta check trust`.
+- Memories saved from now on are guarded: secrets are refused and identifiers redacted. Existing memories are unchanged.
+- Rollback: `amauta upgrade --to v0.5.0`.
+
 ## From 0.4.0 to 0.5.0
 
 ```bash

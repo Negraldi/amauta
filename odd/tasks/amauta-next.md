@@ -123,7 +123,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D12 Profiles: `default` profile shipped; private org profile under `<state dir>/profiles/<name>/` extending it;
   project selection; precedence project > org > default; roles only in `people/`; privacy guard on profiles.
 - [x] D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft.
-- [ ] D14 Portal Security page (counts only), settings toggles, profile shown per project; phase 2 audit; v0.6.0.
+- [x] D14 Portal Security page (counts only), settings toggles, profile shown per project; phase 2 audit; v0.6.0.
 
 ### Phase 3, sibling projects
 
@@ -324,6 +324,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   anything; the old profile kept as a backup). A smoke run on the real archive, in a scratch state directory removed
   afterwards, produced a draft with its contact details flagged. RED seen.
 
+- 2026-11-08: D14 done: portal Security page (counts and names only), privacy and checks switches (`--no-privacy`,
+  `--no-checks`, Settings), each project's profile on the Projects page; phase 2 audit in
+  `docs/audits/2026-11-08-phase-2.md`; version 0.6.0. RED seen for each part.
+
 ## Next step
 
-Phase 2c: D14 portal Security page (counts only), settings toggles, profile per project; phase 2 audit; v0.6.0. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 3 S1: review the orchestrator archive first, then redesign S1 (the orchestrator runs processes and shows their output). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

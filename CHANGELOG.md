@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-08
+
+### Added
+
+- Data security: a detector catalog (Ecuadorian cedula and RUC, cards, IBAN, e-mail, phones, secrets); the memory
+  guard (secrets refused, identifiers redacted, always on); the privacy hook (asks before a data file is read, warns
+  about a secret in a prompt, never denies); `amauta privacy scan|redact|pseudonymize`.
+- Code security: the checks engine; after an edit and at Stop, syntax and secret checks on changed files report only
+  new errors as `file:line:col: error: message [checker]`; `amauta check trust` allows tsc, eslint, mypy and cargo in
+  one project; gitleaks, bandit and semgrep run when installed; an ODD task cannot be checked off while checks fail.
+- Skills: `data` (five references), `powerbi-report` with PBIR tools (`amauta py amauta.extras.pbir lint|diff|dictionary|layout|rename`),
+  `executive-editorial`, `institutional-presentation`.
+- Agents: `chasqui` (communicator), `taripaq` (analytical lens), `haravec` (communication lens); `amauta review pack`
+  and `amauta review numbers`.
+- Profiles: `amauta profile list|new|use|show|check|import|harvest|accept`, a neutral default shipped, organization
+  profiles kept in the state directory.
+- Portal: a Security page; privacy and checks switches in Settings; each project's profile.
+
+### Changed
+
+- `install` registers the privacy hook and the checks (`--no-privacy`, `--no-checks` turn them off).
+- The orchestrator block runs the lenses for analysis and deliverables even when code review is off.
+
 ## [0.5.0] - 2026-11-08
 
 ### Added
