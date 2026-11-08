@@ -68,7 +68,7 @@ async function viewHarness() {
   const out = [];
   if (!hs.installed) out.push(panel(t("nav.harnessPage"), empty(t("harness.notInstalled"))));
   else {
-    out.push(h("div", { class: "grid" }, card(t("harness.version"), hs.version || "-"), card(t("harness.rdd"), hs.rdd_mode || "-"), card(t("harness.telemetry"), hs.telemetry ? t("common.on") : t("common.off")), card(t("harness.managed"), fmt(hs.managed_files)), card(t("harness.persona"), hs.persona || "-")),
+    out.push(h("div", { class: "grid" }, card(t("harness.version"), hs.version || "-"), card(t("harness.review"), hs.rdd_mode === "on" ? t("common.on") : hs.rdd_mode === "off" ? t("common.off") : "-"), card(t("harness.telemetry"), hs.telemetry ? t("common.on") : t("common.off")), card(t("harness.managed"), fmt(hs.managed_files)), card(t("harness.persona"), hs.persona || "-")),
       archifyBlock(arch),
       ...(comps ? [panel(t("harness.wiki"), h("p", null, t("harness.wikiIntro", { n: fmt(comps.total) }) + " ", link("component", "", t("harness.openComponents")), "."),
         comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null)] : []),

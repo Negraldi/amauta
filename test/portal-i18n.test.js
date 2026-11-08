@@ -293,6 +293,19 @@ test('every text in index.html belongs to an element whose id app.js fills from 
 });
 
 // ---- markdown.js shows two fixed texts; the page passes them translated ------------------------------------------------
+test('copy pass (plan N12g): no "(s)" plurals, no jargon, counts through tn()', () => {
+  for (const [name, d] of [['en', EN], ['es', ES]]) {
+    const bad = Object.entries(d).filter(([, v]) => /\((?:s|es)\)/.test(v)).map(([k]) => k);
+    assert.deepEqual(bad, [], `${name}: texts that write plurals as (s)`);
+  }
+  assert.doesNotMatch(EN['harness.review'], /RDD/);
+  assert.notEqual(EN['origin.flag'], 'flag');
+  for (const k of ['project.count', 'project.countAuto', 'set.keptEdited', 'uot.bar', 'uot.summary']) {
+    assert.ok(`${k}.one` in EN && `${k}.other` in EN, `${k} has one/other forms`);
+    assert.ok(app.includes(`"${k}"`) && !app.includes(`t("${k}"`), `${k} is used through tn()`);
+  }
+});
+
 test('the top bar holds only the menu toggle and search; filters sit in a page bar, theme and language in the sidebar (plan N12c)', () => {
   const topbar = /<header class="topbar">([\s\S]*?)<\/header>/.exec(html)[1];
   assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]), ['nav-toggle', 'search-open', 'search-text']);

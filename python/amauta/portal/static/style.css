@@ -118,6 +118,7 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .chip-done { color: var(--ok); }
 .chip-warning { color: var(--warn); }
 .teach { max-width: 68ch; }
+#view p { max-width: 72ch; } /* reading width for prose (plan N12g) */
 .teach p { color: var(--ink-muted); }
 
 /* ---- revision diff (marks, not color alone) ---- */

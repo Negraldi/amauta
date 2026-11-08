@@ -105,7 +105,7 @@ test('Preview changes posts only the changed keys with the token and a JSON cont
   const v = view(env);
   assert.match(v.textContent, /Persona: gentleman → neutral/);
   assert.match(v.textContent, /Module sdd: off → on/);
-  assert.match(v.textContent, /3 file\(s\) written, 1 removed, 1 kept because you edited them/);
+  assert.match(v.textContent, /Files written: 3\. Removed: 1\. Kept because you edited them: 1\./);
   assert.match(v.textContent, /settings\.json/);
   assert.ok(tree(v).some((e) => e.textContent === XSS), 'a hostile file name is text');
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);

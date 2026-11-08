@@ -191,5 +191,5 @@ test('the search palette and refresh status speak the chosen language', async ()
   assert.match($(env, 'palette-results').textContent, /Sin resultados para "zzz"/);
   $(env, 'refresh').click();
   await tick();
-  assert.match($(env, 'status').textContent, /Listo: 15\.000 mensaje\(s\) nuevos de 3 archivo\(s\)\./);
+  assert.match($(env, 'status').textContent, /Listo\. Mensajes nuevos: 15\.000\. Archivos leídos: 3\./);
 });

@@ -86,6 +86,17 @@ test('Activity opens with one summary sentence, then the chart; no stat tiles; d
   assert.ok(tree(view).every((e) => Object.keys(e.attrs).every((k) => !k.startsWith('on'))));
 });
 
+test('an empty table says so instead of showing a bare header; prose keeps a 72ch reading width (plan N12g)', async () => {
+  const saved = routes['/api/overview'];
+  routes['/api/overview'] = { ...usage, models: [] };
+  try {
+    const env = await boot('#/usage');
+    assert.match(env.document.getElementById('view').textContent, /Nothing to show for this selection/);
+  } finally { routes['/api/overview'] = saved; }
+  const css = await read('style.css');
+  assert.match(css, /#view p \{[^}]*max-width: 72ch/);
+});
+
 for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
   test(`view ${hash} escapes hostile data`, async () => {
     const env = await boot(hash);
@@ -112,7 +123,7 @@ test('refresh button POSTs with the page token and nothing else sensitive', asyn
   const post = env.calls.find((c) => c.url === '/api/refresh');
   assert.equal(post.opts.method, 'POST');
   assert.equal(post.opts.headers['X-Portal-Token'], 'TOKEN-123');
-  assert.match(env.document.getElementById('status').textContent, /2 new message/);
+  assert.match(env.document.getElementById('status').textContent, /New messages: 2\./);
 });
 
 test('API failures render an error panel instead of throwing', async () => {

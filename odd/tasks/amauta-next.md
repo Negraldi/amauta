@@ -172,6 +172,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-08: N11b done (needed by N12f: i18n.js had no room left under the ratchet): the dictionaries are data in
   `static/i18n/{en,es,srv-es}.json`, served from the static whitelist; `i18n.js` keeps the code (95 lines) and
   `load()` runs before the first render. Tests install the same files (`readDicts`). RED seen (server test).
+- 2026-11-08: N12g done: no "(s)" plurals (counts go through `tn()` or a "Label: n" form), "RDD mode" reads
+  "Review mode" with On/Off, the `flag` origin reads "--repo option", an empty table says "Nothing to show for this
+  selection" instead of a bare header, prose is capped at 72ch. RED seen.
 
 ## Acceptance criteria
 
@@ -231,4 +234,4 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-N12g (copy pass), then N12h, N13.
+N12h (polish pass with before/after screenshots; Windows launcher), then N13.

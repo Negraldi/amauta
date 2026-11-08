@@ -162,7 +162,7 @@ async function viewSettings() {
     if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); runUndoPreview(); });
     out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, t("set.applied")),
       h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })), d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")),
-      d.skipped.length ? h("p", { class: "muted" }, t("set.keptEdited", { n: fmt(d.skipped.length) })) : null,
+      d.skipped.length ? h("p", { class: "muted" }, tn("set.keptEdited", d.skipped.length, { n: fmt(d.skipped.length) })) : null,
       d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, "▲ " + t("set.engineFailed", { detail: d.impeccable.detail || t("set.npmFailed") })) : null,
       h("div", { class: "actions" }, undo)));
     await reload();

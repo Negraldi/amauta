@@ -8,7 +8,7 @@ function projectOdd(o) {
 async function viewProjects() {
   const d = await api("projects");
   if (!d.projects.length) return [teach(t("nav.project"), t("project.noneKnown"), h("span", null, link("settings", "", t("project.openSettings"))))];
-  return [h("h1", null, t("nav.project")), h("p", { class: "muted" }, t(d.auto_discover ? "project.countAuto" : "project.count", { n: fmt(d.projects.length) }) + " ", t("project.manage"), " ", link("settings", "", t("nav.settings")), "."),
+  return [h("h1", null, t("nav.project")), h("p", { class: "muted" }, tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) }) + " ", t("project.manage"), " ", link("settings", "", t("nav.settings")), "."),
     h("ul", { class: "items" }, d.projects.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${p.origin.map(originLabel).join(", ")}`),
       h("div", null, projectOdd(p.odd)),
       h("div", { class: "muted" }, t("project.summary", { sessions: fmt(p.sessions), memories: fmt(p.memories), graph: p.graph.mirrored ? t("project.graphMirrored", { at: R.fmtDate(p.graph.synced_at) }) : t("project.graphNot") })),
