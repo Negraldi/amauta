@@ -12,11 +12,8 @@ STATIC = Path(__file__).resolve().parents[1] / "amauta" / "portal" / "static"
 
 
 def catalog():
-    """The keys of the `srv` dictionary in i18n.js: the exact English text the server sends (with {x} for variable parts)."""
-    text = (STATIC / "i18n.js").read_text()
-    body = text[text.index("const srv = {"):]
-    body = body[:body.index("\n  };")]
-    return {json.loads(m.group(1)) for m in re.finditer(r'^\s*("(?:[^"\\]|\\.)*"):', body, re.M)}
+    """The keys of the server catalog i18n/srv-es.json: the exact English text the server sends (with {x} for variable parts)."""
+    return set(json.loads((STATIC / "i18n" / "srv-es.json").read_text(encoding="utf-8")))
 
 
 NUMERIC = {"n", "m", "done", "total", "days", "nodes", "edges"}
@@ -44,6 +41,15 @@ class ServedTest(ServerBase):
         index = self.request("GET", "/")[2].decode()
         self.assertLess(index.index("/static/i18n.js"), index.index("/static/app.js"))
 
+    def test_the_dictionaries_are_served_as_json_and_nothing_else_under_i18n(self):
+        for name in ("en", "es", "srv-es"):
+            status, h, body = self.request("GET", f"/static/i18n/{name}.json")
+            self.assertEqual(status, 200, name)
+            self.assertIn("application/json", h["content-type"])
+            self.assertIsInstance(json.loads(body), dict)
+        self.assertEqual(self.request("GET", "/static/i18n/../i18n.js")[0], 404)
+        self.assertEqual(self.request("GET", "/static/i18n/fr.json")[0], 404)
+
 
 class CatalogCoversServerTextTest(unittest.TestCase):
     """The client translates the English chrome text the server sends; these fixed strings must have an entry."""
@@ -52,7 +58,7 @@ class CatalogCoversServerTextTest(unittest.TestCase):
         keys = catalog()
         fixed = [wikimem.NOTE, wikiusage.BUILTIN_NOTE, skillimpact.NOTE, projects.GRAPH_HOWTO, *skillimpact.SECTIONS.values(), *[label for _, label in wikiskills.SOURCES]]
         missing = [s for s in fixed if s not in keys]
-        self.assertEqual(missing, [], "server strings without a Spanish entry in i18n.js")
+        self.assertEqual(missing, [], "server strings without a Spanish entry in i18n/srv-es.json")
 
     def test_the_skill_source_labels(self):
         keys = catalog()

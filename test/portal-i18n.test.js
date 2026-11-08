@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
-import { STATIC, readApp } from './helpers/portalboot.js';
+import { STATIC, readApp, readDicts } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const ctx = {};
 vm.runInNewContext(await read('i18n.js'), ctx);
 const I = ctx.AmautaI18n;
+I.install(await readDicts());
 const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;

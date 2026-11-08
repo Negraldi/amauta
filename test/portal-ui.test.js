@@ -70,13 +70,15 @@ test('every UI script is valid JavaScript', async () => {
   }
 });
 
-test('overview (now under #/usage) renders KPIs, chart and the dropped counter; data strings only become text', async () => {
+test('Activity opens with one summary sentence, then the chart; no stat tiles; data strings only become text (plan N12f)', async () => {
   const env = await boot('#/usage');
   const view = env.document.getElementById('view');
   const text = view.textContent;
-  assert.match(text, /Cache hit ratio/);
-  assert.match(text, /50\.0%/);
-  assert.match(text, /7 dropped/);
+  const lead = tree(view).find((e) => e.tagName === 'p' && e.className === 'lead');
+  assert.ok(lead, 'a summary sentence');
+  assert.equal(lead.textContent, 'In this range: 3 messages in 2 sessions, 160 input and 85 output tokens; the cache served 50.0% of the input.');
+  assert.match(text, /4 telemetry events, 7 dropped/);
+  assert.ok(!tree(view).some((e) => e.className === 'grid' || e.className === 'card'), 'no stat tiles');
   assert.ok(tree(view).some((e) => e.tagName === 'svg'));
   assert.ok(tree(view).some((e) => e.tagName === 'rect'));
   assert.ok(text.includes(XSS), 'model name is shown as text');

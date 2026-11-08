@@ -82,7 +82,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 - [x] N10 `extras/` with a route registry: skill impact, theme editor, wikiexplain, graphify semantic + PPTX.
 - [x] N11 Split `app.js` by page (core `app.js`, nine `page-*.js`, `boot.js` last).
-- [ ] N11b i18n: one dictionary file per language (the dictionaries are read synchronously at boot; needs a loading
+- [x] N11b i18n: one dictionary file per language (the dictionaries are read synchronously at boot; needs a loading
   change, not a mechanical move).
 - [ ] N12 6+1 page map with redirects; Windows launcher (Edge/Chrome, Start menu shortcut). Design from the impeccable
   critique of 2026-11-07 (below), in this order: N12a raw i18n key on Home (P1 bug, TDD); N12b one `pageHead` on every
@@ -167,6 +167,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   tabs (also over an error panel). Routes keep their own hashes instead of nesting (`#/memory/lint` would collide with
   a memory whose topic key is `lint`); `#/activity[/sessions|tools|mcp]` is the one new address. UPGRADING notes.
   RED seen (sidebar, tabs and route tests).
+- 2026-11-08: N12f done: Activity opens with one sentence (messages, sessions, input and output tokens, cache share)
+  and a telemetry line; no stat tiles; the daily charts and the sortable tables follow. RED seen.
+- 2026-11-08: N11b done (needed by N12f: i18n.js had no room left under the ratchet): the dictionaries are data in
+  `static/i18n/{en,es,srv-es}.json`, served from the static whitelist; `i18n.js` keeps the code (95 lines) and
+  `load()` runs before the first render. Tests install the same files (`readDicts`). RED seen (server test).
 
 ## Acceptance criteria
 
@@ -226,4 +231,4 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-N12f (Activity opens with a sentence, the daily chart and the table), then N12g, N12h.
+N12g (copy pass), then N12h, N13.

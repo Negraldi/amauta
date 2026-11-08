@@ -22,7 +22,8 @@ JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
 STATIC_FILES = {"app.js": JS, "page-activity.js": JS, "page-memory.js": JS, "page-harness.js": JS, "page-wiki.js": JS, "page-projects.js": JS, "page-settings.js": JS, "page-themes.js": JS, "page-home.js": JS, "boot.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
                 "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
-                "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
+                "fonts/source-serif-4-latin-600-normal.woff2": WOFF2,
+                **{f"i18n/{name}.json": "application/json; charset=utf-8" for name in ("en", "es", "srv-es")}}  # dictionaries (plan N11b)
 MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
 PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB

@@ -2,16 +2,21 @@
 // Activity pages: token usage overview, usage tables and sessions (#/usage, #/session).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
+// Activity opens with one sentence instead of a row of stat tiles (impeccable critique, plan N12f).
+function usageSentence(tot, hit) {
+  const p = { messages: tn("usage.messagesN", tot.messages, { n: fmt(tot.messages) }), sessions: tn("usage.sessionsN", tot.sessions, { n: fmt(tot.sessions) }),
+    input: short(tot.input), output: short(tot.output), hit: pct(hit) };
+  return t(hit == null ? "usage.summaryNoCache" : "usage.summary", p);
+}
+
 async function viewOverview() {
   const [o, c] = await Promise.all([api("overview", filters()), api("costs", filters())]);
   if (!o.available) return [panel(t("nav.usage"), empty(t("usage.nodata.refresh")))];
   const tot = o.totals;
   const out = [
-    h("div", { class: "grid" },
-      card(t("usage.inputTokens"), short(tot.input)), card(t("usage.outputTokens"), short(tot.output)), card(t("tok.cache_read"), short(tot.cache_read)), card(t("tok.cache_write"), short(tot.cache_write)),
-      card(t("usage.cacheHit"), pct(o.cache_hit_ratio), h("div", { class: "l" }, t("usage.cacheHitHelp"))),
-      card(t("col.messages"), fmt(tot.messages)), card(t("nav.session"), fmt(tot.sessions)),
-      card(t("usage.events"), fmt(o.events), o.dropped_events ? h("div", { class: "l warn" }, t("usage.dropped", { n: fmt(o.dropped_events) })) : h("div", { class: "l" }, t("usage.droppedNone")))),
+    h("p", { class: "lead" }, usageSentence(tot, o.cache_hit_ratio)),
+    h("p", { class: o.dropped_events ? "muted warn" : "muted" }, tn("usage.eventsLine", o.events, { n: fmt(o.events),
+      dropped: o.dropped_events ? t("usage.dropped", { n: fmt(o.dropped_events) }) : t("usage.droppedNone") })),
     panel(t("usage.tokensPerDay"), stackedChart(o.daily)),
     panel(t("usage.sessionsPerDay"), o.daily.length ? table("sessday", [{ key: "day", label: t("col.day") }, { key: "sessions", label: t("nav.session"), num: true }, { key: "messages", label: t("col.messages"), num: true }], o.daily) : empty(t("usage.noSessionsRange"))),
     panel(t("usage.modelSplit"), modelBars(o.models)),

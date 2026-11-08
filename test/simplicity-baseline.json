@@ -84,8 +84,7 @@
    "long": 3
   },
   "python/amauta/portal/static/i18n.js": {
-   "lines": 1452,
-   "long": 110
+   "long": 9
   },
   "python/amauta/portal/static/index.html": {
    "long": 7,
@@ -96,7 +95,7 @@
    "fn": 67
   },
   "python/amauta/portal/static/page-activity.js": {
-   "long": 14
+   "long": 13
   },
   "python/amauta/portal/static/page-harness.js": {
    "long": 16

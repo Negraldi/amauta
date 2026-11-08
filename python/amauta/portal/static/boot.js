@@ -38,12 +38,15 @@ $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value))
 $("lang-picker").addEventListener("change", (e) => setLanguage(e.target.value));
 window.addEventListener("hashchange", () => { state.route = R.parseHash(location.hash); render(); });
 state.route = R.parseHash(location.hash);
-applyLanguage(I.loadLang(I.storage()) || I.detect(I.browserLanguage())); // a stored choice wins over the browser language
-applyTheme();
-paintPicker();
-if (state.route.kind !== "themes") loadThemes(); // the editor page loads them itself
-loadRecent();
-loadProjects().then(render);
+// The dictionaries load first (plan N11b); a failed load still starts the page, in English keys at worst.
+I.load(fetch).catch(() => {}).then(() => {
+  applyLanguage(I.loadLang(I.storage()) || I.detect(I.browserLanguage())); // a stored choice wins over the browser language
+  applyTheme();
+  paintPicker();
+  if (state.route.kind !== "themes") loadThemes(); // the editor page loads them itself
+  loadRecent();
+  loadProjects().then(render);
+});
 // Liveness signal: lets a launcher-started server exit once the window is gone. Failures are silent on purpose.
 function heartbeat() { fetch("/api/heartbeat", { method: "POST", headers: { "X-Portal-Token": token } }).catch(() => {}); }
 heartbeat();
