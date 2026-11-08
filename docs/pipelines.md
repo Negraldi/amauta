@@ -103,7 +103,8 @@ amauta pipeline schedule-hint <id> [--at HH:MM] [--day mon] [--os windows|linux|
 ```
 
 One run of a pipeline at a time, whoever starts it: the portal, the terminal or the OS scheduler take the same lock
-(`<id>.lock` beside the runs), and a lock whose process is gone no longer counts. A run whose runner stopped without
+(`<id>.lock` beside the runs), and a lock whose process is gone no longer counts; the lock also records when that
+process started, so a process id the system reused for another program does not keep it. A run whose runner stopped without
 ending it reads as abandoned. SIGTERM or Ctrl+C on the runner cancels the run and still writes its end.
 
 A step owns its processes. On a timeout or cancel its whole process tree is stopped; on Linux and macOS whatever it
@@ -195,5 +196,3 @@ The newest 50 runs of each pipeline are kept; older events files are removed whe
 - On Windows, a child process that outlives its step can hold the step's output open (see above).
 - If the runner itself is killed outright (SIGKILL, a crash), the step running at that moment keeps running on its
   own; the run reads as abandoned and the next run may overlap with it. Stop a run with Cancel, Ctrl+C or SIGTERM.
-- A lock whose runner died is stale only once that process id is gone: if the system gives the id to another live
-  process, the pipeline stays "running" until that process ends.

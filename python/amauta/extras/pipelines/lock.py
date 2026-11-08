@@ -5,8 +5,8 @@ Whoever starts a run takes the lock atomically (O_CREAT | O_EXCL): the portal be
 and removes it when the run ends. A lock whose process is gone, or a `starting` lock never adopted within a minute, is
 stale and may be taken again; so is a lock nobody can read after a few seconds (a fresh one is being written).
 Replacing a stale lock happens under `<lock>.guard` (an OS file lock), so of many takers exactly one wins; adopting
-writes a new file and renames it over the lock, so a reader never sees it empty. A pid reused by another live process
-keeps a stale lock held until that process ends (documented limit).
+writes a new file and renames it over the lock, so a reader never sees it empty. The lock records when its process
+started (pidinfo.py): a pid given to another process later does not keep it held.
 """
 
 import json
@@ -15,36 +15,13 @@ import sys
 import time
 from pathlib import Path
 
+from . import pidinfo
+
 ADOPT_WITHIN = 60  # seconds a runner has to adopt the lock the portal took for it
 
 
 class Busy(RuntimeError):
     """The pipeline is already running."""
-
-
-def alive(pid):
-    """Whether a process with this pid exists (never signals it: on Windows os.kill would terminate it)."""
-    if not isinstance(pid, int) or pid <= 0:
-        return False
-    if sys.platform == "win32":
-        import ctypes
-        from ctypes import wintypes
-        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        k32.OpenProcess.restype, k32.OpenProcess.argtypes = wintypes.HANDLE, (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
-        handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return ctypes.get_last_error() == 5  # access denied: it exists, owned by someone else
-        code = ctypes.c_ulong()
-        k32.GetExitCodeProcess(handle, ctypes.byref(code))
-        k32.CloseHandle(handle)
-        return code.value == 259  # STILL_ACTIVE
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
 
 
 def _read(f):
@@ -63,14 +40,22 @@ def _stale(data, f=None):
             return True
     if data.get("starting") and time.time() - float(data.get("t") or 0) > ADOPT_WITHIN:
         return True
-    return not alive(data.get("pid"))
+    pid, recorded = data.get("pid"), data.get("pid_start")
+    if not pidinfo.alive(pid):
+        return True
+    now = pidinfo.started_at(pid) if recorded else None
+    return now is not None and now != recorded  # the pid was given to another process
+
+
+def _record(run, starting):
+    return {"pid": os.getpid(), "pid_start": pidinfo.started_at(os.getpid()), "run": run, "t": time.time(), "starting": starting}
 
 
 def _create(f, run, starting):
     f.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(f, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as out:
-        json.dump({"pid": os.getpid(), "run": run, "t": time.time(), "starting": starting}, out)
+        json.dump(_record(run, starting), out)
 
 
 class _Guard:
@@ -122,7 +107,7 @@ def adopt(f, run):
     data = _read(f)
     if data is not None and data.get("run") == run:
         tmp = Path(f"{f}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps({"pid": os.getpid(), "run": run, "t": time.time(), "starting": False}), encoding="utf-8")
+        tmp.write_text(json.dumps(_record(run, False)), encoding="utf-8")
         os.replace(tmp, f)  # atomic: readers see the old or the new content, never an empty file
         return
     if not take(f, run):

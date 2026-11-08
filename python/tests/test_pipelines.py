@@ -514,3 +514,18 @@ class SecondReviewCliTest(Base):
         line = schedule.hint("linux", self.repo, "p", None, None, node="/opt/100%/node", bin_="b").splitlines()[-1]
         self.assertIn("/opt/100\\%/node", line)
         self.assertNotRegex(line.replace("\\%", ""), "%")
+
+
+class PidReuseTest(Base):
+    """M3: a lock records when its process started, so a pid given to another process does not keep it held."""
+
+    def test_a_reused_pid_is_stale_and_the_real_holder_is_not(self):
+        from python.amauta.extras.pipelines import lock, pidinfo
+        me = pidinfo.started_at(os.getpid())
+        self.assertIsNotNone(me, "the start time of a live process is known on this system")
+        self.assertEqual(pidinfo.started_at(os.getpid()), me, "stable for one process")
+        f = self.root / "p.lock"
+        f.write_text(json.dumps({"pid": os.getpid(), "pid_start": "another process", "run": "old", "t": time.time()}))
+        self.assertTrue(lock.take(f, "new"), "same pid, another start time: a reused pid")
+        self.assertEqual(json.loads(f.read_text())["pid_start"], me, "the new lock records its own start")
+        self.assertFalse(lock.take(f, "third"), "the real holder keeps it")
