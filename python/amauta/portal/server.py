@@ -5,6 +5,7 @@ import hmac
 import json
 import re
 import secrets
+import socketserver
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -82,6 +83,11 @@ class PortalServer(ThreadingHTTPServer):
         self.graphsync = graphsync_mod.GraphSync(self.portal)
         self.token = secrets.token_urlsafe(32)
         self.port = self.server_address[1]
+
+    def server_bind(self):
+        """Bind without http.server's socket.getfqdn() reverse lookup, which can stall start-up on macOS (plan N9b)."""
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = LOOPBACK, self.server_address[1]
 
     def allowed_hosts(self):
         return {f"{LOOPBACK}:{self.port}", f"localhost:{self.port}"}
