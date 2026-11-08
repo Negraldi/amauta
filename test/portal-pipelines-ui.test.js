@@ -11,7 +11,9 @@ const XSS = '<img src=x onerror=alert(1)>';
 
 const LIST = { available: true, projects: [
   { name: 'repo', path: '/work/repo', trusted: true, error: null, pipelines: [
-    { id: 'weekly', name: 'Weekly sales', description: 'Refresh and report', steps: ['Extract', 'Report'], last: { status: 'ok', started: '2026-11-08T10:00:00+00:00', run: 'weekly-1.jsonl' } }] },
+    { id: 'weekly', name: 'Weekly sales', description: 'Refresh and report', category: 'Sales', steps: ['Extract', 'Report'],
+      last: { status: 'ok', started: '2026-11-08T10:00:00+00:00', seconds: 1.6, trigger: 'schedule', run: 'weekly-1.jsonl' } },
+    { id: 'monthly', name: 'Monthly close', description: '', category: 'Finance', steps: ['Close'], last: null }] },
   { name: 'other', path: '/work/other', trusted: false, error: null, pipelines: [{ id: 'p', name: 'P', description: '', steps: ['S'], last: null }] },
 ] };
 const EVENTS = [
@@ -23,6 +25,7 @@ const EVENTS = [
 ];
 
 async function boot() {
+  const copied = [];
   const posts = [];
   const polls = [];
   const env = makeEnv({
@@ -37,9 +40,10 @@ async function boot() {
     },
   });
   env.location.hash = '#/pipelines';
-  await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  const navigator = { clipboard: { writeText: async (text) => { copied.push(text); } } };
+  await runPortal(env, { DOMParser: class {}, queueMicrotask, navigator });
   await tick();
-  return { env, posts, polls, view: env.document.getElementById('view') };
+  return { env, posts, polls, copied, view: env.document.getElementById('view') };
 }
 const buttons = (view, label) => tree(view).filter((e) => e.tagName === 'button' && e.textContent === label);
 
@@ -48,8 +52,8 @@ test('cards per project; an untrusted project cannot run and says how to trust i
   const text = view.textContent;
   for (const needle of ['repo', 'Weekly sales', 'Extract', 'Report', 'other']) assert.ok(text.includes(needle), needle);
   const runs = buttons(view, 'Run');
-  assert.equal(runs.length, 2);
-  assert.equal(runs[1].getAttribute('disabled'), '', 'untrusted: disabled');
+  assert.equal(runs.length, 3);
+  assert.equal(runs[2].getAttribute('disabled'), '', 'untrusted: disabled');
   assert.ok(tree(view).some((e) => e.tagName === 'code' && e.textContent === 'amauta check trust'));
 });
 
@@ -80,4 +84,56 @@ test('cancel posts the run to stop', async () => {
   buttons(view, 'Cancel run')[0].click();
   await tick(40);
   assert.deepEqual(posts.find((p) => p.path === 'cancel').body, { project: '/work/repo', run: 'weekly-2.jsonl' });
+});
+
+const cards = (view) => tree(view).filter((e) => e.tagName === 'article');
+const shown = (view) => cards(view).filter((c) => !c.hidden).map((c) => tree(c).find((e) => e.tagName === 'h3').textContent);
+
+test('category pills with counts and a search narrow the cards', async () => {
+  const { view } = await boot();
+  const pills = tree(view).filter((e) => e.tagName === 'button' && e.attrs['aria-pressed']);
+  assert.deepEqual(pills.map((b) => b.textContent), ['All (3)', 'Finance (1)', 'Sales (1)']);
+  assert.equal(pills[0].attrs['aria-pressed'], 'true');
+  pills[1].click();
+  assert.deepEqual(shown(view), ['Monthly close']);
+  assert.equal(pills[1].attrs['aria-pressed'], 'true');
+  pills[0].click();
+  const search = tree(view).find((e) => e.tagName === 'input' && e.attrs.type === 'search');
+  search.value = 'report'; // a step name matches too
+  search.listeners.input[0]({ target: search });
+  assert.deepEqual(shown(view), ['Weekly sales']);
+});
+
+test('the last run says how long it took and what started it; a card shows its category', async () => {
+  const { view } = await boot();
+  const weekly = cards(view)[0];
+  assert.match(weekly.textContent, /1\.6 s/);
+  assert.match(weekly.textContent, /scheduled/);
+  assert.match(weekly.textContent, /Sales/);
+});
+
+test('one step runs alone after its own confirmation', async () => {
+  const { view, posts } = await boot();
+  const only = buttons(view, 'Only this');
+  assert.equal(only.length, 4, 'one per step');
+  assert.equal(only[3].getAttribute('disabled'), '', 'untrusted: disabled');
+  assert.match(only[1].attrs['aria-label'], /Report/);
+  only[1].click();
+  assert.equal(posts.length, 0);
+  assert.match(view.textContent, /only step 2/i);
+  buttons(view, 'Run now')[0].click();
+  await tick(40);
+  assert.deepEqual(posts[0].body, { project: '/work/repo', id: 'weekly', step: 2 });
+});
+
+test('the console can be copied and cleared', async () => {
+  const { view, copied } = await boot();
+  buttons(view, 'Run')[0].click();
+  buttons(view, 'Run now')[0].click();
+  await tick(1800);
+  buttons(view, 'Copy')[0].click();
+  await tick(10);
+  assert.match(copied[0], /\[Report\] wrote out\/report.xlsx/);
+  buttons(view, 'Clear')[0].click();
+  assert.equal(tree(view).find((e) => e.tagName === 'pre').textContent, '');
 });

@@ -13,6 +13,7 @@ live, from the terminal or the portal (ADR 0010).
     {
       "id": "weekly-sales",
       "name": "Weekly sales report",
+      "category": "Sales",
       "steps": [
         { "name": "Extract", "type": "python", "script": "etl/extract.py", "args": ["--week", "last"], "timeout": 900 },
         { "name": "Model", "type": "r", "script": "analysis/model.R" },
@@ -32,6 +33,7 @@ live, from the terminal or the portal (ADR 0010).
 | `notebook` | `jupyter nbconvert --to notebook --execute`, writing `<name>.run.ipynb` beside the source |
 
 Paths are relative to the project. Optional per step: `timeout` (seconds, default 3600), `cwd`, `enabled: false`.
+Optional per pipeline: `description`, and `category`, which groups the cards in the portal.
 Database, workbook and mail steps are your own scripts: amauta has no drivers, so a step does whatever its script does.
 Keep credentials in those scripts' own configuration; a definition with a secret-like value is refused.
 
@@ -40,26 +42,41 @@ Keep credentials in those scripts' own configuration; a definition with a secret
 ```
 amauta pipeline list [--cwd DIR]
 amauta pipeline run <id> [--cwd DIR] [--python EXE]   # prints "[step] line" as it runs; exit 0 ok, 1 failed, 130 cancelled
+amauta pipeline run <id> --step 2                     # only that step (1-based); the others are skipped
 amauta pipeline status [--json]                       # the last run of each pipeline
 amauta pipeline cancel <id>                           # stops the running step's whole process tree
 amauta pipeline schedule-hint <id> [--at HH:MM] [--day mon] [--os windows|linux|darwin]
 ```
 
 Steps run in order; a failed, timed-out or cancelled step stops the run. Every output line is written to
-`<state dir>/pipelines/runs/<project>/<id>-<time>.jsonl` with secrets and identifiers redacted.
+`<state dir>/pipelines/runs/<project>/<id>-<time>.jsonl` with secrets and identifiers redacted, together with what
+started the run (`cli`, `portal` or `schedule`) and how long each step took.
+
+Each step's process gets `AMAUTA_PIPELINE` (the id), `AMAUTA_PIPELINE_TRIGGER` (`cli`, `portal` or `schedule`) and
+`AMAUTA_PIPELINE_STEP` (its number). A script can use them, for example to send its mail only on a scheduled run and
+skip it when you try a step from the portal:
+
+```python
+import os
+if os.environ.get("AMAUTA_PIPELINE_TRIGGER") == "schedule":
+    send_report()  # your own code: amauta sends nothing
+```
+
+Dates in a subject or a file name ("cut-off yesterday") are your script's to compute; amauta has no placeholders.
 
 ## In the portal
 
-Projects > Pipelines lists every known project that defines pipelines, with the last run of each. **Run** asks first,
+Projects > Pipelines lists every known project that defines pipelines, with the last run of each (its result, when,
+how long it took and what started it). Category pills and a search narrow the cards. **Run** asks first,
 then starts the run as a separate process (it keeps going if the window closes) and shows each step's mark
 (✓ ok, ✗ failed, ⏱ timed out, ■ cancelled, – skipped) and the output in a console as it arrives. A project must be
 trusted first (`amauta check trust`), because a run executes its code; the page sends only the project and the
-pipeline id, never a command.
+pipeline id (and, for **Only this**, the step number), never a command. The console has **Copy** and **Clear**.
 
 ## On a schedule
 
 amauta does not schedule anything: your operating system does. `schedule-hint` prints the entry for it, which runs
-`amauta pipeline run <id> --cwd <project>` at the time you give (daily, or weekly on `--day`):
+`amauta pipeline run <id> --trigger schedule --cwd <project>` at the time you give (daily, or weekly on `--day`):
 
 - Windows: a `schtasks /Create ...` line to run once in a terminal (Task Scheduler then shows the task).
 - Linux: a crontab line for `crontab -e`.

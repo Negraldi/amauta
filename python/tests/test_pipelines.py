@@ -201,3 +201,13 @@ class DesignTest(Base):
         last = store.last_runs(self.state, self.repo)["p"]
         self.assertEqual((last["status"], last["trigger"]), ("ok", "schedule"))
         self.assertIsInstance(last["seconds"], float)
+
+    def test_a_step_knows_its_pipeline_trigger_and_number(self):
+        """So a project script can, for example, send mail only on a scheduled run (the trigger is not a secret)."""
+        show = "import os; print(os.environ['AMAUTA_PIPELINE'], os.environ['AMAUTA_PIPELINE_TRIGGER'], os.environ['AMAUTA_PIPELINE_STEP'])"
+        self.define({"id": "p", "steps": [{"name": "A", "type": "command", "argv": [PY, "-c", "print(1)"]},
+                                          {"name": "B", "type": "command", "argv": [PY, "-c", show]}]})
+        events = self.root / "env.jsonl"
+        self.assertEqual(runner.run(self.repo, "p", events, python=PY, trigger="schedule"), 0)
+        self.assertIn("p schedule 2", [e["text"] for e in self.events(events) if e["kind"] == "line"])
+

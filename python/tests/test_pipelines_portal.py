@@ -78,6 +78,20 @@ class PortalPointsTest(Base):
         self.assertEqual(pp.cancel(self.portal, {"project": str(self.repo), "run": slow["run"]})[0], 200)
         self.assertEqual(self.wait_end(slow["run"])[-1]["status"], "cancelled")
 
+    def test_one_step_from_the_portal_and_the_card_summary(self):
+        self.trust()
+        self.assertEqual(pp.run(self.portal, {"project": str(self.repo), "id": "hello", "step": 0})[0], 400)
+        self.assertEqual(pp.run(self.portal, {"project": str(self.repo), "id": "hello", "step": "1"})[0], 400)
+        self.assertEqual(pp.run(self.portal, {"project": str(self.repo), "id": "hello", "step": 2})[0], 400, "hello has one step")
+        status, body = pp.run(self.portal, {"project": str(self.repo), "id": "hello", "step": 1})
+        self.assertEqual(status, 202, body)
+        events = self.wait_end(body["run"])
+        self.assertEqual((events[0]["trigger"], events[0]["only"]), ("portal", 0))
+        card = next(p for p in pp.list_pipelines(self.portal)["projects"] if p["path"] == str(self.repo))["pipelines"][0]
+        self.assertEqual(card["category"], "")
+        self.assertEqual((card["last"]["status"], card["last"]["trigger"]), ("ok", "portal"))
+        self.assertIsInstance(card["last"]["seconds"], float)
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

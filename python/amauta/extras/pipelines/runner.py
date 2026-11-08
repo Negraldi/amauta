@@ -73,10 +73,10 @@ class _Events:
             self.on_line(name, text)
 
 
-def _run_step(i, step, repo, python, ev, cancel):
+def _run_step(i, step, repo, python, ev, cancel, env):
     try:
         group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if WINDOWS else {"start_new_session": True}
-        proc = subprocess.Popen(argv_for(step, repo, python), cwd=Path(repo) / step["cwd"], stdin=subprocess.DEVNULL,
+        proc = subprocess.Popen(argv_for(step, repo, python), cwd=Path(repo) / step["cwd"], env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", **group)
     except OSError as e:
         ev.line(i, step["name"], f"cannot start {argv_for(step, repo, python)[0]}: {e.strerror or e}")
@@ -118,7 +118,8 @@ def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger
             continue
         ev.emit("step-start", step=i, name=step["name"])
         s0 = time.monotonic()
-        result = _run_step(i, step, repo, python, ev, cancel)
+        env = {**os.environ, "AMAUTA_PIPELINE": pipeline_id, "AMAUTA_PIPELINE_TRIGGER": trigger, "AMAUTA_PIPELINE_STEP": str(i + 1)}
+        result = _run_step(i, step, repo, python, ev, cancel, env)
         ev.emit("step-end", step=i, name=step["name"], status=result, seconds=round(time.monotonic() - s0, 1))
         if result != "ok":
             status = "cancelled" if result == "cancelled" else "failed"

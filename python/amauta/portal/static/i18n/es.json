@@ -574,5 +574,22 @@
  "pipe.s.failed": "falló",
  "pipe.s.cancelled": "cancelado",
  "pipe.s.running": "en curso",
- "pipe.s.timeout": "tiempo agotado"
+ "pipe.s.timeout": "tiempo agotado",
+ "pipe.all": "Todos",
+ "pipe.search": "Buscar pipelines",
+ "pipe.category": "Categoría",
+ "pipe.steps": "Pasos",
+ "pipe.only": "Solo este",
+ "pipe.onlyLabel": "Ejecutar solo el paso {n}, {step}",
+ "pipe.confirmStep": "¿Ejecutar ahora solo el paso {n} ({step}) de {name}? Corre en este equipo con tus permisos.",
+ "pipe.lastFull": "Última ejecución: {status}, {at}, en {seconds} s, {trigger}.",
+ "pipe.t.cli": "desde la línea de comandos",
+ "pipe.t.portal": "desde el portal",
+ "pipe.t.schedule": "programada",
+ "pipe.copy": "Copiar",
+ "pipe.copied": "Copiado",
+ "pipe.copyFailed": "No se pudo copiar",
+ "pipe.clear": "Limpiar",
+ "pipe.s.idle": "aún sin ejecutar",
+ "pipe.s.skipped": "omitido"
 }

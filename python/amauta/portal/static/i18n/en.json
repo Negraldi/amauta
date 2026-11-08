@@ -574,5 +574,22 @@
  "pipe.s.failed": "failed",
  "pipe.s.cancelled": "cancelled",
  "pipe.s.running": "running",
- "pipe.s.timeout": "timed out"
+ "pipe.s.timeout": "timed out",
+ "pipe.all": "All",
+ "pipe.search": "Search pipelines",
+ "pipe.category": "Category",
+ "pipe.steps": "Steps",
+ "pipe.only": "Only this",
+ "pipe.onlyLabel": "Run only step {n}, {step}",
+ "pipe.confirmStep": "Run only step {n} ({step}) of {name} now? It runs on this computer with your permissions.",
+ "pipe.lastFull": "Last run: {status}, {at}, in {seconds} s, {trigger}.",
+ "pipe.t.cli": "from the command line",
+ "pipe.t.portal": "from the portal",
+ "pipe.t.schedule": "scheduled",
+ "pipe.copy": "Copy",
+ "pipe.copied": "Copied",
+ "pipe.copyFailed": "Could not copy",
+ "pipe.clear": "Clear",
+ "pipe.s.idle": "not run yet",
+ "pipe.s.skipped": "skipped"
 }
