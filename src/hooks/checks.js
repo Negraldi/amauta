@@ -72,12 +72,13 @@ export async function stopCheck(payload, ctx) {
     const shown = path.relative(root, file);
     findings.push(...newFindings(await checkFile(file, checkers, opts, shown), await baselineFindings(file, checkers, opts)));
   }
-  const project = await applicable(root, changed, ctx.searchPath ?? process.env.PATH ?? '');
-  const trusted = project.length > 0 && (await isTrusted(ctx.stateDir, root));
-  if (trusted) findings.push(...(await projectFindings(root, changed, project)));
+  const found = await applicable(root, changed, ctx.searchPath ?? process.env.PATH ?? '');
+  const trusted = found.some((p) => p.checker.trust) && (await isTrusted(ctx.stateDir, root));
+  const held = found.filter((p) => p.checker.trust && !trusted);
+  findings.push(...(await projectFindings(root, changed, found.filter((p) => !p.checker.trust || trusted))));
   if (!findings.length) return null;
-  const hint = project.length && !trusted
-    ? [`Project checkers (${project.map((p) => p.checker.name).join(', ')}) did not run: they execute project code. `
+  const hint = held.length
+    ? [`Project checkers (${held.map((p) => p.checker.name).join(', ')}) did not run: they execute project code. `
       + 'Run `amauta check trust` in this project to allow them.']
     : [];
   const n = `${findings.length} error${findings.length === 1 ? '' : 's'}`;

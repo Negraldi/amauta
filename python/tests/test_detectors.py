@@ -88,3 +88,19 @@ class ScanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SecretsCliTest(unittest.TestCase):
+    def test_lines_and_columns_without_the_value_and_binary_skipped(self):
+        import tempfile
+        from pathlib import Path
+        from python.amauta.detectors import __main__ as cli
+        with tempfile.TemporaryDirectory() as tmp:
+            text = Path(tmp) / "a.cfg"
+            text.write_text("x = 1\nkey = " + "AKIA" + "Z" * 16 + "\n")
+            found = cli.secrets_in(text)
+            self.assertEqual([(f["line"], f["col"]) for f in found], [(2, 7)])
+            self.assertNotIn("AKIA", str(found))
+            binary = Path(tmp) / "b.bin"
+            binary.write_bytes(b"\0AKIA" + b"Z" * 16)
+            self.assertEqual(cli.secrets_in(binary), [])

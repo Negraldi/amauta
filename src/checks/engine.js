@@ -15,7 +15,9 @@ import path from 'node:path';
 
 export const formatFinding = (f) => `${f.file}:${f.line}:${f.col}: ${f.severity}: ${f.message} [${f.checker}]`;
 
-export const checkersFor = (file, checkers) => checkers.filter((c) => c.exts.includes(path.extname(file).toLowerCase()));
+/** The checkers for a file by extension; `*` applies to every file. */
+export const appliesTo = (c, file) => c.exts.includes('*') || c.exts.includes(path.extname(file).toLowerCase());
+export const checkersFor = (file, checkers) => checkers.filter((c) => appliesTo(c, file));
 
 /** Findings of `current` not covered by `baseline`, matched by checker and message (lines move when code is edited). */
 export function newFindings(current, baseline) {
@@ -47,13 +49,13 @@ export async function checkFile(file, checkers, ctx = {}, shownAs = file) {
 }
 
 /** Run a command; resolves { code, stdout, stderr }, or null when it cannot start. Never rejects. */
-export function run(command, args, { timeoutMs = 10000, cwd } = {}) {
+export function run(command, args, { timeoutMs = 10000, cwd, env } = {}) {
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
     let child;
     try {
-      child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     } catch {
       resolve(null);
       return;

@@ -1,9 +1,11 @@
 /**
  * Checkers that never execute repository code (plan D5, ADR 0006): syntax only. JSON in this process; JavaScript with
  * `node --check`; Python with `ast.parse` and TOML with `tomllib` in the recorded interpreter (`ctx.python`); shell
- * scripts with `bash -n` (or `sh -n`). Each returns [{ line, col, message }]; a checker that cannot start returns [].
+ * scripts with `bash -n` (or `sh -n`); secret-like values in any file through `amauta.detectors`. Each returns
+ * [{ line, col, message }]; a checker that cannot start returns [].
  */
 import { readFile } from 'node:fs/promises';
+import { PYTHON_PATH } from '../install/servers.js';
 import { run } from './engine.js';
 
 const PY_SYNTAX = [
@@ -78,4 +80,15 @@ export const sh = {
   },
 };
 
-export const SAFE_CHECKERS = [json, node, python, toml, sh];
+/** Secret-like values in any text file, through the kernel detector catalog (plan D7); the value is never printed. */
+export const secrets = {
+  name: 'secrets', exts: ['*'],
+  run: async (file, ctx) => {
+    const env = { ...process.env, PYTHONPATH: PYTHON_PATH };
+    const r = await run(ctx.python ?? 'python3', ['-P', '-m', 'amauta.detectors', 'secrets', file], { timeoutMs: ctx.timeoutMs, env });
+    if (!r || r.code !== 0) return [];
+    try { return JSON.parse(r.stdout); } catch { return []; }
+  },
+};
+
+export const SAFE_CHECKERS = [json, node, python, toml, sh, secrets];

@@ -107,7 +107,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D5 Checks engine, safe checkers, error baseline per file, edit hook (`PostToolUse`).
 - [x] D6 Per-project trust (`amauta check trust`), code-executing checkers, project check at Stop under the single
   Stop policy.
-- [ ] D7 Secrets in edited code; gitleaks, semgrep and bandit when on PATH.
+- [x] D7 Secrets in edited code; gitleaks, semgrep and bandit when on PATH.
 - [ ] D8 ODD rule: a task is not checked off while its checks fail.
 
 ### Phase 2c, data content, communication and profiles
@@ -277,6 +277,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   eslint, mypy and cargo in trusted projects (40 s budget, changed files only; ADR 0006 amended: the Stop hook keeps
   its 60 s timeout). Untrusted projects get a one-line hint when a project checker would apply. RED seen.
 
+- 2026-11-08: D7 done: a `secrets` checker for any text file (`python3 -P -m amauta.detectors secrets FILE`, line and
+  column, never the value) at edit and at Stop; gitleaks (redacted JSON), bandit and semgrep (project rules only,
+  metrics off) run at Stop without trust when installed. Checkers carry `trust: true|false`. RED seen.
+
 ## Next step
 
-Phase 2b: D7 secrets in edited code (detector catalog) and gitleaks, semgrep, bandit when on PATH. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2b: D8 ODD rule (a task is not checked off while its checks fail). Ask the aesthetic questions (Inca names) before D10/D11.

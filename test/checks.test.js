@@ -55,7 +55,7 @@ test('each safe checker reports a syntax error with its line', async () => {
     const file = await write(dir, name, text);
     assert.deepEqual(await checkFile(file, checkersFor(file, SAFE_CHECKERS), opts), [], name);
   }
-  assert.deepEqual(checkersFor(path.join(dir, 'notes.txt'), SAFE_CHECKERS), []);
+  assert.deepEqual(checkersFor(path.join(dir, 'notes.txt'), SAFE_CHECKERS).map((c) => c.name), ['secrets'], 'any text file: secrets only (plan D7)');
 });
 
 test('the edit hook blocks with the new errors only, and stays silent for old errors, other tools and clean files', async () => {
