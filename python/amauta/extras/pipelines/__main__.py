@@ -1,5 +1,6 @@
-"""`amauta pipeline list | run ID | status [--json] | cancel ID` (plan S1a, ADR 0010); the project is the git root of
---cwd (default: the current directory). `run` prints each output line as `[step] text` while it runs."""
+"""`amauta pipeline list | run ID | status [--json] | cancel ID | schedule-hint ID` (plan S1a, S1c, ADR 0010).
+The project is the git root of --cwd (default: the current directory). `run` prints each output line as `[step] text`
+while it runs."""
 
 import argparse
 import json
@@ -8,7 +9,7 @@ import sys
 from pathlib import Path
 
 from ... import paths as amauta_paths
-from . import config, runner, store
+from . import config, runner, schedule, store
 
 
 def _repo(cwd):
@@ -29,6 +30,12 @@ def main(argv=None):
     r.add_argument("--events", help="events file (default: a new file in the state directory)")
     sub.add_parser("status", parents=[common]).add_argument("--json", action="store_true")
     sub.add_parser("cancel", parents=[common]).add_argument("id")
+    h = sub.add_parser("schedule-hint", parents=[common], help="print the OS scheduler entry (amauta registers nothing)")
+    h.add_argument("id")
+    h.add_argument("--at", default="07:00", help="time of day, HH:MM (24 h)")
+    h.add_argument("--day", help="one weekday (mon ... sun); daily when omitted")
+    here = {"win32": "windows", "darwin": "darwin"}.get(sys.platform, "linux")
+    h.add_argument("--os", choices=("windows", "linux", "darwin"), default=here)
     a = p.parse_args(argv)
     state = Path(a.state_dir) if a.state_dir else amauta_paths.state_dir()
     repo = _repo(a.cwd)
@@ -40,6 +47,15 @@ def main(argv=None):
 
 
 def _run(a, state, repo):
+    if a.cmd == "schedule-hint":
+        try:
+            print(schedule.hint(a.os, repo, a.id, a.at, a.day))
+        except ValueError as e:
+            if isinstance(e, config.ConfigError):
+                raise
+            print(f"amauta pipeline: {e}", file=sys.stderr)
+            return 2
+        return 0
     if a.cmd == "list":
         for p in config.load(repo):
             print(f"{p['id']}: {p['name']} ({len(p['steps'])} step{'' if len(p['steps']) == 1 else 's'})")

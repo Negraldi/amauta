@@ -42,6 +42,7 @@ amauta pipeline list [--cwd DIR]
 amauta pipeline run <id> [--cwd DIR] [--python EXE]   # prints "[step] line" as it runs; exit 0 ok, 1 failed, 130 cancelled
 amauta pipeline status [--json]                       # the last run of each pipeline
 amauta pipeline cancel <id>                           # stops the running step's whole process tree
+amauta pipeline schedule-hint <id> [--at HH:MM] [--day mon] [--os windows|linux|darwin]
 ```
 
 Steps run in order; a failed, timed-out or cancelled step stops the run. Every output line is written to
@@ -54,3 +55,15 @@ then starts the run as a separate process (it keeps going if the window closes) 
 (✓ ok, ✗ failed, ⏱ timed out, ■ cancelled, – skipped) and the output in a console as it arrives. A project must be
 trusted first (`amauta check trust`), because a run executes its code; the page sends only the project and the
 pipeline id, never a command.
+
+## On a schedule
+
+amauta does not schedule anything: your operating system does. `schedule-hint` prints the entry for it, which runs
+`amauta pipeline run <id> --cwd <project>` at the time you give (daily, or weekly on `--day`):
+
+- Windows: a `schtasks /Create ...` line to run once in a terminal (Task Scheduler then shows the task).
+- Linux: a crontab line for `crontab -e`.
+- macOS: a launchd agent to save under `~/Library/LaunchAgents/` and `launchctl load`.
+
+A scheduled run is the same as one from the terminal: its output goes to the events file and the portal shows it as
+the last run.

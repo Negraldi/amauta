@@ -344,6 +344,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   browser run found the server passing query values as strings (the tests had used lists); fixed and covered by an
   HTTP test. RED seen.
 
+- 2026-11-08: S1c done: `amauta pipeline schedule-hint ID [--at] [--day] [--os]` prints a `schtasks` line, a crontab
+  line or a launchd agent running `amauta pipeline run`; amauta registers nothing (user decision). RED seen.
+
 ## Next step
 
-Phase 3: S1c `amauta pipeline schedule-hint` (Task Scheduler, cron, launchd), then S1d oga_catalog links; phase 3 audit; v0.7.0. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 3: S1d oga_catalog (review its role first), then the phase 3 audit and v0.7.0. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

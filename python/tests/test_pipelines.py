@@ -140,3 +140,40 @@ class CliTest(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScheduleHintTest(Base):
+    """Plan S1c, ADR 0010: amauta prints the operating system's own scheduler entry; it registers nothing."""
+
+    def test_entries_for_each_system_run_the_pipeline_without_a_shell_string_from_amauta(self):
+        from python.amauta.extras.pipelines import schedule
+        self.define({"id": "weekly", "steps": [{"type": "command", "argv": ["x"]}]})
+        node, bin_ = "/usr/bin/node", "/opt/amauta/bin/amauta.js"
+        win = schedule.hint("windows", self.repo, "weekly", "07:30", "mon", node=r"C:\\Program Files\\nodejs\\node.exe", bin_=r"C:\\amauta\\bin\\amauta.js")
+        self.assertIn('schtasks /Create /TN "amauta weekly"', win)
+        self.assertIn("/SC WEEKLY /D MON /ST 07:30", win)
+        self.assertIn("pipeline run weekly --cwd", win)
+        cron = schedule.hint("linux", self.repo, "weekly", "07:30", None, node=node, bin_=bin_)
+        self.assertTrue(cron.splitlines()[-1].startswith("30 7 * * * "), cron)
+        self.assertIn(f"'{node}' '{bin_}' pipeline run weekly --cwd '{self.repo}'", cron)
+        mac = schedule.hint("darwin", self.repo, "weekly", "07:30", "fri", node=node, bin_=bin_)
+        self.assertIn("<key>Weekday</key><integer>5</integer>", mac)
+        self.assertIn("<string>pipeline</string>", mac)
+        self.assertIn("launchctl load", mac)
+
+    def test_bad_times_days_and_unknown_pipelines_are_refused(self):
+        from python.amauta.extras.pipelines import schedule
+        self.define({"id": "weekly", "steps": [{"type": "command", "argv": ["x"]}]})
+        for at, day in (("25:00", None), ("7", None), ("07:30", "someday")):
+            with self.assertRaises(ValueError):
+                schedule.hint("linux", self.repo, "weekly", at, day, node="n", bin_="b")
+        with self.assertRaises(config.ConfigError):
+            schedule.hint("linux", self.repo, "nope", "07:00", None, node="n", bin_="b")
+
+    def test_the_cli_prints_the_hint_for_this_system(self):
+        self.define({"id": "weekly", "steps": [{"type": "command", "argv": ["x"]}]})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = main(["schedule-hint", "weekly", "--at", "06:15", "--cwd", str(self.repo), "--state-dir", str(self.state), "--os", "linux"])
+        self.assertEqual(code, 0)
+        self.assertIn("15 6 * * *", out.getvalue())
