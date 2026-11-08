@@ -114,25 +114,30 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && pipeTitle !== null) { document.title = pipeTitle; pipeTitle = null; }
 });
 
+// Cancel: says it is cancelling, and shows why if the server refuses.
+function cancelButton(pr, run, actions) {
+  const stop = h("button", { type: "button" }, t("pipe.cancel"));
+  stop.addEventListener("click", async () => {
+    stop.setAttribute("disabled", "");
+    stop.disabled = true;
+    stop.textContent = t("pipe.cancelling");
+    const failed = (e) => ({ ok: false, data: { error: e.message } });
+    const res = await postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(failed);
+    if (!res.ok) actions.append(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`));
+  });
+  return stop;
+}
+
 // Show a run: the step marks, durations and console, polling its events until it ends. `live` is a run started from
 // this page (a cancel button, the timer, a notice at the end); otherwise a past run is replayed into the console.
 function followRun(pr, p, run, parts, live = true) {
   const { items, con, line, actions, idle } = parts;
   const mine = (parts.token = (parts.token || 0) + 1); // a newer follow on this card, or leaving the page, ends this one
   const current = () => parts.token === mine && parts.card?.isConnected !== false;
-  if (live) {
-    const stop = h("button", { type: "button" }, t("pipe.cancel"));
-    stop.addEventListener("click", async () => {
-      stop.setAttribute("disabled", "");
-      stop.disabled = true;
-      stop.textContent = t("pipe.cancelling");
-      const failed = (e) => ({ ok: false, data: { error: e.message } });
-      const res = await postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(failed);
-      if (!res.ok) actions.append(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`));
-    });
-    actions.replaceChildren(stop);
-  }
+  if (live) actions.replaceChildren(cancelButton(pr, run, actions));
   items.forEach((li) => { li.setStatus("idle"); li.setSeconds(null); });
+  // A step by its id (the pipeline may have been reordered since an old run); by its index for runs without ids.
+  const itemFor = (e) => (e.id && items.find((li) => li.getAttribute("data-id") === e.id)) || items[e.step];
   con.reset();
   const began = Date.now();
   let cursor = 0; // a byte offset into the run's events file, returned by the server as `next`
@@ -149,10 +154,11 @@ function followRun(pr, p, run, parts, live = true) {
     cursor = r.next ?? cursor;
     for (const e of r.events) {
       if (e.kind === "line") con.add(e);
-      if (e.kind === "step-start") items[e.step]?.setStatus("running");
-      if (e.kind === "step-end" && items[e.step]) {
-        items[e.step].setStatus(e.status);
-        items[e.step].setSeconds(e.status === "skipped" ? null : e.seconds);
+      const li = itemFor(e);
+      if (e.kind === "step-start" && li) li.setStatus("running");
+      if (e.kind === "step-end" && li) {
+        li.setStatus(e.status);
+        li.setSeconds(e.status === "skipped" ? null : e.seconds);
       }
       if (e.kind === "run-end") {
         line.textContent = t("pipe.ended", { status: t(`pipe.s.${e.status}`), seconds: R.fmtDecimal(e.seconds, 1) });
@@ -161,7 +167,10 @@ function followRun(pr, p, run, parts, live = true) {
     }
     if (r.done) {
       if (r.error) line.textContent = `▲ ${ts(r.error)}`;
-      if (live) idle();
+      if (live) {
+        idle();
+        if (r.error && parts.refresh) parts.refresh(); // an abandoned run ends here, without a run-end event
+      }
       return;
     }
     if (live) {

@@ -265,6 +265,20 @@ class PortalPointsTest(Base):
         pp.cancel(self.portal, {"project": str(self.repo), "run": again["run"]})
         self.wait_end(again["run"])
 
+    def test_a_launch_that_fails_releases_the_lock(self):
+        from unittest import mock
+        self.trust()
+
+        def broken(*a, **k):
+            raise OSError("no python")
+        with mock.patch.object(pp, "_spawn", broken):
+            status, body = pp.run(self.portal, {"project": str(self.repo), "id": "hello"})
+        self.assertEqual(status, 500)
+        self.assertIn("no python", body["error"])
+        status, body = pp.run(self.portal, {"project": str(self.repo), "id": "hello"})
+        self.assertEqual(status, 202, body)
+        self.wait_end(body["run"])
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

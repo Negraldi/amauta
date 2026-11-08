@@ -27,11 +27,11 @@ const LIST = { available: true, projects: [
 ] };
 const EVENTS = [
   { kind: 'run-start', pipeline: 'weekly', steps: ['Extract', 'Report'] },
-  { kind: 'step-start', step: 0, name: 'Extract' }, { kind: 'line', step: 0, name: 'Extract', text: XSS },
-  { kind: 'step-end', step: 0, name: 'Extract', status: 'ok', seconds: 1.2 },
-  { kind: 'step-start', step: 1, name: 'Report' }, { kind: 'line', step: 1, name: 'Report', text: 'wrote out/report.xlsx' },
+  { kind: 'step-start', step: 0, id: 'extract', name: 'Extract' }, { kind: 'line', step: 0, id: 'extract', name: 'Extract', text: XSS },
+  { kind: 'step-end', step: 0, id: 'extract', name: 'Extract', status: 'ok', seconds: 1.2 },
+  { kind: 'step-start', step: 1, id: 'report', name: 'Report' }, { kind: 'line', step: 1, id: 'report', name: 'Report', text: 'wrote out/report.xlsx' },
   { kind: 'line', step: 1, name: 'Report', text: 'Traceback (most recent call last): boom' },
-  { kind: 'step-end', step: 1, name: 'Report', status: 'failed', seconds: 0.4 }, { kind: 'run-end', status: 'failed', seconds: 1.6 },
+  { kind: 'step-end', step: 1, id: 'report', name: 'Report', status: 'failed', seconds: 0.4 }, { kind: 'run-end', status: 'failed', seconds: 1.6 },
 ];
 
 async function boot(setup = () => {}, list = LIST) {
@@ -323,4 +323,30 @@ test('when a live run ends, the card refreshes its history without a reload', as
   const marks = tree(cards(view)[0]).filter((e) => e.tagName === 'button' && e.className === 'hist-mark');
   assert.equal(marks.length, 3, 'the new run is in the history');
   assert.match(cards(view)[0].textContent, /disk full/);
+});
+
+test('a replayed run marks steps by id even when the pipeline was reordered since', async () => {
+  const list = structuredClone(LIST);
+  const weekly = list.projects[0].pipelines[0];
+  Object.assign(weekly, { steps: ['Report', 'Extract'], ids: ['report', 'extract'], types: ['command', 'python'] });
+  weekly.history = weekly.history.map((r) => ({ ...r, steps: [] }));
+  const { view } = await boot(() => {}, list);
+  const marks = tree(cards(view)[0]).filter((e) => e.tagName === 'button' && e.className === 'hist-mark');
+  marks[1].click(); // weekly-1: the fixture's events, recorded when Extract came first
+  await tick(1800);
+  const flow = tree(cards(view)[0]).filter((e) => e.tagName === 'li' && e.attrs['data-status']);
+  assert.deepEqual(flow.map((e) => [e.attrs['data-id'], e.attrs['data-status']]), [['report', 'failed'], ['extract', 'ok']]);
+});
+
+test('a live run that ends abandoned also refreshes the card', async () => {
+  let calls = 0;
+  const { view, env } = await boot((e) => {}, async () => { calls++; return LIST; });
+  env.fetch = ((orig) => async (url, opts) => (String(url).startsWith('/api/pipelines/events')
+    ? { ok: true, status: 200, json: async () => ({ events: [], next: 0, done: true, error: 'the run stopped without its end (abandoned)' }) }
+    : orig(url, opts)))(env.fetch);
+  buttons(view, 'Run')[0].click();
+  buttons(view, 'Run now')[0].click();
+  await tick(200);
+  assert.match(cards(view)[0].textContent, /abandoned/);
+  assert.ok(calls >= 2, `refreshed (${calls} list calls)`);
 });

@@ -78,7 +78,7 @@ def _launchd(sched, argv, label):
             when = f"<key>StartCalendarInterval</key><dict>{base}{extra}</dict>"
     plist = (f'<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>Label</key><string>{label}</string>'
              f"<key>ProgramArguments</key><array>{args}</array>{env}{when}</dict></plist>")
-    return f"# launchd: save as ~/Library/LaunchAgents/{label}.plist, then: launchctl load ~/Library/LaunchAgents/{label}.plist\n" + plist
+    return plist
 
 
 def _entry(system, sched, repo, pipeline_id, node, bin_):

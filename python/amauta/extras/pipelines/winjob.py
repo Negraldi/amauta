@@ -49,7 +49,9 @@ class Job:
             raise OSError(ctypes.get_last_error(), "CreateJobObject failed")
         info = _Extended()
         info.BasicLimitInformation.LimitFlags = KILL_ON_JOB_CLOSE
-        self.k32.SetInformationJobObject(self.handle, EXTENDED_LIMIT_INFORMATION, ctypes.byref(info), ctypes.sizeof(info))
+        if not self.k32.SetInformationJobObject(self.handle, EXTENDED_LIMIT_INFORMATION, ctypes.byref(info), ctypes.sizeof(info)):
+            self.close()  # without kill-on-close the job would not stop a step's processes if the runner died
+            raise OSError(ctypes.get_last_error(), "SetInformationJobObject failed")
 
     def add(self, popen):
         """True once the process belongs to the job (Popen keeps its process handle in `_handle`)."""

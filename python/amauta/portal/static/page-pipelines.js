@@ -163,10 +163,12 @@ function checkButton(pr, p, result) {
 function recentSection(pr, p, parts) {
   const recentOf = (q) => [...scheduleLines(q), ...lastDetails(q), historyStrip(q, (run) => followRun(pr, p, run, parts, false))];
   const box = h("div", { class: "pipe-recent" }, recentOf(p));
+  let asked = 0;
   parts.refresh = async () => {
+    const mine = ++asked; // only the newest refresh may write: an older answer must not replace a newer one
     const d = await api("pipelines").catch(() => null);
     const fresh = d && d.projects.find((x) => x.path === pr.path)?.pipelines.find((x) => x.id === p.id);
-    if (fresh) box.replaceChildren(...recentOf(fresh).filter(Boolean));
+    if (fresh && mine === asked) box.replaceChildren(...recentOf(fresh).filter(Boolean));
   };
   return box;
 }

@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from . import config, graph, lock, schedule, store
 PYTHON_DIR = Path(__file__).resolve().parents[3]
 WINDOWS = sys.platform == "win32"
 _children = []  # started runners, kept so they can be reaped (no zombies, no warnings)
+_mutex = threading.Lock()
 _started = {}  # run name -> its runner process, to tell a run that never started from one still starting
 
 
@@ -103,11 +105,12 @@ def run(portal, body):
     mode = body.get("mode")
     if mode is not None and mode not in pipeline["modes"]:
         return 400, {"error": f"mode must be one of: {', '.join(pipeline['modes']) or 'none (this pipeline has no modes)'}"}
-    _children[:] = [c for c in _children if c.poll() is None]  # reap ended runners first: a zombie looks alive
+    with _mutex:
+        _children[:] = [c for c in _children if c.poll() is None]  # reap ended runners first
     events = store.new_run(portal.cfg.state_dir, repo, body["id"])
     if not lock.acquire(portal.cfg.state_dir, repo, body["id"], events.name, starting=True):  # atomic: one run at a time
+        events.unlink(missing_ok=True)  # the name new_run reserved: no run will use it
         return 409, {"error": "this pipeline is already running"}
-    events.touch()
     argv = [sys.executable, "-P", "-m", "amauta.extras.pipelines", "run", body["id"], "--cwd", str(repo),
             "--state-dir", str(portal.cfg.state_dir), "--events", str(events), "--trigger", "portal"]
     argv += (["--step", str(step)] if step is not None else []) + (["--mode", mode] if mode else []) + ["--expect-sha256", sha]
@@ -116,10 +119,17 @@ def run(portal, body):
     env = {**os.environ, "PYTHONPATH": str(PYTHON_DIR), "AMAUTA_USER_PYTHONPATH": user_pp}
     flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if WINDOWS else 0
     detach = {"creationflags": flags} if WINDOWS else {"start_new_session": True}
-    _children[:] = [c for c in _children if c.poll() is None]
-    child = _spawn(argv, env, Path(f"{events}.log"), detach)
-    _children.append(child)
-    _started[events.name] = child
+    try:
+        child = _spawn(argv, env, Path(f"{events}.log"), detach)
+    except OSError as e:  # nothing will adopt the lock: release it now rather than in a minute
+        lock.release(portal.cfg.state_dir, repo, body["id"], events.name)
+        events.unlink(missing_ok=True)
+        return 500, {"error": f"the runner could not start: {e}"}
+    with _mutex:  # the portal serves requests in threads
+        _children[:] = [c for c in _children if c.poll() is None] + [child]
+        for name in [n for n, c in _started.items() if c.poll() is not None and n != events.name][:-50]:
+            del _started[name]  # keep the newest finished launches, enough for their followers
+        _started[events.name] = child
     return 202, {"run": events.name}
 
 

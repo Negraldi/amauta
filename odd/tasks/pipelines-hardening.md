@@ -30,7 +30,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 ### Third review
 
 - [x] M4 Independent review with tests and experiments on the result of M1-M3.
-- [ ] M5 Fix what it confirms, each with a failing test first:
+- [x] M5 Fix what it confirms, each with a failing test first:
   - F1 processes: a zombie runner is dead and the portal reaps before locking (C1); no 0.1 s floor per step (C2); a
     detached child holding the output does not hold a timeout or cancel (C3); skipped steps do not wait for a slot
     (C7); the run's own setup sits inside its try (S4).
@@ -74,7 +74,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ## Next step
 
-M5 F3: failing tests for store, portal and UI findings (C5, C8-C10, C12, C14, S2, S5, S6).
+M6: cleanup round (the review's list: one PYTHONPATH filter, one lock path for a run, one hash helper, dead code, stale docstrings, the portal's run split).
 - 2026-11-08: M5 F1 inline. RED: a zombie holder kept a lock (and a SIGKILLed portal runner gave 409 forever), 40
   trivial steps took over 4 s, a child in its own session holding the output kept a step for its full sleep, skipped
   steps waited for a slot, a setup error left the lock. Fixes: `pidinfo` treats a zombie as dead and reads `ps` in C
@@ -85,4 +85,12 @@ M5 F3: failing tests for store, portal and UI findings (C5, C8-C10, C12, C14, S2
   same way, damaged locks stale, adopt under the guard (S3, a race without a deterministic test), Windows argtypes and
   FILETIME (S1, checked by the Windows CI job). Two tests changed on purpose: M3's reused start time now carries the
   system's prefix, and the SIGTERM test writes its events in the runs folder.
+- 2026-11-08: M5 F3 inline. RED: names repeated under a frozen clock across threads (checked against the previous
+  store), logs survived retention, an incomplete step-end raised KeyError, launchd printed "save as" twice, a failed
+  launch kept the lock 60 s, a replayed run marked steps by index after a reorder, an abandoned live run did not
+  refresh the card. Fixes: new_run creates the file with O_EXCL, retention removes cancel and log files, summaries skip
+  incomplete events, the launch failure releases the lock (500), replay by id, refresh on abandoned runs and only from
+  the newest request; S2 (job without kill-on-close is not used) and S5 (portal bookkeeping under a mutex, bounded)
+  without a deterministic test. Two tests changed on purpose: pruning counts the new run's file, the thread test stays
+  under KEEP. npm test: 850 Node, 930 Python.
 

@@ -369,7 +369,7 @@ class HistoryTest(Base):
             (d / f"p-2026010{i // 100}T{i:06d}Z-1.jsonl").write_text("")
         (d / "other-20260101T000000Z-1.jsonl").write_text("")
         store.new_run(self.state, self.repo, "p")
-        self.assertEqual(len(list(d.glob("p-*.jsonl"))), store.KEEP - 1, "room for the new run")
+        self.assertEqual(len(list(d.glob("p-*.jsonl"))), store.KEEP, "the KEEP - 1 newest and the new run, created empty")
         self.assertTrue((d / "other-20260101T000000Z-1.jsonl").exists())
 
 
@@ -570,3 +570,44 @@ class ThirdReviewLockTest(Base):
             code = main(["run", "p", "--cwd", str(self.repo), "--state-dir", str(self.state), "--events", str(self.root / "x.jsonl")])
         self.assertEqual(code, 2)
         self.assertNotIn("ran", out.getvalue())
+
+
+class ThirdReviewStoreTest(Base):
+    """Third review, F3 (store and hints)."""
+
+    def test_run_names_are_reserved_even_with_a_frozen_clock_across_threads(self):
+        from unittest import mock
+        from python.amauta.extras.pipelines import store
+        names, mutex = [], threading.Lock()
+
+        def take():
+            for _ in range(5):  # 40 runs in all: under KEEP, so pruning frees no name
+                f = store.new_run(self.state, self.repo, "p")
+                with mutex:
+                    names.append(f.name)
+        with mock.patch.object(store.time, "time", lambda: 1_700_000_000.0):
+            threads = [threading.Thread(target=take) for _ in range(8)]
+            [t.start() for t in threads]
+            [t.join() for t in threads]
+        self.assertEqual(len(set(names)), 40)
+        self.assertTrue(all((store.runs_dir(self.state, self.repo) / n).exists() for n in names), "reserved on disk")
+
+    def test_retention_removes_logs_and_incomplete_events_do_not_break_a_summary(self):
+        from python.amauta.extras.pipelines import store
+        d = store.runs_dir(self.state, self.repo)
+        d.mkdir(parents=True)
+        for i in range(store.KEEP + 3):
+            f = d / f"p-2026010{i // 100}T{i:06d}Z-1.jsonl"
+            f.write_text("")
+            Path(f"{f}.log").write_text("")
+        store.new_run(self.state, self.repo, "p")
+        self.assertEqual(len(list(d.glob("p-*.jsonl.log"))), store.KEEP - 1)
+        bad = d / "q-20260101T000000Z-1.jsonl"
+        bad.write_text('{"kind": "run-start", "pipeline": "q", "t": "2026-01-01T00:00:00+00:00"}\n{"kind": "step-end", "step": 0}\n'
+                       '{"kind": "line"}\n')
+        self.assertEqual(store.history(self.state, self.repo)["q"]["runs"][0]["steps"], [])
+
+    def test_a_launchd_agent_says_where_to_save_it_once(self):
+        from python.amauta.extras.pipelines import schedule
+        self.define({"id": "p", "schedule": [{"at": "07:00"}], "steps": [{"type": "command", "argv": ["x"]}]})
+        self.assertEqual(schedule.hint("darwin", self.repo, "p", node="n", bin_="b").count("save as"), 1)
