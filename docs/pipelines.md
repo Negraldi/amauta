@@ -46,3 +46,11 @@ amauta pipeline cancel <id>                           # stops the running step's
 
 Steps run in order; a failed, timed-out or cancelled step stops the run. Every output line is written to
 `<state dir>/pipelines/runs/<project>/<id>-<time>.jsonl` with secrets and identifiers redacted.
+
+## In the portal
+
+Projects > Pipelines lists every known project that defines pipelines, with the last run of each. **Run** asks first,
+then starts the run as a separate process (it keeps going if the window closes) and shows each step's mark
+(✓ ok, ✗ failed, ⏱ timed out, ■ cancelled, – skipped) and the output in a console as it arrives. A project must be
+trusted first (`amauta check trust`), because a run executes its code; the page sends only the project and the
+pipeline id, never a command.

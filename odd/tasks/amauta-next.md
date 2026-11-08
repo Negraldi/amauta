@@ -338,6 +338,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   list|run|status|cancel`: steps without a shell, merged output read line by line and redacted, JSON-lines events,
   timeouts and cancel stop the process tree, a failure skips the rest. RED seen.
 
+- 2026-11-08: S1b done: Projects > Pipelines tab (`page-pipelines.js`): cards, confirmation, start as a detached
+  process through a guarded write, live console polled from the events file, step marks, cancel; trusted projects only.
+  Extras now declare portal GET routes as `"GET /api/..."` points and guarded writes through `EXTRA_WRITES`. A real
+  browser run found the server passing query values as strings (the tests had used lists); fixed and covered by an
+  HTTP test. RED seen.
+
 ## Next step
 
-Phase 3: S1b portal Pipelines tab (start, trust, step diagram, live console), then S1c schedule hints, S1d oga_catalog. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 3: S1c `amauta pipeline schedule-hint` (Task Scheduler, cron, launchd), then S1d oga_catalog links; phase 3 audit; v0.7.0. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

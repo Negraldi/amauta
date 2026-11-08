@@ -5,7 +5,7 @@
   const KINDS = {
     home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
     node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint", themes: "Themes",
-    security: "Security",
+    security: "Security", pipelines: "Pipelines",
     hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
   // Hashes of the previous tabbed portal keep working.
@@ -14,7 +14,8 @@
   // The six-page map (ADR 0005, plan N12d): each sidebar page groups the list routes shown as its tabs; item kinds
   // without a tab belong to the page that lists them. Routes keep their own hashes (a memory topic key may be "lint").
   const HUBS = {
-    home: ["home"], project: ["project", "feature", "node"], memory: ["memory", "lint"], activity: ["usage", "session", "tool", "mcp"],
+    home: ["home"], project: ["project", "feature", "node", "pipelines"],
+    memory: ["memory", "lint"], activity: ["usage", "session", "tool", "mcp"],
     harness: ["harness", "skill", "component"], security: ["security"],
     settings: ["settings", "themes"],
   };

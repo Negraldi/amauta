@@ -296,3 +296,18 @@ button.primary:active:not(:disabled) { background: var(--accent); filter: bright
   .theme-editor .token-row label { grid-column: 1 / -1; }
   .theme-editor .token-row .tok-msg { grid-column: 1 / -1; }
 }
+
+/* ---- pipelines (plan S1b): cards, step marks (text, not color alone) and the live console ---- */
+.pipe-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
+  gap: var(--s4); }
+.pipe-card { border: 1px solid var(--line); border-radius: 8px; padding: var(--s3) var(--s4); background: var(--surface); }
+.pipe-card h3 { margin: 0 0 var(--s2); }
+.pipe-steps { list-style: none; margin: var(--s2) 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); }
+.pipe-steps li { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.pipe-steps li[data-status="ok"] { color: var(--ok); }
+.pipe-steps li[data-status="failed"], .pipe-steps li[data-status="timeout"] { color: var(--warn); font-weight: 600; }
+.pipe-steps li[data-status="running"] { color: var(--accent); font-weight: 600; }
+.console { font: 0.8125rem/1.45 var(--mono); background: var(--sidebar); border: 1px solid var(--line); border-radius: 6px;
+  padding: var(--s2) var(--s3); max-height: 22rem; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
+  margin: var(--s3) 0 0; }
+.console[hidden] { display: none; }

@@ -82,8 +82,8 @@ class Portal:
 
     # ---- dispatch -------------------------------------------------------------------------
     def get(self, path, q):
-        route = _ROUTES.get(path)
-        if route is None:
+        route = _ROUTES.get(path) or (extensions.has(f"GET {path}") and (lambda p, q: extensions.call(f"GET {path}", p, q)))  # ADR 0009
+        if not route:
             return 404, {"error": "not found"}
         try:
             return 200, route(self, q) if callable(route) else getattr(self, route)(q)  # a function or a method name

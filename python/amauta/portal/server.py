@@ -20,7 +20,7 @@ from .api import Portal
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
 STATIC = Path(__file__).resolve().parent / "static"
 JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
-STATIC_FILES = {"app.js": JS, "page-activity.js": JS, "page-memory.js": JS, "page-harness.js": JS, "page-wiki.js": JS, "page-projects.js": JS, "page-settings.js": JS, "page-themes.js": JS, "page-security.js": JS, "page-home.js": JS, "boot.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
+STATIC_FILES = {"app.js": JS, "page-activity.js": JS, "page-memory.js": JS, "page-harness.js": JS, "page-wiki.js": JS, "page-projects.js": JS, "page-settings.js": JS, "page-themes.js": JS, "page-security.js": JS, "page-pipelines.js": JS, "page-home.js": JS, "boot.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
                 "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
                 "fonts/source-serif-4-latin-600-normal.woff2": WOFF2,
@@ -35,6 +35,10 @@ PROBE_PATH = "/api/harness/refresh"
 PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
 EXPLAIN_PATH = "/api/harness/explain"
 EXPLAIN_MAX_BODY = 1024  # {"kind": ..., "id": ...}; ids are at most 200 characters
+# Guarded writes an extra answers (ADR 0009): path -> (extension point, body limit, the answer when the extra is absent).
+EXTRA_WRITES = {EXPLAIN_PATH: ("portal.explain_request", EXPLAIN_MAX_BODY, "wiki explanations are not installed"),
+                "/api/pipelines/run": ("pipelines.run", 1024, "pipelines are not installed"),
+                "/api/pipelines/cancel": ("pipelines.cancel", 1024, "pipelines are not installed")}
 THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
 THEMES_WRITES = {"/api/themes": "themes.write", "/api/themes/delete": "themes.delete"}  # extension points of the theme_editor extra
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
@@ -193,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *GRAPH_WRITES, PROBE_PATH, EXPLAIN_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *GRAPH_WRITES, PROBE_PATH, *EXTRA_WRITES, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
@@ -207,8 +211,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._themes_write(THEMES_WRITES[path])
         if path == PROBE_PATH:
             return self._probe_write()
-        if path == EXPLAIN_PATH:
-            return self._explain_write()
+        if path in EXTRA_WRITES:
+            return self._extra_write(*EXTRA_WRITES[path])
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -311,12 +315,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(err.status, err.body())
         self._json(200, result)
 
-    def _explain_write(self):
-        """Queue a request for a written explanation of one component (see wikiexplain): same guard and body rules, closed schema. The portal calls no model."""
-        body = self._settings_body(EXPLAIN_MAX_BODY)
+    def _extra_write(self, point, limit, absent):
+        """A guarded write an extra answers (wiki explanations, pipelines): same guard and body rules as the other writes."""
+        body = self._settings_body(limit)
         if body is None:
             return
-        status, payload = extensions.call("portal.explain_request", self.server.portal, body, default=(404, {"error": "wiki explanations are not installed"}))
+        status, payload = extensions.call(point, self.server.portal, body, default=(404, {"error": absent}))
         self._json(status, payload)
 
     def _not_allowed(self):
