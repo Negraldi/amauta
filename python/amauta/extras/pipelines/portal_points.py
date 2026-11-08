@@ -1,14 +1,15 @@
-"""The portal side of pipelines (plan S1b, ADR 0010), reached through the extension registry.
+"""The portal side of pipelines (ADR 0010, 0011), reached through the extension registry. The browser names a project,
+a pipeline and at most a step or a mode; never a command.
 
-`list_pipelines(portal)`: per known project, its pipelines, the last run of each and whether the project is trusted.
-`run(portal, body)`: body {"project", "id"} (a closed schema): the project must be one the portal knows and one the user
-trusted (`amauta check trust`), since a run executes project code; one run per pipeline at a time. The runner starts
-as a separate process (it outlives a closed window) and writes the events file whose name is returned.
-`events(portal, q)`: events of one run after the first `after`; `done` once it ended. `cancel(portal, body)`: stop it.
+- `list_pipelines(portal)`: per known project, its pipelines as cards (graph, last run, history, schedules' state)
+  and whether the project is trusted.
+- `run(portal, body)`: body {project, id, step?, mode?} (a closed schema). The project must be known and trusted with
+  its current pipelines.json (`amauta check trust` records its hash); the pipeline's lock is taken here, then the
+  runner starts as a detached process (it outlives a closed window) with `--expect-sha256`.
+- `events(portal, q)`: one run's events after the byte offset `after`; `done` once it ended, was abandoned or never
+  started. `cancel(portal, body)`: ask a running run to stop. `check(portal, q)`: the preflight, read only.
 """
 
-import hashlib
-import json
 import os
 import subprocess
 import sys
@@ -18,10 +19,9 @@ from pathlib import Path
 
 from ...portal import security
 from . import check as preflight
-from . import config, graph, lock, schedule, store
+from . import config, graph, lock, proc, schedule, store
 
-PYTHON_DIR = Path(__file__).resolve().parents[3]
-WINDOWS = sys.platform == "win32"
+PYTHON_DIR = Path(proc.AMAUTA_PYTHON)  # the runner imports amauta from here
 _children = []  # started runners, kept so they can be reaped (no zombies, no warnings)
 _mutex = threading.Lock()
 _started = {}  # run name -> its runner process, to tell a run that never started from one still starting
@@ -39,15 +39,10 @@ def _trust(portal, repo):
     rec = next((p for p in projects if isinstance(p, dict) and p.get("path") == os.path.realpath(repo)), None)
     if rec is None:
         return False, "this project is not trusted: run `amauta check trust` in it to allow its pipelines here", None
-    f = Path(repo) / config.FILE
-    current = hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else None
+    current = config.file_sha256(repo)
     if rec.get("pipelines_sha256") != current:
         return False, "pipelines.json changed since this project was trusted: review it, then run `amauta check trust` again", None
     return True, None, current
-
-
-def _trusted(portal, repo):
-    return _trust(portal, repo)[0]
 
 
 def _schedules(p, h):
@@ -79,57 +74,74 @@ def list_pipelines(portal):
         if not pipelines and not error:
             continue
         last, hist = store.last_runs(portal.cfg.state_dir, repo), store.history(portal.cfg.state_dir, repo)
-        out.append({"name": Path(repo).name, "path": str(Path(repo).resolve()), "trusted": _trusted(portal, repo), "error": error,
+        out.append({"name": Path(repo).name, "path": str(Path(repo).resolve()), "trusted": _trust(portal, repo)[0], "error": error,
                     "pipelines": [_card(p, last.get(p["id"]), hist.get(p["id"])) for p in pipelines]})
     return {"available": True, "projects": out}
 
 
-def run(portal, body):
+def _validate(portal, body):
+    """(error, request): an HTTP error (status, body), or what a valid run request names."""
     if not isinstance(body, dict) or set(body) - {"project", "id", "step", "mode"}:
-        return 400, {"error": "body must be {project, id, step?, mode?}"}
+        return (400, {"error": "body must be {project, id, step?, mode?}"}), None
     repo = _known(portal, body.get("project"))
     if repo is None:
-        return 404, {"error": "not a project the portal knows"}
+        return (404, {"error": "not a project the portal knows"}), None
     trusted, why, sha = _trust(portal, repo)
     if not trusted:
-        return 403, {"error": why}
+        return (403, {"error": why}), None
     try:
         pipeline = next((p for p in config.load(repo) if p["id"] == body.get("id")), None)
     except config.ConfigError as e:
-        return 400, {"error": str(e)}
+        return (400, {"error": str(e)}), None
     if pipeline is None:
-        return 404, {"error": "no such pipeline"}
-    step = body.get("step")
+        return (404, {"error": "no such pipeline"}), None
+    step, mode = body.get("step"), body.get("mode")
     if step is not None and (type(step) is not int or not 1 <= step <= len(pipeline["steps"])):
-        return 400, {"error": f"step must be a number from 1 to {len(pipeline['steps'])}"}
-    mode = body.get("mode")
+        return (400, {"error": f"step must be a number from 1 to {len(pipeline['steps'])}"}), None
     if mode is not None and mode not in pipeline["modes"]:
-        return 400, {"error": f"mode must be one of: {', '.join(pipeline['modes']) or 'none (this pipeline has no modes)'}"}
-    with _mutex:
-        _children[:] = [c for c in _children if c.poll() is None]  # reap ended runners first
-    events = store.new_run(portal.cfg.state_dir, repo, body["id"])
-    if not lock.acquire(portal.cfg.state_dir, repo, body["id"], events.name, starting=True):  # atomic: one run at a time
-        events.unlink(missing_ok=True)  # the name new_run reserved: no run will use it
-        return 409, {"error": "this pipeline is already running"}
-    argv = [sys.executable, "-P", "-m", "amauta.extras.pipelines", "run", body["id"], "--cwd", str(repo),
-            "--state-dir", str(portal.cfg.state_dir), "--events", str(events), "--trigger", "portal"]
-    argv += (["--step", str(step)] if step is not None else []) + (["--mode", mode] if mode else []) + ["--expect-sha256", sha]
-    given = os.environ.get("AMAUTA_USER_PYTHONPATH", os.environ.get("PYTHONPATH", ""))
-    user_pp = os.pathsep.join(p for p in given.split(os.pathsep) if p and os.path.realpath(p) != os.path.realpath(PYTHON_DIR))
-    env = {**os.environ, "PYTHONPATH": str(PYTHON_DIR), "AMAUTA_USER_PYTHONPATH": user_pp}
-    flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if WINDOWS else 0
-    detach = {"creationflags": flags} if WINDOWS else {"start_new_session": True}
-    try:
-        child = _spawn(argv, env, Path(f"{events}.log"), detach)
-    except OSError as e:  # nothing will adopt the lock: release it now rather than in a minute
-        lock.release(portal.cfg.state_dir, repo, body["id"], events.name)
-        events.unlink(missing_ok=True)
-        return 500, {"error": f"the runner could not start: {e}"}
+        return (400, {"error": f"mode must be one of: {', '.join(pipeline['modes']) or 'none (this pipeline has no modes)'}"}), None
+    return None, {"repo": repo, "id": pipeline["id"], "sha": sha, "step": step, "mode": mode}
+
+
+def _command(portal, req, events):
+    """The runner's argv and environment: amauta's modules for the runner, the user's own PYTHONPATH for the steps."""
+    argv = [sys.executable, "-P", "-m", "amauta.extras.pipelines", "run", req["id"], "--cwd", str(req["repo"]),
+            "--state-dir", str(portal.cfg.state_dir), "--events", str(events), "--trigger", "portal",
+            "--expect-sha256", req["sha"]]
+    argv += (["--step", str(req["step"])] if req["step"] is not None else []) + (["--mode", req["mode"]] if req["mode"] else [])
+    user = proc.without_amauta(os.environ.get("AMAUTA_USER_PYTHONPATH", os.environ.get("PYTHONPATH", "")))
+    return argv, {**os.environ, "PYTHONPATH": str(PYTHON_DIR), "AMAUTA_USER_PYTHONPATH": user}
+
+
+def _remember(events, child):
     with _mutex:  # the portal serves requests in threads
         _children[:] = [c for c in _children if c.poll() is None] + [child]
         for name in [n for n, c in _started.items() if c.poll() is not None and n != events.name][:-50]:
             del _started[name]  # keep the newest finished launches, enough for their followers
         _started[events.name] = child
+
+
+def run(portal, body):
+    error, req = _validate(portal, body)
+    if error:
+        return error
+    with _mutex:
+        _children[:] = [c for c in _children if c.poll() is None]  # reap ended runners first
+    state, repo, pid = portal.cfg.state_dir, req["repo"], req["id"]
+    events = store.new_run(state, repo, pid)
+    if not lock.acquire(state, repo, pid, events.name, starting=True):  # atomic: one run at a time
+        events.unlink(missing_ok=True)  # the name new_run reserved: no run will use it
+        return 409, {"error": "this pipeline is already running"}
+    argv, env = _command(portal, req, events)
+    detach = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS} if proc.WINDOWS \
+        else {"start_new_session": True}
+    try:
+        child = _spawn(argv, env, Path(f"{events}.log"), detach)
+    except OSError as e:  # nothing will adopt the lock: release it now rather than in a minute
+        lock.release(state, repo, pid, events.name)
+        events.unlink(missing_ok=True)
+        return 500, {"error": f"the runner could not start: {e}"}
+    _remember(events, child)
     return 202, {"run": events.name}
 
 
@@ -169,7 +181,8 @@ def events(portal, q):
 
 
 def _held(f):
-    return lock.held_by(f.parent / f"{f.name.rsplit('-', 2)[0]}.lock", f.name)
+    """A live runner holds this run's pipeline lock."""
+    return lock.held_by(lock.for_run(f, store.pipeline_of(f.name)), f.name)
 
 
 def _never_started(f):
@@ -188,8 +201,7 @@ def cancel(portal, body):
     f = _run_file(portal, (body or {}).get("project"), (body or {}).get("run"))
     if f is None:
         return 404, {"error": "unknown run"}
-    pid = f.name.rsplit("-", 2)[0]
-    if not lock.held_by(f.parent / f"{pid}.lock", f.name):
+    if not _held(f):
         return 409, {"error": "this run is not running"}
     Path(f"{f}.cancel").write_text("")
     return 200, {"ok": True}

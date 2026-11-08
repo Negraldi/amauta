@@ -16,3 +16,4 @@ consequences. A record is never edited after it is accepted; a later record supe
 | [0009](0009-extras-extend-pillars.md) | Extras extend pillars through a registry (refines 0001) |
 | [0010](0010-pipelines.md) | Pipelines: run a project's processes from the portal, with their output live |
 | [0011](0011-pipeline-dag-modes.md) | Pipelines as a DAG, with reuse, modes and one run at a time (refines 0010) |
+| [0012](0012-pipeline-process-ownership.md) | Pipelines: a step owns its processes, a lock knows its process (refines 0011) |

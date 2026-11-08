@@ -1,11 +1,16 @@
-"""`.amauta/pipelines.json`: the pipelines a project defines (plan S1a, ADR 0010).
+"""`.amauta/pipelines.json`: the pipelines a project defines, read and checked (ADR 0010, 0011).
 
-{"pipelines": [{"id", "name", "description", "category", "schedule",
-  "steps": [{"name", "type", ...}]}]}. Step types: `command` (`argv`, a list,
-never a shell string), `python` and `r` (`script`, `args`, optional `interpreter`), `notebook` (`path`). Paths are
-relative to the project and stay inside it. `timeout` (seconds, default 3600), `enabled` (default true), `cwd`,
-`retries` (0-5, default 0) with `retry_delay` (seconds, default 30) and `outputs` (files the step must refresh) are
-optional. A definition that holds a secret-like value is refused: credentials belong to the scripts' own config.
+    {"blocks": {name: step fields},
+     "pipelines": [{"id", "name", "description", "category", "modes", "default_mode", "max_parallel",
+                    "schedule": {...} or [{..., "mode"}], "steps": [...]}]}
+
+A step has a `type`: `command` (`argv`, a list, never a shell string), `python` or `r` (`script`, `args`, optional
+`interpreter`), `notebook` (`path`), or `pipeline` (`pipeline`: another pipeline expanded in its place). Optional:
+`id`, `name`, `needs`, `modes`, `use` (a block), `enabled`, `cwd`, `timeout` (seconds, default 3600), `retries`
+(0-5) with `retry_delay` (seconds, default 30), `outputs` (files the step must change). The graph (ids, needs, blocks,
+sub-pipelines, loops) is graph.py's; this module checks each step's fields, the modes and the schedules. Paths are
+relative to the project and stay inside it; NUL characters and secret-like values are refused (credentials belong to
+the scripts' own configuration). A UTF-8 byte order mark is accepted.
 """
 
 import hashlib
@@ -202,13 +207,23 @@ def parse(data):
     return [_pipeline(p, by_id) for p in items]
 
 
+def _sha256(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def file_sha256(repo):
+    """The hash `amauta check trust` records for the project's pipelines.json (None without one)."""
+    f = Path(repo) / FILE
+    return _sha256(f.read_bytes()) if f.is_file() else None
+
+
 def load(repo, expect_sha256=None):
     """The project's pipelines. With `expect_sha256`, the file must still be the one whose hash the caller checked."""
     f = Path(repo) / FILE
     if not f.is_file():
         return []
     raw = f.read_bytes()
-    if expect_sha256 is not None and hashlib.sha256(raw).hexdigest() != expect_sha256:
+    if expect_sha256 is not None and _sha256(raw) != expect_sha256:
         raise ConfigError(f"{FILE} changed since it was checked: review it, then run `amauta check trust` again")
     text = raw.decode("utf-8-sig")  # a byte order mark (Windows Notepad) is fine
     if secretlike.contains_secret(text):

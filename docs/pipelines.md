@@ -93,7 +93,7 @@ most `max_parallel` at a time (default 4, up to 16).
 
 ```
 amauta pipeline list [--cwd DIR]
-amauta pipeline check [<id>]                          # missing scripts, programs or folders, before a run; exit 1 on an error
+amauta pipeline check [<id>]                          # what would stop a run, without running it; exit 1 on an error
 amauta pipeline run <id> [--cwd DIR] [--python EXE]   # prints "[step] line" as it runs; exit 0 ok, 1 failed, 130 cancelled
 amauta pipeline run <id> --step 2                     # only that step (1-based); the others are skipped
 amauta pipeline run <id> --mode train                 # one of the pipeline's modes; exit 3 if it is already running
@@ -103,15 +103,19 @@ amauta pipeline schedule-hint <id> [--at HH:MM] [--day mon] [--os windows|linux|
 ```
 
 One run of a pipeline at a time, whoever starts it: the portal, the terminal or the OS scheduler take the same lock
-(`<id>.lock` beside the runs), and a lock whose process is gone no longer counts; the lock also records when that
-process started, so a process id the system reused for another program does not keep it. A run whose runner stopped without
-ending it reads as abandoned. SIGTERM or Ctrl+C on the runner cancels the run and still writes its end.
+(`<id>.lock` beside the runs; `--events` must name a file there). A lock whose process is gone (or a zombie) no
+longer counts, and the lock records when its process started, so a process id the system gave to another program
+does not keep it. A run whose runner stopped without ending it reads as abandoned. SIGTERM or Ctrl+C on the runner
+cancels the run and still writes its end.
 
 A step owns its processes: a process group on Linux and macOS, a job object on Windows. On a timeout or cancel all of
-them are stopped, and whatever the step left running in the background is stopped when it ends, so a leftover
-cannot hold the step open. Every output line is written to
-`<state dir>/pipelines/runs/<project>/<id>-<time>.jsonl` with secrets and identifiers redacted, together with what
-started the run (`cli`, `portal` or `schedule`) and how long each step took.
+them are stopped, and whatever the step left running is stopped when it ends, so a leftover cannot hold the step
+open. A process that left the group on purpose (its own session) and keeps the output open is given up on two
+seconds later, with a line saying it was left running.
+
+Every output line is written to `<state dir>/pipelines/runs/<project>/<id>-<time>-<pid>.jsonl` with secrets and
+identifiers redacted, together with what started the run (`cli`, `portal` or `schedule`), its mode and how long each
+step took. The runner's own errors, for a run started from the portal, go to the same name plus `.log`.
 
 Each step's process gets `AMAUTA_PIPELINE` (the id), `AMAUTA_PIPELINE_TRIGGER` (`cli`, `portal` or `schedule`) and
 `AMAUTA_PIPELINE_STEP` (its number), plus `AMAUTA_PIPELINE_MODE`. Steps inherit the environment of whoever started the
@@ -187,7 +191,7 @@ scheduled, the portal compares it with the declared schedule: a card says **no s
 be registered) or **a scheduled run did not happen** (the machine was off, or the task was removed), with 30 minutes
 of grace for a late start, per schedule and its mode, in local wall time (a daylight-saving change does not count).
 
-The newest 50 runs of each pipeline are kept; older events files are removed when a new run starts.
+The newest 50 runs of each pipeline are kept; older events, cancel and log files are removed when a new run starts.
 
 ## Limits
 

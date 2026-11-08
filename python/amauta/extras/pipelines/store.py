@@ -1,5 +1,11 @@
-"""Where runs live: `<state dir>/pipelines/runs/<project key>/<pipeline>-<UTC time>-<pid>.jsonl`, one events file per run.
-The project key is the folder name plus a short hash of its real path, so two projects with one name never mix."""
+"""Where runs live and what they say (ADR 0010, 0011).
+
+`<state dir>/pipelines/runs/<project key>/<pipeline>-<UTC time with microseconds>-<pid>.jsonl`: one events file per
+run, reserved with O_EXCL; beside it `<pipeline>.lock` (lock.py), `<run>.cancel` and `<run>.log`. The project key is
+the folder name plus a short hash of its real path, so two projects with one name never mix. The newest KEEP runs of
+a pipeline are kept. Events are read whole lines at a time from a byte offset; run summaries (status, steps in
+pipeline order, first failure, outputs, trigger, mode) are cached by file size and time.
+"""
 
 import hashlib
 import json
@@ -18,6 +24,11 @@ SHOWN = 10  # runs in a card's history
 def project_key(repo):
     real = os.path.realpath(repo)
     return f"{Path(real).name}-{hashlib.sha256(real.encode('utf-8')).hexdigest()[:8]}"
+
+
+def pipeline_of(run_name):
+    """The pipeline id in a run's file name `<id>-<time>-<pid>.jsonl` (an id may itself hold '-')."""
+    return run_name.rsplit("-", 2)[0]
 
 
 def runs_dir(state_dir, repo):
@@ -78,7 +89,7 @@ _summaries = {}  # path -> ((size, mtime_ns), summary): a finished run's file do
 def _cached(f):
     """A run's summary; a run without its end is "running" while its runner holds the lock, else "abandoned"."""
     run = _cached_summary(f)
-    if run is not None and run["status"] == "running" and not lock.held_by(f.parent / f"{run['pipeline']}.lock", f.name):
+    if run is not None and run["status"] == "running" and not lock.held_by(lock.for_run(f, run["pipeline"]), f.name):
         run = {**run, "status": "abandoned"}
     return run
 

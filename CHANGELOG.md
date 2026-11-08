@@ -28,6 +28,11 @@ All notable changes to this project are documented here. The format follows [Kee
   default mode; following an abandoned or never-started run ends; the runner refuses a pipelines.json changed after
   the portal's trust check; `--step 0` refused; `%` escaped in cron lines.
 
+- Third independent review and follow-ups (ADR 0012): Windows job objects for a step's processes; the lock records its
+  process's start time and treats zombies as dead; a detached child holding a step's output is given up on; no
+  0.1 s floor per step; run names reserved on disk; retention removes logs; replay by step id; a card refreshes its
+  history when the live run it follows ends.
+
 ### Changed
 
 - `amauta check trust` records the hash of `.amauta/pipelines.json`; the portal runs pipelines only while that file

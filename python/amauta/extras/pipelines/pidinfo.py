@@ -14,12 +14,9 @@ import sys
 def _win_process(pid, query):
     """Open the process for a query; (kernel32, handle, error code)."""
     import ctypes
-    from ctypes import wintypes
-    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    k32.OpenProcess.restype, k32.OpenProcess.argtypes = wintypes.HANDLE, (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
-    k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
-    k32.GetProcessTimes.argtypes = (wintypes.HANDLE, *[ctypes.POINTER(wintypes.FILETIME)] * 4)
-    k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+
+    from . import winjob
+    k32 = winjob.kernel32()
     handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
         return k32, None, ctypes.get_last_error()

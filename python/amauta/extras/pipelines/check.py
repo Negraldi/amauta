@@ -48,7 +48,7 @@ def _step(repo, step, python):
 
 def check(repo, pipeline_id=None, python=None):
     """[{pipeline, step, level: error|note, message}] for one pipeline or all of them; [] when nothing would stop a run."""
-    python = python or shutil.which("python3") or shutil.which("python")
+    python = python or proc.default_python()
     pipelines = config.load(repo)
     if pipeline_id is not None and pipeline_id not in [p["id"] for p in pipelines]:
         raise config.ConfigError(f"no pipeline {pipeline_id!r} in {config.FILE}")

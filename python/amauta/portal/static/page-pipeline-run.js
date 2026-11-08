@@ -61,9 +61,8 @@ function consoleTools(out, lines, stepNames) {
     const v = ev.target.value;
     for (const l of lines) l.hidden = Boolean(v) && l.getAttribute("data-step") !== v;
   });
-  const follow = h("input", { type: "checkbox", checked: true });
-  follow.checked = true;
-  follow.addEventListener("change", (ev) => { follow.checked = ev.target.checked; });
+  const follow = h("input", { type: "checkbox" });
+  follow.checked = true; // the browser keeps it in step with the box; `add` reads it
   const tools = h("div", { class: "actions" }, filter, first, h("label", null, follow, " ", t("pipe.follow")), copy, clear);
   return { tools, first, filter, follow };
 }

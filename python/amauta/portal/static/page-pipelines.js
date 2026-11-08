@@ -182,7 +182,7 @@ function pipelineCard(pr, p) {
   const ids = p.ids || [];
   const byId = (i) => last.find((st) => st.id && st.id === ids[i]) || (last[i] && !last[i].id ? last[i] : null); // older runs: no id
   const recent = last && p.steps.map((_, i) => byId(i));
-  const items = p.steps.map((name, i) => stepItem({ name, n: i + 1, id: (p.ids || [])[i], type: (p.types || [])[i], enabled: pr.trusted,
+  const items = p.steps.map((name, i) => stepItem({ name, n: i + 1, id: ids[i], type: (p.types || [])[i], enabled: pr.trusted,
     seconds: recent && recent[i] && recent[i].status !== "skipped" ? recent[i].seconds : null, onlyThis: (n, step) => ask(n, step) }));
   if (recent) recent.forEach((st, i) => st && items[i] && items[i].setStatus(st.status));
   let mode = p.default_mode || null;

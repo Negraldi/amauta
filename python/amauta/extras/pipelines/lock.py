@@ -132,6 +132,11 @@ def held_by(f, run):
     return data is not None and data.get("run") == run and not _stale(data, f)
 
 
+def for_run(events, pipeline_id):
+    """The lock of the pipeline whose run writes `events`: it sits beside the run files."""
+    return Path(events).parent / f"{pipeline_id}.lock"
+
+
 def path(state_dir, repo, pipeline_id):
     from .store import runs_dir  # store reads locks too: imported here to keep the two modules independent
     return runs_dir(state_dir, repo) / f"{pipeline_id}.lock"

@@ -1,13 +1,15 @@
-"""One step's process (ADR 0010, review R4-R6): its argv (never a shell), environment and working folder; reading its
-output line by line; stopping its whole process tree on timeout or cancel.
+"""One attempt of one step (ADR 0010, 0011): its argv (never a shell), environment and working folder; its output
+read line by line in a thread; its processes stopped on timeout, cancel and at its end.
 
-A step owns its processes: on POSIX its own process group, on Windows a job object (winjob.py). Timeout and cancel
-stop them all, and once the main process exits the rest is stopped too, so a background child cannot hold the step
-open past its end or its timeout.
-Paths of scripts and notebooks are taken from the project root; `cwd` only sets the working folder.
+A step owns its processes: a process group on POSIX, a job object on Windows (winjob.py), together `_Tree`. Once the
+main process ends, what it left running in the tree is stopped. A process that left the tree (its own session) and
+still holds the output is given up on after GRACE seconds, with a line saying so; it keeps running.
+Scripts and notebooks resolve from the project root and may not lead outside it; `cwd` only sets the working folder.
+Steps get the caller's environment with the user's own PYTHONPATH (amauta's module folder removed).
 """
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -43,12 +45,22 @@ def argv_for(step, repo, python):
     return ["jupyter", "nbconvert", "--to", "notebook", "--execute", "--output", out, str(nb)]
 
 
+def without_amauta(pythonpath):
+    """A PYTHONPATH value without amauta's own module folder (amauta adds it for itself, never for a step)."""
+    own = os.path.realpath(AMAUTA_PYTHON)
+    return os.pathsep.join(p for p in (pythonpath or "").split(os.pathsep) if p and os.path.realpath(p) != own)
+
+
+def default_python():
+    """The interpreter for python steps without one: python3 or python on PATH, else the one running amauta."""
+    return shutil.which("python3") or shutil.which("python") or sys.executable
+
+
 def step_env(extra):
     """The caller's environment for a step, with the user's own PYTHONPATH (amauta's module folder removed)."""
     env = dict(os.environ)
     given = env.pop("AMAUTA_USER_PYTHONPATH", None)
-    given = env.get("PYTHONPATH", "") if given is None else given
-    user = os.pathsep.join(p for p in given.split(os.pathsep) if p and os.path.realpath(p) != os.path.realpath(AMAUTA_PYTHON))
+    user = without_amauta(env.get("PYTHONPATH", "") if given is None else given)
     if user:
         env["PYTHONPATH"] = user
     else:
@@ -97,9 +109,11 @@ class _Tree:
             pass
 
     def close(self):
-        self.sweep()
+        """The step is over: stop whatever is left (closing the job does it on Windows: kill-on-close)."""
         if self.job:
             self.job.close()
+        else:
+            self.sweep()
 
 
 def _watch(tree, timeout, cancel, done, stop):

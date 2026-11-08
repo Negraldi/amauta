@@ -44,7 +44,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ### Cleanup
 
-- [ ] M6 Refactor and simplify: one responsibility per module, short functions, no duplicated helpers, comments and
+- [x] M6 Refactor and simplify: one responsibility per module, short functions, no duplicated helpers, comments and
   headers that say what the code does now; docs/pipelines.md and ADR 0011 checked against the code.
 - [ ] M7 The explainer page shows the design, the flow and the components as they are.
 
@@ -74,7 +74,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ## Next step
 
-M6: cleanup round (the review's list: one PYTHONPATH filter, one lock path for a run, one hash helper, dead code, stale docstrings, the portal's run split).
+M7: update the explainer page (design, flow, components) and republish it.
 - 2026-11-08: M5 F1 inline. RED: a zombie holder kept a lock (and a SIGKILLed portal runner gave 409 forever), 40
   trivial steps took over 4 s, a child in its own session holding the output kept a step for its full sleep, skipped
   steps waited for a slot, a setup error left the lock. Fixes: `pidinfo` treats a zombie as dead and reads `ps` in C
@@ -93,4 +93,11 @@ M6: cleanup round (the review's list: one PYTHONPATH filter, one lock path for a
   the newest request; S2 (job without kill-on-close is not used) and S5 (portal bookkeeping under a mutex, bounded)
   without a deterministic test. Two tests changed on purpose: pruning counts the new run's file, the thread test stays
   under KEEP. npm test: 850 Node, 930 Python.
+- 2026-11-08: M6 cleanup, no behavior change, suites green without changed expectations: one PYTHONPATH filter and one
+  default interpreter (`proc.without_amauta`, `proc.default_python`), one lock path for a run (`lock.for_run`,
+  `store.pipeline_of`, five derivations before), one hash helper (`config.file_sha256`), one set of kernel32
+  prototypes (`winjob.kernel32`, used by pidinfo); the portal's run split into `_validate`, `_command`, `_remember`;
+  `proc._Tree.close` closes the job or sweeps the group, not both; dead code removed (`runner.argv_for`, `_trusted`,
+  the follow checkbox's no-op listener, an unused import); headers of config, store, proc, runner, winjob and the
+  portal rewritten to match the code; docs/pipelines.md updated; ADR 0012 records process ownership and lock identity.
 

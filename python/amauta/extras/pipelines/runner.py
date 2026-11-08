@@ -1,11 +1,11 @@
 """Run one pipeline (ADR 0010, 0011): its steps as a DAG, each a process started without a shell (proc.py).
 
 A step starts once every step it needs is done, at most `max_parallel` at a time. Done means ok, or skipped because
-the step is off (`enabled: false`), outside the run's mode, or outside an "only this step" run. A failed, timed-out or
-cancelled step skips the steps that need it and, through them, everything below (reason "needs"); other branches
-finish. An error inside a step (not its program's) ends that step as failed. A failure or timeout is
-tried again up to `retries` times, `retry_delay` seconds apart; a step that exits 0 but did not change each of its
-`outputs` has failed.
+the step is off (`enabled: false`), outside the run's mode, or outside an "only this step" run; such a skip takes
+no slot. A failed, timed-out or cancelled step skips the steps that need it and, through them, everything below
+(reason "needs"); other branches finish. An error inside a step (not its program's) ends that step as failed. A
+failure or timeout is tried again up to `retries` times, `retry_delay` seconds apart; a step that exits 0 but did not
+change each of its `outputs` has failed.
 
 Every output line is redacted (the detector catalog; a private key block from BEGIN to END) and written as an event to
 a JSON-lines file; `on_line` sees the same text (the CLI prints it). The run holds its pipeline's lock (lock.py). Cancel:
@@ -17,9 +17,7 @@ Exit codes: 0 every step that ran was ok, 1 a step failed or timed out, 130 canc
 import json
 import os
 import re
-import shutil
 import signal
-import sys
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -32,7 +30,6 @@ from . import config, lock, proc
 KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY-----")
 DONE = ("ok", "skipped")
-argv_for = proc.argv_for  # kept for callers of 0.6
 
 
 def cancel_path(events):
@@ -197,8 +194,8 @@ def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger
     if only is not None and not 0 <= only < len(pipeline["steps"]):
         raise config.ConfigError(f"{pipeline_id} has no step {only + 1}")
     mode = _mode(pipeline, mode)
-    python = python or shutil.which("python3") or shutil.which("python") or sys.executable
-    lock_file, name = Path(events).parent / f"{pipeline_id}.lock", Path(events).name
+    python = python or proc.default_python()
+    lock_file, name = lock.for_run(events, pipeline_id), Path(events).name
     lock.adopt(lock_file, name)  # Busy when another run of this pipeline is alive
     cancel, ev, t0, status, restore = cancel_path(events), None, time.monotonic(), "failed", lambda: None
     base = {"AMAUTA_PIPELINE": pipeline_id, "AMAUTA_PIPELINE_TRIGGER": trigger, "AMAUTA_PIPELINE_MODE": mode or ""}
