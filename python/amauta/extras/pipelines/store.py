@@ -1,4 +1,4 @@
-"""Where runs live: `<state dir>/pipelines/runs/<project key>/<pipeline>-<UTC time>.jsonl`, one events file per run.
+"""Where runs live: `<state dir>/pipelines/runs/<project key>/<pipeline>-<UTC time>-<pid>.jsonl`, one events file per run.
 The project key is the folder name plus a short hash of its real path, so two projects with one name never mix."""
 
 import hashlib
@@ -25,7 +25,7 @@ def runs_dir(state_dir, repo):
 
 
 def _own(pipeline_id):
-    return re.compile(rf"{re.escape(pipeline_id)}-\d{{8}}T\d{{6}}Z-\d+\.jsonl")
+    return re.compile(rf"{re.escape(pipeline_id)}-\d{{8}}T\d{{6}}(\d{{6}})?Z-\d+\.jsonl")
 
 
 def new_run(state_dir, repo, pipeline_id):
@@ -34,7 +34,9 @@ def new_run(state_dir, repo, pipeline_id):
     for old in mine[:max(0, len(mine) - (KEEP - 1))]:
         old.unlink(missing_ok=True)
         Path(f"{old}.cancel").unlink(missing_ok=True)
-    return d / f"{pipeline_id}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}.jsonl"
+    now = time.time()  # microseconds in the name: two runs started by one process in one second never share a file
+    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime(now)) + f"{int(now * 1e6) % 1000000:06d}Z"
+    return d / f"{pipeline_id}-{stamp}-{os.getpid()}.jsonl"
 
 
 def read_from(path, offset=0):
@@ -102,7 +104,8 @@ def _summary(f, events):
     if start is None:
         return None
     end = next((e for e in reversed(events) if e.get("kind") == "run-end"), None)
-    steps = [{"name": e["name"], "status": e["status"], "seconds": e.get("seconds", 0)} for e in events if e.get("kind") == "step-end"]
+    ends = sorted((e for e in events if e.get("kind") == "step-end"), key=lambda e: e.get("step", 0))  # pipeline order
+    steps = [{"id": e.get("id"), "name": e["name"], "status": e["status"], "seconds": e.get("seconds", 0)} for e in ends]
     bad = next((e["step"] for e in events if e.get("kind") == "step-end" and e["status"] in ("failed", "timeout")), None)
     lines = [e["text"] for e in events if e.get("kind") == "line" and e.get("step") == bad and not e["text"].startswith("retrying in ")]
     return {"pipeline": start["pipeline"], "run": f.name, "status": end["status"] if end else "running", "started": start["t"],

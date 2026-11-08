@@ -186,9 +186,10 @@ def _on_signal(cancel):
     return lambda: [signal.signal(s, h) for s, h in old.items()]
 
 
-def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger="cli", mode=None):
-    """`only`: run just that step (0-based). `trigger`: cli, portal or schedule. `mode`: one of the pipeline's modes."""
-    pipeline = next((p for p in config.load(repo) if p["id"] == pipeline_id), None)
+def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger="cli", mode=None, expect_sha256=None):
+    """`only`: run just that step (0-based). `trigger`: cli, portal or schedule. `mode`: one of the pipeline's modes.
+    `expect_sha256`: the hash of pipelines.json the portal trusted; a file changed since then is refused."""
+    pipeline = next((p for p in config.load(repo, expect_sha256=expect_sha256) if p["id"] == pipeline_id), None)
     if pipeline is None:
         raise config.ConfigError(f"no pipeline {pipeline_id!r} in {config.FILE}")
     if only is not None and not 0 <= only < len(pipeline["steps"]):

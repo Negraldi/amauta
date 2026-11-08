@@ -322,3 +322,41 @@ class SecondReviewConfigTest(Base):
         (self.repo / ".amauta").mkdir(exist_ok=True)
         (self.repo / ".amauta" / "pipelines.json").write_bytes(b"\xef\xbb\xbf" + json.dumps({"pipelines": [{"id": "p", "steps": [CMD("1")]}]}).encode())
         self.assertEqual(config.load(self.repo)[0]["id"], "p")
+
+
+class SecondReviewStoreTest(Run):
+    """Second review, V4."""
+
+    def test_a_summary_keeps_steps_in_pipeline_order_with_their_id(self):
+        from python.amauta.extras.pipelines import store
+        self.define({"id": "p", "steps": [{"id": "slow", "needs": [], **CMD("import time; time.sleep(0.6)")},
+                                          {"id": "fast", "needs": [], **CMD("import sys; sys.exit(1)")}]})
+        state = Path(self.tmp.name) / "state"
+        runner.run(self.repo, "p", store.new_run(state, self.repo, "p"), python=PY)
+        steps = store.history(state, self.repo)["p"]["runs"][0]["steps"]
+        self.assertEqual([(s["id"], s["status"]) for s in steps], [("slow", "ok"), ("fast", "failed")])
+
+    def test_run_names_are_unique_within_a_second(self):
+        from python.amauta.extras.pipelines import store
+        names = {store.new_run(self.tmp.name, self.repo, "p").name for _ in range(50)}
+        self.assertEqual(len(names), 50)
+
+    def test_the_runner_refuses_a_definition_that_changed_after_the_check(self):
+        import hashlib
+        self.define({"id": "p", "steps": [CMD("1")]})
+        sha = hashlib.sha256((self.repo / ".amauta" / "pipelines.json").read_bytes()).hexdigest()
+        self.assertEqual(config.load(self.repo, expect_sha256=sha)[0]["id"], "p")
+        self.define({"id": "p", "steps": [CMD("2")]})
+        with self.assertRaisesRegex(config.ConfigError, "changed"):
+            runner.run(self.repo, "p", Path(self.tmp.name) / "x.jsonl", python=PY, expect_sha256=sha)
+
+    def test_amautas_folder_never_reaches_a_step(self):
+        import os
+        from python.amauta.extras.pipelines import proc
+        old = {k: os.environ.get(k) for k in ("PYTHONPATH", "AMAUTA_USER_PYTHONPATH")}
+        os.environ["AMAUTA_USER_PYTHONPATH"] = os.pathsep.join([proc.AMAUTA_PYTHON, "/my/own"])
+        try:
+            self.assertEqual(proc.step_env({})["PYTHONPATH"], "/my/own")
+        finally:
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)

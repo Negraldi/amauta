@@ -202,6 +202,50 @@ class PortalPointsTest(Base):
         proj = next(p for p in r["projects"] if p["path"] == str(self.repo))
         self.assertIn("unhashable", proj["error"])
 
+    def test_a_schedule_without_mode_follows_the_default_mode(self):
+        from python.amauta.extras.pipelines import runner, store
+        f = self.repo / ".amauta" / "pipelines.json"
+        data = json.loads(f.read_text())
+        data["pipelines"].append({"id": "m", "modes": ["train", "predict"], "default_mode": "predict", "schedule": {"every_minutes": 30},
+                                  "steps": [{"type": "command", "argv": [sys.executable, "-c", "1"]}]})
+        f.write_text(json.dumps(data))
+        runner.run(self.repo, "m", store.new_run(self.state, self.repo, "m"), trigger="schedule")
+        card = next(p for p in pp.list_pipelines(self.portal)["projects"][0]["pipelines"] if p["id"] == "m")
+        self.assertEqual(card["schedules"][0]["state"], "ok")
+
+    def test_following_an_abandoned_or_never_started_run_ends(self):
+        from python.amauta.extras.pipelines import store
+        lost = store.new_run(self.state, self.repo, "hello")
+        lost.parent.mkdir(parents=True, exist_ok=True)
+        lost.write_text(json.dumps({"t": "2026-11-08T10:00:00+00:00", "kind": "run-start", "pipeline": "hello", "steps": ["Step"]}) + "\n")
+        r = pp.events(self.portal, {"project": str(self.repo), "run": lost.name, "after": "0"})
+        self.assertTrue(r["done"])
+        self.assertIn("abandoned", r["error"])
+        empty = store.new_run(self.state, self.repo, "slow")
+        empty.touch()
+        Path(f"{empty}.log").write_text("ModuleNotFoundError: No module named 'amauta'\n")
+        r = pp.events(self.portal, {"project": str(self.repo), "run": empty.name, "after": "0"})
+        self.assertTrue(r["done"], "no runner holds its lock: after a portal restart too")
+        self.assertIn("did not start", r["error"])
+
+    def test_the_portal_hands_the_trusted_hash_and_the_users_pythonpath_to_the_runner(self):
+        from unittest import mock
+        import os
+        self.trust()
+        seen = {}
+
+        class Fake:
+            def __init__(self, argv, env=None, **kw):
+                seen["argv"], seen["env"] = argv, env
+
+            def poll(self):
+                return None
+        with mock.patch.object(pp.subprocess, "Popen", Fake), mock.patch.dict(os.environ, {"PYTHONPATH": f"{pp.PYTHON_DIR}{os.pathsep}/my/own"}):
+            pp.os.environ.pop("AMAUTA_USER_PYTHONPATH", None)
+            self.assertEqual(pp.run(self.portal, {"project": str(self.repo), "id": "hello"})[0], 202)
+        self.assertIn("--expect-sha256", seen["argv"])
+        self.assertEqual(seen["env"]["AMAUTA_USER_PYTHONPATH"], "/my/own")
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

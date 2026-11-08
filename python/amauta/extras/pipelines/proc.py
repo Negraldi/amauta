@@ -46,10 +46,9 @@ def argv_for(step, repo, python):
 def step_env(extra):
     """The caller's environment for a step, with the user's own PYTHONPATH (amauta's module folder removed)."""
     env = dict(os.environ)
-    user = env.pop("AMAUTA_USER_PYTHONPATH", None)
-    if user is None:
-        user = os.pathsep.join(p for p in env.get("PYTHONPATH", "").split(os.pathsep)
-                               if p and os.path.realpath(p) != os.path.realpath(AMAUTA_PYTHON))
+    given = env.pop("AMAUTA_USER_PYTHONPATH", None)
+    given = env.get("PYTHONPATH", "") if given is None else given
+    user = os.pathsep.join(p for p in given.split(os.pathsep) if p and os.path.realpath(p) != os.path.realpath(AMAUTA_PYTHON))
     if user:
         env["PYTHONPATH"] = user
     else:

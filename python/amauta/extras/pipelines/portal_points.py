@@ -31,16 +31,17 @@ def _known(portal, path):
 
 
 def _trust(portal, repo):
-    """(trusted, why not): the project was trusted with `amauta check trust` and its pipelines.json is the file it saw."""
+    """(trusted, why not, sha256): the project was trusted with `amauta check trust` and its pipelines.json is the file
+    it saw; the runner gets that hash and refuses a file changed in between."""
     projects = security.read_json(Path(portal.cfg.state_dir) / "checks" / "trust.json", {}).get("projects", [])
     rec = next((p for p in projects if isinstance(p, dict) and p.get("path") == os.path.realpath(repo)), None)
     if rec is None:
-        return False, "this project is not trusted: run `amauta check trust` in it to allow its pipelines here"
+        return False, "this project is not trusted: run `amauta check trust` in it to allow its pipelines here", None
     f = Path(repo) / config.FILE
     current = hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else None
     if rec.get("pipelines_sha256") != current:
-        return False, "pipelines.json changed since this project was trusted: review it, then run `amauta check trust` again"
-    return True, None
+        return False, "pipelines.json changed since this project was trusted: review it, then run `amauta check trust` again", None
+    return True, None, current
 
 
 def _trusted(portal, repo):
@@ -49,7 +50,8 @@ def _trusted(portal, repo):
 
 def _schedules(p, h):
     now = datetime.now()
-    return [{**sc, "state": schedule.state(sc, h["scheduled"].get(sc.get("mode") or ""), now)} for sc in p["schedules"]]
+    key = lambda sc: sc.get("mode") or p["default_mode"] or ""  # noqa: E731 - a schedule without mode runs the default
+    return [{**sc, "state": schedule.state(sc, h["scheduled"].get(key(sc)), now)} for sc in p["schedules"]]
 
 
 def _card(p, last, h):
@@ -86,7 +88,7 @@ def run(portal, body):
     repo = _known(portal, body.get("project"))
     if repo is None:
         return 404, {"error": "not a project the portal knows"}
-    trusted, why = _trust(portal, repo)
+    trusted, why, sha = _trust(portal, repo)
     if not trusted:
         return 403, {"error": why}
     try:
@@ -107,8 +109,9 @@ def run(portal, body):
     events.touch()
     argv = [sys.executable, "-P", "-m", "amauta.extras.pipelines", "run", body["id"], "--cwd", str(repo),
             "--state-dir", str(portal.cfg.state_dir), "--events", str(events), "--trigger", "portal"]
-    argv += (["--step", str(step)] if step is not None else []) + (["--mode", mode] if mode else [])
-    user_pp = os.environ.get("AMAUTA_USER_PYTHONPATH", os.environ.get("PYTHONPATH", ""))
+    argv += (["--step", str(step)] if step is not None else []) + (["--mode", mode] if mode else []) + ["--expect-sha256", sha]
+    given = os.environ.get("AMAUTA_USER_PYTHONPATH", os.environ.get("PYTHONPATH", ""))
+    user_pp = os.pathsep.join(p for p in given.split(os.pathsep) if p and os.path.realpath(p) != os.path.realpath(PYTHON_DIR))
     env = {**os.environ, "PYTHONPATH": str(PYTHON_DIR), "AMAUTA_USER_PYTHONPATH": user_pp}
     flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if WINDOWS else 0
     detach = {"creationflags": flags} if WINDOWS else {"start_new_session": True}
@@ -135,11 +138,22 @@ def events(portal, q):
         return {"events": [], "done": True, "error": "unknown run"}
     after = int(first("after")) if first("after").isdigit() else 0
     got, nxt = store.read_from(f, after)
-    if nxt == 0 and _never_started(f):
+    if nxt == 0 and (_never_started(f) or not _held(f)):
         log = Path(f"{f}.log").read_text(encoding="utf-8", errors="replace") if Path(f"{f}.log").is_file() else ""
         tail = " ".join(log.strip().splitlines()[-3:])[:400]
         return {"events": [], "next": 0, "done": True, "error": f"the run did not start: {tail or 'no message'}"}
-    return {"events": got, "next": nxt, "done": any(e.get("kind") == "run-end" for e in got) or _ended(f, nxt)}
+    done = any(e.get("kind") == "run-end" for e in got) or _ended(f, nxt)
+    if not done and not _held(f):  # no live runner: the file is final once read again (its end may have just landed)
+        more, nxt = store.read_from(f, nxt)
+        got += more
+        if not any(e.get("kind") == "run-end" for e in more):
+            return {"events": got, "next": nxt, "done": True, "error": "the run stopped without its end (abandoned)"}
+        done = True
+    return {"events": got, "next": nxt, "done": done}
+
+
+def _held(f):
+    return lock.held_by(f.parent / f"{f.name.rsplit('-', 2)[0]}.lock", f.name)
 
 
 def _never_started(f):

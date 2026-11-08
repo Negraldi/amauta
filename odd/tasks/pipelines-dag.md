@@ -77,7 +77,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 - [x] V3 Config: NUL characters, wrong types (`args` string, `timeout: true`, `enabled: "false"`, unhashable modes,
   duplicate modes), `default_mode` without `modes`, extra fields on a pipeline step, and `enabled: false` on it;
   parsing does not mutate its input; a UTF-8 BOM is accepted; one bad project does not empty the Pipelines tab.
-- [ ] V4 Store and portal: a run summary keeps steps in pipeline order with their id; a schedule without mode matches
+- [x] V4 Store and portal: a run summary keeps steps in pipeline order with their id; a schedule without mode matches
   the default mode's runs; steps started from the portal do not see amauta's module folder; following an abandoned or
   never-started run ends; run file names are unique within a second; the runner refuses a pipelines.json that changed
   between the portal's trust check and its start.
@@ -102,7 +102,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 ## Next step
 
-V4: failing tests for step order in the run summary and the schedule key of the default mode.
+V5: `--step 0`, `%` in cron lines, and the documented limits.
 - 2026-11-08: D1-D3 and R3-R11 inline, commit `6ff3aa1`. RED seen: graph module missing (D1 suite), nine runner tests
   (parallel timing, branch failure, modes, background child 8 s, SIGTERM without run-end, PYTHONPATH, symlink and
   missing cwd, copy2 output, private key body leaked with the old runner), schedule tests (hourly /MO 120, PATH,
@@ -124,4 +124,9 @@ V4: failing tests for step order in the run summary and the schedule key of the 
   string, duplicate modes, an unhashable step mode and `default_mode` without modes were accepted; a pipeline step
   took `timeout: "junk"` and ignored `enabled: false`; parsing twice lost a schedule's mode; a BOM was refused; one
   project raising TypeError emptied the tab. GREEN.
+- 2026-11-08: V4 inline. RED: the summary listed steps by finish order (a card marked the wrong step), a schedule
+  without mode stayed "never", amauta's folder reached steps through AMAUTA_USER_PYTHONPATH, an abandoned or
+  never-started run kept the console polling (after a portal restart too), fifty names in one second collided, the
+  runner ran a file changed after the portal's check, and the card matched results by position. GREEN; the run
+  summary now carries each step's id (one older test expectation updated for that).
 

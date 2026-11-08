@@ -355,7 +355,7 @@ class HistoryTest(Base):
         runner.run(self.repo, "f", store.new_run(self.state, self.repo, "f"), python=PY)
         h = store.history(self.state, self.repo)
         self.assertEqual([r["trigger"] for r in h["p"]["runs"]], ["portal", "schedule", "cli"])
-        self.assertEqual(h["p"]["runs"][0]["steps"], [{"name": "A", "status": "ok", "seconds": h["p"]["runs"][0]["steps"][0]["seconds"]}])
+        self.assertEqual(h["p"]["runs"][0]["steps"], [{"id": "s1", "name": "A", "status": "ok", "seconds": h["p"]["runs"][0]["steps"][0]["seconds"]}])
         self.assertEqual(h["p"]["last_scheduled"], h["p"]["runs"][1]["started"])
         self.assertIsInstance(h["p"]["typical"], float)
         self.assertEqual(h["f"]["runs"][0]["failure"], "about to fail")

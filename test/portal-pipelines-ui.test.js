@@ -300,3 +300,13 @@ test('a start error offers a way back, and cancel says it is cancelling', async 
   assert.equal(stop.getAttribute('disabled'), '');
   assert.equal(stop.textContent, 'Cancelling...');
 });
+
+test('the flow row takes the last result of each step by id, whatever order the summary lists them in', async () => {
+  const list = structuredClone(LIST);
+  const weekly = list.projects[0].pipelines[0];
+  weekly.ids = ['extract', 'report'];
+  weekly.history[0].steps = [{ id: 'report', name: 'Report', status: 'failed', seconds: 0.4 }, { id: 'extract', name: 'Extract', status: 'ok', seconds: 1.2 }];
+  const { view } = await boot(() => {}, list);
+  const flow = tree(cards(view)[0]).filter((e) => e.tagName === 'li' && e.attrs['data-status']);
+  assert.deepEqual(flow.map((e) => [e.attrs['data-id'], e.attrs['data-status']]), [['extract', 'ok'], ['report', 'failed']]);
+});

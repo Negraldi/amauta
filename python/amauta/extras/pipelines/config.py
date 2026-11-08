@@ -8,6 +8,7 @@ relative to the project and stay inside it. `timeout` (seconds, default 3600), `
 optional. A definition that holds a secret-like value is refused: credentials belong to the scripts' own config.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -201,11 +202,15 @@ def parse(data):
     return [_pipeline(p, by_id) for p in items]
 
 
-def load(repo):
+def load(repo, expect_sha256=None):
+    """The project's pipelines. With `expect_sha256`, the file must still be the one whose hash the caller checked."""
     f = Path(repo) / FILE
     if not f.is_file():
         return []
-    text = f.read_text(encoding="utf-8-sig")  # a byte order mark (Windows Notepad) is fine
+    raw = f.read_bytes()
+    if expect_sha256 is not None and hashlib.sha256(raw).hexdigest() != expect_sha256:
+        raise ConfigError(f"{FILE} changed since it was checked: review it, then run `amauta check trust` again")
+    text = raw.decode("utf-8-sig")  # a byte order mark (Windows Notepad) is fine
     if secretlike.contains_secret(text):
         raise ConfigError(f"{FILE} holds a secret-like value; keep credentials in the scripts' own configuration")
     try:
