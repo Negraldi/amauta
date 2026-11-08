@@ -116,11 +116,16 @@ def run(portal, body):
     flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if WINDOWS else 0
     detach = {"creationflags": flags} if WINDOWS else {"start_new_session": True}
     _children[:] = [c for c in _children if c.poll() is None]
-    with open(f"{events}.log", "wb") as log:  # the runner's own errors (one that cannot start says why here)
-        child = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=log, **detach)
+    child = _spawn(argv, env, Path(f"{events}.log"), detach)
     _children.append(child)
     _started[events.name] = child
     return 202, {"run": events.name}
+
+
+def _spawn(argv, env, log, detach):
+    """Start the runner, detached; its own errors (one that cannot start says why) go to `log`."""
+    with open(log, "wb") as out:
+        return subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=out, **detach)
 
 
 def _run_file(portal, project, name):

@@ -13,6 +13,7 @@ from . import lock
 
 KEEP = 50  # runs kept per pipeline; older events files are removed when a new run starts
 SHOWN = 10  # runs in a card's history
+_issued = set()  # run names this process handed out
 
 
 def project_key(repo):
@@ -34,9 +35,15 @@ def new_run(state_dir, repo, pipeline_id):
     for old in mine[:max(0, len(mine) - (KEEP - 1))]:
         old.unlink(missing_ok=True)
         Path(f"{old}.cancel").unlink(missing_ok=True)
-    now = time.time()  # microseconds in the name: two runs started by one process in one second never share a file
-    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime(now)) + f"{int(now * 1e6) % 1000000:06d}Z"
-    return d / f"{pipeline_id}-{stamp}-{os.getpid()}.jsonl"
+    now = time.time()  # microseconds in the name, bumped when taken (Windows clocks repeat): one file per run
+    sec, micro = int(now), int(now * 1e6) % 1000000
+    while True:
+        stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime(sec)) + f"{micro:06d}Z"
+        f = d / f"{pipeline_id}-{stamp}-{os.getpid()}.jsonl"
+        if f.name not in _issued and not f.exists():
+            _issued.add(f.name)
+            return f
+        sec, micro = (sec + 1, 0) if micro == 999999 else (sec, micro + 1)
 
 
 def read_from(path, offset=0):

@@ -19,7 +19,7 @@ SPAWN = ("import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'i
 @unittest.skipUnless(sys.platform == "win32", "Windows job objects")
 class WindowsJobTest(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)  # a failing run may leave a child in it
         self.addCleanup(self.tmp.cleanup)
         self.repo = Path(self.tmp.name).resolve() / "repo"
         (self.repo / ".amauta").mkdir(parents=True)

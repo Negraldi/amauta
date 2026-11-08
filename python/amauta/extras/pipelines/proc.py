@@ -1,9 +1,9 @@
 """One step's process (ADR 0010, review R4-R6): its argv (never a shell), environment and working folder; reading its
 output line by line; stopping its whole process tree on timeout or cancel.
 
-A step owns its processes. On POSIX it starts in its own process group, and when its main process exits the group is
-stopped, so a background child cannot hold the step open past its end or its timeout. On Windows `taskkill /T` stops
-the tree while the main process lives; a child that outlives it can keep the output open (documented limit).
+A step owns its processes: on POSIX its own process group, on Windows a job object (winjob.py). Timeout and cancel
+stop them all, and once the main process exits the rest is stopped too, so a background child cannot hold the step
+open past its end or its timeout.
 Paths of scripts and notebooks are taken from the project root; `cwd` only sets the working folder.
 """
 
@@ -56,35 +56,63 @@ def step_env(extra):
     return {**env, **extra}
 
 
-def kill_tree(proc):
-    try:
+class _Tree:
+    """A step's processes: its POSIX process group, or its Windows job (taskkill /T when no job could be made)."""
+
+    def __init__(self, proc):
+        self.proc, self.job = proc, None
         if WINDOWS:
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
-            return
-        os.killpg(proc.pid, signal.SIGTERM)
-        deadline = time.monotonic() + 3
-        while time.monotonic() < deadline:
-            os.killpg(proc.pid, 0)  # raises once the whole group is gone
-            time.sleep(0.1)
-        os.killpg(proc.pid, signal.SIGKILL)
-    except (OSError, ProcessLookupError):
-        pass
+            try:
+                from . import winjob
+                job = winjob.Job()
+                self.job = job if job.add(proc) else job.close()
+            except OSError:
+                self.job = None
+
+    def stop(self):
+        """Stop every process of the step (timeout, cancel)."""
+        try:
+            if self.job:
+                self.job.stop()
+            elif WINDOWS:
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(self.proc.pid)], capture_output=True)
+            else:
+                os.killpg(self.proc.pid, signal.SIGTERM)
+                deadline = time.monotonic() + 3
+                while time.monotonic() < deadline:
+                    os.killpg(self.proc.pid, 0)  # raises once the whole group is gone
+                    time.sleep(0.1)
+                os.killpg(self.proc.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
+
+    def sweep(self):
+        """Stop what the step left running once its main process ended."""
+        try:
+            if self.job:
+                self.job.stop()
+            elif not WINDOWS:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
+
+    def close(self):
+        self.sweep()
+        if self.job:
+            self.job.close()
 
 
-def _watch(proc, timeout, cancel, done, stop):
-    """Until the output closes: stop the tree on timeout or cancel; on POSIX stop leftovers once the main process ends."""
+def _watch(tree, timeout, cancel, done, stop):
+    """Until the output closes: stop the tree on timeout or cancel; stop leftovers once the main process ends."""
     deadline, swept = time.monotonic() + timeout, False
     while not done.is_set():
         if cancel.exists() or time.monotonic() > deadline:
             stop["why"] = "cancelled" if cancel.exists() else "timeout"
-            kill_tree(proc)
+            tree.stop()
             return
-        if proc.poll() is not None and not swept and not WINDOWS:
+        if tree.proc.poll() is not None and not swept:
             swept = True
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)  # what the step left running in the background
-            except (OSError, ProcessLookupError):
-                pass
+            tree.sweep()  # what the step left running in the background
         time.sleep(0.1)
 
 
@@ -105,18 +133,17 @@ def run(step, repo, python, env, cancel, on_line):
     except OSError as e:
         on_line(f"cannot start {argv[0]}: {e.strerror or e}")
         return "failed"
+    tree = _Tree(proc)
     done, stop = threading.Event(), {"why": None}
-    watcher = threading.Thread(target=_watch, args=(proc, step["timeout"], cancel, done, stop), daemon=True)
+    watcher = threading.Thread(target=_watch, args=(tree, step["timeout"], cancel, done, stop), daemon=True)
     watcher.start()
-    with proc.stdout:
-        for raw in proc.stdout:
-            on_line(raw)
-    done.set()
-    proc.wait()
-    watcher.join(timeout=5)
-    if not WINDOWS:  # a step owns its process group: stop what it left behind, with or without its output
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except (OSError, ProcessLookupError):
-            pass
+    try:
+        with proc.stdout:
+            for raw in proc.stdout:
+                on_line(raw)
+    finally:
+        done.set()
+        proc.wait()
+        watcher.join(timeout=5)
+        tree.close()  # a step owns its processes: stop what it left behind, with or without its output
     return stop["why"] or ("ok" if proc.returncode == 0 else "failed")

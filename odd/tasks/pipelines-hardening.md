@@ -24,7 +24,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 ### Follow-ups
 
 - [x] M1 A card refreshes its last run, history and details when a live run it follows ends.
-- [ ] M2 Windows: a step runs in a job object; timeout, cancel and the step's end stop every process in the job.
+- [x] M2 Windows: a step runs in a job object; timeout, cancel and the step's end stop every process in the job.
 - [x] M3 The lock records its process's start time; a reused pid with another start time is stale.
 
 ### Third review
@@ -53,7 +53,12 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 - 2026-11-08: M1 inline. RED: after a live run ended the card kept its old history (2 marks). The card now groups
   schedules, the first failure, outputs and the history marks, and reloads them from `/api/pipelines` when the run it
   follows ends. GREEN (18 UI tests).
+- 2026-11-08: M2. RED on the Windows CI job with the tests alone (`8199314`): a leftover child outlived its step,
+  the DAG suite's background-child test took 8 s, and fifty run names in a row gave seven distinct ones (the Windows
+  clock repeats microseconds). macOS failed a portal test whose Popen mock also caught `ps` in pidinfo. Fixes:
+  `winjob.py` (a job object per step), `proc._Tree` (group or job, one place to stop a step's processes), run names
+  bumped when taken, the portal's `_spawn` mocked instead of Popen.
 
 ## Next step
 
-M2: Windows job objects, with a test that runs on the Windows CI job.
+M4: launch the third independent review on the result of M1-M3.

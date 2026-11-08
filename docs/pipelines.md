@@ -107,9 +107,9 @@ One run of a pipeline at a time, whoever starts it: the portal, the terminal or 
 process started, so a process id the system reused for another program does not keep it. A run whose runner stopped without
 ending it reads as abandoned. SIGTERM or Ctrl+C on the runner cancels the run and still writes its end.
 
-A step owns its processes. On a timeout or cancel its whole process tree is stopped; on Linux and macOS whatever it
-left running in the background is stopped when it ends, so a leftover cannot hold the step open. On Windows a child
-that outlives the step's main process can keep its output open until it exits. Every output line is written to
+A step owns its processes: a process group on Linux and macOS, a job object on Windows. On a timeout or cancel all of
+them are stopped, and whatever the step left running in the background is stopped when it ends, so a leftover
+cannot hold the step open. Every output line is written to
 `<state dir>/pipelines/runs/<project>/<id>-<time>.jsonl` with secrets and identifiers redacted, together with what
 started the run (`cli`, `portal` or `schedule`) and how long each step took.
 
@@ -193,6 +193,5 @@ The newest 50 runs of each pipeline are kept; older events files are removed whe
 
 - Steps run with your permissions and inherit the starting environment, keys included: amauta does not isolate them.
 - The portal's token keeps other web pages out; programs on your own computer can read it from the portal page.
-- On Windows, a child process that outlives its step can hold the step's output open (see above).
 - If the runner itself is killed outright (SIGKILL, a crash), the step running at that moment keeps running on its
   own; the run reads as abandoned and the next run may overlap with it. Stop a run with Cancel, Ctrl+C or SIGTERM.

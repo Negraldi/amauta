@@ -235,12 +235,13 @@ class PortalPointsTest(Base):
         seen = {}
 
         class Fake:
-            def __init__(self, argv, env=None, **kw):
-                seen["argv"], seen["env"] = argv, env
-
             def poll(self):
                 return None
-        with mock.patch.object(pp.subprocess, "Popen", Fake), mock.patch.dict(os.environ, {"PYTHONPATH": f"{pp.PYTHON_DIR}{os.pathsep}/my/own"}):
+
+        def spawn(argv, env, log, detach):
+            seen["argv"], seen["env"] = argv, env
+            return Fake()
+        with mock.patch.object(pp, "_spawn", spawn), mock.patch.dict(os.environ, {"PYTHONPATH": f"{pp.PYTHON_DIR}{os.pathsep}/my/own"}):
             pp.os.environ.pop("AMAUTA_USER_PYTHONPATH", None)
             self.assertEqual(pp.run(self.portal, {"project": str(self.repo), "id": "hello"})[0], 202)
         self.assertIn("--expect-sha256", seen["argv"])
