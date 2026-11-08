@@ -74,6 +74,10 @@ def _run(a, state, repo):
         print("nothing would stop a run" if not any(f["level"] == "error" for f in found) else "")
         return 1 if any(f["level"] == "error" for f in found) else 0
     if a.cmd == "run":
+        runs = store.runs_dir(state, repo)
+        if a.events and Path(a.events).resolve().parent != runs.resolve():  # the lock lives beside the runs
+            print(f"amauta pipeline: --events must be a file in {runs}", file=sys.stderr)
+            return 2
         events = Path(a.events) if a.events else store.new_run(state, repo, a.id)
         show = lambda name, text: print(f"[{name}] {text}", flush=True)  # noqa: E731
         if a.step is not None and a.step < 1:

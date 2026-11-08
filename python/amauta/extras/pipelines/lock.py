@@ -38,13 +38,18 @@ def _stale(data, f=None):
             return time.time() - Path(f).stat().st_mtime > 5 if f else True
         except OSError:
             return True
-    if data.get("starting") and time.time() - float(data.get("t") or 0) > ADOPT_WITHIN:
+    try:
+        age = time.time() - float(data.get("t") or 0)
+    except (TypeError, ValueError):
+        return True  # damaged
+    if data.get("starting") and age > ADOPT_WITHIN:
         return True
     pid, recorded = data.get("pid"), data.get("pid_start")
     if not pidinfo.alive(pid):
         return True
-    now = pidinfo.started_at(pid) if recorded else None
-    return now is not None and now != recorded  # the pid was given to another process
+    now = pidinfo.started_at(pid) if isinstance(recorded, str) else None
+    same_way = now is not None and now.split(":", 1)[0] == recorded.split(":", 1)[0]  # /proc, ps and Windows differ
+    return same_way and now != recorded  # the pid was given to another process
 
 
 def _record(run, starting):
@@ -65,6 +70,7 @@ class _Guard:
         self.path = Path(f"{f}.guard")
 
     def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
         if sys.platform == "win32":
             import msvcrt
@@ -104,12 +110,13 @@ def take(f, run, starting=False):
 
 def adopt(f, run):
     """The runner's side: keep a lock taken for this run (now with its own pid), or take it; Busy otherwise."""
-    data = _read(f)
-    if data is not None and data.get("run") == run:
-        tmp = Path(f"{f}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(_record(run, False)), encoding="utf-8")
-        os.replace(tmp, f)  # atomic: readers see the old or the new content, never an empty file
-        return
+    with _Guard(f):  # no taker replaces a stale lock between this read and the rename
+        data = _read(f)
+        if data is not None and data.get("run") == run:
+            tmp = Path(f"{f}.{os.getpid()}.tmp")
+            tmp.write_text(json.dumps(_record(run, False)), encoding="utf-8")
+            os.replace(tmp, f)  # atomic: readers see the old or the new content, never an empty file
+            return
     if not take(f, run):
         raise Busy(f"{Path(f).stem} is already running ({(data or {}).get('run', '?')})")
 

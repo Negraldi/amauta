@@ -525,7 +525,48 @@ class PidReuseTest(Base):
         self.assertIsNotNone(me, "the start time of a live process is known on this system")
         self.assertEqual(pidinfo.started_at(os.getpid()), me, "stable for one process")
         f = self.root / "p.lock"
-        f.write_text(json.dumps({"pid": os.getpid(), "pid_start": "another process", "run": "old", "t": time.time()}))
+        reused = me.split(":", 1)[0] + ":another process"  # taken the same way as this system's, with another value
+        f.write_text(json.dumps({"pid": os.getpid(), "pid_start": reused, "run": "old", "t": time.time()}))
         self.assertTrue(lock.take(f, "new"), "same pid, another start time: a reused pid")
         self.assertEqual(json.loads(f.read_text())["pid_start"], me, "the new lock records its own start")
         self.assertFalse(lock.take(f, "third"), "the real holder keeps it")
+
+
+class ThirdReviewLockTest(Base):
+    """Third review, F2."""
+
+    @unittest.skipIf(sys.platform == "win32", "ps")
+    def test_start_times_do_not_depend_on_the_readers_zone_or_on_how_they_were_read(self):
+        from unittest import mock
+        from python.amauta.extras.pipelines import lock, pidinfo
+        real_open = open
+
+        def no_proc(path, *a, **k):
+            if str(path).startswith("/proc/"):
+                raise OSError("no /proc")
+            return real_open(path, *a, **k)
+        with mock.patch("builtins.open", no_proc):
+            with mock.patch.dict(os.environ, {"TZ": "Asia/Tokyo"}):
+                tokyo = pidinfo.started_at(os.getpid())
+            with mock.patch.dict(os.environ, {"TZ": "America/Lima"}):
+                lima = pidinfo.started_at(os.getpid())
+        self.assertEqual(tokyo, lima)
+        f = self.root / "p.lock"
+        f.write_text(json.dumps({"pid": os.getpid(), "pid_start": "ps:read another way", "run": "r", "t": time.time()}))
+        self.assertFalse(lock.take(f, "other"), "a start time taken another way is not compared")
+
+    def test_a_damaged_lock_is_stale(self):
+        from python.amauta.extras.pipelines import lock
+        f = self.root / "p.lock"
+        f.write_text(json.dumps({"pid": os.getpid(), "t": "abc", "starting": True, "run": "r"}))
+        self.assertTrue(lock.take(f, "next"))
+
+    def test_events_outside_the_runs_folder_are_refused(self):
+        from python.amauta.extras.pipelines import lock
+        self.define({"id": "p", "steps": [{"type": "command", "argv": [PY, "-c", "print('ran')"]}]})
+        self.assertTrue(lock.acquire(self.state, self.repo, "p", "busy.jsonl"))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = main(["run", "p", "--cwd", str(self.repo), "--state-dir", str(self.state), "--events", str(self.root / "x.jsonl")])
+        self.assertEqual(code, 2)
+        self.assertNotIn("ran", out.getvalue())

@@ -74,10 +74,15 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ## Next step
 
-M5 F2: failing test for a lock read with `ps` in another time zone.
+M5 F3: failing tests for store, portal and UI findings (C5, C8-C10, C12, C14, S2, S5, S6).
 - 2026-11-08: M5 F1 inline. RED: a zombie holder kept a lock (and a SIGKILLed portal runner gave 409 forever), 40
   trivial steps took over 4 s, a child in its own session holding the output kept a step for its full sleep, skipped
   steps waited for a slot, a setup error left the lock. Fixes: `pidinfo` treats a zombie as dead and reads `ps` in C
   locale and UTC; the portal reaps before locking; `proc` reads output in a thread and gives up on it 2 s after the
   tree was stopped (with a line saying so); `done.wait` instead of sleep; skips before slots; setup inside the try.
+- 2026-11-08: M5 F2 inline. RED: a start time taken another way (`ps` vs `/proc`) made a live lock stale, a damaged
+  `t` raised, `--events` outside the runs folder skipped the lock. Fixes: start times compared only when taken the
+  same way, damaged locks stale, adopt under the guard (S3, a race without a deterministic test), Windows argtypes and
+  FILETIME (S1, checked by the Windows CI job). Two tests changed on purpose: M3's reused start time now carries the
+  system's prefix, and the SIGTERM test writes its events in the runs folder.
 

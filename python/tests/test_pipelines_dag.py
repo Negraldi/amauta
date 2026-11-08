@@ -159,7 +159,8 @@ class RobustRunTest(Run):
         import os
         import signal
         self.define({"id": "p", "steps": [{"id": "a", **CMD("import time; print('go', flush=True); time.sleep(30)")}]})
-        events = Path(self.tmp.name) / "stop.jsonl"
+        from python.amauta.extras.pipelines import store
+        events = store.new_run(self.tmp.name, self.repo, "p")  # --events must sit in the runs folder (its lock is there)
         env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
         proc = subprocess.Popen([PY, "-m", "amauta.extras.pipelines", "run", "p", "--cwd", str(self.repo), "--events", str(events),
                                  "--state-dir", self.tmp.name], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -170,7 +171,7 @@ class RobustRunTest(Run):
         proc.wait(timeout=10)
         ev = [json.loads(x) for x in events.read_text().split("\n") if x]
         self.assertEqual((ev[-1]["kind"], ev[-1]["status"]), ("run-end", "cancelled"))
-        self.assertFalse((Path(self.tmp.name) / "p.lock").exists())
+        self.assertFalse((events.parent / "p.lock").exists())
 
     def test_the_users_pythonpath_and_paths_from_the_project_root(self):
         import os

@@ -17,6 +17,9 @@ def _win_process(pid, query):
     from ctypes import wintypes
     k32 = ctypes.WinDLL("kernel32", use_last_error=True)
     k32.OpenProcess.restype, k32.OpenProcess.argtypes = wintypes.HANDLE, (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    k32.GetProcessTimes.argtypes = (wintypes.HANDLE, *[ctypes.POINTER(wintypes.FILETIME)] * 4)
+    k32.CloseHandle.argtypes = (wintypes.HANDLE,)
     handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
         return k32, None, ctypes.get_last_error()
@@ -33,7 +36,7 @@ def alive(pid):
         import ctypes
 
         def code(k32, handle):
-            out = ctypes.c_ulong()
+            out = ctypes.wintypes.DWORD()
             k32.GetExitCodeProcess(handle, ctypes.byref(out))
             return out.value
         _, value, err = _win_process(pid, code)
@@ -74,9 +77,9 @@ def started_at(pid):
         import ctypes
 
         def created(k32, handle):
-            times = [ctypes.c_ulonglong() for _ in range(4)]
+            times = [ctypes.wintypes.FILETIME() for _ in range(4)]
             ok = k32.GetProcessTimes(handle, *(ctypes.byref(t) for t in times))
-            return f"win:{times[0].value}" if ok else None
+            return f"win:{(times[0].dwHighDateTime << 32) | times[0].dwLowDateTime}" if ok else None
         return _win_process(pid, created)[1]
     try:
         with open(f"/proc/{pid}/stat", encoding="utf-8") as f:
