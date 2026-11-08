@@ -75,8 +75,8 @@ class OutsideHomeTest(ProjectBase):
         patcher = mock.patch.object(projects, "SYSTEM_TREES", ("/proc", "/sys", "/dev", "/run", "/etc", "/usr", "/boot", "/var"))
         patcher.start()
         self.addCleanup(patcher.stop)
-        # On macOS the temp tree is /private/var/folders: keep /private/etc (where /etc resolves) and drop the rest of /private.
-        mac = mock.patch.object(projects, "MACOS_TREES", ("/private/etc", "/System", "/Library"))
+        # On macOS the temp tree is /private/var/folders: keep the rest of /private (/etc and /var resolve there).
+        mac = mock.patch.object(projects, "MACOS_TREES", ("/private/etc", "/private/var/lib", "/private/var/db", "/private/tmp", "/System", "/Library"))
         mac.start()
         self.addCleanup(mac.stop)
 
