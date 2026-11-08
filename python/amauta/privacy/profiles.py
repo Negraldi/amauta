@@ -6,7 +6,8 @@ Layers, first match wins per file: the project (`<repo>/.amauta/profile/<file>`)
 git root in `<state dir>/profiles/selection.json`, on this machine only. `check` is the privacy guard: secrets and
 identifiers are errors, and `people/` holds roles, never names or contacts. Nothing is synced or published.
 
-CLI: `amauta profile list | new NAME | use NAME [--cwd DIR] | show [--cwd DIR] [--json] | check NAME`.
+CLI: `amauta profile list | new NAME | use NAME [--cwd DIR] | show [--cwd DIR] [--json] | check NAME |
+import NAME ARCHIVE | harvest NAME --from DIR... | accept NAME` (import and harvest: profile_import.py).
 """
 
 import argparse
@@ -93,9 +94,13 @@ def resolve(state, cwd):
 
 def check(state, name):
     """Privacy findings for one profile: [{file, line, kind}], never the matched text."""
-    d = DEFAULT if name == "default" else _org_dir(state, name)
+    return check_dir(DEFAULT if name == "default" else _org_dir(state, name))
+
+
+def check_dir(d):
     found = []
-    for f in sorted(p for p in d.rglob("*") if p.is_file() and p.suffix in (".md", ".txt", ".json", ".csv")):
+    texts = (p for p in Path(d).rglob("*") if p.is_file() and p.suffix in (".md", ".txt", ".json", ".csv") and p.name != "REVIEW.md")
+    for f in sorted(texts):
         rel = f.relative_to(d).as_posix()
         for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             found += [{"file": rel, "line": n, "kind": hit["kind"]} for hit in scan.scan(line)]
@@ -118,6 +123,13 @@ def main(argv=None):
     s.add_argument("--cwd", default=".")
     s.add_argument("--json", action="store_true")
     sub.add_parser("check", parents=[common]).add_argument("name")
+    i = sub.add_parser("import", parents=[common], help="a draft from an agent archive (rules/, skills/)")
+    i.add_argument("name")
+    i.add_argument("archive")
+    h = sub.add_parser("harvest", parents=[common], help="a draft from your projects (themes, measures, conventions)")
+    h.add_argument("name")
+    h.add_argument("--from", dest="roots", action="append", required=True)
+    sub.add_parser("accept", parents=[common], help="install a reviewed draft").add_argument("name")
     a = p.parse_args(argv)
     state = Path(a.state_dir) if a.state_dir else amauta_paths.state_dir()
     try:
@@ -128,6 +140,14 @@ def main(argv=None):
 
 
 def _run(a, state):
+    if a.cmd in ("import", "harvest", "accept"):
+        from . import profile_import as imp  # imports this module: loaded only when needed
+        if a.cmd == "accept":
+            print(f"{imp.accept(state, a.name)}  (installed; amauta profile use {a.name} in a project)")
+        else:
+            d = imp.import_archive(state, a.name, a.archive) if a.cmd == "import" else imp.harvest(state, a.name, a.roots)
+            print(f"draft: {d}\nreview: {d / 'REVIEW.md'}\nthen: amauta profile accept {a.name}")
+        return 0
     if a.cmd == "list":
         org = sorted(p.name for p in (state / "profiles").glob("*") if p.is_dir()) if (state / "profiles").is_dir() else []
         print("\n".join(["default (shipped)", *org]))

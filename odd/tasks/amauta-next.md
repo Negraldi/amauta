@@ -122,7 +122,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   communication: up to two rounds, a fresh reviewer each.
 - [x] D12 Profiles: `default` profile shipped; private org profile under `<state dir>/profiles/<name>/` extending it;
   project selection; precedence project > org > default; roles only in `people/`; privacy guard on profiles.
-- [ ] D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft.
+- [x] D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft.
 - [ ] D14 Portal Security page (counts only), settings toggles, profile shown per project; phase 2 audit; v0.6.0.
 
 ### Phase 3, sibling projects
@@ -318,6 +318,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   selection per git root in the state directory, the guard over the detector catalog plus a person-name check in
   `people/`. The editorial and data skills point at `amauta profile show`. RED seen.
 
+- 2026-11-08: D13 done: `amauta profile import NAME ARCHIVE` (routes by file kind and name keywords, theme palette,
+  templates to assets, code skipped), `harvest NAME --from DIR` (themes, model.bim measures as unapproved glossary
+  candidates, convention documents; data files never opened) and `accept NAME` (refused while the guard finds
+  anything; the old profile kept as a backup). A smoke run on the real archive, in a scratch state directory removed
+  afterwards, produced a draft with its contact details flagged. RED seen.
+
 ## Next step
 
-Phase 2c: D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D14 portal Security page (counts only), settings toggles, profile per project; phase 2 audit; v0.6.0. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
