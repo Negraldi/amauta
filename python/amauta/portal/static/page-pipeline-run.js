@@ -156,7 +156,7 @@ function followRun(pr, p, run, parts, live = true) {
       }
       if (e.kind === "run-end") {
         line.textContent = t("pipe.ended", { status: t(`pipe.s.${e.status}`), seconds: R.fmtDecimal(e.seconds, 1) });
-        if (live) pipeNotice(p.name, e.status, e.seconds);
+        if (live) { pipeNotice(p.name, e.status, e.seconds); if (parts.refresh) parts.refresh(); }
       }
     }
     if (r.done) {

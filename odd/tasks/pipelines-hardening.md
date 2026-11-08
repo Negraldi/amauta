@@ -23,7 +23,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ### Follow-ups
 
-- [ ] M1 A card refreshes its last run, history and details when a live run it follows ends.
+- [x] M1 A card refreshes its last run, history and details when a live run it follows ends.
 - [ ] M2 Windows: a step runs in a job object; timeout, cancel and the step's end stop every process in the job.
 - [x] M3 The lock records its process's start time; a reused pid with another start time is stale.
 
@@ -50,7 +50,10 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 - 2026-11-08: M3 inline. RED: `pidinfo` missing; a lock held by this process's pid with another start time stayed
   held. New module `pidinfo.py` (alive, started_at: /proc, ps, GetProcessTimes); `lock.py` no longer holds process
   queries. GREEN.
+- 2026-11-08: M1 inline. RED: after a live run ended the card kept its old history (2 marks). The card now groups
+  schedules, the first failure, outputs and the history marks, and reloads them from `/api/pipelines` when the run it
+  follows ends. GREEN (18 UI tests).
 
 ## Next step
 
-M1: failing UI test: after a live run ends, the card shows the new run in its history without a reload.
+M2: Windows job objects, with a test that runs on the Windows CI job.

@@ -158,6 +158,19 @@ function checkButton(pr, p, result) {
   return b;
 }
 
+// What a finished run changes: schedules' state, the first failure, outputs and the history marks. `parts.refresh`
+// reloads them from the server when the live run the card follows ends.
+function recentSection(pr, p, parts) {
+  const recentOf = (q) => [...scheduleLines(q), ...lastDetails(q), historyStrip(q, (run) => followRun(pr, p, run, parts, false))];
+  const box = h("div", { class: "pipe-recent" }, recentOf(p));
+  parts.refresh = async () => {
+    const d = await api("pipelines").catch(() => null);
+    const fresh = d && d.projects.find((x) => x.path === pr.path)?.pipelines.find((x) => x.id === p.id);
+    if (fresh) box.replaceChildren(...recentOf(fresh).filter(Boolean));
+  };
+  return box;
+}
+
 function pipelineCard(pr, p) {
   const con = pipeConsole(p.steps);
   const line = h("p", { class: "muted" }, lastRunText(p.last));
@@ -178,9 +191,10 @@ function pipelineCard(pr, p) {
   };
   applyMode(mode);
   const parts = { items, con, line, actions, idle: () => idle() };
+  const recentBox = recentSection(pr, p, parts);
   const card = h("article", { class: "pipe-card" }, p.category ? h("span", { class: "badge" }, p.category) : null, h("h3", null, p.name),
-    p.description ? h("p", null, p.description) : null, modePicker(p, applyMode), flowRow(p, items), ...scheduleLines(p), line,
-    ...lastDetails(p), historyStrip(p, (run) => followRun(pr, p, run, parts, false)), actions, checked, con.box);
+    p.description ? h("p", null, p.description) : null, modePicker(p, applyMode), flowRow(p, items), line, recentBox,
+    actions, checked, con.box);
   card.pipeline = p;
   parts.card = card;
   const idle = () => {

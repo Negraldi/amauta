@@ -310,3 +310,17 @@ test('the flow row takes the last result of each step by id, whatever order the 
   const flow = tree(cards(view)[0]).filter((e) => e.tagName === 'li' && e.attrs['data-status']);
   assert.deepEqual(flow.map((e) => [e.attrs['data-id'], e.attrs['data-status']]), [['extract', 'ok'], ['report', 'failed']]);
 });
+
+test('when a live run ends, the card refreshes its history without a reload', async () => {
+  let calls = 0;
+  const after = structuredClone(LIST);
+  after.projects[0].pipelines[0].history.unshift({ run: 'weekly-2.jsonl', status: 'failed', started: '2026-11-08T11:00:00+00:00',
+    seconds: 1.6, trigger: 'portal', failure: 'disk full', steps: [{ name: 'Report', status: 'failed', seconds: 0.4 }], outputs: [] });
+  const { view } = await boot((env) => {}, async () => (++calls === 1 ? LIST : after));
+  buttons(view, 'Run')[0].click();
+  buttons(view, 'Run now')[0].click();
+  await tick(1900);
+  const marks = tree(cards(view)[0]).filter((e) => e.tagName === 'button' && e.className === 'hist-mark');
+  assert.equal(marks.length, 3, 'the new run is in the history');
+  assert.match(cards(view)[0].textContent, /disk full/);
+});
