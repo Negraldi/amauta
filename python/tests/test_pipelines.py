@@ -273,7 +273,8 @@ class DeclaredScheduleTest(Base):
         ok = [{"at": "07:30"}, {"at": "07:30", "days": ["mon", "thu"]}, {"at": "06:00", "day_of_month": 1}, {"every_minutes": 30}]
         for sched in ok:
             self.define({"id": "a", "schedule": sched, "steps": [{"type": "command", "argv": ["x"]}]})
-            self.assertEqual(config.load(self.repo)[0]["schedule"]["at"] if "at" in sched else 30, sched.get("at", 30))
+            got = config.load(self.repo)[0]["schedules"][0]
+            self.assertEqual(got["at"] if "at" in sched else got["every_minutes"], sched.get("at", 30))
         bad = [{"at": "7"}, {"at": "07:30", "days": ["someday"]}, {"at": "07:30", "days": []}, {"at": "07:30", "day_of_month": 31},
                {"every_minutes": 7}, {"at": "07:30", "every_minutes": 30}, {"days": ["mon"]}, "daily"]
         for sched in bad:
@@ -287,7 +288,8 @@ class DeclaredScheduleTest(Base):
             "w": ({"at": "07:30", "days": ["mon", "thu"]}, "/SC WEEKLY /D MON,THU /ST 07:30", "30 7 * * 1,4 ", "<key>Weekday</key><integer>4</integer>"),
             "m": ({"at": "06:00", "day_of_month": 1}, "/SC MONTHLY /D 1 /ST 06:00", "0 6 1 * * ", "<key>Day</key><integer>1</integer>"),
             "i": ({"every_minutes": 30}, "/SC MINUTE /MO 30", "*/30 * * * * ", "<key>StartInterval</key><integer>1800</integer>"),
-            "h": ({"every_minutes": 120}, "/SC MINUTE /MO 120", "0 */2 * * * ", "<key>StartInterval</key><integer>7200</integer>"),
+            "h": ({"every_minutes": 120}, "/SC HOURLY /MO 2", "0 */2 * * * ", "<key>StartInterval</key><integer>7200</integer>"),
+            "d": ({"every_minutes": 1440}, "/SC DAILY /ST 00:00", "0 0 * * * ", "<key>StartInterval</key><integer>86400</integer>"),
         }
         self.define(*[{"id": k, "schedule": v[0], "steps": [{"type": "command", "argv": ["x"]}]} for k, v in cases.items()])
         for pid, (_, win, cron, mac) in cases.items():
@@ -295,6 +297,34 @@ class DeclaredScheduleTest(Base):
             self.assertTrue(schedule.hint("linux", self.repo, pid, None, None, node="n", bin_="b").splitlines()[-1].startswith(cron), pid)
             self.assertIn(mac, schedule.hint("darwin", self.repo, pid, None, None, node="n", bin_="b"))
         self.assertIn("/SC DAILY /ST 05:00", schedule.hint("windows", self.repo, "w", "05:00", None, node="n", bin_="b"), "--at overrides")
+        cron = schedule.hint("linux", self.repo, "w", None, None, node="n", bin_="b")
+        self.assertIn(" env PATH=", cron, "cron runs with a minimal PATH: the hint carries this one")
+        self.assertIn("<key>EnvironmentVariables</key><dict><key>PATH</key>", schedule.hint("darwin", self.repo, "w", None, None, node="n", bin_="b"))
+
+    def test_one_entry_per_schedule_each_with_its_mode(self):
+        from python.amauta.extras.pipelines import schedule
+        self.define({"id": "m", "modes": ["train", "predict"], "steps": [{"type": "command", "argv": ["x"]}],
+                     "schedule": [{"at": "06:00", "days": ["mon"], "mode": "train"}, {"at": "07:00", "mode": "predict"}]})
+        win = schedule.hint("windows", self.repo, "m", None, None, node="n", bin_="b")
+        self.assertIn('/TN "amauta m train" /SC WEEKLY /D MON /ST 06:00', win)
+        self.assertIn('/TN "amauta m predict" /SC DAILY /ST 07:00', win)
+        self.assertIn("pipeline run m --trigger schedule --mode predict --cwd", win)
+
+    @unittest.skipIf(sys.platform == "win32", "time.tzset is POSIX")
+    def test_the_missed_check_uses_local_wall_time_across_a_clock_change(self):
+        import os as _os
+        from datetime import datetime
+        from python.amauta.extras.pipelines import schedule
+        old = _os.environ.get("TZ")
+        _os.environ["TZ"] = "America/New_York"
+        time.tzset()
+        try:
+            sat = {"at": "07:00", "days": ["sat"]}
+            # Saturday 31 Oct 2026 07:00 EDT ran; on Monday 2 Nov (EST, after the change) it is not missed.
+            self.assertEqual(schedule.state(sat, "2026-10-31T11:00:05+00:00", datetime(2026, 11, 2, 9, 0)), "ok")
+        finally:
+            _os.environ.pop("TZ") if old is None else _os.environ.__setitem__("TZ", old)
+            time.tzset()
 
     def test_a_missing_scheduled_run_is_noticed(self):
         from datetime import datetime, timezone

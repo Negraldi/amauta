@@ -32,6 +32,7 @@ def main(argv=None):
     r.add_argument("--python", help="interpreter for python steps (default: python3 on PATH)")
     r.add_argument("--events", help="events file (default: a new file in the state directory)")
     r.add_argument("--step", type=int, help="run only this step (1-based)")
+    r.add_argument("--mode", help="one of the pipeline's modes (default: its default_mode)")
     r.add_argument("--trigger", choices=("cli", "portal", "schedule"), default="cli", help="who started the run (shown in the portal)")
     sub.add_parser("status", parents=[common]).add_argument("--json", action="store_true")
     sub.add_parser("cancel", parents=[common]).add_argument("id")
@@ -76,7 +77,7 @@ def _run(a, state, repo):
         show = lambda name, text: print(f"[{name}] {text}", flush=True)  # noqa: E731
         only = a.step - 1 if a.step else None
         try:
-            code = runner.run(repo, a.id, events, python=a.python, on_line=show, only=only, trigger=a.trigger)
+            code = runner.run(repo, a.id, events, python=a.python, on_line=show, only=only, trigger=a.trigger, mode=a.mode)
         except lock.Busy as e:
             print(f"amauta pipeline: {e}", file=sys.stderr)
             return 3

@@ -42,6 +42,19 @@ test('the trust list is per project, stored in the state directory, and can be r
   assert.equal(await isTrusted(stateDir, dir), false);
 });
 
+test('trust records the hash of the pipelines file, so a changed definition needs trust again (ADR 0011)', async () => {
+  const { createHash } = await import('node:crypto');
+  const stateDir = await tempDir('trust-');
+  const { dir } = await project();
+  await write(dir, '.amauta/pipelines.json', '{"pipelines": []}\n');
+  await setTrust(stateDir, dir, true);
+  const [rec] = await trustedProjects(stateDir);
+  assert.equal(rec.pipelines_sha256, createHash('sha256').update('{"pipelines": []}\n').digest('hex'));
+  const other = (await project()).dir;
+  await setTrust(stateDir, other, true);
+  assert.equal((await trustedProjects(stateDir)).find((p) => p.path === other).pipelines_sha256, null, 'no pipelines file');
+});
+
 test('checker output lines become findings', () => {
   const by = Object.fromEntries(PROJECT_CHECKERS.map((c) => [c.name, c]));
   assert.deepEqual(parseLine(by.tsc, "src/a.ts(3,5): error TS2322: Type 'x' is wrong."), { file: 'src/a.ts', line: 3, col: 5, severity: 'error', message: "TS2322: Type 'x' is wrong." });

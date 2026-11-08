@@ -1,9 +1,11 @@
 /**
  * Per-project trust for checkers that execute repository code (plan D6, ADR 0006): tsc, eslint, mypy and cargo load
  * the project's own configuration, plugins and build scripts, so they run only in a project the user trusted with
- * `amauta check trust`. A project is its git root (real path). Stored in `<state dir>/checks/trust.json`; nothing
- * else is recorded. Side effects: that file only.
+ * `amauta check trust`. A project is its git root (real path). Stored in `<state dir>/checks/trust.json` with the
+ * sha256 of the project's `.amauta/pipelines.json` (null without one): the portal runs pipelines only while that file
+ * is the one the user trusted (ADR 0011). Side effects: that file only.
  */
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { writeFileAtomic } from '../core/fsatomic.js';
@@ -37,7 +39,9 @@ export async function setTrust(stateDir, cwd, on) {
   const root = await projectRoot(cwd);
   if (!root) return null;
   const rest = (await trustedProjects(stateDir)).filter((p) => p.path !== root);
-  const projects = on ? [...rest, { path: root, trusted_at: new Date().toISOString() }] : rest;
+  const pipelines = await readFile(path.join(root, '.amauta', 'pipelines.json')).catch(() => null);
+  const pipelinesSha = pipelines ? createHash('sha256').update(pipelines).digest('hex') : null;
+  const projects = on ? [...rest, { path: root, trusted_at: new Date().toISOString(), pipelines_sha256: pipelinesSha }] : rest;
   await mkdir(path.dirname(file(stateDir)), { recursive: true });
   await writeFileAtomic(file(stateDir), `${JSON.stringify({ projects }, null, 2)}\n`);
   return root;

@@ -107,12 +107,14 @@ def _summary(f, events):
     lines = [e["text"] for e in events if e.get("kind") == "line" and e.get("step") == bad and not e["text"].startswith("retrying in ")]
     return {"pipeline": start["pipeline"], "run": f.name, "status": end["status"] if end else "running", "started": start["t"],
             "seconds": end.get("seconds") if end else None, "trigger": start.get("trigger", "cli"), "only": start.get("only"),
+            "mode": start.get("mode"),
             "steps": steps, "failure": lines[-1] if lines else None,
             "outputs": [o for e in events if e.get("kind") == "step-end" for o in e.get("outputs", [])]}
 
 
 def history(state_dir, repo):
     """{pipeline id: {"runs": newest first (at most SHOWN), "last_scheduled": start of the newest scheduled run,
+    "scheduled": {mode or "": start of the newest scheduled run of that mode},
     "typical": median seconds of the recent whole runs that ended ok}}."""
     out = {}
     d = runs_dir(state_dir, repo)
@@ -120,11 +122,12 @@ def history(state_dir, repo):
         run = _cached(f)
         if run is None:
             continue
-        h = out.setdefault(run["pipeline"], {"runs": [], "last_scheduled": None, "ok": []})
+        h = out.setdefault(run["pipeline"], {"runs": [], "last_scheduled": None, "scheduled": {}, "ok": []})
         if len(h["runs"]) < SHOWN:
             h["runs"].append(run)
-        if run["trigger"] == "schedule" and h["last_scheduled"] is None:
-            h["last_scheduled"] = run["started"]
+        if run["trigger"] == "schedule":
+            h["last_scheduled"] = h["last_scheduled"] or run["started"]
+            h["scheduled"].setdefault(run["mode"] or "", run["started"])  # the newest scheduled run of each mode
         if run["status"] == "ok" and run["only"] is None and len(h["ok"]) < SHOWN:
             h["ok"].append(run["seconds"])
     for h in out.values():

@@ -1,13 +1,14 @@
 """`amauta pipeline check` (plan S1, ADR 0010): what would stop a run, found before it starts. For each enabled step:
-its script or notebook exists, its program can be found (on PATH, or as a path), its `cwd` is a folder. An output
-whose folder does not exist yet is a note, since the step may create it. Nothing runs and nothing is written.
+its script or notebook exists inside the project (from its root, as the runner reads it), its program can be found
+(on PATH, or as a path), its `cwd` is a folder. An output whose folder does not exist yet is a note, since the step
+may create it. Nothing runs and nothing is written.
 """
 
 import os
 import shutil
 from pathlib import Path
 
-from . import config
+from . import config, proc
 
 PROGRAMS = {"r": "Rscript", "notebook": "jupyter"}
 
@@ -25,8 +26,12 @@ def _step(repo, step, python):
     if not (Path(repo) / step["cwd"]).is_dir():
         return [("error", f"cwd {step['cwd']} is not a folder")]
     source = step.get("script") or step.get("path")
-    if source and not (Path(repo) / step["cwd"] / source).is_file() and not (Path(repo) / source).is_file():
-        out.append(("error", f"{source} does not exist"))
+    if source:  # resolved exactly as the runner does: from the project root, never outside it
+        try:
+            if not proc.inside(repo, source).is_file():
+                out.append(("error", f"{source} does not exist"))
+        except proc.Escape as e:
+            out.append(("error", str(e)))
     if step["type"] == "command":
         program = step["argv"][0]
     elif step["type"] == "python":

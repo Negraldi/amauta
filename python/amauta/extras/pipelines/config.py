@@ -14,6 +14,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 from ...detectors import secretlike
+from . import graph
 
 FILE = Path(".amauta") / "pipelines.json"
 ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,60}$")
@@ -48,6 +49,8 @@ def _step(i, s):
     if not isinstance(s, dict) or s.get("type") not in TYPES:
         raise ConfigError(f"step {i + 1}: type must be one of {', '.join(sorted(TYPES))}")
     out = {"name": str(s.get("name") or f"Step {i + 1}")[:80], "type": s["type"], "enabled": s.get("enabled", True) is not False}
+    if "pipeline" in s:
+        raise ConfigError(f"step {i + 1}: `pipeline` belongs to a step of type pipeline")
     timeout = s.get("timeout", 3600)
     if not isinstance(timeout, int) or not 0 < timeout <= MAX_TIMEOUT:
         raise ConfigError(f"step {i + 1}: timeout must be 1 to {MAX_TIMEOUT} seconds")
@@ -81,6 +84,50 @@ def parse_time(at):
     return int(m.group(1)), int(m.group(2))
 
 
+def _schedules(pid, value, modes):
+    items = value if isinstance(value, list) else [value]
+    out = []
+    for sched in items:
+        mode = sched.pop("mode", None) if isinstance(sched, dict) else None
+        entry = _schedule(pid, sched)
+        if mode is not None:
+            if mode not in modes:
+                raise ConfigError(f"{pid}: schedule mode {mode!r} is not one of the pipeline's modes")
+            entry["mode"] = mode
+        out.append(entry)
+    return out
+
+
+def _modes(p):
+    """(modes, default mode): the pipeline's mode ids, first one by default; [] and None when it has none."""
+    modes = p.get("modes", [])
+    if not isinstance(modes, list) or not all(isinstance(m, str) and graph.STEP_ID.match(m) for m in modes):
+        raise ConfigError(f"{p['id']}: modes must be a list of ids (lowercase letters, digits, '-' and '_')")
+    default = p.get("default_mode", modes[0] if modes else None)
+    if modes and default not in modes:
+        raise ConfigError(f"{p['id']}: default_mode must be one of {', '.join(modes)}")
+    return modes, default
+
+
+def _pipeline(p, by_id):
+    modes, default = _modes(p)
+    try:
+        steps = graph.expand(p["id"], by_id, _step)
+        graph.levels(steps)
+    except graph.GraphError as e:
+        raise ConfigError(str(e)) from None
+    for st in steps:
+        if st["modes"] is not None and (not isinstance(st["modes"], list) or not set(st["modes"]) <= set(modes) or not st["modes"]):
+            raise ConfigError(f"{p['id']}: step {st['id']}: modes must be some of the pipeline's modes ({', '.join(modes) or 'none'})")
+    parallel = p.get("max_parallel", 4)
+    if type(parallel) is not int or not 1 <= parallel <= 16:
+        raise ConfigError(f"{p['id']}: max_parallel must be 1 to 16")
+    schedules = _schedules(p["id"], p["schedule"], modes) if "schedule" in p else []
+    return {"id": p["id"], "name": str(p.get("name") or p["id"])[:120], "description": str(p.get("description") or "")[:500],
+            "category": str(p.get("category") or "")[:40], "modes": modes, "default_mode": default, "max_parallel": parallel,
+            "schedules": schedules, "steps": steps}
+
+
 def _schedule(pid, sched):
     """Daily {at}, weekly {at, days}, monthly {at, day_of_month} or {every_minutes}: what the OS scheduler should do."""
     if not isinstance(sched, dict) or not sched or set(sched) - {"at", "days", "day_of_month", "every_minutes"}:
@@ -112,21 +159,22 @@ def parse(data):
     items = data.get("pipelines") if isinstance(data, dict) else None
     if not isinstance(items, list):
         raise ConfigError('the file must be {"pipelines": [...]}')
-    seen, out = set(), []
+    blocks = data.get("blocks", {})
+    if not isinstance(blocks, dict):
+        raise ConfigError("blocks must be an object: {name: step fields}")
+    by_id = {}
     for p in items:
         if not isinstance(p, dict) or not ID.match(str(p.get("id", ""))):
             raise ConfigError("every pipeline needs an id: lowercase letters, digits, '-' and '_'")
-        if p["id"] in seen:
+        if p["id"] in by_id:
             raise ConfigError(f"duplicate pipeline id: {p['id']}")
-        seen.add(p["id"])
-        steps = p.get("steps")
-        if not isinstance(steps, list) or not steps:
+        if not isinstance(p.get("steps"), list) or not p["steps"]:
             raise ConfigError(f"{p['id']}: steps must be a non-empty list")
-        out.append({"id": p["id"], "name": str(p.get("name") or p["id"])[:120], "description": str(p.get("description") or "")[:500],
-                    "category": str(p.get("category") or "")[:40],
-                    "schedule": _schedule(p["id"], p["schedule"]) if "schedule" in p else None,
-                    "steps": [_step(i, s) for i, s in enumerate(steps)]})
-    return out
+        try:
+            by_id[p["id"]] = graph.with_ids(p["id"], graph.apply_blocks(p["id"], p["steps"], blocks))
+        except graph.GraphError as e:
+            raise ConfigError(str(e)) from None
+    return [_pipeline(p, by_id) for p in items]
 
 
 def load(repo):

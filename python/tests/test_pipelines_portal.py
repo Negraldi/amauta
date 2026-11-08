@@ -34,8 +34,11 @@ class Base(unittest.TestCase):
         self.portal = Portal(Config(state_dir=self.state, claude_home=self.root / "home", engram_db=self.root / "none.db", repos=[self.repo]))
 
     def trust(self):
+        import hashlib
+        digest = hashlib.sha256((self.repo / ".amauta" / "pipelines.json").read_bytes()).hexdigest()
         (self.state / "checks").mkdir(exist_ok=True)
-        (self.state / "checks" / "trust.json").write_text(json.dumps({"projects": [{"path": str(self.repo), "trusted_at": "x"}]}))
+        (self.state / "checks" / "trust.json").write_text(json.dumps({"projects": [
+            {"path": str(self.repo), "trusted_at": "x", "pipelines_sha256": digest}]}))
 
     def wait_end(self, run, timeout=20):
         deadline = time.time() + timeout
@@ -99,11 +102,11 @@ class PortalPointsTest(Base):
         pipelines["pipelines"][0]["schedule"] = {"every_minutes": 30}
         (self.repo / ".amauta" / "pipelines.json").write_text(json.dumps(pipelines))
         card = lambda: next(p for p in pp.list_pipelines(self.portal)["projects"] if p["path"] == str(self.repo))["pipelines"][0]  # noqa: E731
-        self.assertEqual((card()["schedule"], card()["schedule_state"], card()["history"], card()["typical"]), ({"every_minutes": 30}, "never", [], None))
+        self.assertEqual((card()["schedules"], card()["history"], card()["typical"]), ([{"every_minutes": 30, "state": "never"}], [], None))
         from python.amauta.extras.pipelines import runner, store
         runner.run(self.repo, "hello", store.new_run(self.state, self.repo, "hello"), trigger="schedule")
         c = card()
-        self.assertEqual(c["schedule_state"], "ok")
+        self.assertEqual(c["schedules"][0]["state"], "ok")
         self.assertEqual([(r["status"], r["trigger"]) for r in c["history"]], [("ok", "schedule")])
         self.assertTrue(c["history"][0]["run"].endswith(".jsonl"))
         self.assertIsInstance(c["typical"], float)
@@ -133,6 +136,58 @@ class PortalPointsTest(Base):
         time.sleep(1.0)
         pp.cancel(self.portal, {"project": str(self.repo), "run": run})
         self.wait_end(run)
+
+    def test_trust_covers_the_definition_and_cancel_needs_a_running_run(self):
+        self.trust()
+        status, body = pp.run(self.portal, {"project": str(self.repo), "id": "hello"})
+        self.assertEqual(status, 202)
+        self.wait_end(body["run"])
+        self.assertEqual(pp.cancel(self.portal, {"project": str(self.repo), "run": body["run"]})[0], 409, "it already ended")
+        f = self.repo / ".amauta" / "pipelines.json"
+        f.write_text(f.read_text().replace('"Hello"', '"Hello again"'))
+        status, body = pp.run(self.portal, {"project": str(self.repo), "id": "hello"})
+        self.assertEqual(status, 403)
+        self.assertIn("changed since", body["error"])
+        self.assertFalse(pp.list_pipelines(self.portal)["projects"][0]["trusted"])
+
+    def test_a_run_that_cannot_start_says_why(self):
+        self.trust()
+        old = pp.PYTHON_DIR
+        pp.PYTHON_DIR = self.root / "no-such-dir"  # the runner's module cannot be imported
+        try:
+            status, body = pp.run(self.portal, {"project": str(self.repo), "id": "hello"})
+        finally:
+            pp.PYTHON_DIR = old
+        self.assertEqual(status, 202)
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            r = pp.events(self.portal, {"project": str(self.repo), "run": body["run"], "after": "0"})
+            if r["done"]:
+                break
+            time.sleep(0.2)
+        self.assertTrue(r["done"])
+        self.assertIn("did not start", r["error"])
+        self.assertIn("amauta", r["error"], "the runner's own error is shown")
+
+    def test_modes_and_the_graph_reach_the_card_and_the_run(self):
+        f = self.repo / ".amauta" / "pipelines.json"
+        data = json.loads(f.read_text())
+        data["pipelines"].append({"id": "m", "modes": ["train", "predict"], "schedule": [{"every_minutes": 30, "mode": "predict"}],
+                                  "steps": [{"id": "a", "type": "command", "argv": [sys.executable, "-c", "print('a')"]},
+                                            {"id": "b", "needs": [], "modes": ["train"], "type": "command", "argv": [sys.executable, "-c", "1"]}]})
+        f.write_text(json.dumps(data))
+        self.trust()
+        card = next(p for p in pp.list_pipelines(self.portal)["projects"][0]["pipelines"] if p["id"] == "m")
+        self.assertEqual((card["modes"], card["default_mode"], card["levels"]), (["train", "predict"], "train", [["a", "b"]]))
+        self.assertEqual([(s["mode"], s["state"]) for s in card["schedules"]], [("predict", "never")])
+        self.assertEqual(card["step_modes"], [None, ["train"]])
+        self.assertEqual(pp.run(self.portal, {"project": str(self.repo), "id": "m", "mode": "nope"})[0], 400)
+        status, body = pp.run(self.portal, {"project": str(self.repo), "id": "m", "mode": "predict"})
+        self.assertEqual(status, 202, body)
+        events = self.wait_end(body["run"])
+        self.assertEqual(events[0]["mode"], "predict")
+        card = next(p for p in pp.list_pipelines(self.portal)["projects"][0]["pipelines"] if p["id"] == "m")
+        self.assertEqual(card["history"][0]["mode"], "predict")
 
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
