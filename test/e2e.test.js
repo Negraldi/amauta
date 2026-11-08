@@ -177,13 +177,16 @@ test('amauta MCP server: initialize, tools/list and odd_tasks_status', async () 
 test('portal serves /api/overview on 127.0.0.1', async () => {
   const child = spawn('node', [CLI, 'portal', '--port', '0', '--claude-home', claudeHome, '--engram-db', path.join(home, 'none.db')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
   try {
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (d) => { if (err.length < 4000) err += d; });
     const url = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('portal did not start')), 15000);
+      const timer = setTimeout(() => reject(new Error(`portal did not start; stderr: ${err || '(none)'}`)), 15000);
       readline.createInterface({ input: child.stdout }).on('line', (line) => {
         const m = /(http:\/\/127\.0\.0\.1:\d+)\//.exec(line);
         if (m) { clearTimeout(timer); resolve(m[1]); }
       });
-      child.on('exit', (code) => reject(new Error(`portal exited ${code}`)));
+      child.on('exit', (code) => reject(new Error(`portal exited ${code}; stderr: ${err || '(none)'}`)));
     });
     const res = await fetch(`${url}/api/overview`);
     assert.equal(res.status, 200);
