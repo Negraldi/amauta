@@ -1,6 +1,6 @@
 # Upgrading
 
-## From 0.4.0 to 0.5.0 (in progress on `feat/amauta-next`)
+## From 0.4.0 to 0.5.0
 
 ```bash
 amauta upgrade --to v0.5.0

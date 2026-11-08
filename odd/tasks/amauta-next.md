@@ -74,7 +74,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   `{{AMAUTA_SDD}}` command in the SDD assets (today `env PYTHONPATH=... python3`).
 - [x] N8c `amauta-wiki-explain` and `graphify-semantic` skills call Python through `node <bin> py` (portable).
 - [x] N9 CI on Linux, macOS, Windows (portable test subset on Windows) + UPGRADING (Codex re-trusts changed hooks).
-- [ ] N9b Make the full suite green on macOS: 22 failures in the first CI run (graphify hook and semantic pass, codegraph
+- [x] N9b Make the full suite green on macOS: 22 failures in the first CI run (graphify hook and semantic pass, codegraph
   project-dir checks with /private temp dirs, the portal start in e2e, ENOEXEC from fake launchers). The macOS job does
   not block until then.
 
@@ -91,7 +91,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   N12e Harness diagram in Mermaid, archify behind "open full diagram"; N12f Activity opens with one summary sentence
   then the daily chart and the sortable table (no stat tiles); N12g P3 copy (plurals via `tn()`, jargon, empty-table
   messages, 72ch reading width); N12h impeccable `polish` pass with before/after screenshots; Windows launcher.
-- [ ] N13 README <= 200 lines with details in `docs/`; phase 1 audit; v0.5.0.
+- [x] N13 README <= 200 lines with details in `docs/`; phase 1 audit; v0.5.0.
 
 ### Phase 2a, data security
 
@@ -240,6 +240,15 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-07: N8c done: `{{AMAUTA_PY}}` renders `node <bin> py`; `amauta py <module>` runs only `amauta.*` modules with
   the interpreter install chose. Both skills use it; the old placeholder still renders for skills an earlier release wrote.
 
+- 2026-11-08: N9b done: macOS is green and its CI job blocks. Product fixes: the graphify git hook, the semantic pass and
+  `amauta portal` use the interpreter install recorded instead of a bare `python3` (Xcode's 3.9 on macOS); the portal
+  binds without `socket.getfqdn()` (a reverse DNS lookup that stalled its start); the project path guard refuses
+  `/private`, `/System` and `/Library` on macOS (`/etc` resolved to `/private/etc` and slipped through). Test fixes: real
+  temp paths, an explicit 3.11+ interpreter where PATH is narrowed, nested-shebang fakes skipped on macOS. RED seen
+  in CI for each, and locally for the interpreter, bind and guard tests.
+- 2026-11-08: N13 done: README 476 -> 116 lines, details in `docs/` (install, hooks, memory and usage, portal, safety,
+  optional modules, migrating); phase 1 audit in `docs/audits/2026-11-08-phase-1.md`; version 0.5.0.
+
 ## Next step
 
-N13 (README <= 200 lines, phase 1 audit, v0.5.0); N9b stays open (macOS).
+Phase 2: D1 intake records, then D2 detector catalog. Ask the aesthetic questions (Inca names) before D10/D11.

@@ -12,8 +12,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    # macOS was never supported before 0.5; its known failures are tracked in plan N9b and do not block the run yet.
-    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

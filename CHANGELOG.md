@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-08
+
+### Added
+
+- Native Windows: the Python interpreter is chosen at install (`--python`, `AMAUTA_PYTHON`) and recorded; skill links
+  are junctions, with a managed copy when a link cannot be made; process trees are stopped with `taskkill /T`; CRLF files
+  keep their line endings; the portal guard knows the Windows system folders. `amauta portal launch` opens Edge or Chrome
+  and `install-launcher` writes a Start menu shortcut. CI runs a portable test subset on Windows and the full suite on
+  Linux and macOS.
+- `MODULES.json` and an architecture test (every file in one module, layer import rules), a simplicity ratchet (file,
+  function and line limits that may only tighten) and ADRs 0001-0009 in `docs/decisions/`.
+- `python/amauta/extras/`: optional extras found by an extension registry (skill impact, wiki explanations, the theme
+  editor backend, the graphify semantic pass); `amauta py <amauta.module>` runs them with the recorded interpreter.
+- Portal: six sidebar pages (Home, Projects, Memory, Activity, Harness, Settings) with tabs for their list routes; the
+  Harness page draws how a session flows through the harness (Mermaid); Activity opens with one summary sentence.
+
+### Changed
+
+- Hooks: one command per event (`hook event <Event> --with handler,...`) runs the handlers in order; one Stop policy
+  combines blocks (at most two per turn); the SDD preflight runs in Node and fails closed for `sdd-*` only.
+- The installer plans both runtimes through one adapter interface.
+- Portal: the top bar holds only search; filters sit above the pages that use them; theme and language are at the foot
+  of the sidebar; dictionaries are JSON files per language; plurals, plain words and empty-table messages.
+- README shortened to an overview; details moved to `docs/`.
+
+### Fixed
+
+- macOS: a bare `python3` (Xcode's 3.9, no `-P`) in the graphify hook, the semantic pass and `amauta portal`; a reverse
+  DNS lookup that stalled the portal's start; `/etc` (resolved to `/private/etc`) accepted as a project path.
+- The Harness page listed amauta's hooks as "other".
+
 ## [0.4.0] - 2026-10-23
 
 ### Added
