@@ -69,6 +69,8 @@ amauta graphify semantic [--cwd DIR] [--model M] [--timeout SECONDS]    # option
 ```
 
 ```
+amauta check trust|untrust|status [--cwd DIR]  # allow tsc, eslint, mypy, cargo at Stop in one project
+amauta privacy scan|redact|pseudonymize FILE...  # local privacy tools; counts and columns, never values
 amauta mermaid check FILE.md...               # validate ```mermaid fences (syntax only, no browser); exit 1 on errors
 amauta skill-registry refresh [--cwd DIR] [--quiet] [--no-gitignore] [--force]
 amauta skill-registry list    [--cwd DIR]

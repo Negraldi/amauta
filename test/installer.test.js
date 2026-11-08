@@ -91,7 +91,7 @@ test('fresh install creates every component', async () => {
   assert.equal(cmd('UserPromptSubmit'), `node ${bin} hook event UserPromptSubmit --state-dir ${t.stateDir} --with skill-registry,privacy,telemetry`);
   assert.equal(settings.hooks.SessionStart[0].matcher, '');
   assert.match(cmd('SessionStart'), / --with review-stop,graphify-connect,sync-check,telemetry$/);
-  assert.match(cmd('Stop'), / --with review-stop,telemetry,usage$/);
+  assert.match(cmd('Stop'), / --with review-stop,checks,telemetry,usage$/);
 
   const cj = await readJson(t.claudeJson);
   assert.deepEqual(Object.keys(cj.mcpServers).sort(), ['amauta', 'engram']); // rea and context7 are opt-in

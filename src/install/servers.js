@@ -63,7 +63,7 @@ export const EDIT_MATCHER = 'Edit|Write|MultiEdit|NotebookEdit';
 const EVENT_PLAN = [
   { event: 'UserPromptSubmit', base: ['skill-registry', 'privacy'], telemetry: ['telemetry'], timeout: 20 },
   { event: 'SessionStart', base: ['review-stop', 'graphify-connect', 'sync-check'], telemetry: ['telemetry'], timeout: 60 },
-  { event: 'Stop', base: ['review-stop'], telemetry: ['telemetry', 'usage'], timeout: 60 },
+  { event: 'Stop', base: ['review-stop', 'checks'], telemetry: ['telemetry', 'usage'], timeout: 60 },
   { event: 'PostToolUse', base: [], telemetry: ['telemetry'], timeout: 10 },
   { event: 'SubagentStop', base: [], telemetry: ['telemetry', 'usage'], timeout: 20 },
 ];

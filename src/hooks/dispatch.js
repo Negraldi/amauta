@@ -19,7 +19,7 @@ import { syncIfChanged } from '../install/fingerprint.js';
 import { refreshRegistry } from '../registry/skill-registry.js';
 import { reviewStop } from '../review/stop.js';
 import { graphifyConnect } from '../graphify/connect.js';
-import { editCheck } from './checks.js';
+import { editCheck, stopCheck } from './checks.js';
 
 const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop', 'SubagentStop'];
 const MAX_STOP_BLOCKS = 2;
@@ -87,7 +87,7 @@ export const REGISTRY = {
   'review-stop': { events: ['SessionStart', 'Stop'], run: (payload) => reviewStop(payload) },
   'graphify-connect': { events: ['SessionStart'], run: (payload) => graphifyConnect(payload) },
   'sync-check': { events: ['SessionStart'], run: async () => (await syncIfChanged({}), null) },
-  checks: { events: ['PostToolUse'], run: (payload, ctx) => editCheck(payload, ctx) },
+  checks: { events: ['PostToolUse', 'Stop'], run: (payload, ctx) => (ctx.event === 'Stop' ? stopCheck : editCheck)(payload, ctx) },
   telemetry: pythonHandler('amauta.telemetry', TELEMETRY_EVENTS, 5000),
   usage: pythonHandler('amauta.usage', ['Stop', 'SubagentStop'], 10000),
   // Data security (plan D4): asks before a data file is read, warns about a secret in a prompt; never denies.
@@ -138,12 +138,12 @@ function merge(event, decisions) {
 
 /** Run `names` for `event` and return the merged decision (or null). */
 export async function dispatchEvent(opts) {
-  const { event, payload, raw = JSON.stringify(payload), names, registry = REGISTRY, stateDir, runtime, python } = opts;
+  const { event, payload, raw = JSON.stringify(payload), names, registry = REGISTRY, stateDir, runtime, python, searchPath } = opts;
   const dir = stateDir ?? resolveTargets({}, process.env).stateDir;
   if (stateDir) process.env.AMAUTA_STATE_DIR = stateDir;
   if (runtime) process.env.AMAUTA_RUNTIME = runtime;
   const pythonEnv = { ...process.env, PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: dir, ...(runtime ? { AMAUTA_RUNTIME: runtime } : {}) };
-  const ctx = { raw, pythonEnv, python: python ?? process.env.AMAUTA_PYTHON ?? 'python3' };
+  const ctx = { event, raw, pythonEnv, stateDir: dir, searchPath, python: python ?? process.env.AMAUTA_PYTHON ?? 'python3' };
   const decisions = [];
   for (const name of names) {
     const handler = registry[name];

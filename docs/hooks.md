@@ -29,3 +29,10 @@ fail open; an empty stdout is a no-op.
   the file's last committed version (a new file has no baseline), come back as one block of
   `file:line:col: error: message [checker]` lines, so Claude fixes them in the same turn. A checker that cannot start
   or runs over 10 s is skipped (ADR 0006). Codex edits arrive as patches through its shell, so Codex has no edit check yet.
+- `checks` at Stop (both runtimes): the same safe checkers over every changed file of the repository (`git status`; edits
+  made through the shell or by Codex included), against the committed version. In a project trusted with
+  `amauta check trust`, the project checkers also run when configured and installed (`tsc` with `tsconfig.json`,
+  `eslint` with its config, `mypy` with `mypy.ini`, `cargo check` with `Cargo.toml`, found in `node_modules/.bin` or on
+  PATH); they execute project code, hence the trust step. They share a 40 s budget, and only errors in changed files are
+  reported. The block goes through the Stop policy with the review reminder: one combined block, at most two per turn.
+  `amauta check untrust` and `amauta check status` manage the list (`<state dir>/checks/trust.json`).

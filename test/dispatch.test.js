@@ -63,7 +63,7 @@ test('install registers one command per event and matcher, with no env, sh or ti
       assert.doesNotMatch(command, /(^|\s)(env|sh|timeout)\s/);
     }
   }
-  assert.match(claude.Stop[0].hooks[0].command, /--with review-stop,telemetry,usage$/);
+  assert.match(claude.Stop[0].hooks[0].command, /--with review-stop,checks,telemetry,usage$/);
   assert.deepEqual(claude.PreToolUse.map((e) => e.matcher), ['Read|NotebookRead|NotebookEdit', 'Agent']);
   assert.match(claude.PreToolUse[0].hooks[0].command, /--with privacy$/);
   assert.match(claude.UserPromptSubmit[0].hooks[0].command, /--with skill-registry,privacy,telemetry$/);

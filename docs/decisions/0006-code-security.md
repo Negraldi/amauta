@@ -19,6 +19,11 @@ configuration, mypy plugins).
 - AGENTS.md "hooks fail open with empty stdout" gains documented exceptions: checks and privacy hooks print decisions.
   A hook that crashes still fails open, but its failure is visible in `status`, the portal and at SessionStart.
 
+## Amendment 2026-11-08 (plan D6)
+
+The Stop check runs inside the one Stop hook, whose timeout stays at 60 s like every other hook; the project
+checkers share a 40 s budget instead of 120 s. Only changed files are reported, so no project-wide baseline is kept.
+
 ## Consequences
 
 Checkers are detected on PATH and never installed. Secrets in edited code are reported by the same detector catalog
