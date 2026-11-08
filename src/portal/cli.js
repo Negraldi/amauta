@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveTargets } from '../install/paths.js';
+import { installedPythonSync } from '../install/python.js';
 import { runLaunch } from './launch.js';
 import { runInstallLauncher } from './launcher.js';
 
@@ -45,7 +46,7 @@ export function buildPortalSpawn(args, env = process.env) {
   for (const r of repos) out.push('--repo', r);
   const pythonPath = path.join(repoRoot, 'python');
   return {
-    command: 'python3',
+    command: installedPythonSync({ ...env, AMAUTA_STATE_DIR: targets.stateDir }), // the interpreter install recorded (N9b)
     args: out,
     env: { ...env, PYTHONPATH: env.PYTHONPATH ? `${pythonPath}${path.delimiter}${env.PYTHONPATH}` : pythonPath, AMAUTA_STATE_DIR: targets.stateDir },
   };

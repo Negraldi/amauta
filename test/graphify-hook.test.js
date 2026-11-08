@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { installHook, uninstallHook, BEGIN, END } from '../src/graphify/hook.js';
 import { main } from '../src/cli.js';
 import { tempDir } from './helpers/tmp.js';
+import { PY } from './helpers/python.js';
+
+process.env.AMAUTA_PYTHON ??= PY; // the hook block runs under a narrow PATH (plan N9b)
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sink = () => { let s = ''; return { write: (x) => { s += x; }, get text() { return s; } }; };
@@ -325,7 +328,7 @@ test('a trigger that finds the lock held re-tries it after leaving its marker (t
 test('a helper that cannot run at all (python missing) fails open: no marker, no run, the commit is unaffected', async () => {
   const t = await sandbox({ graphify: 'true' });
   await writeFile(path.join(t.bin, 'python3'), '#!/bin/sh\nexit 127\n', { mode: 0o755 });
-  await installHook(t.opts());
+  await installHook(t.opts({ python: 'python3' })); // the fake python3 on PATH
   const c = await t.commit();
   assert.equal(c.status, 0, c.stderr);
   await sleep(500);
@@ -340,7 +343,7 @@ test('a lock helper that exits with an unexpected code is logged (python3 >= 3.1
   const t = await sandbox({ graphify: 'true' });
   // What python 3.10 does with `-P`: usage error, exit 2.
   await writeFile(path.join(t.bin, 'python3'), '#!/bin/sh\necho "Unknown option: -P" >&2\nexit 2\n', { mode: 0o755 });
-  await installHook(t.opts());
+  await installHook(t.opts({ python: 'python3' })); // the fake python3 on PATH
   const c = await t.commit();
   assert.equal(c.status, 0, c.stderr);
   const text = await waitFor(async () => { const x = await hookLog(t); return x.includes('lock helper') ? x : null; }, 10000);
@@ -356,7 +359,7 @@ test('the hook starts the lock helper with a minimal environment (no API keys)',
   const realPython = spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).stdout.trim();
   const seen = path.join(t.root, 'helper-env.txt');
   await writeFile(path.join(t.bin, 'python3'), `#!/bin/sh\ncase "$*" in *"graph.lock acquire"*) env > '${seen}';; esac\nexec '${realPython}' "$@"\n`, { mode: 0o755 });
-  await installHook(t.opts());
+  await installHook(t.opts({ python: 'python3' })); // the fake python3 on PATH
   const child = spawn('sh', [t.hook], { cwd: t.repo, env: { ...process.env, ...t.env, ANTHROPIC_API_KEY: 'sk-ant-CANARY-0123456789abcdef' }, stdio: 'ignore' });
   child.on('error', () => {});
   const env = await waitFor(() => readFile(seen, 'utf8').then((x) => x, () => null), 10000);

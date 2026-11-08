@@ -1,5 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtemp, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -9,16 +9,16 @@ process.on('exit', () => {
   for (const dir of made) rmSync(dir, { recursive: true, force: true });
 });
 
-/** mkdtemp under the OS temp dir; removed when the test process exits. */
+/** mkdtemp under the OS temp dir, as a real path (macOS: /var is /private/var); removed when the test process exits. */
 export async function tempDir(prefix) {
-  const dir = await mkdtemp(path.join(os.tmpdir(), prefix));
+  const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), prefix)));
   made.add(dir);
   return dir;
 }
 
 /** Synchronous tempDir. */
 export function tempDirSync(prefix) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
+  const dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), prefix)));
   made.add(dir);
   return dir;
 }

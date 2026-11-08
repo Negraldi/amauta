@@ -58,3 +58,23 @@ test('status is healthy with a chosen interpreter', async () => {
   const s = await status(t.opts());
   assert.ok(s.ok, JSON.stringify(s.checks?.filter((c) => !c.ok)));
 });
+
+// N9b: the graphify git hook, the semantic pass and `amauta portal` used a bare `python3`, which on macOS runners is
+// Xcode's 3.9 (no -P). They now use the interpreter recorded at install, or AMAUTA_PYTHON.
+test('the graphify hook block, the portal command and the lock helper use the chosen interpreter', async () => {
+  const { hookBlock } = await import('../src/graphify/hook.js');
+  const { buildPortalSpawn } = await import('../src/portal/cli.js');
+  const { installedPythonSync } = await import('../src/install/python.js');
+  const py = "/opt/py 3/bin/python3.12";
+  const block = hookBlock({ stateDir: '/s', event: 'post-commit', python: py });
+  assert.ok(block.includes(`'${py}' -P -m amauta.graph.lock`), 'lock helper');
+  assert.ok(block.includes(`'${py}' -P -m amauta.graph sync`), 'graph sync');
+  assert.doesNotMatch(block, /[ )]python3 -P/);
+  const t = await sandbox();
+  assert.equal(buildPortalSpawn(['--state-dir', t.stateDir], { AMAUTA_PYTHON: py }).command, py);
+  await mkdir(t.stateDir, { recursive: true });
+  await writeFile(path.join(t.stateDir, 'state.json'), JSON.stringify({ python: '/rec/python3.13' }));
+  assert.equal(installedPythonSync({ AMAUTA_STATE_DIR: t.stateDir }), '/rec/python3.13');
+  assert.equal(buildPortalSpawn(['--state-dir', t.stateDir], {}).command, '/rec/python3.13');
+  assert.equal(installedPythonSync({ AMAUTA_STATE_DIR: path.join(t.root, 'none') }), 'python3');
+});

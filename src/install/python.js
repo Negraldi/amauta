@@ -6,6 +6,7 @@
  * child process when an interpreter was chosen. Failure mode: throws before anything is written.
  */
 import { spawn, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readStateObject } from './files.js';
 import { resolveTargets } from './paths.js';
@@ -27,6 +28,17 @@ export async function installedPython(env = process.env) {
   if (env.AMAUTA_PYTHON) return env.AMAUTA_PYTHON;
   const state = await readStateObject(path.join(resolveTargets({}, env).stateDir, 'state.json'));
   return typeof state?.python === 'string' && state.python ? state.python : DEFAULT_PYTHON;
+}
+
+/** The same answer without awaiting (for pure command builders); an unreadable state file means the default. */
+export function installedPythonSync(env = process.env) {
+  if (env.AMAUTA_PYTHON) return env.AMAUTA_PYTHON;
+  try {
+    const state = JSON.parse(readFileSync(path.join(resolveTargets({}, env).stateDir, 'state.json'), 'utf8'));
+    return typeof state?.python === 'string' && state.python ? state.python : DEFAULT_PYTHON;
+  } catch {
+    return DEFAULT_PYTHON;
+  }
 }
 
 /** `python -P -m <module> <args>` with amauta's PYTHONPATH, stdio passed through; resolves the exit status. */
