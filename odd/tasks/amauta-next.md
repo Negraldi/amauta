@@ -95,7 +95,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 2a, data security
 
-- [ ] D1 Intake records for the corporate privacy pieces.
+- [x] D1 Intake records for the corporate privacy pieces.
 - [ ] D2 Detector catalog (secrets, Ecuadorian cedula and RUC, Luhn cards, email, +593 phones, IBAN), generated
   fixtures, one finding format.
 - [ ] D3 Memory guard (always on): secrets and PII rejected or redacted without echoing them.
@@ -249,6 +249,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-08: N13 done: README 476 -> 116 lines, details in `docs/` (install, hooks, memory and usage, portal, safety,
   optional modules, migrating); phase 1 audit in `docs/audits/2026-11-08-phase-1.md`; version 0.5.0.
 
+- 2026-11-08: D1 done: `docs/intake/privacy.md` records validators, redaction, the memory secret guard (adapt) and
+  column detection and pseudonymization (rewrite, no pandas). The catalog becomes a kernel module (`detectors`, needed
+  by the memory guard); the hook, CLI and pseudonymization form the `data-security` pillar. The egress guard stays out.
+
 ## Next step
 
-Phase 2: D1 intake records, then D2 detector catalog. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2: D2 detector catalog (kernel module `detectors`), then D3 memory guard. Ask the aesthetic questions (Inca names) before D10/D11.
