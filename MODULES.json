@@ -21,6 +21,7 @@
     { "id": "skills", "layer": "kernel", "paths": ["src/registry/", "assets/skills/"], "purpose": "skill registry and the shared stack and workflow skills" },
     { "id": "memory", "layer": "kernel", "paths": ["python/amauta/memory/", "assets/engram/"], "purpose": "engram-compatible SQLite memory and its MCP server" },
     { "id": "telemetry", "layer": "kernel", "paths": ["python/amauta/telemetry/", "python/amauta/usage/"], "purpose": "local events and transcript usage ingestion" },
+    { "id": "detectors", "layer": "kernel", "paths": ["python/amauta/detectors/"], "purpose": "detector catalog: identifier validators, secret patterns, one text scan (ADR 0007)" },
     { "id": "graph-store", "layer": "kernel", "paths": ["python/amauta/graph/"], "purpose": "code graph mirror in memory.db, queries, refresh lock" },
 
     { "id": "portal", "layer": "pillar", "paths": ["src/portal/", "python/amauta/portal/", "assets/skills/amauta-wiki-explain/"], "purpose": "local wiki portal" },

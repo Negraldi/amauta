@@ -8,7 +8,7 @@ Claude Code · Codex
    │  hooks · MCP stdio (engram, amauta) · skills · CLAUDE.md / AGENTS.md
    ▼
 entry       cli · hooks dispatcher · MCP server
-kernel      core · install · skills · memory · telemetry · graph-store   (+ platform layer, checks engine: planned)
+kernel      core · install · skills · memory · telemetry · graph-store · detectors   (+ checks engine: planned)
 pillars     portal · odd · code-security · data-security (planned)
 integration code-graph (codegraph, graphify on PATH)
 optional    sdd · archify · impeccable · context7 · rea   (--with-X)

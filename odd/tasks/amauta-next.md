@@ -96,7 +96,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 ### Phase 2a, data security
 
 - [x] D1 Intake records for the corporate privacy pieces.
-- [ ] D2 Detector catalog (secrets, Ecuadorian cedula and RUC, Luhn cards, email, +593 phones, IBAN), generated
+- [x] D2 Detector catalog (secrets, Ecuadorian cedula and RUC, Luhn cards, email, +593 phones, IBAN), generated
   fixtures, one finding format.
 - [ ] D3 Memory guard (always on): secrets and PII rejected or redacted without echoing them.
 - [ ] D4 Privacy hook (data files outside test/fixture/example paths plus configured paths; always ask, never deny;
@@ -253,6 +253,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   column detection and pseudonymization (rewrite, no pandas). The catalog becomes a kernel module (`detectors`, needed
   by the memory guard); the hook, CLI and pseudonymization form the `data-security` pillar. The egress guard stays out.
 
+- 2026-11-08: D2 done: kernel module `detectors` (`python/amauta/detectors/`): validators (cedula, natural, juridical
+  and public RUC, Luhn cards, IBAN, email, Ecuadorian phones), secret patterns, and `scan`/`redact` with one finding
+  format `{kind, start, end}` (never the value). Fixtures are generated from seeds (`python/tests/detector_fixtures.py`).
+  RED seen (module missing).
+
 ## Next step
 
-Phase 2: D2 detector catalog (kernel module `detectors`), then D3 memory guard. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2: D3 memory guard (secrets rejected, personal data redacted, never echoed), then D4 privacy hook and CLI. Ask the aesthetic questions (Inca names) before D10/D11.

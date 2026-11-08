@@ -14,6 +14,7 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 | `memory` | kernel | `python/amauta/memory/`, `assets/engram/` | Engram-compatible SQLite memory and its MCP server |
 | `telemetry` | kernel | `python/amauta/telemetry/`, `python/amauta/usage/` | Local events and transcript usage ingestion |
 | `graph-store` | kernel | `python/amauta/graph/` | Code graph mirror in `memory.db`, queries and the refresh lock |
+| `detectors` | kernel | `python/amauta/detectors/` | Detector catalog: cedula, RUC, card, IBAN, email and phone validators, secret patterns, one text scan whose findings never carry values (ADR 0007) |
 | `portal` | pillar | `src/portal/`, `python/amauta/portal/`, `assets/skills/amauta-wiki-explain/` | Local wiki portal |
 | `odd` | pillar | `src/review/`, `assets/core/agents/review-*` | Review assess, review mode, the Stop reminder and the review lenses |
 | `code-security` | pillar | `src/mermaid/` | Checkers; today the Mermaid syntax check |
