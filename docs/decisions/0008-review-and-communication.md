@@ -24,6 +24,10 @@ run anything, is only partly independent. The user wants speed and review indepe
   default"), and can be turned off per project.
 - ODD records criteria, contracts (`odd/contracts/<feature>/`) and the review verdict in the task file.
 
+## Names (2026-11-08, user decision)
+
+Agent ids use Inca names: `chasqui` (communicator), `taripaq` (analytical lens), `haravec` (communication lens).
+
 ## Rejected
 
 Three specialists plus a reviewer (four sequential subagents, handoffs lose detail, a second review system); a

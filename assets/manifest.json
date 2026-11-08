@@ -55,6 +55,10 @@
   ],
   "agents": [
     {
+      "name": "chasqui",
+      "modelKey": "chasqui"
+    },
+    {
       "name": "graphify-extractor",
       "modelKey": "graphify-extractor",
       "toolsLocked": true

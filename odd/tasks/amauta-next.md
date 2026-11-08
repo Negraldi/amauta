@@ -115,7 +115,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D9 Data skill with five references (analytical review, transformation, enrichment, metrics and cohorts,
   provenance), `powerbi-report` v19 with PBIR tools (model diff, layout auditor, DAX linter as warnings, cascading
   rename), `exploratory-data-diagnosis`, institutional and editorial skills; all through intake records.
-- [ ] D10 `communicator` agent (bounded writer to the task's deliverables folder; measure requests with a fixed format,
+- [x] D10 `communicator` agent (bounded writer to the task's deliverables folder; measure requests with a fixed format,
   up to three cycles; presentation measures only over approved measures, checked).
 - [ ] D11 Review lenses `analytical` and `communication`, `amauta review pack` (mechanical), number-fidelity and render
   checks; both lenses run in their case even with code review off; analytical: one round plus delta re-check;
@@ -297,6 +297,16 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-08: D9c done (D9 complete): skills `executive-editorial` and `institutional-presentation`, rewritten from
   v19 with the brand taken from the selected profile. The exploratory diagnosis is a step of the `data` skill. RED seen.
 
+- 2026-11-08: user decision (aesthetics): Inca names as agent ids, persona stays gentleman. `chasqui` is the
+  communicator (the relay messenger: carries the approved message without changing it), `taripaq` the analytical lens
+  ("the one who examines"), `haravec` the communication lens (the court poet and orator).
+
+- 2026-11-08: D10 done: agent `chasqui` (Read, Glob, Grep, Write, Edit; no shell), model key `chasqui` (sonnet).
+  Writes under `odd/deliverables/<feature>/` from approved results only, cites every number, allows presentation
+  measures over approved ones, ends with a fixed `MEASURE REQUESTS (cycle <n> of 3)` block. The folder boundary is an
+  instruction plus the review pack's check of changed paths (D11): Claude Code hooks do not say which subagent made a
+  call, so a hook cannot enforce it. RED seen.
+
 ## Next step
 
-Phase 2c: ask the aesthetic questions (Inca names), then D10 communicator agent and D11 review lenses. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D11 lenses `taripaq` and `haravec`, `amauta review pack`, number-fidelity check. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

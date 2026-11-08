@@ -9,7 +9,7 @@ Into `~/.claude` / `~/.claude.json` / `~/.amauta` (all redirectable, see [safety
 | Piece | Details |
 | --- | --- |
 | `CLAUDE.md` (and `AGENTS.md` for Codex) | four short blocks (orchestrator, persona, memory protocol, codegraph guidance; under a 20k-char budget that `status` checks) between `<!-- amauta:ID -->` markers; your text is kept |
-| Assets | output style, skills, agents (judgment-day, review lenses), rendered with model assignments |
+| Assets | output style, skills, agents (judgment-day, review lenses, `chasqui` the communicator), rendered with model assignments |
 | Stack skills (original to amauta) | `cpp-testing`, `python-testing`, `node-testing`, `r-testing` (testing patterns for C++, Python, Node.js, R), `tabular-data` (Excel, Parquet, CSV, TXT), `doc-formats` (md, Rmd, html, pdf, docx, pptx), `mermaid-diagrams` (when and how to draw Mermaid in documentation) |
 | Hooks (all with a `timeout`) | `UserPromptSubmit` skill-registry, `SessionStart`/`Stop` review-stop, `SessionStart` graphify-connect, telemetry on 5 events, usage on `Stop`/`SubagentStop`, `codegraph prompt-hook` if codegraph exists, `PreToolUse(Agent)` preflight with `--with-sdd` |
 | MCP servers | `engram` (our Python memory server; `amauta-memory` if you already have another `engram`), `amauta` (Node: `skill_registry_refresh`, `review_assess`, `review_mode_status`, `odd_tasks_status`), `codegraph` (if installed) |

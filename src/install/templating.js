@@ -16,6 +16,7 @@ export const DEFAULT_MODEL_ASSIGNMENTS = Object.freeze({
   'jd-judge-b': 'sonnet',
   'jd-fix-agent': 'sonnet',
   'graphify-extractor': 'haiku',
+  chasqui: 'sonnet', // the communicator (plan D10)
   default: 'sonnet',
 });
 
