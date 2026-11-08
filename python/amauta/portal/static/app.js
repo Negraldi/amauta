@@ -9,7 +9,8 @@ const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThi
 const { t, tn, ts } = I; // t(key, params): portal chrome; tn(key, n, params): plural; ts(text): English text sent by the server (see i18n.js)
 // The sidebar: six pages (ADR 0005); each links to its hub route, and the page's other routes show as tabs.
 const SECTIONS = [["home", "#/home", "nav.home"], ["project", "#/project", "nav.project"], ["memory", "#/memory", "nav.memory"],
-  ["activity", "#/activity", "nav.activity"], ["harness", "#/harness", "nav.harnessPage"], ["settings", "#/settings", "nav.settings"]];
+  ["activity", "#/activity", "nav.activity"], ["harness", "#/harness", "nav.harnessPage"], ["security", "#/security", "nav.security"],
+  ["settings", "#/settings", "nav.settings"]];
 const TAB_LABELS = { usage: "nav.usage", session: "nav.session", tool: "nav.tool", mcp: "nav.mcp", project: "nav.project",
   feature: "nav.feature", node: "nav.node", memory: "nav.memory", lint: "nav.lint", harness: "nav.harnessPage", skill: "nav.skill",
   component: "nav.component", settings: "nav.settings", themes: "nav.themes" };
@@ -186,7 +187,7 @@ async function renderRoute(route, changed) {
   if (kind === "unknown") return [teach(t("route.notPage"), t("route.noMatch", { id }))];
   if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
   if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, component: viewComponents, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes };
+  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, component: viewComponents, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes, security: viewSecurity };
   const out = await views[kind]();
   const tabs = tabBar(route);
   const page = out.some(hasTitle) ? out : [pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)), ...out];

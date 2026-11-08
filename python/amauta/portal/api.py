@@ -16,7 +16,7 @@ from ..telemetry import housekeeping
 from ..usage import codex, ingest
 from .. import extensions
 from .wikihooks import hook_handlers as _hook_handlers, hook_kind as _hook_kind
-from . import archify, diagrams, wikifeature
+from . import archify, diagrams, security, wikifeature
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
@@ -86,7 +86,7 @@ class Portal:
         if route is None:
             return 404, {"error": "not found"}
         try:
-            return 200, getattr(self, route)(q)
+            return 200, route(self, q) if callable(route) else getattr(self, route)(q)  # a function or a method name
         except NotFound:
             return 404, {"error": "not found"}
         except BadRequest as err:
@@ -615,5 +615,5 @@ _ROUTES = {
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/harness/components": "harness_components", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
-    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills", "/api/projects": "projects", "/api/themes": "themes",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills", "/api/projects": "projects", "/api/themes": "themes", "/api/security": lambda portal, q: security.report(portal.cfg),
 }

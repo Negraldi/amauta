@@ -14,7 +14,7 @@ import time
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from . import wikifeature, wikisess
-from . import graphsync
+from . import graphsync, security
 from .api import has_table
 
 CONFIG_NAME = "portal.json"
@@ -319,7 +319,9 @@ def graph_status(portal, repo, detail=False):
 def summary(portal, q=None):
     info = collect(portal)
     out = []
+    selected = security.read_json(Path(portal.cfg.state_dir) / "profiles" / "selection.json", {})  # plan D14
     for repo in info["repos"]:
         out.append({"name": repo.name, "path": str(repo.resolve()), "origin": info["origin"][str(Path(os.path.realpath(repo)))], "odd": odd_summary(repo),
-                    "sessions": len(session_ids(portal, repo)), "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo)})
+                    "sessions": len(session_ids(portal, repo)), "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo),
+                    "profile": selected.get(os.path.realpath(repo), "default")})
     return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"], "projects": out}

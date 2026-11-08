@@ -188,6 +188,14 @@ class ProjectsApiTest(ProjectBase):
         self.assertEqual((a["sessions"], a["memories"], a["odd"]["features"], a["graph"]["mirrored"]), (2, 1, 0, False))  # s7 by cwd, s1 by project name; one live memory
         self.assertEqual(a["origin"], ["discovered"])
 
+    def test_each_project_shows_its_selected_profile(self):
+        """Plan D14: the profile a project selected (amauta profile use), or default."""
+        sel = self.f["state"] / "profiles" / "selection.json"
+        sel.parent.mkdir(parents=True, exist_ok=True)
+        sel.write_text(json.dumps({str(self.alpha.resolve()): "acme"}))
+        p = self.fresh() and self.by_name()
+        self.assertEqual((p["alpha"]["profile"], p["repo"]["profile"]), ("acme", "default"))
+
     def test_config_is_part_of_the_answer(self):
         (self.f["state"] / "portal.json").write_text(json.dumps({"repos": [str(self.alpha)], "auto_discover": False}))
         body = self.fresh() and self.get("/api/projects")

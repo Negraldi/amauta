@@ -13,8 +13,8 @@ amauta portal install-launcher [--remove]  # desktop entry (Linux) or Start menu
 
 (`PYTHONPATH=python python3 -P -m amauta.portal ...` is the same server without the CLI wrapper.)
 
-Six pages in the sidebar (ADR 0005): Home, Projects (tabs: ODD features, Graph), Memory (Lint), Activity (Usage, Sessions,
-Tools, MCP servers), Harness (Skills, Components) and Settings (Themes). The top bar holds only search. Range, Project and
+Seven pages in the sidebar (ADR 0005): Home, Projects (tabs: ODD features, Graph), Memory (Lint), Activity (Usage,
+Sessions, Tools, MCP servers), Harness (Skills, Components), Security and Settings (Themes). The top bar holds only search. Range, Project and
 Runtime filters sit above the pages that use them. The foot of the sidebar has a theme picker (System, Light, Dark, your custom
 themes) and an English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). The
 dictionaries are `static/i18n/{en,es,srv-es}.json`.
@@ -39,6 +39,7 @@ Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto
 | `#/themes` | Theme editor: custom light/dark themes with live preview, contrast warnings, import and export |
 | `#/memfile/id` | A Claude file memory (`projects/*/memory/*.md`), read-only |
 | `#/lint` | Review candidates (see below) |
+| `#/security` | Protections (memory guard, privacy hook, checks), installed checkers, trusted projects, profiles and how many values the memory guard redacted; counts and names only |
 | `#/settings` | Guarded settings editor (see below) |
 
 Search with `Ctrl+K` or `/`: one query across memories (FTS5), skills, tools, MCP servers, sessions, features, tasks and graph nodes.

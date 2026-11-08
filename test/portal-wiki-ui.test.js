@@ -188,12 +188,12 @@ test('a page that belongs to a group shows the group tabs and the sidebar marks 
   assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav')), ['#/memory', '#/lint']);
 });
 
-test('the sidebar lists the six pages, marks the current one and shows recent changes as links (plan N12d)', async () => {
+test('the sidebar lists the 6+1 pages, marks the current one and shows recent changes as links (plan N12d)', async () => {
   const { env } = await boot('#/memory');
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/home', '#/project', '#/memory', '#/activity', '#/harness', '#/settings']);
+  assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/home', '#/project', '#/memory', '#/activity', '#/harness', '#/security', '#/settings']);
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
   assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
   const recent = env.document.getElementById('recent');
@@ -596,4 +596,20 @@ test('home rail explains an empty ranking and tolerates an older server without 
   assert.ok(!/Skill impact/.test(tree(view(env)).find((e) => e.tagName === 'aside').textContent));
   ({ env } = await boot('#/home', { '/api/wiki/home': HOME }));
   assert.ok(!/Skill impact/.test(tree(view(env)).find((e) => e.tagName === 'aside').textContent));
+});
+
+test('the Security page shows protections, checkers, trusted projects, profiles and redaction counts (plan D14)', async () => {
+  const report = { protections: { memory_guard: 'on', privacy: 'off', checks: 'on', installed: true },
+    trusted: [{ name: 'app', path: '/work/app', since: '2026-11-08T10:00:00Z' }],
+    checkers: [{ name: 'tsc', installed: true, needs_trust: true }, { name: 'gitleaks', installed: false, needs_trust: false }],
+    profiles: { names: ['default', 'acme'], drafts: 1, selected: [{ project: 'app', profile: 'acme' }] },
+    redacted: { cedula: 2, email: 1 } };
+  const { env } = await boot('#/security', { '/api/security': report });
+  const text = view(env).textContent;
+  assert.match(text, /Security/);
+  assert.match(text, /privacy hook is off/i);
+  for (const needle of ['tsc', 'gitleaks', '/work/app', 'acme', 'cedula']) assert.ok(text.includes(needle), needle);
+  assert.match(text, /1 draft/);
+  const nav = tree(env.document.getElementById('nav')).find((e) => e.attrs.href === '#/security');
+  assert.equal(nav.getAttribute('aria-current'), 'page');
 });
