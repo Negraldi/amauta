@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ...portal import security
+from . import check as preflight
 from . import config, schedule, store
 
 PYTHON_DIR = Path(__file__).resolve().parents[3]
@@ -118,3 +119,14 @@ def cancel(portal, body):
         return 404, {"error": "unknown run"}
     Path(f"{f}.cancel").write_text("")
     return 200, {"ok": True}
+
+
+def check(portal, q):
+    """What would stop a run (read only, so no trust needed): {findings: [...]} or {error}."""
+    repo = _known(portal, str(q.get("project") or ""))
+    if repo is None:
+        return {"error": "not a project the portal knows"}
+    try:
+        return {"findings": preflight.check(repo, str(q.get("id") or ""))}
+    except config.ConfigError as e:
+        return {"error": "no such pipeline" if str(e).startswith("no pipeline") else str(e)}

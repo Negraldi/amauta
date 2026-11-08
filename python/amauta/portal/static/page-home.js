@@ -43,8 +43,10 @@ function impactRankBlock(rk) {
     h("p", { class: "muted" }, t("home.rankFoot", { ranked: fmt(rk.ranked), tracked: fmt(rk.tracked), days: fmt(rk.days) }) + " " + ts(rk.note)));
 }
 async function viewHome() {
-  const hm = await api("wiki/home");
+  const [hm, pipes] = await Promise.all([api("wiki/home"), pipelinesRail()]);
   return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("home.title")), activityBlock(hm.activity)),
-    h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact)), railBlock(t("home.health"), healthBlock(hm.health))))];
+    h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.pipelines"), pipes),
+      railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact)),
+      railBlock(t("home.health"), healthBlock(hm.health))))];
 }
 // Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.

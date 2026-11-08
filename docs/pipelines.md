@@ -75,12 +75,24 @@ Dates in a subject or a file name ("cut-off yesterday") are your script's to com
 
 ## In the portal
 
-Projects > Pipelines lists every known project that defines pipelines, with the last run of each (its result, when,
-how long it took and what started it). Category pills and a search narrow the cards. **Run** asks first,
-then starts the run as a separate process (it keeps going if the window closes) and shows each step's mark
-(✓ ok, ✗ failed, ⏱ timed out, ■ cancelled, – skipped) and the output in a console as it arrives. A project must be
-trusted first (`amauta check trust`), because a run executes its code; the page sends only the project and the
-pipeline id (and, for **Only this**, the step number), never a command. The console has **Copy** and **Clear**.
+Projects > Pipelines lists every known project that defines pipelines. A summary line counts what needs attention
+(failed last time, running, a missed scheduled run); the home page shows the same line. Category pills and a search
+narrow the cards. Each card shows:
+
+- the steps as a flow row, each with its kind, its last duration, its mark (✓ ok, ✗ failed, ⏱ timed out,
+  ■ cancelled, – skipped) and **Only this**;
+- the declared schedule and its state, the last run (result, time, duration, what started it), the line where it
+  failed, and the files it wrote;
+- the recent runs as marks, oldest first: a mark replays that run in the console;
+- **Run** (asks first), and **Check**, which reports what would stop a run without running anything.
+
+A run starts as a separate process (it keeps going if the window closes); its output arrives in the console as it
+happens, with a timer against the usual duration. Error lines are marked; the console can jump to the first error,
+show one step's lines, follow the output, copy and clear. When a run ends a notice appears; if the tab is in the
+background its title is marked, and a desktop notice is shown once you allow it (**Desktop notices**).
+
+A project must be trusted first (`amauta check trust`), because a run executes its code; the page sends only the
+project and the pipeline id (and, for **Only this**, the step number), never a command.
 
 ## On a schedule
 

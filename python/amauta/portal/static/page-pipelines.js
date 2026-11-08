@@ -1,11 +1,9 @@
 "use strict";
 // Pipelines (#/pipelines, plan S1b, ADR 0010): a project's pipelines as cards; a run asks first, starts as a separate
 // process on the server and its output arrives in a live console by polling the run's events. Output is text only.
-// Category pills, a search, run-one-step, the flow row and the last run's duration and trigger: plan S1b'.
+// Plan S1b': a summary line, category pills and a search, the flow row with Only this, recent runs as marks, the first
+// failure, outputs, the schedule and its state, and Check. The run side is in page-pipeline-run.js.
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
-
-const PIPE_POLL_MS = 700;
-const STEP_MARK = { ok: "✓", failed: "✗", timeout: "⏱", cancelled: "■", skipped: "–", running: "…", idle: "○" };
 
 const pipeFilter = { category: "", query: "" };
 
@@ -14,7 +12,29 @@ async function viewPipelines() {
   if (!d.available) return [teach(t("nav.pipelines"), t("pipe.notInstalled"))];
   if (!d.projects.length) return [pageHead(t("nav.pipelines")), empty(codeSpans(t("pipe.none")))];
   const sections = d.projects.map(projectPipelines);
-  return [pageHead(t("nav.pipelines"), t("pipe.lead")), pipeControls(d.projects, sections), ...sections];
+  return [pageHead(t("nav.pipelines"), t("pipe.lead")), pipeSummary(d.projects), pipeControls(d.projects, sections), ...sections];
+}
+
+// "3 pipelines · 1 failed last time · 1 running · 1 missed a scheduled run": only the parts that are not zero.
+function pipeSummaryText(projects) {
+  const all = projects.flatMap((pr) => pr.pipelines);
+  const count = (f) => all.filter(f).length;
+  const parts = [[all.length, all.length === 1 ? "pipe.sumOne" : "pipe.sumTotal"],
+    [count((p) => p.last && ["failed", "timeout"].includes(p.last.status)), "pipe.sumFailed"],
+    [count((p) => p.last && p.last.status === "running"), "pipe.sumRunning"],
+    [count((p) => p.schedule_state === "missed"), "pipe.sumMissed"]];
+  return parts.filter(([n], i) => i === 0 || n).map(([n, key]) => t(key, { n: fmt(n) })).join(" · ");
+}
+
+function pipeSummary(projects) {
+  return h("p", { class: "pipe-summary", role: "status" }, pipeSummaryText(projects));
+}
+
+// The home page's rail: the same summary with a link, when any project has pipelines (null otherwise).
+async function pipelinesRail() {
+  const d = await api("pipelines").catch(() => null);
+  if (!d || !d.available || !d.projects.length) return null;
+  return h("div", null, h("p", null, pipeSummaryText(d.projects)), h("a", { href: "#/pipelines" }, t("pipe.open")));
 }
 
 // Category pills with counts and a search over names, descriptions and step names (the cards stay; they are hidden).
@@ -40,7 +60,10 @@ function pipeControls(projects, sections) {
   };
   queueMicrotask(apply);
   const group = cats.length ? h("div", { class: "segmented", role: "group", "aria-label": t("pipe.category") }, pills) : null;
-  return h("div", { class: "controls" }, group, search);
+  const notify = typeof Notification !== "undefined" && Notification.permission === "default"
+    ? h("button", { type: "button", onclick: (e) => { Notification.requestPermission(); e.target.hidden = true; } }, t("pipe.notify"))
+    : null;
+  return h("div", { class: "controls" }, group, search, notify);
 }
 
 function projectPipelines(pr) {
@@ -53,23 +76,6 @@ function projectPipelines(pr) {
   return sec;
 }
 
-// A step in the flow row: its mark (never color alone), its name and a button that runs only it.
-function stepItem(name, n, onlyThis, enabled) {
-  const mark = h("span", { class: "pipe-mark", "aria-hidden": "true" }, STEP_MARK.idle);
-  const label = h("span", null, `${n}. ${name}`);
-  const state = h("span", { class: "sr-only" }, t("pipe.s.idle"));
-  const onlyLabel = t("pipe.onlyLabel", { n, step: name });
-  const only = h("button", { type: "button", class: "link", disabled: !enabled, "aria-label": onlyLabel }, t("pipe.only"));
-  only.addEventListener("click", () => onlyThis(n, name));
-  const li = h("li", { "data-status": "idle" }, mark, " ", label, state, " ", only);
-  li.setStatus = (status) => {
-    li.setAttribute("data-status", status);
-    mark.textContent = STEP_MARK[status] || "?";
-    state.textContent = ` (${t(`pipe.s.${status}`)})`;
-  };
-  return li;
-}
-
 function lastRunText(last) {
   if (!last) return t("pipe.never");
   const base = { status: t(`pipe.s.${last.status}`), at: R.fmtDateTime(last.started) };
@@ -77,40 +83,81 @@ function lastRunText(last) {
   return t("pipe.lastFull", { ...base, seconds: R.fmtDecimal(last.seconds, 1), trigger: t(`pipe.t.${last.trigger}`) });
 }
 
-// The console with its own Copy and Clear (output is text only, never markup).
-function pipeConsole() {
-  const out = h("pre", { class: "console", role: "log", "aria-label": t("pipe.console") });
-  const copy = h("button", { type: "button" }, t("pipe.copy"));
-  copy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(out.textContent);
-      copy.textContent = t("pipe.copied");
-    } catch (_) {
-      copy.textContent = t("pipe.copyFailed");
-    }
-    setTimeout(() => { copy.textContent = t("pipe.copy"); }, 1500);
+// "Mondays, Thursdays at 07:30", "On day 1 of each month at 06:00", "Every 30 minutes".
+function scheduleText(s) {
+  const n = s.every_minutes;
+  if (n) return n < 60 ? t("pipe.sched.minutes", { n }) : n === 60 ? t("pipe.sched.hour") : t("pipe.sched.hours", { n: n / 60 });
+  if (s.days) return t("pipe.sched.days", { days: s.days.map((d) => t(`pipe.day.${d}`)).join(", "), at: s.at });
+  if (s.day_of_month) return t("pipe.sched.month", { day: s.day_of_month, at: s.at });
+  return t("pipe.sched.daily", { at: s.at });
+}
+
+function scheduleLine(p) {
+  if (!p.schedule) return null;
+  const state = p.schedule_state === "missed" ? h("span", { class: "warn" }, ` ▲ ${t("pipe.missed")}`)
+    : p.schedule_state === "never" ? h("span", { class: "muted" }, " ", codeSpans(t("pipe.neverScheduled", { id: p.id }))) : null;
+  return h("p", null, `⏲ ${scheduleText(p.schedule)}.`, state);
+}
+
+// Recent runs as marks, oldest first; a mark replays that run in the console.
+function historyStrip(p, open) {
+  if (!p.history || !p.history.length) return null;
+  const marks = [...p.history].reverse().map((r) => {
+    const label = t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
+      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) });
+    const attrs = { type: "button", class: "hist-mark", "data-status": r.status, "aria-label": label, title: label };
+    const b = h("button", attrs, STEP_MARK[r.status] || "?");
+    b.addEventListener("click", () => open(r.run));
+    return h("li", null, b);
   });
-  const clear = h("button", { type: "button" }, t("pipe.clear"));
-  clear.addEventListener("click", () => out.replaceChildren());
-  const box = h("div", { class: "pipe-console", hidden: true }, h("div", { class: "actions" }, copy, clear), out);
-  return { box, out };
+  return h("div", { class: "pipe-history" }, h("span", { class: "muted" }, `${t("pipe.history")}: `),
+    h("ol", { "aria-label": t("pipe.history") }, marks));
+}
+
+function lastDetails(p) {
+  const r = p.history && p.history[0];
+  if (!r) return [];
+  const bad = r.steps.find((s) => s.status === "failed" || s.status === "timeout");
+  const failure = bad && r.failure ? h("p", { class: "warn" }, `▲ ${t("pipe.failedAt", { step: bad.name, text: r.failure })}`) : null;
+  const size = (b) => (b >= 1048576 ? `${R.fmtDecimal(b / 1048576, 1)} MB` : b >= 1024 ? `${R.fmtDecimal(b / 1024, 1)} KB` : `${fmt(b)} B`);
+  const outputs = r.outputs && r.outputs.length ? h("p", { class: "muted" }, `${t("pipe.outputs")} `,
+    r.outputs.flatMap((o, i) => [i ? ", " : "", h("code", null, o.path), ` (${size(o.bytes)}, ${R.fmtDateTime(o.modified)})`])) : null;
+  return [failure, outputs];
+}
+
+function checkButton(pr, p, result) {
+  const b = h("button", { type: "button" }, t("pipe.check"));
+  b.addEventListener("click", async () => {
+    result.replaceChildren(h("p", { class: "muted", role: "status" }, t("pipe.checking")));
+    const r = await api("pipelines/check", { project: pr.path, id: p.id }).catch((e) => ({ error: e.message }));
+    if (r.error) { result.replaceChildren(h("p", { class: "warn", role: "status" }, `▲ ${ts(r.error)}`)); return; }
+    const item = (f) => (f.level === "error" ? h("li", { class: "warn" }, `✗ ${f.step}: ${f.message}`)
+      : h("li", { class: "muted" }, `ℹ ${f.step}: ${f.message}`));
+    const found = r.findings.map(item);
+    result.replaceChildren(found.length ? h("ul", { role: "status" }, found) : h("p", { role: "status" }, `✓ ${t("pipe.checkOk")}`));
+  });
+  return b;
 }
 
 function pipelineCard(pr, p) {
-  const { box, out } = pipeConsole();
+  const con = pipeConsole(p.steps);
   const line = h("p", { class: "muted" }, lastRunText(p.last));
   const actions = h("div", { class: "actions" });
-  const items = p.steps.map((name, i) => stepItem(name, i + 1, (n, step) => ask(n, step), pr.trusted));
-  const head = h("h3", null, p.name);
-  const card = h("article", { class: "pipe-card" }, p.category ? h("span", { class: "badge" }, p.category) : null, head,
-    p.description ? h("p", null, p.description) : null, h("ol", { class: "pipe-steps", "aria-label": t("pipe.steps") }, items),
-    line, actions, box);
+  const checked = h("div", { class: "pipe-check" });
+  const recent = p.history && p.history[0] && p.history[0].steps;
+  const items = p.steps.map((name, i) => stepItem({ name, n: i + 1, type: (p.types || [])[i], enabled: pr.trusted,
+    seconds: recent && recent[i] && recent[i].status !== "skipped" ? recent[i].seconds : null, onlyThis: (n, step) => ask(n, step) }));
+  if (recent) recent.forEach((st, i) => items[i] && items[i].setStatus(st.status));
+  const flow = h("ol", { class: "pipe-steps", "aria-label": t("pipe.steps") }, items);
+  const parts = { items, con, line, actions, idle: () => idle() };
+  const card = h("article", { class: "pipe-card" }, p.category ? h("span", { class: "badge" }, p.category) : null, h("h3", null, p.name),
+    p.description ? h("p", null, p.description) : null, flow, scheduleLine(p), line, ...lastDetails(p),
+    historyStrip(p, (run) => followRun(pr, p, run, parts, false)), actions, checked, con.box);
   card.pipeline = p;
-  const follow = (run) => followRun(pr, run, { items, out, box, line, actions, idle });
   const idle = () => {
     const run = h("button", { type: "button", class: "primary", disabled: !pr.trusted }, t("pipe.run"));
     run.addEventListener("click", () => ask(null));
-    actions.replaceChildren(run);
+    actions.replaceChildren(run, checkButton(pr, p, checked));
   };
   const ask = (n, step) => {
     const yes = h("button", { type: "button", class: "primary" }, t("pipe.runNow"));
@@ -127,41 +174,9 @@ function pipelineCard(pr, p) {
     const body = n ? { project: pr.path, id: p.id, step: n } : { project: pr.path, id: p.id };
     const res = await postJson("/api/pipelines/run", body).catch(failed);
     if (!res.ok) { actions.replaceChildren(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`)); return; }
-    follow(res.data.run);
+    followRun(pr, p, res.data.run, parts);
   };
   idle();
-  if (p.last && p.last.status === "running") follow(p.last.run);
+  if (p.last && p.last.status === "running") followRun(pr, p, p.last.run, parts);
   return card;
-}
-
-// Show a run as it happens: a cancel button, the step marks and the console, polling the run's events until it ends.
-function followRun(pr, run, { items, out, box, line, actions, idle }) {
-  const stop = h("button", { type: "button" }, t("pipe.cancel"));
-  stop.addEventListener("click", () => postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(() => {}));
-  actions.replaceChildren(stop);
-  items.forEach((li) => li.setStatus("idle"));
-  box.hidden = false;
-  out.replaceChildren();
-  line.textContent = t("pipe.s.running");
-  let seen = 0;
-  const poll = async () => {
-    let r;
-    try {
-      r = await api("pipelines/events", { project: pr.path, run, after: seen });
-    } catch (_) {
-      setTimeout(poll, PIPE_POLL_MS * 3); // the server may be restarting: try again later
-      return;
-    }
-    for (const e of r.events) {
-      seen++;
-      if (e.kind === "line") out.append(document.createTextNode(`[${e.name}] ${e.text}\n`));
-      if (e.kind === "step-start") items[e.step]?.setStatus("running");
-      if (e.kind === "step-end") items[e.step]?.setStatus(e.status);
-      const ended = () => t("pipe.ended", { status: t(`pipe.s.${e.status}`), seconds: R.fmtDecimal(e.seconds, 1) });
-      if (e.kind === "run-end") line.textContent = ended();
-    }
-    if (r.done) { idle(); return; }
-    setTimeout(poll, PIPE_POLL_MS);
-  };
-  poll();
 }

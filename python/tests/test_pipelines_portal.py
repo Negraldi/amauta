@@ -106,6 +106,15 @@ class PortalPointsTest(Base):
         self.assertTrue(c["history"][0]["run"].endswith(".jsonl"))
         self.assertIsInstance(c["typical"], float)
 
+    def test_check_reports_without_running_and_only_for_known_projects(self):
+        r = pp.check(self.portal, {"project": str(self.repo), "id": "hello"})
+        self.assertEqual(r, {"findings": []})
+        (self.repo / "etl" / "hello.py").unlink()
+        r = pp.check(self.portal, {"project": str(self.repo), "id": "hello"})
+        self.assertEqual([(f["step"], f["level"]) for f in r["findings"]], [("Step", "error")])
+        self.assertEqual(pp.check(self.portal, {"project": str(self.root), "id": "hello"}), {"error": "not a project the portal knows"})
+        self.assertEqual(pp.check(self.portal, {"project": str(self.repo), "id": "nope"})["error"], "no such pipeline")
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})
