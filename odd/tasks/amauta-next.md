@@ -99,7 +99,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D2 Detector catalog (secrets, Ecuadorian cedula and RUC, Luhn cards, email, +593 phones, IBAN), generated
   fixtures, one finding format.
 - [x] D3 Memory guard (always on): secrets and PII rejected or redacted without echoing them.
-- [ ] D4 Privacy hook (data files outside test/fixture/example paths plus configured paths; always ask, never deny;
+- [x] D4 Privacy hook (data files outside test/fixture/example paths plus configured paths; always ask, never deny;
   secrets in prompts only warn) and `amauta privacy scan|redact|pseudonymize`.
 
 ### Phase 2b, code security
@@ -262,6 +262,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   summaries and session end. Secrets are refused with one fixed message (no echo, no field name); identifiers are
   redacted and counted; MCP replies add "(1 cedula redacted)". Imports from engram are left as they were. RED seen.
 
+- 2026-11-08: D4 done: pillar `data-security` (`python/amauta/privacy/`): the `privacy` handler (PreToolUse on Read in
+  Claude Code asks before a data file is read; UserPromptSubmit warns about a secret in a prompt in both runtimes;
+  never denies, fails open), CSV column detection and keyed pseudonymization rewritten without pandas, and
+  `amauta privacy scan|redact|pseudonymize`. Parity treats the Read check as Claude-only. RED seen (Python and Node).
+
 ## Next step
 
-Phase 2: D4 privacy hook (ask on data files, warn on secrets in prompts) and `amauta privacy scan|redact|pseudonymize`. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2b: D5 checks engine (one finding format, error baseline per file, PostToolUse edit check). Ask the aesthetic questions (Inca names) before D10/D11.

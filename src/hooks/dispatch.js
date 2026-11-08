@@ -7,7 +7,7 @@
  * shell, no `env` or `timeout` binaries) using AMAUTA_PYTHON or `python3`. Output: at most one merged decision.
  * Side effects: the handlers' own, plus `<state dir>/stop-policy/<session>.json` for the Stop policy (at most two
  * blocks per turn). Failure mode: fail open (no output, exit 0), except the SDD preflight, which denies an `sdd-*`
- * dispatch it could not check.
+ * dispatch it could not check. The privacy handler prints decisions (ask, a warning) but never a deny (ADR 0007).
  */
 import { spawn } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -88,6 +88,16 @@ export const REGISTRY = {
   'sync-check': { events: ['SessionStart'], run: async () => (await syncIfChanged({}), null) },
   telemetry: pythonHandler('amauta.telemetry', TELEMETRY_EVENTS, 5000),
   usage: pythonHandler('amauta.usage', ['Stop', 'SubagentStop'], 10000),
+  // Data security (plan D4): asks before a data file is read, warns about a secret in a prompt; never denies.
+  privacy: {
+    events: ['PreToolUse', 'UserPromptSubmit'],
+    run: async (payload, ctx) => {
+      const r = await runPython({ python: ctx.python, module: 'amauta.privacy', args: ['hook'], raw: ctx.raw, env: ctx.pythonEnv,
+        timeoutMs: 5000 });
+      const d = r.ok ? parseDecision(r.stdout) : null;
+      return d?.hookSpecificOutput?.permissionDecision === 'deny' ? null : d;
+    },
+  },
   'sdd-preflight': {
     events: ['PreToolUse'],
     run: async (payload, ctx) => {

@@ -57,8 +57,10 @@ export const PREFLIGHT_DENY = JSON.stringify({
  * Handlers per event and the event's timeout (seconds, the sum of the handlers' own bounds plus slack). One command
  * per event runs them in this order (src/hooks/dispatch.js); the handler names are written into the command.
  */
+export const PRIVACY_MATCHER = 'Read|NotebookRead|NotebookEdit';
+
 const EVENT_PLAN = [
-  { event: 'UserPromptSubmit', base: ['skill-registry'], telemetry: ['telemetry'], timeout: 20 },
+  { event: 'UserPromptSubmit', base: ['skill-registry', 'privacy'], telemetry: ['telemetry'], timeout: 20 },
   { event: 'SessionStart', base: ['review-stop', 'graphify-connect', 'sync-check'], telemetry: ['telemetry'], timeout: 60 },
   { event: 'Stop', base: ['review-stop'], telemetry: ['telemetry', 'usage'], timeout: 60 },
   { event: 'PostToolUse', base: [], telemetry: ['telemetry'], timeout: 10 },
@@ -78,7 +80,12 @@ export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime
     if (names.length === 0) continue;
     hooks[p.event] = [{ matcher: '', hooks: [{ type: 'command', command: eventCommand(p.event, names, where), timeout: p.timeout }] }];
   }
-  if (sdd) hooks.PreToolUse = [{ matcher: 'Agent', hooks: [{ type: 'command', command: eventCommand('PreToolUse', ['sdd-preflight'], where), timeout: 30 }] }];
+  const pre = [];
+  // Data files reach the model through Read; Codex reads through its shell, so it gets only the prompt check (plan D4).
+  const entry = (matcher, names, timeout) => ({ matcher, hooks: [{ type: 'command', command: eventCommand('PreToolUse', names, where), timeout }] });
+  if (runtime !== 'codex') pre.push(entry(PRIVACY_MATCHER, ['privacy'], 10));
+  if (sdd) pre.push(entry('Agent', ['sdd-preflight'], 30));
+  if (pre.length) hooks.PreToolUse = pre;
   return hooks;
 }
 

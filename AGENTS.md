@@ -24,7 +24,8 @@ Done = `npm test` green, plus a failing test seen first for any behavior change 
 - The always-on instruction blocks (`CLAUDE.md` / `AGENTS.md`) must stay under 20k chars in total (`amauta status` reports it, a test pins it). Prefer deleting over adding.
 - No `gentle-ai` commands or consent/receipt machinery in installed assets (attribution in `NOTICE` and the manifest excepted).
 - English artifacts, Conventional Commits, no AI attribution lines in commits. About 400 authored lines per commit is a guide, not a cap.
-- Hooks fail open (exit 0, empty stdout) except the SDD preflight guard, which fails closed for `sdd-*` only.
+- Hooks fail open (exit 0, empty stdout) except the SDD preflight guard, which fails closed for `sdd-*` only. The privacy
+  hook prints decisions (ask before a data file is read, a warning for a secret in a prompt) but never denies.
 - Every file under `bin/`, `src/`, `python/amauta/`, `assets/`, `scripts/` belongs to one module in `MODULES.json`; layers
   and import rules are in `docs/architecture.md` (`test/architecture.test.js`).
 - Simplicity ratchet (`test/simplicity.test.js`, ADR 0004): file <= 400 lines, function <= 60, line <= 140, a header

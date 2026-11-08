@@ -35,6 +35,8 @@ HANDLER_SUMMARIES = {
                    "changed (a hash compare when nothing moved)."),
     "sdd-preflight": ("Lets an sdd-* subagent start only after the SDD preflight question was asked and answered; "
                       "denies it when the check cannot run."),
+    "privacy": ("Asks before a data file (CSV, Excel, Parquet, a database ...) outside test and example folders is read, and "
+                "warns when a prompt seems to hold a secret. Never blocks; nothing leaves the machine."),
 }
 # Spanish texts for the dispatcher description, which the server composes from several handlers (sent as `i18n.es`).
 HANDLER_SUMMARIES_ES = {
@@ -53,6 +55,8 @@ HANDLER_SUMMARIES_ES = {
                    "cuando cambió alguno de los dos lados (si nada cambió, solo compara un hash)."),
     "sdd-preflight": ("Deja iniciar un subagente sdd-* solo después de que se hizo y se respondió la pregunta previa de SDD; lo "
                       "rechaza cuando la comprobación no puede ejecutarse."),
+    "privacy": ("Pregunta antes de leer un archivo de datos (CSV, Excel, Parquet, una base de datos ...) fuera de las carpetas de "
+                "pruebas y ejemplos, y avisa cuando un mensaje parece contener un secreto. Nunca bloquea; nada sale del equipo."),
 }
 DISPATCH = re.compile(r"amauta\.js['\"]?\s+hook\s+event\s+\S+.*?--with\s+([\w,-]+)")
 

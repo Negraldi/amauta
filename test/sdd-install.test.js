@@ -250,9 +250,9 @@ test('preflight hook fails closed: python3 shadowed by a failing script', async 
 
 test('desiredHooks registers the SDD hook as one PreToolUse(Agent) entry (appending to user entries is covered below)', () => {
   const hooks = desiredHooks({ stateDir: '/s', sdd: true });
-  assert.equal(hooks.PreToolUse.length, 1);
-  assert.match(hooks.PreToolUse[0].hooks[0].command, /--with sdd-preflight$/);
-  assert.equal(hooks.PreToolUse[0].matcher, 'Agent');
+  const agent = hooks.PreToolUse.filter((e) => e.matcher === 'Agent');
+  assert.equal(agent.length, 1);
+  assert.match(agent[0].hooks[0].command, /--with sdd-preflight$/);
 });
 
 test('a pre-existing user PreToolUse hook survives install and uninstall with --with-sdd', async () => {
@@ -261,9 +261,9 @@ test('a pre-existing user PreToolUse hook survives install and uninstall with --
   await install(t.opts({ withSdd: true }));
   let pre = (await t.settings()).hooks.PreToolUse;
   assert.deepEqual(pre[0], userHook);
-  assert.equal(pre.length, 2);
+  assert.equal(pre.length, 3, 'the user hook, the privacy Read check and the SDD preflight');
   await install(t.opts({ withSdd: true }));
-  assert.equal((await t.settings()).hooks.PreToolUse.length, 2, 'idempotent');
+  assert.equal((await t.settings()).hooks.PreToolUse.length, 3, 'idempotent');
   await uninstall(t.opts());
   assert.deepEqual((await t.settings()).hooks.PreToolUse, [userHook]);
   await t.cleanup();

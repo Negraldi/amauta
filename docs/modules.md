@@ -17,6 +17,7 @@ One row per module of `MODULES.json`. A module is a set of paths with one purpos
 | `detectors` | kernel | `python/amauta/detectors/` | Detector catalog: cedula, RUC, card, IBAN, email and phone validators, secret patterns, one text scan whose findings never carry values (ADR 0007) |
 | `portal` | pillar | `src/portal/`, `python/amauta/portal/`, `assets/skills/amauta-wiki-explain/` | Local wiki portal |
 | `odd` | pillar | `src/review/`, `assets/core/agents/review-*` | Review assess, review mode, the Stop reminder and the review lenses |
+| `data-security` | pillar | `python/amauta/privacy/` | Privacy hook (asks before a data file is read, warns about secrets in prompts; never denies) and `amauta privacy scan\|redact\|pseudonymize` (ADR 0007) |
 | `code-security` | pillar | `src/mermaid/` | Checkers; today the Mermaid syntax check |
 | `code-graph` | integration | `src/codegraph/`, `src/graphify/`, `assets/skills/graphify-semantic/`, `assets/core/agents/graphify-extractor.md` | codegraph and graphify glue |
 | `sdd` | optional | `python/amauta/sdd/`, `assets/sdd/` | Spec-driven development (`--with-sdd`) |

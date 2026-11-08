@@ -84,11 +84,11 @@ test('fresh install creates every component', async () => {
   assert.ok(!('defaultMode' in settings.permissions), 'must not force a defaultMode');
   assert.deepEqual(settings.permissions.ask, ['Bash(git push --force*)', 'Bash(git reset --hard*)', 'Bash(rm -rf*)']);
   assert.deepEqual(settings.permissions.deny, SECRET_DENY, 'secret-read deny set is installed');
-  assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default
+  assert.deepEqual(Object.keys(settings.hooks).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit']); // telemetry hooks are on by default; PreToolUse is the privacy Read check
   const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
   // One dispatcher command per event, with its handlers in order (plan N7).
   const cmd = (event) => settings.hooks[event][0].hooks[0].command;
-  assert.equal(cmd('UserPromptSubmit'), `node ${bin} hook event UserPromptSubmit --state-dir ${t.stateDir} --with skill-registry,telemetry`);
+  assert.equal(cmd('UserPromptSubmit'), `node ${bin} hook event UserPromptSubmit --state-dir ${t.stateDir} --with skill-registry,privacy,telemetry`);
   assert.equal(settings.hooks.SessionStart[0].matcher, '');
   assert.match(cmd('SessionStart'), / --with review-stop,graphify-connect,sync-check,telemetry$/);
   assert.match(cmd('Stop'), / --with review-stop,telemetry,usage$/);

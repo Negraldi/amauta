@@ -6,6 +6,8 @@ import { hashOf, isMemoryServer, stdioOf } from './mcpsync.js';
 import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
 import { isAmautaHook } from './servers.js';
 
+const CLAUDE_ONLY = /preflight-hook|sdd-preflight|hook event PreToolUse .*--with privacy\b/;
+
 /** Hook events Codex fires (the ones hooks.json can name). Claude events outside this set have no Codex counterpart. */
 export const CODEX_HOOK_EVENTS = [
   'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop',
@@ -80,12 +82,13 @@ export async function computeParity(opts = {}) {
   const ids = async (file) => listSections((await text(file)) ?? '').map((s) => s.id).sort();
   const instructions = diff(await ids(path.join(c.claudeHome, 'CLAUDE.md')), await ids(path.join(t.codexHome, 'AGENTS.md')));
 
+  // The SDD preflight guards Claude's Agent tool and the privacy Read check Claude's Read tool; Codex has neither.
   const claudeHooks = eventsOf((await json(path.join(c.claudeHome, 'settings.json'))).hooks);
   const codexHooks = eventsOf((await json(path.join(t.codexHome, 'hooks.json'))).hooks);
   const noCodexEvent = claudeHooks.filter((h) => !CODEX_HOOK_EVENTS.includes(h.event)).map((h) => ({ event: h.event, name: hookName(h.command) }));
   const have = new Set(codexHooks.map((h) => `${h.event}|${hookName(h.command)}`));
   const missingInCodex = claudeHooks
-    .filter((h) => CODEX_HOOK_EVENTS.includes(h.event) && isAmautaHook(h.command) && !/preflight-hook|sdd-preflight/.test(h.command))
+    .filter((h) => CODEX_HOOK_EVENTS.includes(h.event) && isAmautaHook(h.command) && !CLAUDE_ONLY.test(h.command))
     .map((h) => ({ event: h.event, name: hookName(h.command) }))
     .filter((h) => !have.has(`${h.event}|${h.name}`));
   return { present: true, mcp, skills, instructions, hooks: { noCodexEvent, missingInCodex } };

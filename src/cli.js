@@ -45,6 +45,11 @@ commands.set('py', {
   },
 });
 
+commands.set('privacy', {
+  summary: 'Local privacy tools: scan, redact or pseudonymize files (counts and columns, never values)',
+  run: (args, io) => runPythonModule('amauta.privacy', args, io),
+});
+
 commands.set('sdd', {
   summary: 'Run the SDD status module (status [change] --cwd DIR --json, continue [change]); used by the SDD skills',
   run: (args, io) => runPythonModule('amauta.sdd', args, io),
