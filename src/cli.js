@@ -56,6 +56,11 @@ commands.set('profile', {
   run: (args, io) => runPythonModule('amauta.privacy.profiles', args, io),
 });
 
+commands.set('pipeline', {
+  summary: 'Run a project\'s pipelines from .amauta/pipelines.json: list, run ID, status, cancel ID (output streamed live)',
+  run: (args, io) => runPythonModule('amauta.extras.pipelines', args, io),
+});
+
 commands.set('sdd', {
   summary: 'Run the SDD status module (status [change] --cwd DIR --json, continue [change]); used by the SDD skills',
   run: (args, io) => runPythonModule('amauta.sdd', args, io),

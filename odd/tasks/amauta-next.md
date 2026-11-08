@@ -334,6 +334,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   hosts and names, none copied). User decisions: a Pipelines page in amauta; command and script steps only; schedules
   left to the operating system. ADR 0010.
 
+- 2026-11-08: S1a done: extra `amauta.extras.pipelines` (config, runner, store, CLI) and `amauta pipeline
+  list|run|status|cancel`: steps without a shell, merged output read line by line and redacted, JSON-lines events,
+  timeouts and cancel stop the process tree, a failure skips the rest. RED seen.
+
 ## Next step
 
-Phase 3: S1a pipeline engine and CLI, then S1b portal tab, S1c schedule hints, S1d oga_catalog links. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 3: S1b portal Pipelines tab (start, trust, step diagram, live console), then S1c schedule hints, S1d oga_catalog. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

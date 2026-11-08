@@ -72,6 +72,7 @@ amauta graphify semantic [--cwd DIR] [--model M] [--timeout SECONDS]    # option
 amauta check trust|untrust|status [--cwd DIR]  # allow tsc, eslint, mypy, cargo at Stop in one project
 amauta privacy scan|redact|pseudonymize FILE...  # local privacy tools; counts and columns, never values
 amauta profile list|new|use|show|check  # organization profiles kept on this machine
+amauta pipeline list|run|status|cancel   # a project's pipelines (.amauta/pipelines.json), output live
 amauta mermaid check FILE.md...               # validate ```mermaid fences (syntax only, no browser); exit 1 on errors
 amauta skill-registry refresh [--cwd DIR] [--quiet] [--no-gitignore] [--force]
 amauta skill-registry list    [--cwd DIR]
@@ -93,6 +94,7 @@ What each hook does: [docs/hooks.md](docs/hooks.md).
 | Control portal (pages, settings, launcher, security) | [docs/portal.md](docs/portal.md) |
 | Safety model and redirectable targets | [docs/safety.md](docs/safety.md) |
 | Organization profiles (brand, glossary, roles) | [docs/profiles.md](docs/profiles.md) |
+| Pipelines: run a project's processes, output live | [docs/pipelines.md](docs/pipelines.md) |
 | Optional modules (SDD, archify, impeccable) | [docs/optional-modules.md](docs/optional-modules.md) |
 | Migrating from gentle-ai | [docs/migrating.md](docs/migrating.md) |
 | Architecture, modules, layers | [docs/architecture.md](docs/architecture.md), [docs/modules.md](docs/modules.md) |
