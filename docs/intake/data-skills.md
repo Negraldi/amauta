@@ -64,3 +64,17 @@ Private data:  none
 ```
 
 `references/provenance.md` is original to amauta (no source).
+
+```
+Source:        source/skills/executive-editorial/SKILL.md · sha256 0693a6bd168bce725bdc9841c595517753c181d363544724272c36fb0328524c
+               source/skills/institutional-presentation/SKILL.md · sha256 882f827cef158fcf7fed7c63c4745ea5fd67704e07f47c54478361e57070952b
+What it does:  executive writing rules and a delivery check; producing and reviewing an institutional PPTX
+Interfaces:    skill text
+Dependencies:  none
+Side effects:  none
+Origin tests:  none
+Decision:      rewrite  ->  assets/skills/executive-editorial/SKILL.md, assets/skills/institutional-presentation/SKILL.md
+Why:           general rules; the sources point at a fictional brand folder and v19 paths that amauta does not ship
+Changes:       brand from the selected profile (plan D12); amauta's skill names; trigger-first descriptions
+Private data:  none
+```

@@ -112,7 +112,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 2c, data content, communication and profiles
 
-- [ ] D9 Data skill with five references (analytical review, transformation, enrichment, metrics and cohorts,
+- [x] D9 Data skill with five references (analytical review, transformation, enrichment, metrics and cohorts,
   provenance), `powerbi-report` v19 with PBIR tools (model diff, layout auditor, DAX linter as warnings, cascading
   rename), `exploratory-data-diagnosis`, institutional and editorial skills; all through intake records.
 - [ ] D10 `communicator` agent (bounded writer to the task's deliverables folder; measure requests with a fixed format,
@@ -294,6 +294,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   rename with dry run), rewritten clean-room from the private archive's report tools without any of its content.
   Intake in `docs/intake/powerbi.md`. RED seen.
 
+- 2026-11-08: D9c done (D9 complete): skills `executive-editorial` and `institutional-presentation`, rewritten from
+  v19 with the brand taken from the selected profile. The exploratory diagnosis is a step of the `data` skill. RED seen.
+
 ## Next step
 
-Phase 2c: D9c institutional and editorial skills (intake first). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: ask the aesthetic questions (Inca names), then D10 communicator agent and D11 review lenses. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
