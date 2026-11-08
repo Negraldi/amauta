@@ -4,8 +4,13 @@ The project key is the folder name plus a short hash of its real path, so two pr
 import hashlib
 import json
 import os
+import re
+import statistics
 import time
 from pathlib import Path
+
+KEEP = 50  # runs kept per pipeline; older events files are removed when a new run starts
+SHOWN = 10  # runs in a card's history
 
 
 def project_key(repo):
@@ -17,8 +22,17 @@ def runs_dir(state_dir, repo):
     return Path(state_dir) / "pipelines" / "runs" / project_key(repo)
 
 
+def _own(pipeline_id):
+    return re.compile(rf"{re.escape(pipeline_id)}-\d{{8}}T\d{{6}}Z-\d+\.jsonl")
+
+
 def new_run(state_dir, repo, pipeline_id):
-    return runs_dir(state_dir, repo) / f"{pipeline_id}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}.jsonl"
+    d = runs_dir(state_dir, repo)
+    mine = sorted(f for f in d.glob("*.jsonl") if _own(pipeline_id).fullmatch(f.name)) if d.is_dir() else []
+    for old in mine[:max(0, len(mine) - (KEEP - 1))]:
+        old.unlink(missing_ok=True)
+        Path(f"{old}.cancel").unlink(missing_ok=True)
+    return d / f"{pipeline_id}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}.jsonl"
 
 
 def read_events(path, after=0):
@@ -48,4 +62,40 @@ def last_runs(state_dir, repo):
         end = next((e for e in reversed(events) if e.get("kind") == "run-end"), None)
         out[start["pipeline"]] = {"status": end["status"] if end else "running", "events": str(f), "started": start["t"],
                                   "seconds": end.get("seconds") if end else None, "trigger": start.get("trigger", "cli")}
+    return out
+
+
+def _summary(f, events):
+    start = next((e for e in events if e.get("kind") == "run-start"), None)
+    if start is None:
+        return None
+    end = next((e for e in reversed(events) if e.get("kind") == "run-end"), None)
+    steps = [{"name": e["name"], "status": e["status"], "seconds": e.get("seconds", 0)} for e in events if e.get("kind") == "step-end"]
+    bad = next((e["step"] for e in events if e.get("kind") == "step-end" and e["status"] in ("failed", "timeout")), None)
+    lines = [e["text"] for e in events if e.get("kind") == "line" and e.get("step") == bad and not e["text"].startswith("retrying in ")]
+    return {"pipeline": start["pipeline"], "run": f.name, "status": end["status"] if end else "running", "started": start["t"],
+            "seconds": end.get("seconds") if end else None, "trigger": start.get("trigger", "cli"), "only": start.get("only"),
+            "steps": steps, "failure": lines[-1] if lines else None,
+            "outputs": [o for e in events if e.get("kind") == "step-end" for o in e.get("outputs", [])]}
+
+
+def history(state_dir, repo):
+    """{pipeline id: {"runs": newest first (at most SHOWN), "last_scheduled": start of the newest scheduled run,
+    "typical": median seconds of the recent whole runs that ended ok}}."""
+    out = {}
+    d = runs_dir(state_dir, repo)
+    for f in sorted(d.glob("*.jsonl"), reverse=True) if d.is_dir() else []:
+        run = _summary(f, read_events(f))
+        if run is None:
+            continue
+        h = out.setdefault(run["pipeline"], {"runs": [], "last_scheduled": None, "ok": []})
+        if len(h["runs"]) < SHOWN:
+            h["runs"].append(run)
+        if run["trigger"] == "schedule" and h["last_scheduled"] is None:
+            h["last_scheduled"] = run["started"]
+        if run["status"] == "ok" and run["only"] is None and len(h["ok"]) < SHOWN:
+            h["ok"].append(run["seconds"])
+    for h in out.values():
+        ok = h.pop("ok")
+        h["typical"] = float(statistics.median(ok)) if ok else None
     return out

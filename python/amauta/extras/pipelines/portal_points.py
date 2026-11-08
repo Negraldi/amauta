@@ -11,10 +11,11 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from ...portal import security
-from . import config, store
+from . import config, schedule, store
 
 PYTHON_DIR = Path(__file__).resolve().parents[3]
 WINDOWS = sys.platform == "win32"
@@ -31,11 +32,17 @@ def _trusted(portal, repo):
     return any(isinstance(p, dict) and p.get("path") == os.path.realpath(repo) for p in projects)
 
 
-def _card(p, last):
+def _card(p, last, h):
+    """What the Pipelines tab shows for one pipeline: definition, last run, recent history and the schedule's state."""
     keep = ("status", "started", "seconds", "trigger")
     run = {**{k: last.get(k) for k in keep}, "run": Path(last["events"]).name} if last else None
+    h = h or {"runs": [], "last_scheduled": None, "typical": None}
+    sched = p["schedule"]
+    now = datetime.now().astimezone()
     return {"id": p["id"], "name": p["name"], "description": p["description"], "category": p["category"],
-            "steps": [s["name"] for s in p["steps"]], "last": run}
+            "steps": [s["name"] for s in p["steps"]], "types": [s["type"] for s in p["steps"]], "last": run,
+            "history": h["runs"], "typical": h["typical"], "schedule": sched,
+            "schedule_state": schedule.state(sched, h["last_scheduled"], now) if sched else None}
 
 
 def list_pipelines(portal):
@@ -47,9 +54,9 @@ def list_pipelines(portal):
             pipelines, error = [], str(e)
         if not pipelines and not error:
             continue
-        last = store.last_runs(portal.cfg.state_dir, repo)
+        last, hist = store.last_runs(portal.cfg.state_dir, repo), store.history(portal.cfg.state_dir, repo)
         out.append({"name": Path(repo).name, "path": str(Path(repo).resolve()), "trusted": _trusted(portal, repo), "error": error,
-                    "pipelines": [_card(p, last.get(p["id"])) for p in pipelines]})
+                    "pipelines": [_card(p, last.get(p["id"]), hist.get(p["id"])) for p in pipelines]})
     return {"available": True, "projects": out}
 
 

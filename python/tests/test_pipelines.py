@@ -264,3 +264,80 @@ class ReliabilityTest(Base):
             self.define({"id": "a", "steps": [{**base, **extra}]})
             with self.assertRaises(config.ConfigError, msg=str(extra)):
                 config.load(self.repo)
+
+
+class DeclaredScheduleTest(Base):
+    """`schedule` in pipelines.json: the hint is built from it and the portal can tell when a scheduled run is missing."""
+
+    def test_the_four_shapes_are_validated(self):
+        ok = [{"at": "07:30"}, {"at": "07:30", "days": ["mon", "thu"]}, {"at": "06:00", "day_of_month": 1}, {"every_minutes": 30}]
+        for sched in ok:
+            self.define({"id": "a", "schedule": sched, "steps": [{"type": "command", "argv": ["x"]}]})
+            self.assertEqual(config.load(self.repo)[0]["schedule"]["at"] if "at" in sched else 30, sched.get("at", 30))
+        bad = [{"at": "7"}, {"at": "07:30", "days": ["someday"]}, {"at": "07:30", "days": []}, {"at": "07:30", "day_of_month": 31},
+               {"every_minutes": 7}, {"at": "07:30", "every_minutes": 30}, {"days": ["mon"]}, "daily"]
+        for sched in bad:
+            self.define({"id": "a", "schedule": sched, "steps": [{"type": "command", "argv": ["x"]}]})
+            with self.assertRaises(config.ConfigError, msg=str(sched)):
+                config.load(self.repo)
+
+    def test_hints_follow_the_declared_schedule(self):
+        from python.amauta.extras.pipelines import schedule
+        cases = {
+            "w": ({"at": "07:30", "days": ["mon", "thu"]}, "/SC WEEKLY /D MON,THU /ST 07:30", "30 7 * * 1,4 ", "<key>Weekday</key><integer>4</integer>"),
+            "m": ({"at": "06:00", "day_of_month": 1}, "/SC MONTHLY /D 1 /ST 06:00", "0 6 1 * * ", "<key>Day</key><integer>1</integer>"),
+            "i": ({"every_minutes": 30}, "/SC MINUTE /MO 30", "*/30 * * * * ", "<key>StartInterval</key><integer>1800</integer>"),
+            "h": ({"every_minutes": 120}, "/SC MINUTE /MO 120", "0 */2 * * * ", "<key>StartInterval</key><integer>7200</integer>"),
+        }
+        self.define(*[{"id": k, "schedule": v[0], "steps": [{"type": "command", "argv": ["x"]}]} for k, v in cases.items()])
+        for pid, (_, win, cron, mac) in cases.items():
+            self.assertIn(win, schedule.hint("windows", self.repo, pid, None, None, node="n", bin_="b"))
+            self.assertTrue(schedule.hint("linux", self.repo, pid, None, None, node="n", bin_="b").splitlines()[-1].startswith(cron), pid)
+            self.assertIn(mac, schedule.hint("darwin", self.repo, pid, None, None, node="n", bin_="b"))
+        self.assertIn("/SC DAILY /ST 05:00", schedule.hint("windows", self.repo, "w", "05:00", None, node="n", bin_="b"), "--at overrides")
+
+    def test_a_missing_scheduled_run_is_noticed(self):
+        from datetime import datetime, timezone
+        from python.amauta.extras.pipelines import schedule
+        now = datetime(2026, 11, 9, 9, 0, tzinfo=timezone.utc)  # a Monday
+        weekly = {"at": "07:30", "days": ["mon"]}
+        self.assertEqual(schedule.expected_before(weekly, now), datetime(2026, 11, 9, 7, 30, tzinfo=timezone.utc))
+        self.assertEqual(schedule.expected_before({"at": "10:00", "day_of_month": 1}, now), datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc))
+        self.assertEqual(schedule.state(weekly, None, now), "never")
+        self.assertEqual(schedule.state(weekly, "2026-11-09T07:30:05+00:00", now), "ok")
+        self.assertEqual(schedule.state(weekly, "2026-11-02T07:30:05+00:00", now), "missed")
+        self.assertEqual(schedule.state(weekly, "2026-11-02T07:30:05+00:00", datetime(2026, 11, 9, 7, 40, tzinfo=timezone.utc)), "ok",
+                         "a grace period while the run starts")
+        self.assertEqual(schedule.state({"every_minutes": 30}, "2026-11-09T08:10:00+00:00", now), "ok")
+        self.assertEqual(schedule.state({"every_minutes": 30}, "2026-11-09T07:00:00+00:00", now), "missed")
+
+
+class HistoryTest(Base):
+    """The portal's history strip, typical duration, first error and missed-schedule check read the runs kept here."""
+
+    def test_history_newest_first_with_steps_failure_and_typical(self):
+        from python.amauta.extras.pipelines import store
+        self.define({"id": "p", "steps": [{"name": "A", "type": "command", "argv": [PY, "-c", "print('a')"]}]},
+                    {"id": "f", "steps": [{"name": "Bad", "type": "python", "script": "etl/fail.py"}]})
+        for trigger in ("cli", "schedule", "portal"):
+            runner.run(self.repo, "p", store.new_run(self.state, self.repo, "p"), python=PY, trigger=trigger)
+            time.sleep(1.05)  # run files are named by the second
+        runner.run(self.repo, "f", store.new_run(self.state, self.repo, "f"), python=PY)
+        h = store.history(self.state, self.repo)
+        self.assertEqual([r["trigger"] for r in h["p"]["runs"]], ["portal", "schedule", "cli"])
+        self.assertEqual(h["p"]["runs"][0]["steps"], [{"name": "A", "status": "ok", "seconds": h["p"]["runs"][0]["steps"][0]["seconds"]}])
+        self.assertEqual(h["p"]["last_scheduled"], h["p"]["runs"][1]["started"])
+        self.assertIsInstance(h["p"]["typical"], float)
+        self.assertEqual(h["f"]["runs"][0]["failure"], "about to fail")
+        self.assertIsNone(h["f"]["typical"], "no successful run yet")
+
+    def test_old_runs_are_pruned(self):
+        from python.amauta.extras.pipelines import store
+        d = store.runs_dir(self.state, self.repo)
+        d.mkdir(parents=True)
+        for i in range(store.KEEP + 5):
+            (d / f"p-2026010{i // 100}T{i:06d}Z-1.jsonl").write_text("")
+        (d / "other-20260101T000000Z-1.jsonl").write_text("")
+        store.new_run(self.state, self.repo, "p")
+        self.assertEqual(len(list(d.glob("p-*.jsonl"))), store.KEEP - 1, "room for the new run")
+        self.assertTrue((d / "other-20260101T000000Z-1.jsonl").exists())

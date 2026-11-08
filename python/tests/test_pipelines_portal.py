@@ -92,6 +92,20 @@ class PortalPointsTest(Base):
         self.assertEqual((card["last"]["status"], card["last"]["trigger"]), ("ok", "portal"))
         self.assertIsInstance(card["last"]["seconds"], float)
 
+    def test_cards_carry_schedule_history_and_typical(self):
+        pipelines = json.loads((self.repo / ".amauta" / "pipelines.json").read_text())
+        pipelines["pipelines"][0]["schedule"] = {"every_minutes": 30}
+        (self.repo / ".amauta" / "pipelines.json").write_text(json.dumps(pipelines))
+        card = lambda: next(p for p in pp.list_pipelines(self.portal)["projects"] if p["path"] == str(self.repo))["pipelines"][0]  # noqa: E731
+        self.assertEqual((card()["schedule"], card()["schedule_state"], card()["history"], card()["typical"]), ({"every_minutes": 30}, "never", [], None))
+        from python.amauta.extras.pipelines import runner, store
+        runner.run(self.repo, "hello", store.new_run(self.state, self.repo, "hello"), trigger="schedule")
+        c = card()
+        self.assertEqual(c["schedule_state"], "ok")
+        self.assertEqual([(r["status"], r["trigger"]) for r in c["history"]], [("ok", "schedule")])
+        self.assertTrue(c["history"][0]["run"].endswith(".jsonl"))
+        self.assertIsInstance(c["typical"], float)
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

@@ -82,12 +82,31 @@ pipeline id (and, for **Only this**, the step number), never a command. The cons
 
 ## On a schedule
 
-amauta does not schedule anything: your operating system does. `schedule-hint` prints the entry for it, which runs
-`amauta pipeline run <id> --trigger schedule --cwd <project>` at the time you give (daily, or weekly on `--day`):
+amauta does not schedule anything: your operating system does. Declare when a pipeline should run, and
+`schedule-hint` prints the entry for your system's scheduler:
+
+```json
+{ "id": "weekly-sales", "schedule": { "at": "07:30", "days": ["mon", "thu"] }, "steps": [ ... ] }
+```
+
+| `schedule` | Runs |
+| --- | --- |
+| `{"at": "07:30"}` | every day at 07:30 |
+| `{"at": "07:30", "days": ["mon", "thu"]}` | on those weekdays |
+| `{"at": "06:00", "day_of_month": 1}` | once a month (1 to 28, so every month has the day) |
+| `{"every_minutes": 30}` | every 5, 10, 15, 20, 30 minutes or 1, 2, 3, 4, 6, 8, 12, 24 hours |
+
+`amauta pipeline schedule-hint <id> [--os windows|linux|darwin]` prints, for that schedule (or for `--at HH:MM
+[--day mon]` when you give them):
 
 - Windows: a `schtasks /Create ...` line to run once in a terminal (Task Scheduler then shows the task).
 - Linux: a crontab line for `crontab -e`.
 - macOS: a launchd agent to save under `~/Library/LaunchAgents/` and `launchctl load`.
 
-A scheduled run is the same as one from the terminal: its output goes to the events file and the portal shows it as
-the last run.
+Each entry runs `amauta pipeline run <id> --trigger schedule --cwd <project>`. A scheduled run is the same as one
+from the terminal: its output goes to the events file and the portal shows it. Because the run says it was
+scheduled, the portal compares it with the declared schedule: a card says **no scheduled run yet** (the entry may not
+be registered) or **a scheduled run did not happen** (the machine was off, or the task was removed), with 30 minutes
+of grace for a late start.
+
+The newest 50 runs of each pipeline are kept; older events files are removed when a new run starts.

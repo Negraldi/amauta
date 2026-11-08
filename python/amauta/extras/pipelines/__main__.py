@@ -34,7 +34,7 @@ def main(argv=None):
     sub.add_parser("cancel", parents=[common]).add_argument("id")
     h = sub.add_parser("schedule-hint", parents=[common], help="print the OS scheduler entry (amauta registers nothing)")
     h.add_argument("id")
-    h.add_argument("--at", default="07:00", help="time of day, HH:MM (24 h)")
+    h.add_argument("--at", help="time of day, HH:MM (24 h); default: the pipeline's schedule, else 07:00 daily")
     h.add_argument("--day", help="one weekday (mon ... sun); daily when omitted")
     here = {"win32": "windows", "darwin": "darwin"}.get(sys.platform, "linux")
     h.add_argument("--os", choices=("windows", "linux", "darwin"), default=here)
