@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Pipelines (extra, ADR 0010): `.amauta/pipelines.json`, `amauta pipeline list|check|run|status|cancel|schedule-hint`,
+  a Pipelines tab with filters, a flow row, history, a live console, notices and a summary on the home page; retries,
+  outputs a step must change, declared schedules with a missed-run check, recipes in the `data` skill.
+- Pipelines as a DAG (ADR 0011): step `id` and `needs` with parallel steps (`max_parallel`), `blocks` with `use`,
+  sub-pipeline steps, `modes` with `--mode` and a mode picker, several schedules each with its mode.
+
+### Fixed (independent review of the pipelines extra)
+
+- One run of a pipeline at a time, through an atomic lock shared by the portal, the CLI and scheduled runs; a run
+  whose runner stopped reads as abandoned; SIGTERM and Ctrl+C still end a run.
+- Output with U+2028 or NEL no longer freezes a run; the portal reads events by byte offset.
+- A background child no longer holds a step past its end or timeout (POSIX); scripts resolve from the project root
+  and may not leave it through a symlink; steps get the user's PYTHONPATH; outputs must change; private key blocks are
+  redacted; valid hourly and daily schtasks entries; PATH in cron and launchd hints; daylight saving in the
+  missed-run check; a run that cannot start says why.
+
+### Changed
+
+- `amauta check trust` records the hash of `.amauta/pipelines.json`; the portal runs pipelines only while that file
+  is unchanged. Trust each project again once after upgrading.
+
 ## [0.6.0] - 2026-11-08
 
 ### Added

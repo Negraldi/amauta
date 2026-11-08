@@ -39,34 +39,34 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
   offset instead of re-parsing the file on every poll; summaries are cached by size and mtime.
 - [x] R2 One run at a time for real: a lock file per pipeline, taken atomically by whoever starts the run (portal, CLI,
   scheduler) and adopted by the runner; a lock whose process is gone is stale.
-- [ ] R3 A runner that dies still ends its run: try/finally kills the running steps and writes run-end; SIGTERM/SIGINT
+- [x] R3 A runner that dies still ends its run: try/finally kills the running steps and writes run-end; SIGTERM/SIGINT
   cancel; a run without run-end whose runner is gone reads as "abandoned".
-- [ ] R4 Timeout and cancel hold until the step's output closes; a step's leftover background processes are stopped
+- [x] R4 Timeout and cancel hold until the step's output closes; a step's leftover background processes are stopped
   when it ends (POSIX process group; documented limit on Windows).
-- [ ] R5 One base for paths: script, notebook and outputs are relative to the project root, `cwd` only sets the working
+- [x] R5 One base for paths: script, notebook and outputs are relative to the project root, `cwd` only sets the working
   folder; symlinks may not lead outside the project; `check` resolves exactly as the runner does.
-- [ ] R6 Step environment: the user's own PYTHONPATH is restored for steps; the inherited environment is documented.
-- [ ] R7 Outputs: a step must change each output (size, inode or mtime against a snapshot taken before it), not only
+- [x] R6 Step environment: the user's own PYTHONPATH is restored for steps; the inherited environment is documented.
+- [x] R7 Outputs: a step must change each output (size, inode or mtime against a snapshot taken before it), not only
   touch it after a clock; no fixed slack.
-- [ ] R8 Redaction across lines: a private key block is redacted from BEGIN to END; nbconvert output is documented.
-- [ ] R9 Schedules: missed-run state in local wall time (DST); 60 minutes or more is `/SC HOURLY`, 1440 is daily;
+- [x] R8 Redaction across lines: a private key block is redacted from BEGIN to END; nbconvert output is documented.
+- [x] R9 Schedules: missed-run state in local wall time (DST); 60 minutes or more is `/SC HOURLY`, 1440 is daily;
   hints carry the current PATH for cron and launchd.
-- [ ] R10 A run that never starts says why: the runner's stderr goes to `<run>.log`; the portal reports it and ends.
-- [ ] R11 Trust covers the definition: `amauta check trust` records the pipelines.json hash; a changed file needs a new
+- [x] R10 A run that never starts says why: the runner's stderr goes to `<run>.log`; the portal reports it and ends.
+- [x] R11 Trust covers the definition: `amauta check trust` records the pipelines.json hash; a changed file needs a new
   trust before the portal runs it. Cancel of a run that is not running is refused.
-- [ ] R12 UI: one follow loop per card (a newer one, or leaving the page, stops the old one); a way back after a start
+- [x] R12 UI: one follow loop per card (a newer one, or leaving the page, stops the old one); a way back after a start
   error; Cancel says it is cancelling.
 
 ### DAG, reuse and modes
 
-- [ ] D1 Config: step `id` and `needs`, `max_parallel`, `blocks` with `use`, sub-pipeline steps expanded at load,
+- [x] D1 Config: step `id` and `needs`, `max_parallel`, `blocks` with `use`, sub-pipeline steps expanded at load,
   `modes` and `default_mode`, `schedule` as a list with `mode`; every reference and cycle checked.
-- [ ] D2 Runner: runs ready steps in parallel up to `max_parallel`; a failure skips its dependents only; a step outside
+- [x] D2 Runner: runs ready steps in parallel up to `max_parallel`; a failure skips its dependents only; a step outside
   the mode is skipped and counts as done for its dependents; `--mode`.
-- [ ] D3 Schedules per mode: one OS entry per schedule, each run records its mode; the missed-run check per schedule.
-- [ ] D4 Portal and UI: the flow drawn by levels (parallel steps side by side), a mode picker, the mode in history and
+- [x] D3 Schedules per mode: one OS entry per schedule, each run records its mode; the missed-run check per schedule.
+- [x] D4 Portal and UI: the flow drawn by levels (parallel steps side by side), a mode picker, the mode in history and
   in the summary of a run.
-- [ ] D5 Docs: ADR 0011, docs/pipelines.md, CHANGELOG, the explainer page corrected (review part A) and extended.
+- [x] D5 Docs: ADR 0011, docs/pipelines.md, CHANGELOG, the explainer page corrected (review part A) and extended.
 
 ## Acceptance criteria
 
@@ -86,5 +86,17 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 ## Next step
 
-D1: config for ids, needs, blocks, sub-pipelines and modes (failing validation tests first); then the runner rewrite
-that carries R3, R4, R6, R7, R8 and D2 together.
+None: closed. Follow-ups outside this feature: a refreshed history after a live run ends (the card keeps the history
+it loaded), Windows job objects so a step's leftovers stop there too.
+- 2026-11-08: D1-D3 and R3-R11 inline, commit `6ff3aa1`. RED seen: graph module missing (D1 suite), nine runner tests
+  (parallel timing, branch failure, modes, background child 8 s, SIGTERM without run-end, PYTHONPATH, symlink and
+  missing cwd, copy2 output, private key body leaked with the old runner), schedule tests (hourly /MO 120, PATH,
+  per-mode entries, DST), portal tests (trust hash, start failure, modes on the card), Node trust hash. The runner was
+  split: `proc.py` (a step's process), `graph.py` (pure graph functions), `lock.py`. Python 894 OK.
+- 2026-11-08: D4 and R12 inline, commit `10792f2`. RED seen by running the new UI tests on the previous page files
+  (5 failing; the follow-loop test hung, which is the bug). A leftover never-ending loop in an older test was closed.
+  Node 845 pass after wrapping long lines.
+- 2026-11-08: D5: ADR 0011, docs/pipelines.md (DAG, reuse, modes, limits), CHANGELOG Unreleased, the explainer page
+  rewritten against the code (review part A: cancel flow, who polls, who writes what, check in the portal, honest
+  limits, no "real browser" claim). Documentation only: link and format checks.
+
