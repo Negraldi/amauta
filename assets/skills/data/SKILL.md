@@ -38,6 +38,7 @@ large files) live in `tabular-data`; this skill is about meaning and evidence.
    small populations. Diagnose missingness, duplicate keys and outliers with aggregates only.
 4. Record where every number comes from per [provenance](references/provenance.md).
 5. Reconcile and hand over: row and key counts before and after, totals, unresolved questions, limits.
+6. Recurring: make it an amauta pipeline with its own scripts per [pipeline recipes](references/pipeline-recipes.md).
 
 ## Output Contract
 

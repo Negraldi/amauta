@@ -42,12 +42,14 @@ Paths are relative to the project. Optional per step: `timeout` (seconds, defaul
   not refresh or the query that wrote nothing. The run records each output's size and time, and the portal lists them.
 Optional per pipeline: `description`, and `category`, which groups the cards in the portal.
 Database, workbook and mail steps are your own scripts: amauta has no drivers, so a step does whatever its script does.
+The `data` skill's pipeline recipes sketch them (SQL script to Parquet, workbook refresh, mail or reply-in-thread).
 Keep credentials in those scripts' own configuration; a definition with a secret-like value is refused.
 
 ## Running them
 
 ```
 amauta pipeline list [--cwd DIR]
+amauta pipeline check [<id>]                          # missing scripts, programs or folders, before a run; exit 1 on an error
 amauta pipeline run <id> [--cwd DIR] [--python EXE]   # prints "[step] line" as it runs; exit 0 ok, 1 failed, 130 cancelled
 amauta pipeline run <id> --step 2                     # only that step (1-based); the others are skipped
 amauta pipeline status [--json]                       # the last run of each pipeline

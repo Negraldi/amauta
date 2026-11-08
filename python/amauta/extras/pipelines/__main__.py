@@ -1,4 +1,4 @@
-"""`amauta pipeline list | run ID | status [--json] | cancel ID | schedule-hint ID` (plan S1a, S1c, ADR 0010).
+"""`amauta pipeline list | check [ID] | run ID | status [--json] | cancel ID | schedule-hint ID` (plan S1, ADR 0010).
 The project is the git root of --cwd (default: the current directory). `run` prints each output line as `[step] text`
 while it runs."""
 
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from ... import paths as amauta_paths
-from . import config, runner, schedule, store
+from . import check, config, runner, schedule, store
 
 
 def _repo(cwd):
@@ -24,6 +24,9 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="amauta pipeline", description="Run a project's pipelines (.amauta/pipelines.json).")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list", parents=[common])
+    c = sub.add_parser("check", parents=[common], help="find what would stop a run, without running it")
+    c.add_argument("id", nargs="?")
+    c.add_argument("--python", help="interpreter for python steps (default: python3 on PATH)")
     r = sub.add_parser("run", parents=[common])
     r.add_argument("id")
     r.add_argument("--python", help="interpreter for python steps (default: python3 on PATH)")
@@ -62,6 +65,12 @@ def _run(a, state, repo):
         for p in config.load(repo):
             print(f"{p['id']}: {p['name']} ({len(p['steps'])} step{'' if len(p['steps']) == 1 else 's'})")
         return 0
+    if a.cmd == "check":
+        found = check.check(repo, a.id, python=a.python)
+        for f in found:
+            print(f"{f['pipeline']} / {f['step']}: {f['level']}: {f['message']}")
+        print("nothing would stop a run" if not any(f["level"] == "error" for f in found) else "")
+        return 1 if any(f["level"] == "error" for f in found) else 0
     if a.cmd == "run":
         events = Path(a.events) if a.events else store.new_run(state, repo, a.id)
         show = lambda name, text: print(f"[{name}] {text}", flush=True)  # noqa: E731

@@ -29,3 +29,13 @@ test('it uses amauta privacy tools and keeps none of the corporate machinery or 
   assert.match(all, /never paste|do not paste|never copy raw rows/i);
   for (const banned of [/di-analyst/, /di_session/, /metagpt/i, /harness-gateway/, /gentle-ai/, /NOLOCK/]) assert.doesNotMatch(all, banned, String(banned));
 });
+
+test('pipeline recipes: database, workbook and mail steps as the project\'s own scripts, with no credential in them', async () => {
+  const skill = await readAssetText('skills/data/SKILL.md');
+  assert.match(skill, /\(references\/pipeline-recipes\.md\)/);
+  const r = await readAssetText('skills/data/references/pipeline-recipes.md');
+  assert.ok(r.length > 2000 && r.length < 12000, `${r.length} chars`);
+  for (const needle of [/"retries"/, /"outputs"/, /AMAUTA_PIPELINE_TRIGGER/, /RefreshAll/, /CalculateUntilAsyncQueriesDone/, /ReplyAll/,
+    /\bGO\b/, /amauta pipeline check/, /environment variable|config file/i]) assert.match(r, needle, String(needle));
+  for (const banned of [/PWD=\w/, /password\s*=\s*["'][^"']+["']/i, /@[a-z]+\.(com|ec|pe)\b/i, /\\\\Users\\\\/]) assert.doesNotMatch(r, banned, String(banned));
+});

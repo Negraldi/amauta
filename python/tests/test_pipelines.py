@@ -341,3 +341,30 @@ class HistoryTest(Base):
         store.new_run(self.state, self.repo, "p")
         self.assertEqual(len(list(d.glob("p-*.jsonl"))), store.KEEP - 1, "room for the new run")
         self.assertTrue((d / "other-20260101T000000Z-1.jsonl").exists())
+
+
+class CheckTest(Base):
+    """`amauta pipeline check`: what would stop a run, found before it starts."""
+
+    def test_missing_scripts_programs_and_folders_are_reported(self):
+        from python.amauta.extras.pipelines import check
+        self.define({"id": "p", "steps": [
+            {"name": "Ok", "type": "python", "script": "etl/extract.py", "interpreter": PY},
+            {"name": "Gone", "type": "python", "script": "etl/gone.py", "interpreter": PY},
+            {"name": "Ghost", "type": "command", "argv": ["no-such-program-amauta"]},
+            {"name": "Where", "type": "command", "argv": [PY], "cwd": "nowhere"},
+            {"name": "Off", "type": "python", "script": "etl/also-gone.py", "enabled": False},
+            {"name": "Out", "type": "command", "argv": [PY], "outputs": ["new/out.csv"]}]})
+        found = check.check(self.repo, "p")
+        self.assertEqual({(f["step"], f["level"]) for f in found}, {("Gone", "error"), ("Ghost", "error"), ("Where", "error"), ("Out", "note")})
+        self.assertTrue(all(f["message"] for f in found))
+        self.define({"id": "p", "steps": [{"name": "Ok", "type": "python", "script": "etl/extract.py", "interpreter": PY}]})
+        self.assertEqual(check.check(self.repo, "p"), [])
+
+    def test_the_cli_exits_1_on_an_error(self):
+        self.define({"id": "p", "steps": [{"name": "Gone", "type": "python", "script": "etl/gone.py", "interpreter": PY}]})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = main(["check", "--cwd", str(self.repo), "--state-dir", str(self.state)])
+        self.assertEqual(code, 1)
+        self.assertIn("etl/gone.py", out.getvalue())
