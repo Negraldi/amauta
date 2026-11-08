@@ -46,7 +46,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 - [x] M6 Refactor and simplify: one responsibility per module, short functions, no duplicated helpers, comments and
   headers that say what the code does now; docs/pipelines.md and ADR 0011 checked against the code.
-- [ ] M7 The explainer page shows the design, the flow and the components as they are.
+- [x] M7 The explainer page shows the design, the flow and the components as they are.
 
 ## Acceptance criteria
 
@@ -74,7 +74,7 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ## Next step
 
-M7: update the explainer page (design, flow, components) and republish it.
+None: closed.
 - 2026-11-08: M5 F1 inline. RED: a zombie holder kept a lock (and a SIGKILLed portal runner gave 409 forever), 40
   trivial steps took over 4 s, a child in its own session holding the output kept a step for its full sleep, skipped
   steps waited for a slot, a setup error left the lock. Fixes: `pidinfo` treats a zombie as dead and reads `ps` in C
@@ -100,4 +100,7 @@ M7: update the explainer page (design, flow, components) and republish it.
   `proc._Tree.close` closes the job or sweeps the group, not both; dead code removed (`runner.argv_for`, `_trusted`,
   the follow checkbox's no-op listener, an unused import); headers of config, store, proc, runner, winjob and the
   portal rewritten to match the code; docs/pipelines.md updated; ADR 0012 records process ownership and lock identity.
+- 2026-11-08: M7: the explainer page (claude.ai artifact, private) republished against `561d511`: new diagrams for a
+  step's processes (tree, reader thread, watcher) and the lock's cycle (take, adopt, release, stale cases), updated
+  components and code map (pidinfo, winjob), limits, and the three reviews. CI green on Linux, macOS and Windows.
 
