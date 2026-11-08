@@ -13,5 +13,5 @@ consequences. A record is never edited after it is accepted; a later record supe
 | [0006](0006-code-security.md) | Code security: checks at edit and at Stop, per-project trust |
 | [0007](0007-data-security-and-profiles.md) | Data security, detectors, privacy hook, private profiles |
 | [0008](0008-review-and-communication.md) | Working model: skills, communicator agent, independent review lenses |
-| [0010](0010-pipelines.md) | Pipelines: run a project's processes from the portal, with their output live |
 | [0009](0009-extras-extend-pillars.md) | Extras extend pillars through a registry (refines 0001) |
+| [0010](0010-pipelines.md) | Pipelines: run a project's processes from the portal, with their output live |
