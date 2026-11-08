@@ -81,7 +81,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
   the default mode's runs; steps started from the portal do not see amauta's module folder; following an abandoned or
   never-started run ends; run file names are unique within a second; the runner refuses a pipelines.json that changed
   between the portal's trust check and its start.
-- [ ] V5 CLI and hints: `--step 0` is refused; `%` is escaped in cron lines; the orphan case after SIGKILL and pid
+- [x] V5 CLI and hints: `--step 0` is refused; `%` is escaped in cron lines; the orphan case after SIGKILL and pid
   reuse are documented limits.
 
 ## Acceptance criteria
@@ -102,7 +102,8 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 ## Next step
 
-V5: `--step 0`, `%` in cron lines, and the documented limits.
+None: closed. Open follow-ups: a refreshed history after a live run ends; Windows job objects for a step's leftovers;
+the process start time in the lock to rule out pid reuse.
 - 2026-11-08: D1-D3 and R3-R11 inline, commit `6ff3aa1`. RED seen: graph module missing (D1 suite), nine runner tests
   (parallel timing, branch failure, modes, background child 8 s, SIGTERM without run-end, PYTHONPATH, symlink and
   missing cwd, copy2 output, private key body leaked with the old runner), schedule tests (hourly /MO 120, PATH,
@@ -129,4 +130,7 @@ V5: `--step 0`, `%` in cron lines, and the documented limits.
   never-started run kept the console polling (after a portal restart too), fifty names in one second collided, the
   runner ran a file changed after the portal's check, and the card matched results by position. GREEN; the run
   summary now carries each step's id (one older test expectation updated for that).
+- 2026-11-08: V5 inline. RED: `run --step 0` ran the whole pipeline with exit 0; a `%` in a cron line was left bare.
+  GREEN. SIGKILL orphans and pid reuse documented in docs/pipelines.md (Limits). Not changed, by decision: steps keep
+  the starting environment (documented), the portal token is readable by local programs (documented).
 

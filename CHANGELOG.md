@@ -22,6 +22,12 @@ All notable changes to this project are documented here. The format follows [Kee
   redacted; valid hourly and daily schtasks entries; PATH in cron and launchd hints; daylight saving in the
   missed-run check; a run that cannot start says why.
 
+- Second independent review: a failure blocks its whole chain again (as in 0.6); an error inside a step fails that
+  step only; a stale lock has exactly one new taker and adopting it is atomic; stricter definitions (NUL, types, an
+  off pipeline step), a UTF-8 BOM accepted; run summaries keep step order and ids; a schedule without mode follows the
+  default mode; following an abandoned or never-started run ends; the runner refuses a pipelines.json changed after
+  the portal's trust check; `--step 0` refused; `%` escaped in cron lines.
+
 ### Changed
 
 - `amauta check trust` records the hash of `.amauta/pipelines.json`; the portal runs pipelines only while that file

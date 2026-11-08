@@ -193,3 +193,7 @@ The newest 50 runs of each pipeline are kept; older events files are removed whe
 - Steps run with your permissions and inherit the starting environment, keys included: amauta does not isolate them.
 - The portal's token keeps other web pages out; programs on your own computer can read it from the portal page.
 - On Windows, a child process that outlives its step can hold the step's output open (see above).
+- If the runner itself is killed outright (SIGKILL, a crash), the step running at that moment keeps running on its
+  own; the run reads as abandoned and the next run may overlap with it. Stop a run with Cancel, Ctrl+C or SIGTERM.
+- A lock whose runner died is stale only once that process id is gone: if the system gives the id to another live
+  process, the pipeline stays "running" until that process ends.

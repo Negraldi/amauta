@@ -76,7 +76,10 @@ def _run(a, state, repo):
     if a.cmd == "run":
         events = Path(a.events) if a.events else store.new_run(state, repo, a.id)
         show = lambda name, text: print(f"[{name}] {text}", flush=True)  # noqa: E731
-        only = a.step - 1 if a.step else None
+        if a.step is not None and a.step < 1:
+            print("amauta pipeline: --step counts from 1", file=sys.stderr)
+            return 2
+        only = a.step - 1 if a.step is not None else None
         try:
             code = runner.run(repo, a.id, events, python=a.python, on_line=show, only=only, trigger=a.trigger, mode=a.mode,
                               expect_sha256=a.expect_sha256)

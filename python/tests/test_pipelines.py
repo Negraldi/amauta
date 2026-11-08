@@ -495,3 +495,22 @@ class StaleLockRaceTest(Base):
         stop.set()
         t.join()
         self.assertTrue(all(seen), f"{seen.count(False)} reads saw no holder")
+
+
+class SecondReviewCliTest(Base):
+    """Second review, V5."""
+
+    def test_step_zero_is_refused(self):
+        self.define({"id": "p", "steps": [{"type": "command", "argv": [PY, "-c", "print('ran')"]}]})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = main(["run", "p", "--step", "0", "--cwd", str(self.repo), "--state-dir", str(self.state)])
+        self.assertEqual(code, 2)
+        self.assertNotIn("ran", out.getvalue())
+
+    def test_a_percent_sign_is_escaped_in_cron_lines(self):
+        from python.amauta.extras.pipelines import schedule
+        self.define({"id": "p", "schedule": {"at": "07:00"}, "steps": [{"type": "command", "argv": ["x"]}]})
+        line = schedule.hint("linux", self.repo, "p", None, None, node="/opt/100%/node", bin_="b").splitlines()[-1]
+        self.assertIn("/opt/100\\%/node", line)
+        self.assertNotRegex(line.replace("\\%", ""), "%")

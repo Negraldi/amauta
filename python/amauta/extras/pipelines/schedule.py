@@ -92,8 +92,9 @@ def _entry(system, sched, repo, pipeline_id, node, bin_):
         label = f"local.amauta.{pipeline_id}" + (f".{mode}" if mode else "")
         plist = _launchd(sched, (node, bin_, "pipeline", "run", pipeline_id, *tail, "--cwd", repo), label)
         return f"# save as ~/Library/LaunchAgents/{label}.plist, then: launchctl load ~/Library/LaunchAgents/{label}.plist\n" + plist
-    return (f"{_cron_when(sched)} env PATH={_sh(os.environ.get('PATH', ''))} {_sh(node)} {_sh(bin_)} pipeline run {pipeline_id} "
+    line = (f"env PATH={_sh(os.environ.get('PATH', ''))} {_sh(node)} {_sh(bin_)} pipeline run {pipeline_id} "
             f"{' '.join(tail)} --cwd {_sh(repo)}")
+    return f"{_cron_when(sched)} {line.replace('%', chr(92) + '%')}"  # cron reads a bare % as a newline
 
 
 HEADS = {"windows": "# Task Scheduler: run each line once in a terminal (schtasks /Delete /TN \"amauta ...\" removes it)",
