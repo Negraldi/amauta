@@ -461,3 +461,37 @@ class LockTest(Base):
         self.assertEqual(store.last_runs(self.state, self.repo)["p"]["status"], "abandoned")
         self.assertTrue(lock.acquire(self.state, self.repo, "p", f.name))
         self.assertEqual(store.last_runs(self.state, self.repo)["p"]["status"], "running")
+
+
+class StaleLockRaceTest(Base):
+    """Second review, V2: many takers of one stale lock, exactly one wins."""
+
+    def test_exactly_one_taker_wins_a_stale_lock(self):
+        helper = Path(__file__).resolve().parent / "lock_race_helper.py"
+        dead = subprocess.Popen([PY, "-c", "pass"])
+        dead.wait()
+        for attempt in range(12):
+            f, go = self.root / f"p{attempt}.lock", self.root / f"go{attempt}"
+            f.write_text(json.dumps({"pid": dead.pid, "run": "old", "t": time.time()}))
+            procs = [subprocess.Popen([PY, str(helper), str(f), str(go), str(n)], stdout=subprocess.PIPE, text=True) for n in range(8)]
+            time.sleep(0.3)
+            go.write_text("")
+            wins = sum(int(p.communicate()[0].strip() or 0) for p in procs)
+            self.assertEqual(wins, 1, f"attempt {attempt}: {wins} winners")
+
+    def test_adopting_never_leaves_the_lock_unreadable(self):
+        from python.amauta.extras.pipelines import lock
+        f = self.root / "p.lock"
+        self.assertTrue(lock.take(f, "r1", starting=True))
+        stop, seen = threading.Event(), []
+
+        def read():
+            while not stop.is_set():
+                seen.append(lock.held_by(f, "r1"))
+        t = threading.Thread(target=read)
+        t.start()
+        for _ in range(300):
+            lock.adopt(f, "r1")
+        stop.set()
+        t.join()
+        self.assertTrue(all(seen), f"{seen.count(False)} reads saw no holder")

@@ -4,6 +4,9 @@ Whoever starts a run takes the lock atomically (O_CREAT | O_EXCL): the portal be
 `starting`), the CLI and a scheduled run directly. The runner adopts a lock taken for its own run by writing its pid,
 and removes it when the run ends. A lock whose process is gone, or a `starting` lock never adopted within a minute, is
 stale and may be taken again; so is a lock nobody can read after a few seconds (a fresh one is being written).
+Replacing a stale lock happens under `<lock>.guard` (an OS file lock), so of many takers exactly one wins; adopting
+writes a new file and renames it over the lock, so a reader never sees it empty. A pid reused by another live process
+keeps a stale lock held until that process ends (documented limit).
 """
 
 import json
@@ -25,10 +28,12 @@ def alive(pid):
         return False
     if sys.platform == "win32":
         import ctypes
-        k32 = ctypes.windll.kernel32
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype, k32.OpenProcess.argtypes = wintypes.HANDLE, (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
         handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not handle:
-            return False
+            return ctypes.get_last_error() == 5  # access denied: it exists, owned by someone else
         code = ctypes.c_ulong()
         k32.GetExitCodeProcess(handle, ctypes.byref(code))
         k32.CloseHandle(handle)
@@ -68,24 +73,57 @@ def _create(f, run, starting):
         json.dump({"pid": os.getpid(), "run": run, "t": time.time(), "starting": starting}, out)
 
 
+class _Guard:
+    """An exclusive OS lock on `<lock>.guard` while a stale lock is checked and replaced."""
+
+    def __init__(self, f):
+        self.path = Path(f"{f}.guard")
+
+    def __enter__(self):
+        self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
+        if sys.platform == "win32":
+            import msvcrt
+            while True:
+                try:
+                    msvcrt.locking(self.fd, msvcrt.LK_LOCK, 1)
+                    break
+                except OSError:
+                    continue  # LK_LOCK gives up after ten seconds; keep waiting
+        else:
+            import fcntl
+            fcntl.flock(self.fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *_):
+        os.close(self.fd)  # closing releases the OS lock on every platform
+
+
 def take(f, run, starting=False):
     """Take the lock file `f` for `run`; False when a live run holds it."""
-    for _ in range(2):
+    f = Path(f)
+    try:
+        _create(f, run, starting)
+        return True
+    except FileExistsError:
+        pass
+    with _Guard(f):  # only a stale lock is removed, and only here, one taker at a time
+        if not _stale(_read(f), f):
+            return False
+        f.unlink(missing_ok=True)
         try:
-            _create(Path(f), run, starting)
+            _create(f, run, starting)
             return True
         except FileExistsError:
-            if not _stale(_read(f), f):
-                return False
-            Path(f).unlink(missing_ok=True)  # a stale lock: one more try, the other taker may win it
-    return False
+            return False  # a taker on the fast path won in between
 
 
 def adopt(f, run):
     """The runner's side: keep a lock taken for this run (now with its own pid), or take it; Busy otherwise."""
     data = _read(f)
     if data is not None and data.get("run") == run:
-        Path(f).write_text(json.dumps({"pid": os.getpid(), "run": run, "t": time.time(), "starting": False}), encoding="utf-8")
+        tmp = Path(f"{f}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps({"pid": os.getpid(), "run": run, "t": time.time(), "starting": False}), encoding="utf-8")
+        os.replace(tmp, f)  # atomic: readers see the old or the new content, never an empty file
         return
     if not take(f, run):
         raise Busy(f"{Path(f).stem} is already running ({(data or {}).get('run', '?')})")

@@ -72,7 +72,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 - [x] V1 Runner: a skip for `needs` blocks the whole chain below it (0.6 behavior); an exception inside a step ends
   that step as failed instead of the runner; a step's process group is stopped after it ends, pipe or not.
-- [ ] V2 Lock: a stale lock is replaced under a guard, so exactly one taker wins; adopt writes atomically; on Windows an
+- [x] V2 Lock: a stale lock is replaced under a guard, so exactly one taker wins; adopt writes atomically; on Windows an
   access-denied holder counts as alive.
 - [ ] V3 Config: NUL characters, wrong types (`args` string, `timeout: true`, `enabled: "false"`, unhashable modes,
   duplicate modes), `default_mode` without `modes`, extra fields on a pipeline step, and `enabled: false` on it;
@@ -102,7 +102,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 ## Next step
 
-V2: failing test with eight processes taking a stale lock at once (exactly one must win).
+V3: failing tests for the config types the review found (NUL, args as a string, timeout true, enabled "false").
 - 2026-11-08: D1-D3 and R3-R11 inline, commit `6ff3aa1`. RED seen: graph module missing (D1 suite), nine runner tests
   (parallel timing, branch failure, modes, background child 8 s, SIGTERM without run-end, PYTHONPATH, symlink and
   missing cwd, copy2 output, private key body leaked with the old runner), schedule tests (hourly /MO 120, PATH,
@@ -117,4 +117,7 @@ V2: failing test with eight processes taking a stale lock at once (exactly one m
 - 2026-11-08: second independent review on `40a9295` (16 confirmed, 6 suspected, no flaky test in 6 runs). V1 inline:
   RED for C running after A failed in a line (a "needs" skip counted as done), a step error ending the runner, and a
   child with stdout to /dev/null outliving its step; GREEN.
+- 2026-11-08: V2 inline. RED: eight processes on a stale lock gave two winners; 1,825 of the reader's samples saw no
+  holder while adopt rewrote the lock. Stale replacement now runs under an OS file lock (`<lock>.guard`), adopt renames
+  a new file over the lock; Windows treats access denied as alive. Race test green three times in a row.
 
