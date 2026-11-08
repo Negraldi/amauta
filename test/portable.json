@@ -12,6 +12,8 @@
     "test/portal-windows.test.js"
   ],
   "python": [
-    "python.tests.test_oscompat"
+    "python.tests.test_oscompat",
+    "python.tests.test_pipelines_windows",
+    "python.tests.test_pipelines_dag"
   ]
 }
