@@ -39,11 +39,14 @@ def home_dir(cfg_home=None):
     return Path(os.path.realpath(cfg_home or os.path.expanduser("~")))
 
 
+MACOS_TREES = ("/private", "/System", "/Library")  # /etc, /var and /tmp resolve into /private on macOS
 WINDOWS_TREE_VARS = ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "TEMP", "TMP")
 
 
 def system_trees(platform=sys.platform, env=os.environ):
     """Directories a project may not live in: the POSIX trees, or on Windows the ones its environment names."""
+    if platform == "darwin":
+        return list(SYSTEM_TREES) + list(MACOS_TREES)
     if platform != "win32":
         return list(SYSTEM_TREES)
     return [env[v] for v in WINDOWS_TREE_VARS if env.get(v)]
@@ -78,7 +81,7 @@ def check_repo(raw, home):
         raise ConfigError(f"not an existing directory: {raw[:80]}")
     if real == home or real == Path(real.anchor):
         raise ConfigError(f"path must not be / or your home directory itself: {raw[:80]}")
-    if in_system_tree(real, home, system_trees() if sys.platform == "win32" else SYSTEM_TREES):
+    if in_system_tree(real, home, system_trees()):
         raise ConfigError(f"path must not be inside a system directory (/etc, /usr, /var, /tmp ...): {raw[:80]}")
     return real
 

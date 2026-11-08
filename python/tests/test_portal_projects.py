@@ -391,3 +391,13 @@ class WindowsSystemTreesTest(unittest.TestCase):
     def test_posix_trees_are_unchanged(self):
         from python.amauta.portal import projects
         self.assertEqual(projects.system_trees("linux", {}), list(projects.SYSTEM_TREES))
+
+    def test_macos_resolved_system_trees_are_refused(self):
+        """On macOS /etc, /var and /tmp resolve to /private/...; the system and library trees are refused too (plan N9b)."""
+        from python.amauta.portal import projects
+        trees = projects.system_trees("darwin", {})
+        home = "/Users/ana"
+        for bad in ("/private/etc", "/private/var/folders/x/T/tmp1", "/private/tmp/p", "/System/Library", "/Library/x", "/etc"):
+            self.assertTrue(projects.in_system_tree(bad, home, trees, "darwin"), bad)
+        for ok in ("/Users/ana/code/proj", "/Users/ana/Library/x", "/Volumes/datos/proyecto"):
+            self.assertFalse(projects.in_system_tree(ok, home, trees, "darwin"), ok)

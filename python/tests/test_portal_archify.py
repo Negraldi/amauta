@@ -166,7 +166,8 @@ class RenderTest(unittest.TestCase):
         for c in calls:
             self.assertEqual(c["update"], "1")
             self.assertNotIn("SECRET_TOKEN", c["keys"])
-            self.assertEqual(sorted(set(c["keys"]) - {"PATH", "HOME", "ARCHIFY_UPDATE_CHECK_DISABLED"}), [])
+            # macOS adds __CF_USER_TEXT_ENCODING to every child environment by itself; amauta passes only these three.
+            self.assertEqual(sorted(set(c["keys"]) - {"PATH", "HOME", "ARCHIFY_UPDATE_CHECK_DISABLED", "__CF_USER_TEXT_ENCODING"}), [])
             self.assertIn("amauta-archify-", c["cwd"])
         self.assertFalse(Path(calls[0]["cwd"]).exists(), "the temp dir is removed")
 
