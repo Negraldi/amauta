@@ -552,7 +552,7 @@ class ThirdReviewLockTest(Base):
                 lima = pidinfo.started_at(os.getpid())
         self.assertEqual(tokyo, lima)
         f = self.root / "p.lock"
-        f.write_text(json.dumps({"pid": os.getpid(), "pid_start": "ps:read another way", "run": "r", "t": time.time()}))
+        f.write_text(json.dumps({"pid": os.getpid(), "pid_start": "other:read another way", "run": "r", "t": time.time()}))
         self.assertFalse(lock.take(f, "other"), "a start time taken another way is not compared")
 
     def test_a_damaged_lock_is_stale(self):
