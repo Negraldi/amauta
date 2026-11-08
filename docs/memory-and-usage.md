@@ -9,6 +9,12 @@ Local stores and the external code graph tools; nothing here uses the network.
 `PRAGMA user_version` migrations. `install` registers it as MCP server `engram` (so the vendored
 prompts using `mcp__engram__*` work unchanged); if you already have a different `engram` entry it is
 kept and ours is registered as `amauta-memory` (recorded as `memory_server_key` in `state.json`).
+
+Memory guard (always on, ADR 0007): every title, content, prompt and session summary the store writes passes through
+`python/amauta/memory/guard.py`. Secret-like text (API keys, bearer tokens, private keys, cloud keys, `password=...`)
+is refused with the fixed reply `rejected: secret-like content` and nothing is written. Personal identifiers (cedula,
+RUC, cards, IBAN, phones, e-mail) are replaced by `[REDACTED_<KIND>]`; the tool reply says how many of each kind, never
+which. Memories imported from an existing engram database keep their text as it was.
 With the engram plugin enabled nothing is registered.
 
 Tools: `mem_save` (same project+scope+`topic_key` updates and bumps the revision), `mem_update`,

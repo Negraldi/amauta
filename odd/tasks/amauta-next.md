@@ -98,7 +98,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D1 Intake records for the corporate privacy pieces.
 - [x] D2 Detector catalog (secrets, Ecuadorian cedula and RUC, Luhn cards, email, +593 phones, IBAN), generated
   fixtures, one finding format.
-- [ ] D3 Memory guard (always on): secrets and PII rejected or redacted without echoing them.
+- [x] D3 Memory guard (always on): secrets and PII rejected or redacted without echoing them.
 - [ ] D4 Privacy hook (data files outside test/fixture/example paths plus configured paths; always ask, never deny;
   secrets in prompts only warn) and `amauta privacy scan|redact|pseudonymize`.
 
@@ -258,6 +258,10 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   format `{kind, start, end}` (never the value). Fixtures are generated from seeds (`python/tests/detector_fixtures.py`).
   RED seen (module missing).
 
+- 2026-11-08: D3 done: `python/amauta/memory/guard.py`, applied by the store to save, update, prompts, session
+  summaries and session end. Secrets are refused with one fixed message (no echo, no field name); identifiers are
+  redacted and counted; MCP replies add "(1 cedula redacted)". Imports from engram are left as they were. RED seen.
+
 ## Next step
 
-Phase 2: D3 memory guard (secrets rejected, personal data redacted, never echoed), then D4 privacy hook and CLI. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2: D4 privacy hook (ask on data files, warn on secrets in prompts) and `amauta privacy scan|redact|pseudonymize`. Ask the aesthetic questions (Inca names) before D10/D11.

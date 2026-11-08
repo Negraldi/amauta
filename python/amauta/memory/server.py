@@ -8,6 +8,7 @@ import json
 import sys
 
 from .. import __version__
+from . import guard
 from . import store as mstore
 
 SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"]
@@ -69,17 +70,23 @@ def _line(o, snippet=None):
     return f"{base}\n    {snippet}" if snippet else base
 
 
+def _note(r):
+    """What the memory guard redacted, as counts (never values)."""
+    return f" ({guard.describe(r['redacted'])})" if r.get("redacted") else ""
+
+
 def _run(store, name, a):
     if name == "mem_save":
         r = store.save(a["title"], a["content"], a.get("type") or "note", a.get("topic_key"),
                        a.get("scope") or "project", a.get("project"), a.get("session_id"))
-        return f"Saved #{r['id']}" if r["action"] == "created" else f"Observation #{r['id']} updated (revision {r['revision']})"
+        done = f"Saved #{r['id']}" if r["action"] == "created" else f"Observation #{r['id']} updated (revision {r['revision']})"
+        return done + _note(r)
     if name == "mem_update":
         try:
             r = store.update(a["id"], a.get("title"), a.get("content"), a.get("type"), a.get("topic_key"))
         except KeyError as e:
             raise ToolError(str(e.args[0])) from None
-        return f"Observation #{r['id']} updated (revision {r['revision']})"
+        return f"Observation #{r['id']} updated (revision {r['revision']})" + _note(r)
     if name == "mem_search":
         hits = store.search(a["query"], a.get("project"), a.get("type"), a.get("limit") or 10)
         if not hits:
@@ -109,10 +116,10 @@ def _run(store, name, a):
         return f"Session {a['id']} ended"
     if name == "mem_session_summary":
         r = store.session_summary(a["content"], a.get("project"), a.get("session_id"))
-        return f"Session summary saved as #{r['id']}"
+        return f"Session summary saved as #{r['id']}" + _note(r)
     if name == "mem_save_prompt":
         r = store.save_prompt(a["content"], a.get("project"), a.get("session_id"))
-        return f"Prompt saved (#{r['id']})"
+        return f"Prompt saved (#{r['id']})" + _note(r)
     if name == "mem_current_project":
         return mstore.detect_project(a.get("cwd"))
     if name == "graph_query":
