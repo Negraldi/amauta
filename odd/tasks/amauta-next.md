@@ -289,6 +289,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   gateway, analyst agent and SQL-guard machinery; real data goes through the privacy hook and `amauta privacy`.
   Intake records in `docs/intake/data-skills.md`. RED seen. Next: D9b powerbi-report, D9c institutional and editorial.
 
+- 2026-11-08: D9b done: skill `powerbi-report` (rewritten SKILL.md, six v19 references copied with two passages
+  adapted) and the extra `amauta.extras.pbir` (lint as warnings, model diff, data dictionary, layout audit, structural
+  rename with dry run), rewritten clean-room from the private archive's report tools without any of its content.
+  Intake in `docs/intake/powerbi.md`. RED seen.
+
 ## Next step
 
-Phase 2c: D9b powerbi-report with PBIR tools (intake first), then D9c institutional and editorial skills. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D9c institutional and editorial skills (intake first). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
