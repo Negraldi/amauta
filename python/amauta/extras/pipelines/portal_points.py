@@ -16,7 +16,7 @@ from pathlib import Path
 
 from ...portal import security
 from . import check as preflight
-from . import config, schedule, store
+from . import config, lock, schedule, store
 
 PYTHON_DIR = Path(__file__).resolve().parents[3]
 WINDOWS = sys.platform == "win32"
@@ -78,10 +78,9 @@ def run(portal, body):
     step = body.get("step")
     if step is not None and (type(step) is not int or not 1 <= step <= len(pipeline["steps"])):
         return 400, {"error": f"step must be a number from 1 to {len(pipeline['steps'])}"}
-    if store.last_runs(portal.cfg.state_dir, repo).get(body["id"], {}).get("status") == "running":
-        return 409, {"error": "this pipeline is already running"}
     events = store.new_run(portal.cfg.state_dir, repo, body["id"])
-    events.parent.mkdir(parents=True, exist_ok=True)
+    if not lock.acquire(portal.cfg.state_dir, repo, body["id"], events.name, starting=True):  # atomic: one run at a time
+        return 409, {"error": "this pipeline is already running"}
     events.touch()
     argv = [sys.executable, "-P", "-m", "amauta.extras.pipelines", "run", body["id"], "--cwd", str(repo),
             "--state-dir", str(portal.cfg.state_dir), "--events", str(events), "--trigger", "portal"]

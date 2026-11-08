@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from ... import paths as amauta_paths
-from . import check, config, runner, schedule, store
+from . import check, config, lock, runner, schedule, store
 
 
 def _repo(cwd):
@@ -75,7 +75,11 @@ def _run(a, state, repo):
         events = Path(a.events) if a.events else store.new_run(state, repo, a.id)
         show = lambda name, text: print(f"[{name}] {text}", flush=True)  # noqa: E731
         only = a.step - 1 if a.step else None
-        code = runner.run(repo, a.id, events, python=a.python, on_line=show, only=only, trigger=a.trigger)
+        try:
+            code = runner.run(repo, a.id, events, python=a.python, on_line=show, only=only, trigger=a.trigger)
+        except lock.Busy as e:
+            print(f"amauta pipeline: {e}", file=sys.stderr)
+            return 3
         print(f"{a.id}: {['ok', 'failed'][code == 1] if code != 130 else 'cancelled'}  ({events})")
         return code
     runs = store.last_runs(state, repo)

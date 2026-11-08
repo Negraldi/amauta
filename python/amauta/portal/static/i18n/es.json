@@ -592,6 +592,7 @@
  "pipe.clear": "Limpiar",
  "pipe.s.idle": "aún sin ejecutar",
  "pipe.s.skipped": "omitido",
+ "pipe.s.abandoned": "abandonada (su proceso se detuvo)",
  "pipe.sumOne": "{n} pipeline",
  "pipe.sumTotal": "{n} pipelines",
  "pipe.sumFailed": "{n} falló la última vez",

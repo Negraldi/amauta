@@ -20,7 +20,7 @@ function pipeSummaryText(projects) {
   const all = projects.flatMap((pr) => pr.pipelines);
   const count = (f) => all.filter(f).length;
   const parts = [[all.length, all.length === 1 ? "pipe.sumOne" : "pipe.sumTotal"],
-    [count((p) => p.last && ["failed", "timeout"].includes(p.last.status)), "pipe.sumFailed"],
+    [count((p) => p.last && ["failed", "timeout", "abandoned"].includes(p.last.status)), "pipe.sumFailed"],
     [count((p) => p.last && p.last.status === "running"), "pipe.sumRunning"],
     [count((p) => p.schedule_state === "missed"), "pipe.sumMissed"]];
   return parts.filter(([n], i) => i === 0 || n).map(([n, key]) => t(key, { n: fmt(n) })).join(" · ");

@@ -395,3 +395,39 @@ class EventsFileTest(Base):
         self.assertEqual(([e["kind"] for e in got], nxt2), (["c"], f.stat().st_size))
         self.assertEqual(store.read_from(f, nxt2), ([], nxt2))
         self.assertEqual(store.read_from(self.root / "missing.jsonl", 0), ([], 0))
+
+
+class LockTest(Base):
+    """Review R2/R3: one run of a pipeline at a time, whoever starts it; a run whose runner is gone reads as abandoned."""
+
+    def test_the_lock_is_atomic_and_a_dead_holder_is_stale(self):
+        from python.amauta.extras.pipelines import lock
+        self.assertTrue(lock.acquire(self.state, self.repo, "p", "p-1.jsonl"))
+        self.assertFalse(lock.acquire(self.state, self.repo, "p", "p-2.jsonl"))
+        self.assertTrue(lock.holds(self.state, self.repo, "p", "p-1.jsonl"))
+        lock.release(self.state, self.repo, "p", "p-2.jsonl")  # not its lock: nothing happens
+        self.assertTrue(lock.holds(self.state, self.repo, "p", "p-1.jsonl"))
+        lock.release(self.state, self.repo, "p", "p-1.jsonl")
+        dead = subprocess.Popen([PY, "-c", "pass"])
+        dead.wait()
+        lock.path(self.state, self.repo, "p").write_text(json.dumps({"pid": dead.pid, "run": "p-3.jsonl", "t": time.time()}))
+        self.assertTrue(lock.acquire(self.state, self.repo, "p", "p-4.jsonl"), "the holder is gone")
+        lock.path(self.state, self.repo, "p").write_text(json.dumps({"pid": os.getpid(), "run": "p-5.jsonl", "t": time.time() - 120,
+                                                                     "starting": True}))
+        self.assertTrue(lock.acquire(self.state, self.repo, "p", "p-6.jsonl"), "a runner that never adopted it")
+
+    def test_the_cli_refuses_a_second_run_and_a_lost_run_is_abandoned(self):
+        from python.amauta.extras.pipelines import lock, store
+        self.define({"id": "p", "steps": [{"name": "A", "type": "command", "argv": [PY, "-c", "print(1)"]}]})
+        self.assertTrue(lock.acquire(self.state, self.repo, "p", "other.jsonl"))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = main(["run", "p", "--cwd", str(self.repo), "--state-dir", str(self.state)])
+        self.assertEqual(code, 3)
+        lock.release(self.state, self.repo, "p", "other.jsonl")
+        f = store.new_run(self.state, self.repo, "p")
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"t": "2026-11-08T10:00:00+00:00", "kind": "run-start", "pipeline": "p", "steps": ["A"]}) + "\n")
+        self.assertEqual(store.last_runs(self.state, self.repo)["p"]["status"], "abandoned")
+        self.assertTrue(lock.acquire(self.state, self.repo, "p", f.name))
+        self.assertEqual(store.last_runs(self.state, self.repo)["p"]["status"], "running")

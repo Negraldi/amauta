@@ -117,6 +117,23 @@ class PortalPointsTest(Base):
         self.assertEqual(pp.check(self.portal, {"project": str(self.root), "id": "hello"}), {"error": "not a project the portal knows"})
         self.assertEqual(pp.check(self.portal, {"project": str(self.repo), "id": "nope"})["error"], "no such pipeline")
 
+    def test_concurrent_requests_start_one_run(self):
+        import threading
+        self.trust()
+        codes, go = [], threading.Barrier(3)
+
+        def post():
+            go.wait()
+            codes.append(pp.run(self.portal, {"project": str(self.repo), "id": "slow"}))
+        threads = [threading.Thread(target=post) for _ in range(3)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual(sorted(c for c, _ in codes), [202, 409, 409])
+        run = next(b["run"] for c, b in codes if c == 202)
+        time.sleep(1.0)
+        pp.cancel(self.portal, {"project": str(self.repo), "run": run})
+        self.wait_end(run)
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

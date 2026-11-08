@@ -592,6 +592,7 @@
  "pipe.clear": "Clear",
  "pipe.s.idle": "not run yet",
  "pipe.s.skipped": "skipped",
+ "pipe.s.abandoned": "abandoned (its runner stopped)",
  "pipe.sumOne": "{n} pipeline",
  "pipe.sumTotal": "{n} pipelines",
  "pipe.sumFailed": "{n} failed last time",

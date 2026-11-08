@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ...detectors import scan
-from . import config
+from . import config, lock
 
 WINDOWS = sys.platform == "win32"
 
@@ -147,23 +147,28 @@ def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger
     if only is not None and not 0 <= only < len(pipeline["steps"]):
         raise config.ConfigError(f"{pipeline_id} has no step {only + 1}")
     python = python or shutil.which("python3") or shutil.which("python") or sys.executable
-    ev, cancel = _Events(events, on_line), cancel_path(events)
-    names = [s["name"] for s in pipeline["steps"]]
-    ev.emit("run-start", pipeline=pipeline_id, name=pipeline["name"], steps=names, trigger=trigger, only=only)
-    status, t0 = "ok", time.monotonic()
-    for i, step in enumerate(pipeline["steps"]):
-        if status != "ok" or (only is None and not step["enabled"]) or (only is not None and i != only):
-            ev.emit("step-end", step=i, name=step["name"], status="skipped", seconds=0)
-            continue
-        ev.emit("step-start", step=i, name=step["name"])
-        s0 = time.monotonic()
-        env = {**os.environ, "AMAUTA_PIPELINE": pipeline_id, "AMAUTA_PIPELINE_TRIGGER": trigger, "AMAUTA_PIPELINE_STEP": str(i + 1)}
-        result, attempts, outputs = _attempts(i, step, repo, python, ev, cancel, env)
-        ev.emit("step-end", step=i, name=step["name"], status=result, seconds=round(time.monotonic() - s0, 1),
-                attempts=attempts, outputs=outputs)
-        if result != "ok":
-            status = "cancelled" if result == "cancelled" else "failed"
-    ev.emit("run-end", status=status, seconds=round(time.monotonic() - t0, 1))
-    ev.f.close()
-    cancel.unlink(missing_ok=True)
+    lock_file = Path(events).parent / f"{pipeline_id}.lock"
+    lock.adopt(lock_file, Path(events).name)  # Busy when another run of this pipeline is alive
+    try:
+        ev, cancel = _Events(events, on_line), cancel_path(events)
+        names = [s["name"] for s in pipeline["steps"]]
+        ev.emit("run-start", pipeline=pipeline_id, name=pipeline["name"], steps=names, trigger=trigger, only=only)
+        status, t0 = "ok", time.monotonic()
+        for i, step in enumerate(pipeline["steps"]):
+            if status != "ok" or (only is None and not step["enabled"]) or (only is not None and i != only):
+                ev.emit("step-end", step=i, name=step["name"], status="skipped", seconds=0)
+                continue
+            ev.emit("step-start", step=i, name=step["name"])
+            s0 = time.monotonic()
+            env = {**os.environ, "AMAUTA_PIPELINE": pipeline_id, "AMAUTA_PIPELINE_TRIGGER": trigger, "AMAUTA_PIPELINE_STEP": str(i + 1)}
+            result, attempts, outputs = _attempts(i, step, repo, python, ev, cancel, env)
+            ev.emit("step-end", step=i, name=step["name"], status=result, seconds=round(time.monotonic() - s0, 1),
+                    attempts=attempts, outputs=outputs)
+            if result != "ok":
+                status = "cancelled" if result == "cancelled" else "failed"
+        ev.emit("run-end", status=status, seconds=round(time.monotonic() - t0, 1))
+        ev.f.close()
+        cancel.unlink(missing_ok=True)
+    finally:
+        lock.drop(lock_file, Path(events).name)
     return {"ok": 0, "failed": 1, "cancelled": 130}[status]

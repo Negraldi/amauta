@@ -4,7 +4,7 @@
 // and the notice when a run ends. Output is text only, never markup. Shares the globals of app.js and page-pipelines.js.
 
 const PIPE_POLL_MS = 700;
-const STEP_MARK = { ok: "✓", failed: "✗", timeout: "⏱", cancelled: "■", skipped: "–", running: "…", idle: "○" };
+const STEP_MARK = { ok: "✓", failed: "✗", timeout: "⏱", cancelled: "■", skipped: "–", running: "…", idle: "○", abandoned: "⚠" };
 const LINE_LEVEL = [["error", /\b(error|exception|traceback|failed|fatal)\b/i], ["warn", /\bwarn(ing)?\b|^retrying in /i]];
 
 // "1:15", or "1:02:03" past an hour.

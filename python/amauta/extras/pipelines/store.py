@@ -9,6 +9,8 @@ import statistics
 import time
 from pathlib import Path
 
+from . import lock
+
 KEEP = 50  # runs kept per pipeline; older events files are removed when a new run starts
 SHOWN = 10  # runs in a card's history
 
@@ -62,6 +64,14 @@ _summaries = {}  # path -> ((size, mtime_ns), summary): a finished run's file do
 
 
 def _cached(f):
+    """A run's summary; a run without its end is "running" while its runner holds the lock, else "abandoned"."""
+    run = _cached_summary(f)
+    if run is not None and run["status"] == "running" and not lock.held_by(f.parent / f"{run['pipeline']}.lock", f.name):
+        run = {**run, "status": "abandoned"}
+    return run
+
+
+def _cached_summary(f):
     try:
         st = f.stat()
     except OSError:

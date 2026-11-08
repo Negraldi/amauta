@@ -37,7 +37,7 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 
 - [x] R1 Events: split on "\n" only (U+2028 in output froze a run); a partial last line waits; the portal reads by byte
   offset instead of re-parsing the file on every poll; summaries are cached by size and mtime.
-- [ ] R2 One run at a time for real: a lock file per pipeline, taken atomically by whoever starts the run (portal, CLI,
+- [x] R2 One run at a time for real: a lock file per pipeline, taken atomically by whoever starts the run (portal, CLI,
   scheduler) and adopted by the runner; a lock whose process is gone is stale.
 - [ ] R3 A runner that dies still ends its run: try/finally kills the running steps and writes run-end; SIGTERM/SIGINT
   cancel; a run without run-end whose runner is gone reads as "abandoned".
@@ -80,7 +80,11 @@ Strict, ON. Runner: `python3 -m unittest python.tests.test_pipelines python.test
 - 2026-11-08: plan written after the independent review and the user's answers on DAG, reuse, modes and schedules.
 - 2026-11-08: R1 inline. RED: U+2028/NEL output hid run-end; `read_from` missing; the portal test on byte offsets.
   GREEN. The UI's switch from a count to `next` is a protocol change its test fixture cannot tell apart (no RED).
+- 2026-11-08: R2 inline. RED: lock module missing, three concurrent POSTs gave 202 three times, the CLI ran twice. A
+  first fix still let two through (a fresh lock read as empty and stale); unreadable locks are stale only after 5 s.
+  A run without run-end whose runner holds no lock reads "abandoned" (portal mark ⚠, counted as failed; RED seen).
 
 ## Next step
 
-R2: failing test for three concurrent run requests.
+D1: config for ids, needs, blocks, sub-pipelines and modes (failing validation tests first); then the runner rewrite
+that carries R3, R4, R6, R7, R8 and D2 together.

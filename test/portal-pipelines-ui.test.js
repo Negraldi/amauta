@@ -22,7 +22,8 @@ const LIST = { available: true, projects: [
         { run: 'weekly-0.jsonl', status: 'ok', started: '2026-11-01T10:00:00+00:00', seconds: 1.4, trigger: 'portal', failure: null, steps: [], outputs: [] }] },
     { id: 'monthly', name: 'Monthly close', description: '', category: 'Finance', steps: ['Close'], types: ['r'], typical: null,
       schedule: { at: '06:00', day_of_month: 1 }, schedule_state: 'never', last: null, history: [] }] },
-  { name: 'other', path: '/work/other', trusted: false, error: null, pipelines: [{ id: 'p', name: 'P', description: '', steps: ['S'], last: null }] },
+  { name: 'other', path: '/work/other', trusted: false, error: null, pipelines: [{ id: 'p', name: 'P', description: '', steps: ['S'],
+    last: { status: 'abandoned', started: '2026-11-07T10:00:00+00:00', seconds: null, trigger: 'cli', run: 'p-1.jsonl' } }] },
 ] };
 const EVENTS = [
   { kind: 'run-start', pipeline: 'weekly', steps: ['Extract', 'Report'] },
@@ -157,7 +158,7 @@ test('a summary line counts what needs attention', async () => {
   const { view } = await boot();
   const summary = tree(view).find((e) => e.className === 'pipe-summary');
   assert.match(summary.textContent, /3 pipelines/);
-  assert.match(summary.textContent, /1 failed last time/);
+  assert.match(summary.textContent, /2 failed last time/, 'an abandoned run counts');
   assert.match(summary.textContent, /1 missed a scheduled run/);
 });
 
@@ -229,6 +230,6 @@ test('check reports what would stop a run, without running it', async () => {
 test('the home page carries the same summary, linked to the tab', async () => {
   const { view } = await boot((env) => { env.location.hash = '#/'; });
   const rail = tree(view).find((e) => e.tagName === 'aside');
-  assert.match(rail.textContent, /3 pipelines · 1 failed last time/);
+  assert.match(rail.textContent, /3 pipelines · 2 failed last time/);
   assert.ok(tree(rail).some((e) => e.tagName === 'a' && e.attrs.href === '#/pipelines'));
 });
