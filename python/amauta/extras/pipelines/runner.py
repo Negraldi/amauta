@@ -100,16 +100,20 @@ def _run_step(i, step, repo, python, ev, cancel):
     return stop["why"] or ("ok" if proc.returncode == 0 else "failed")
 
 
-def run(repo, pipeline_id, events, python=None, on_line=None):
+def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger="cli"):
+    """`only`: run just that step (0-based), the others are skipped. `trigger`: cli, portal or schedule (shown in the portal)."""
     pipeline = next((p for p in config.load(repo) if p["id"] == pipeline_id), None)
     if pipeline is None:
         raise config.ConfigError(f"no pipeline {pipeline_id!r} in {config.FILE}")
+    if only is not None and not 0 <= only < len(pipeline["steps"]):
+        raise config.ConfigError(f"{pipeline_id} has no step {only + 1}")
     python = python or shutil.which("python3") or shutil.which("python") or sys.executable
     ev, cancel = _Events(events, on_line), cancel_path(events)
-    ev.emit("run-start", pipeline=pipeline_id, name=pipeline["name"], steps=[s["name"] for s in pipeline["steps"]])
+    names = [s["name"] for s in pipeline["steps"]]
+    ev.emit("run-start", pipeline=pipeline_id, name=pipeline["name"], steps=names, trigger=trigger, only=only)
     status, t0 = "ok", time.monotonic()
     for i, step in enumerate(pipeline["steps"]):
-        if status != "ok" or not step["enabled"]:
+        if status != "ok" or (only is None and not step["enabled"]) or (only is not None and i != only):
             ev.emit("step-end", step=i, name=step["name"], status="skipped", seconds=0)
             continue
         ev.emit("step-start", step=i, name=step["name"])

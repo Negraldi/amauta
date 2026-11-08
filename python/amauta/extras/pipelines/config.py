@@ -1,6 +1,6 @@
 """`.amauta/pipelines.json`: the pipelines a project defines (plan S1a, ADR 0010).
 
-{"pipelines": [{"id", "name", "description", "steps": [{"name", "type", ...}]}]}. Step types: `command` (`argv`, a list,
+{"pipelines": [{"id", "name", "description", "category", "steps": [{"name", "type", ...}]}]}. Step types: `command` (`argv`, a list,
 never a shell string), `python` and `r` (`script`, `args`, optional `interpreter`), `notebook` (`path`). Paths are
 relative to the project and stay inside it. `timeout` (seconds, default 3600), `enabled` (default true) and `cwd` are
 optional. A definition that holds a secret-like value is refused: credentials belong to the scripts' own config.
@@ -70,6 +70,7 @@ def parse(data):
         if not isinstance(steps, list) or not steps:
             raise ConfigError(f"{p['id']}: steps must be a non-empty list")
         out.append({"id": p["id"], "name": str(p.get("name") or p["id"])[:120], "description": str(p.get("description") or "")[:500],
+                    "category": str(p.get("category") or "")[:40],
                     "steps": [_step(i, s) for i, s in enumerate(steps)]})
     return out
 

@@ -46,5 +46,6 @@ def last_runs(state_dir, repo):
         if start is None:
             continue
         end = next((e for e in reversed(events) if e.get("kind") == "run-end"), None)
-        out[start["pipeline"]] = {"status": end["status"] if end else "running", "events": str(f), "started": start["t"]}
+        out[start["pipeline"]] = {"status": end["status"] if end else "running", "events": str(f), "started": start["t"],
+                                  "seconds": end.get("seconds") if end else None, "trigger": start.get("trigger", "cli")}
     return out

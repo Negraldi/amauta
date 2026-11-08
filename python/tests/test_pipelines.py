@@ -152,10 +152,10 @@ class ScheduleHintTest(Base):
         win = schedule.hint("windows", self.repo, "weekly", "07:30", "mon", node=r"C:\\Program Files\\nodejs\\node.exe", bin_=r"C:\\amauta\\bin\\amauta.js")
         self.assertIn('schtasks /Create /TN "amauta weekly"', win)
         self.assertIn("/SC WEEKLY /D MON /ST 07:30", win)
-        self.assertIn("pipeline run weekly --cwd", win)
+        self.assertIn("pipeline run weekly --trigger schedule --cwd", win)
         cron = schedule.hint("linux", self.repo, "weekly", "07:30", None, node=node, bin_=bin_)
         self.assertTrue(cron.splitlines()[-1].startswith("30 7 * * * "), cron)
-        self.assertIn(f"'{node}' '{bin_}' pipeline run weekly --cwd '{self.repo}'", cron)
+        self.assertIn(f"'{node}' '{bin_}' pipeline run weekly --trigger schedule --cwd '{self.repo}'", cron)
         mac = schedule.hint("darwin", self.repo, "weekly", "07:30", "fri", node=node, bin_=bin_)
         self.assertIn("<key>Weekday</key><integer>5</integer>", mac)
         self.assertIn("<string>pipeline</string>", mac)
@@ -177,3 +177,27 @@ class ScheduleHintTest(Base):
             code = main(["schedule-hint", "weekly", "--at", "06:15", "--cwd", str(self.repo), "--state-dir", str(self.state), "--os", "linux"])
         self.assertEqual(code, 0)
         self.assertIn("15 6 * * *", out.getvalue())
+
+
+class DesignTest(Base):
+    """The orchestrator's interface as reference (plan S1b'): categories, run one step, trigger and duration."""
+
+    def test_category_one_step_and_the_run_summary(self):
+        self.define({"id": "p", "name": "P", "category": "Sales", "steps": [
+            {"name": "A", "type": "command", "argv": [PY, "-c", "print('a')"]},
+            {"name": "B", "type": "command", "argv": [PY, "-c", "print('b')"]}]})
+        self.assertEqual(config.load(self.repo)[0]["category"], "Sales")
+        events = self.root / "one.jsonl"
+        self.assertEqual(runner.run(self.repo, "p", events, python=PY, only=1, trigger="portal"), 0)
+        ev = self.events(events)
+        self.assertEqual(ev[0]["trigger"], "portal")
+        self.assertEqual([(e["name"], e["status"]) for e in ev if e["kind"] == "step-end"], [("A", "skipped"), ("B", "ok")])
+        self.assertEqual([e["text"] for e in ev if e["kind"] == "line"], ["b"])
+        with self.assertRaises(config.ConfigError):
+            runner.run(self.repo, "p", self.root / "bad.jsonl", python=PY, only=5)
+        from python.amauta.extras.pipelines import store
+        f = store.new_run(self.state, self.repo, "p")
+        runner.run(self.repo, "p", f, python=PY, trigger="schedule")
+        last = store.last_runs(self.state, self.repo)["p"]
+        self.assertEqual((last["status"], last["trigger"]), ("ok", "schedule"))
+        self.assertIsInstance(last["seconds"], float)

@@ -36,12 +36,13 @@ def hint(system, repo, pipeline_id, at, day, node=None, bin_=None):
     name, repo = f"amauta {pipeline_id}", str(repo)
     if system == "windows":
         when = f"/SC WEEKLY /D {DAYS[dow].upper()}" if dow is not None else "/SC DAILY"
-        run = f'\\"{node}\\" \\"{bin_}\\" pipeline run {pipeline_id} --cwd \\"{repo}\\"'
+        run = f'\\"{node}\\" \\"{bin_}\\" pipeline run {pipeline_id} --trigger schedule --cwd \\"{repo}\\"'
         return ("# Task Scheduler: run once in a terminal (schtasks /Delete /TN \"amauta ...\" removes it)\n"
                 f'schtasks /Create /TN "{name}" {when} /ST {hour:02d}:{minute:02d} /TR "{run}"')
     if system == "darwin":
         label = f"local.amauta.{pipeline_id}"
-        args = "".join(f"<string>{escape(a)}</string>" for a in (node, bin_, "pipeline", "run", pipeline_id, "--cwd", repo))
+        argv = (node, bin_, "pipeline", "run", pipeline_id, "--trigger", "schedule", "--cwd", repo)
+        args = "".join(f"<string>{escape(a)}</string>" for a in argv)
         cal = f"<key>Hour</key><integer>{hour}</integer><key>Minute</key><integer>{minute}</integer>"
         cal += f"<key>Weekday</key><integer>{dow}</integer>" if dow is not None else ""
         plist = (f'<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>Label</key><string>{label}</string>'
@@ -49,4 +50,5 @@ def hint(system, repo, pipeline_id, at, day, node=None, bin_=None):
         return (f"# launchd: save as ~/Library/LaunchAgents/{label}.plist, then: launchctl load ~/Library/LaunchAgents/{label}.plist\n"
                 + plist)
     return ("# cron: add with `crontab -e` (runs while you are logged in or the machine is on)\n"
-            f"{minute} {hour} * * {dow if dow is not None else '*'} {_sh(node)} {_sh(bin_)} pipeline run {pipeline_id} --cwd {_sh(repo)}")
+            f"{minute} {hour} * * {dow if dow is not None else '*'} "
+            f"{_sh(node)} {_sh(bin_)} pipeline run {pipeline_id} --trigger schedule --cwd {_sh(repo)}")

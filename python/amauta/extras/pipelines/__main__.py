@@ -28,6 +28,8 @@ def main(argv=None):
     r.add_argument("id")
     r.add_argument("--python", help="interpreter for python steps (default: python3 on PATH)")
     r.add_argument("--events", help="events file (default: a new file in the state directory)")
+    r.add_argument("--step", type=int, help="run only this step (1-based)")
+    r.add_argument("--trigger", choices=("cli", "portal", "schedule"), default="cli", help="who started the run (shown in the portal)")
     sub.add_parser("status", parents=[common]).add_argument("--json", action="store_true")
     sub.add_parser("cancel", parents=[common]).add_argument("id")
     h = sub.add_parser("schedule-hint", parents=[common], help="print the OS scheduler entry (amauta registers nothing)")
@@ -62,7 +64,9 @@ def _run(a, state, repo):
         return 0
     if a.cmd == "run":
         events = Path(a.events) if a.events else store.new_run(state, repo, a.id)
-        code = runner.run(repo, a.id, events, python=a.python, on_line=lambda name, text: print(f"[{name}] {text}", flush=True))
+        show = lambda name, text: print(f"[{name}] {text}", flush=True)  # noqa: E731
+        only = a.step - 1 if a.step else None
+        code = runner.run(repo, a.id, events, python=a.python, on_line=show, only=only, trigger=a.trigger)
         print(f"{a.id}: {['ok', 'failed'][code == 1] if code != 130 else 'cancelled'}  ({events})")
         return code
     runs = store.last_runs(state, repo)
