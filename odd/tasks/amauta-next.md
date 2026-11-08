@@ -8,7 +8,7 @@ Locator: `odd/tasks/amauta-next.md` (branch `feat/amauta-next` from `main` `b076
 1. Restructure and clean the core so it stays small, modular, commented, documented and auditable, and runs on
    Linux, macOS and native Windows.
 2. Add, rewritten or adapted through an intake record, the parts of the user's corporate harness (public-harness
-   v19-rc4 and its predecessor) and of the private agent archive that fit amauta: data security, code
+   v19-rc4 and its predecessor) and of a private agent archive that fit amauta: data security, code
    security, data skills, a communication agent with its own reviewer, analytical review, and private profiles.
 
 ## Scope
@@ -122,7 +122,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   communication: up to two rounds, a fresh reviewer each.
 - [ ] D12 Profiles: `default` profile shipped; private org profile under `<state dir>/profiles/<name>/` extending it;
   project selection; precedence project > org > default; roles only in `people/`; privacy guard on profiles.
-- [ ] D13 `amauta profile harvest` and `amauta profile import` (agent archive layout) producing a reviewable draft.
+- [ ] D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft.
 - [ ] D14 Portal Security page (counts only), settings toggles, profile shown per project; phase 2 audit; v0.6.0.
 
 ### Phase 3, sibling projects
