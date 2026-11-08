@@ -3,8 +3,7 @@ stderr merged and read line by line. Every line is redacted (secrets and identif
 and written as an event to a JSON-lines file; `on_line` sees the same text (the CLI prints it). A failed, timed-out or
 cancelled step stops the run; later steps are reported as skipped. A failed or timed-out step is tried again up to
 its `retries`, `retry_delay` seconds apart; a step that exits 0 but did not refresh each of its `outputs` has failed.
-Cancel: create `<events>.cancel`. A step's whole
-process tree is stopped (POSIX process group; `taskkill /T` on Windows).
+Cancel: create `<events>.cancel`. A step's whole process tree is stopped (POSIX process group; `taskkill /T` on Windows).
 
 Exit codes: 0 every enabled step ok, 1 a step failed or timed out, 130 cancelled.
 """
