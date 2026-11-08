@@ -2,7 +2,8 @@
 
 {"pipelines": [{"id", "name", "description", "category", "steps": [{"name", "type", ...}]}]}. Step types: `command` (`argv`, a list,
 never a shell string), `python` and `r` (`script`, `args`, optional `interpreter`), `notebook` (`path`). Paths are
-relative to the project and stay inside it. `timeout` (seconds, default 3600), `enabled` (default true) and `cwd` are
+relative to the project and stay inside it. `timeout` (seconds, default 3600), `enabled` (default true), `cwd`,
+`retries` (0-5, default 0) with `retry_delay` (seconds, default 30) and `outputs` (files the step must refresh) are
 optional. A definition that holds a secret-like value is refused: credentials belong to the scripts' own config.
 """
 
@@ -17,6 +18,8 @@ FILE = Path(".amauta") / "pipelines.json"
 ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,60}$")
 TYPES = {"command", "python", "r", "notebook"}
 MAX_TIMEOUT = 24 * 3600
+MAX_RETRIES = 5
+MAX_RETRY_DELAY = 3600
 
 
 class ConfigError(ValueError):
@@ -31,6 +34,13 @@ def _inside(rel, what):
     return rel
 
 
+def _int(s, key, default, low, high, i):
+    value = s.get(key, default)
+    if type(value) is not int or not low <= value <= high:
+        raise ConfigError(f"step {i + 1}: {key} must be a whole number from {low} to {high}")
+    return value
+
+
 def _step(i, s):
     if not isinstance(s, dict) or s.get("type") not in TYPES:
         raise ConfigError(f"step {i + 1}: type must be one of {', '.join(sorted(TYPES))}")
@@ -40,6 +50,12 @@ def _step(i, s):
         raise ConfigError(f"step {i + 1}: timeout must be 1 to {MAX_TIMEOUT} seconds")
     out["timeout"] = timeout
     out["cwd"] = _inside(s["cwd"], f"step {i + 1}: cwd") if "cwd" in s else "."
+    out["retries"] = _int(s, "retries", 0, 0, MAX_RETRIES, i)
+    out["retry_delay"] = _int(s, "retry_delay", 30, 0, MAX_RETRY_DELAY, i)
+    outputs = s.get("outputs", [])
+    if not isinstance(outputs, list):
+        raise ConfigError(f"step {i + 1}: outputs must be a list of paths")
+    out["outputs"] = [_inside(o, f"step {i + 1}: output") for o in outputs]
     if s["type"] == "command":
         argv = s.get("argv")
         if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):

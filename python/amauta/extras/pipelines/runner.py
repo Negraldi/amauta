@@ -1,7 +1,9 @@
 """Run one pipeline (plan S1a, ADR 0010): steps in order, each a process started without a shell, its stdout and
 stderr merged and read line by line. Every line is redacted (secrets and identifiers, through the detector catalog)
 and written as an event to a JSON-lines file; `on_line` sees the same text (the CLI prints it). A failed, timed-out or
-cancelled step stops the run; later steps are reported as skipped. Cancel: create `<events>.cancel`. A step's whole
+cancelled step stops the run; later steps are reported as skipped. A failed or timed-out step is tried again up to
+its `retries`, `retry_delay` seconds apart; a step that exits 0 but did not refresh each of its `outputs` has failed.
+Cancel: create `<events>.cancel`. A step's whole
 process tree is stopped (POSIX process group; `taskkill /T` on Windows).
 
 Exit codes: 0 every enabled step ok, 1 a step failed or timed out, 130 cancelled.
@@ -100,6 +102,44 @@ def _run_step(i, step, repo, python, ev, cancel, env):
     return stop["why"] or ("ok" if proc.returncode == 0 else "failed")
 
 
+def _check_outputs(i, step, repo, since, ev):
+    """[{path, bytes, modified}] when every output was written after `since`; None (after saying why) otherwise."""
+    found = []
+    for rel in step["outputs"]:
+        f = Path(repo) / rel
+        if not f.is_file():
+            ev.line(i, step["name"], f"{rel} was not written")
+            return None
+        st = f.stat()
+        if st.st_mtime < since - 1:  # one second of slack for coarse file system clocks
+            ev.line(i, step["name"], f"{rel} was not updated by this step")
+            return None
+        modified = datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds")
+        found.append({"path": rel, "bytes": st.st_size, "modified": modified})
+    return found
+
+
+def _attempts(i, step, repo, python, ev, cancel, env):
+    """Run the step, retrying a failure or timeout; returns (status, attempts, outputs)."""
+    attempt = 1
+    while True:
+        since = time.time()
+        result = _run_step(i, step, repo, python, ev, cancel, env)
+        outputs = _check_outputs(i, step, repo, since, ev) if result == "ok" else None
+        if result == "ok" and outputs is None:
+            result = "failed"
+        if result == "ok" or result == "cancelled" or attempt > step["retries"]:
+            return result, attempt, outputs or []
+        attempt += 1
+        ev.emit("step-retry", step=i, name=step["name"], attempt=attempt, of=step["retries"] + 1, delay=step["retry_delay"])
+        ev.line(i, step["name"], f"retrying in {step['retry_delay']} s (attempt {attempt} of {step['retries'] + 1})")
+        deadline = time.monotonic() + step["retry_delay"]
+        while time.monotonic() < deadline:
+            if cancel.exists():
+                return "cancelled", attempt - 1, []
+            time.sleep(0.2)
+
+
 def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger="cli"):
     """`only`: run just that step (0-based), the others are skipped. `trigger`: cli, portal or schedule (shown in the portal)."""
     pipeline = next((p for p in config.load(repo) if p["id"] == pipeline_id), None)
@@ -119,8 +159,9 @@ def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger
         ev.emit("step-start", step=i, name=step["name"])
         s0 = time.monotonic()
         env = {**os.environ, "AMAUTA_PIPELINE": pipeline_id, "AMAUTA_PIPELINE_TRIGGER": trigger, "AMAUTA_PIPELINE_STEP": str(i + 1)}
-        result = _run_step(i, step, repo, python, ev, cancel, env)
-        ev.emit("step-end", step=i, name=step["name"], status=result, seconds=round(time.monotonic() - s0, 1))
+        result, attempts, outputs = _attempts(i, step, repo, python, ev, cancel, env)
+        ev.emit("step-end", step=i, name=step["name"], status=result, seconds=round(time.monotonic() - s0, 1),
+                attempts=attempts, outputs=outputs)
         if result != "ok":
             status = "cancelled" if result == "cancelled" else "failed"
     ev.emit("run-end", status=status, seconds=round(time.monotonic() - t0, 1))

@@ -4,6 +4,7 @@ becomes an event (secrets redacted); a failed step stops the run; timeouts and c
 
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -211,3 +212,55 @@ class DesignTest(Base):
         self.assertEqual(runner.run(self.repo, "p", events, python=PY, trigger="schedule"), 0)
         self.assertIn("p schedule 2", [e["text"] for e in self.events(events) if e["kind"] == "line"])
 
+
+
+class ReliabilityTest(Base):
+    """A transient failure retries on its own; a step that claims success must have refreshed the files it names."""
+
+    def setUp(self):
+        super().setUp()
+        flaky = "import pathlib, sys\nc = pathlib.Path('count.txt')\nn = int(c.read_text()) + 1 if c.exists() else 1\n"
+        flaky += "c.write_text(str(n))\nprint('attempt', n)\nsys.exit(0 if n >= int(sys.argv[1]) else 1)\n"
+        (self.repo / "etl" / "flaky.py").write_text(flaky)
+        (self.repo / "etl" / "write.py").write_text("import pathlib\npathlib.Path('out').mkdir(exist_ok=True)\npathlib.Path('out/a.csv').write_text('x,y\\n1,2\\n')\n")
+        (self.repo / "etl" / "noop.py").write_text("print('did nothing')\n")
+
+    def run_events(self, pid):
+        events = self.root / f"{pid}-{time.time_ns()}.jsonl"
+        return runner.run(self.repo, pid, events, python=PY), self.events(events)
+
+    def test_retries_until_ok_or_spent(self):
+        step = {"name": "Flaky", "type": "python", "script": "etl/flaky.py", "args": ["3"], "retries": 2, "retry_delay": 0}
+        self.define({"id": "p", "steps": [step]})
+        code, ev = self.run_events("p")
+        self.assertEqual(code, 0)
+        self.assertEqual([e["attempt"] for e in ev if e["kind"] == "step-retry"], [2, 3])
+        self.assertEqual(ev[-2]["attempts"], 3)
+        (self.repo / "count.txt").unlink()
+        self.define({"id": "p", "steps": [{**step, "retries": 1}]})
+        code, ev = self.run_events("p")
+        self.assertEqual(code, 1)
+        self.assertEqual((ev[-2]["status"], ev[-2]["attempts"]), ("failed", 2))
+
+    def test_outputs_must_be_refreshed_by_the_step(self):
+        self.define({"id": "w", "steps": [{"name": "Write", "type": "python", "script": "etl/write.py", "outputs": ["out/a.csv"]}]},
+                    {"id": "n", "steps": [{"name": "Noop", "type": "python", "script": "etl/noop.py", "outputs": ["out/a.csv"]}]},
+                    {"id": "m", "steps": [{"name": "Noop", "type": "python", "script": "etl/noop.py", "outputs": ["out/missing.csv"]}]})
+        code, ev = self.run_events("w")
+        self.assertEqual(code, 0)
+        self.assertEqual([(o["path"], o["bytes"]) for o in ev[-2]["outputs"]], [("out/a.csv", 8)])
+        old = time.time() - 3600
+        os.utime(self.repo / "out" / "a.csv", (old, old))
+        code, ev = self.run_events("n")
+        self.assertEqual((code, ev[-2]["status"]), (1, "failed"))
+        self.assertTrue(any("out/a.csv was not updated" in e.get("text", "") for e in ev))
+        code, ev = self.run_events("m")
+        self.assertTrue(any("out/missing.csv was not written" in e.get("text", "") for e in ev))
+
+    def test_bad_retry_and_output_fields_are_refused(self):
+        base = {"type": "command", "argv": ["x"]}
+        for extra in ({"retries": -1}, {"retries": 6}, {"retries": "2"}, {"retry_delay": 4000}, {"outputs": "out/a.csv"},
+                      {"outputs": ["/etc/passwd"]}, {"outputs": ["../x"]}):
+            self.define({"id": "a", "steps": [{**base, **extra}]})
+            with self.assertRaises(config.ConfigError, msg=str(extra)):
+                config.load(self.repo)
