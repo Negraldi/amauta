@@ -44,3 +44,14 @@ Contracts live outside `odd/tasks/` so task files keep this format.
 An edit of `odd/tasks/*.md` that checks an item off (compared with the committed version) is refused while the changed
 files of the repository have errors the checks engine sees (the same findings as the Stop check, see
 [hooks.md](hooks.md)). Fix the errors, or leave the task open (plan D8, ADR 0006).
+
+## Lenses and deliverables (ADR 0008)
+
+- Approved results live in `odd/contracts/<feature>/`; deliverables for other people in `odd/deliverables/<feature>/`,
+  written by the `chasqui` agent from those results only; review packs in `odd/reviews/<feature>/<kind>-<n>/`.
+- `amauta review numbers --feature F` checks that every number in a text deliverable exists in the approved results at
+  the precision shown (exit 1 otherwise); binary files are listed as not checked. The Stop check also validates the
+  Mermaid fences and looks for secrets in changed deliverables.
+- `amauta review pack --feature F --kind analytical|communication` writes the pack a fresh lens reads: `taripaq` for
+  the analysis (one round plus a delta re-check), `haravec` for a deliverable (up to two rounds, a new reviewer each).
+  The lenses run even with code review off; `Lenses: off` in the task file turns them off for that feature.

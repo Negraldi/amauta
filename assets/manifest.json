@@ -64,6 +64,10 @@
       "toolsLocked": true
     },
     {
+      "name": "haravec",
+      "modelKey": "haravec"
+    },
+    {
       "name": "jd-fix-agent",
       "modelKey": "jd-fix-agent"
     },
@@ -94,6 +98,10 @@
     {
       "name": "review-risk",
       "modelKey": "default"
+    },
+    {
+      "name": "taripaq",
+      "modelKey": "taripaq"
     }
   ],
   "agentsDir": "core/agents",

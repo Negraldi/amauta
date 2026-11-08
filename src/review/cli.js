@@ -2,6 +2,9 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { assess } from './assess.js';
 import { modeStatus, setMode } from './mode.js';
+import { checkNumbers } from './numbers.js';
+import { buildPack } from './pack.js';
+import { repoRoot } from '../util/git.js';
 import { collectSkills, refreshRegistry } from '../registry/skill-registry.js';
 import { resolveTargets } from '../install/paths.js';
 
@@ -71,12 +74,33 @@ const reviewMode = async (v, [action], io) => {
   io.stdout.write(`receipt-driven development: ${s.effective} (decided by ${s.source})\n`);
 };
 
+// The lenses (plan D11): a pack for a fresh reviewer, and the number-fidelity check on its own.
+const reviewPack = async (v, io) => {
+  const { file, outside, unmatched } = await buildPack({ cwd: cwdOf(v), feature: v.feature, kind: v.kind ?? 'analytical' });
+  io.stdout.write(`${file}\n${unmatched.length} unmatched number${unmatched.length === 1 ? '' : 's'}`
+    + (outside.length ? `, ${outside.length} changed path${outside.length === 1 ? '' : 's'} outside the deliverables folder` : '') + '\n');
+};
+
+const reviewNumbers = async (v, io) => {
+  const root = await repoRoot(cwdOf(v));
+  const valid = /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v.feature ?? '') && !v.feature.includes('..');
+  if (!root || !valid) throw new Error('usage: amauta review numbers --feature NAME [--cwd DIR]');
+  const r = await checkNumbers(root, v.feature);
+  for (const u of r.unmatched) io.stdout.write(`${u.file}:${u.line}: ${u.text} not in the approved results\n`);
+  for (const f of r.skipped) io.stdout.write(`${f}: not checked (binary)\n`);
+  io.stdout.write(`${r.checked} checked, ${r.unmatched.length} unmatched\n`);
+  return r.unmatched.length ? 1 : 0;
+};
+
 const review = guard(
-  { 'base-ref': { type: 'string' }, 'committed-only': { type: 'boolean' }, json: { type: 'boolean' }, scope: { type: 'string' } },
+  { 'base-ref': { type: 'string' }, 'committed-only': { type: 'boolean' }, json: { type: 'boolean' }, scope: { type: 'string' },
+    feature: { type: 'string' }, kind: { type: 'string' } },
   async (v, [sub, action], io) => {
     if (sub === 'assess') return reviewAssess(v, io);
     if (sub === 'mode') return reviewMode(v, [action], io);
-    throw new Error('usage: amauta review <assess|mode>');
+    if (sub === 'pack') return reviewPack(v, io);
+    if (sub === 'numbers') return reviewNumbers(v, io);
+    throw new Error('usage: amauta review <assess|mode|pack|numbers>');
   },
 );
 

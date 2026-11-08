@@ -40,3 +40,18 @@ export async function resolveCommit(cwd, ref) {
   const out = await git(cwd, ['rev-parse', '--verify', `${ref}^{commit}`]);
   return out.trim();
 }
+
+/** Changed paths of the working tree relative to its root: modified, added, renamed and untracked; not deleted. */
+export async function changedPaths(root) {
+  const out = await gitOrNull(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  if (out === null) return [];
+  const parts = out.split('\0');
+  const paths = [];
+  for (let i = 0; i < parts.length; i++) {
+    const entry = parts[i];
+    if (entry.length < 4) continue;
+    if (entry[0] === 'R' || entry[0] === 'C') i++; // the next part is the old name
+    if (entry[0] !== 'D' && entry[1] !== 'D') paths.push(entry.slice(3));
+  }
+  return paths;
+}

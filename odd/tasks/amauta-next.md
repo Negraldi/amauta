@@ -117,7 +117,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   rename), `exploratory-data-diagnosis`, institutional and editorial skills; all through intake records.
 - [x] D10 `communicator` agent (bounded writer to the task's deliverables folder; measure requests with a fixed format,
   up to three cycles; presentation measures only over approved measures, checked).
-- [ ] D11 Review lenses `analytical` and `communication`, `amauta review pack` (mechanical), number-fidelity and render
+- [x] D11 Review lenses `analytical` and `communication`, `amauta review pack` (mechanical), number-fidelity and render
   checks; both lenses run in their case even with code review off; analytical: one round plus delta re-check;
   communication: up to two rounds, a fresh reviewer each.
 - [ ] D12 Profiles: `default` profile shipped; private org profile under `<state dir>/profiles/<name>/` extending it;
@@ -307,6 +307,12 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   instruction plus the review pack's check of changed paths (D11): Claude Code hooks do not say which subagent made a
   call, so a hook cannot enforce it. RED seen.
 
+- 2026-11-08: D11 done: agents `taripaq` (analytical lens, sonnet by default) and `haravec` (communication lens, opus
+  by default: a model other than chasqui's), both Read/Glob/Grep with a fixed verdict line; `amauta review pack`
+  (criteria, results, deliverables, changed paths, paths changed outside the deliverables folder, number fidelity) and
+  `amauta review numbers`; the orchestrator block runs the lenses even with code review off unless `Lenses: off`.
+  The render check is the Stop check over changed deliverables (Mermaid fences, secrets). RED seen.
+
 ## Next step
 
-Phase 2c: D11 lenses `taripaq` and `haravec`, `amauta review pack`, number-fidelity check. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D12 profiles (default shipped, private org profile in the state dir, project selection, privacy guard). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

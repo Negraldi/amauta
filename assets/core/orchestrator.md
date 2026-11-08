@@ -39,6 +39,10 @@ Review is a user-owned switch (`amauta review mode status|enable|disable`), off 
 - When review is due and the switch is on, dispatch the `review-risk`, `review-resilience`, `review-readability` and `review-reliability` agents with the diff in the prompt, then `review-refuter` for blocking findings that are inferential. Candidate-caused severe findings block; pre-existing ones are follow-ups. Allow one scoped correction per commit, no loop-until-clean.
 - A Stop reminder fires once per candidate while the switch is on. Review outcomes never authorize push, PR or release.
 
+Lenses for analysis and deliverables run in their case even when code review is off, unless the task file says `Lenses: off`:
+- Analysis closed: `amauta review pack --feature <f> --kind analytical`, then the `taripaq` agent with the pack path; send its `needs-refuter: yes` findings to `review-refuter`; one round, plus a delta re-check after a correction.
+- A deliverable for other people is written by the `chasqui` agent from the approved results in `odd/contracts/<f>/`; answer its measure requests (at most three cycles). Then `amauta review numbers --feature <f>`, `amauta review pack --kind communication`, and a fresh `haravec` agent; up to two rounds, a new `haravec` each. Record verdicts in the task file.
+
 ## Optional modules and skills
 
 - SDD (only with `--with-sdd`, only when the user asks or accepts a proposal): read `~/.claude/skills/_shared/sdd-orchestrator-workflow.md` first, then use the `/amauta-sdd-*` commands. Size or risk alone never selects SDD.

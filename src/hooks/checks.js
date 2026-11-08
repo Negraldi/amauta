@@ -14,6 +14,7 @@ import { baselineFindings, checkFile, checkersFor, formatFinding, newFindings, r
 import { applicable, projectFindings } from '../checks/project.js';
 import { SAFE_CHECKERS } from '../checks/safe.js';
 import { isTrusted, projectRoot } from '../checks/trust.js';
+import { changedPaths } from '../util/git.js';
 import { mermaidChecker } from '../mermaid/check.js';
 
 export const EDIT_TOOLS = { Edit: 'file_path', Write: 'file_path', MultiEdit: 'file_path', NotebookEdit: 'notebook_path' };
@@ -72,19 +73,7 @@ async function oddRule(file, ctx) {
 }
 
 /** Changed files of the repository (modified, added, untracked; not deleted), as absolute paths. */
-async function changedFiles(root) {
-  const r = await run('git', ['-C', root, 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { timeoutMs: 10000 });
-  if (!r || r.code !== 0) return [];
-  const parts = r.stdout.split('\0');
-  const out = [];
-  for (let i = 0; i < parts.length; i++) {
-    const entry = parts[i];
-    if (entry.length < 4) continue;
-    if (entry[0] === 'R' || entry[0] === 'C') i++; // the next part is the old name
-    if (entry[0] !== 'D' && entry[1] !== 'D') out.push(path.join(root, entry.slice(3)));
-  }
-  return out;
-}
+const changedFiles = async (root) => (await changedPaths(root)).map((p) => path.join(root, p));
 
 /** The Stop check's findings over every changed file: { findings, hint }. */
 async function repoFindings(root, ctx) {
