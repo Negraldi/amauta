@@ -223,3 +223,31 @@ class RobustRunTest(Run):
         texts = [e["text"] for e in ev if e["kind"] == "line"]
         self.assertNotIn("Q" * 40, json.dumps(ev))
         self.assertEqual(texts[-1], "after")
+
+
+class LoopTest(Base):
+    """Loops between pipelines (the user's worry: A runs B and B runs A) never run forever."""
+
+    def test_loops_in_the_definition_are_refused_when_the_file_is_read(self):
+        use = lambda p: {"type": "pipeline", "pipeline": p}  # noqa: E731
+        self.refused({"id": "a", "steps": [use("a")]}, msg="A uses A")
+        self.refused({"id": "a", "steps": [use("b")]}, {"id": "b", "steps": [CMD("1"), use("c")]}, {"id": "c", "steps": [use("a")]},
+                     msg="A > B > C > A")
+        self.define({"id": "a", "steps": [use("b")]}, {"id": "b", "steps": [use("a")]})
+        with self.assertRaisesRegex(config.ConfigError, "loop: a > b > a"):
+            config.load(self.repo)
+
+    def test_a_loop_closed_at_run_time_stops_at_the_lock(self):
+        import shutil
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        cli = [node, str(Path(__file__).resolve().parents[2] / "bin" / "amauta.js"), "pipeline", "run"]
+        tail = ["--cwd", str(self.repo), "--state-dir", self.tmp.name]
+        self.define({"id": "a", "steps": [{"type": "command", "argv": cli + ["b"] + tail}]},
+                    {"id": "b", "steps": [{"type": "command", "argv": cli + ["a"] + tail}]})
+        t0 = time.time()
+        r = subprocess.run(cli + ["a"] + tail, capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("a is already running", r.stdout + r.stderr)
+        self.assertLess(time.time() - t0, 30)
