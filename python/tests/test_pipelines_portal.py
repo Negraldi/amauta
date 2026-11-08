@@ -247,6 +247,24 @@ class PortalPointsTest(Base):
         self.assertIn("--expect-sha256", seen["argv"])
         self.assertEqual(seen["env"]["AMAUTA_USER_PYTHONPATH"], "/my/own")
 
+    @unittest.skipIf(sys.platform == "win32", "SIGKILL")
+    def test_a_killed_runner_does_not_block_the_next_run(self):
+        import os
+        import signal
+        self.trust()
+        status, body = pp.run(self.portal, {"project": str(self.repo), "id": "slow"})
+        self.assertEqual(status, 202)
+        lockfile = pp.store.runs_dir(self.state, self.repo) / "slow.lock"
+        deadline = time.time() + 15
+        while time.time() < deadline and not (lockfile.exists() and '"starting": false' in lockfile.read_text()):
+            time.sleep(0.1)
+        os.kill(json.loads(lockfile.read_text())["pid"], signal.SIGKILL)  # the runner, not its step
+        time.sleep(0.5)
+        status, again = pp.run(self.portal, {"project": str(self.repo), "id": "slow"})
+        self.assertEqual(status, 202, again)
+        pp.cancel(self.portal, {"project": str(self.repo), "run": again["run"]})
+        self.wait_end(again["run"])
+
     def test_events_refuse_a_path_instead_of_a_run_name(self):
         r = pp.events(self.portal, {"project": str(self.repo), "run": "../../etc/passwd", "after": "0"})
         self.assertEqual(r, {"events": [], "done": True, "error": "unknown run"})

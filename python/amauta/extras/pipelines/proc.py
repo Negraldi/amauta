@@ -113,7 +113,10 @@ def _watch(tree, timeout, cancel, done, stop):
         if tree.proc.poll() is not None and not swept:
             swept = True
             tree.sweep()  # what the step left running in the background
-        time.sleep(0.1)
+        done.wait(0.1)  # wakes as soon as the output closes: no tenth of a second added to every step
+
+
+GRACE = 2  # seconds the output may stay open after the step's processes ended or were stopped
 
 
 def run(step, repo, python, env, cancel, on_line):
@@ -134,16 +137,35 @@ def run(step, repo, python, env, cancel, on_line):
         on_line(f"cannot start {argv[0]}: {e.strerror or e}")
         return "failed"
     tree = _Tree(proc)
-    done, stop = threading.Event(), {"why": None}
+    done, stop, gone = threading.Event(), {"why": None}, threading.Event()
+    reader = threading.Thread(target=_read, args=(proc, on_line, gone, done), daemon=True)
     watcher = threading.Thread(target=_watch, args=(tree, step["timeout"], cancel, done, stop), daemon=True)
+    reader.start()
     watcher.start()
     try:
-        with proc.stdout:
-            for raw in proc.stdout:
-                on_line(raw)
+        proc.wait()  # the main process ended (by itself, or stopped by the watcher)
+        reader.join(timeout=GRACE)
+        if reader.is_alive():  # a leftover keeps the output open: stop the tree's rest, then wait a little more
+            tree.sweep()
+            reader.join(timeout=GRACE)
+        if reader.is_alive():  # a process outside the tree (its own session) still holds it: leave it
+            gone.set()
+            on_line("a process the step started still holds its output; it was left running")
     finally:
         done.set()
-        proc.wait()
         watcher.join(timeout=5)
         tree.close()  # a step owns its processes: stop what it left behind, with or without its output
     return stop["why"] or ("ok" if proc.returncode == 0 else "failed")
+
+
+def _read(proc, on_line, gone, done):
+    """Pass each output line on until the output closes, or until the step has been given up on (`gone`)."""
+    try:
+        for raw in proc.stdout:
+            if gone.is_set():
+                return
+            on_line(raw)
+    except (OSError, ValueError):
+        pass
+    finally:
+        done.set()

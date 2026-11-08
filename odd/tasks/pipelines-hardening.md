@@ -29,8 +29,18 @@ Refactors keep the suites green without changing tests' expectations (a test tha
 
 ### Third review
 
-- [ ] M4 Independent review with tests and experiments on the result of M1-M3.
-- [ ] M5 Fix what it confirms, each with a failing test first.
+- [x] M4 Independent review with tests and experiments on the result of M1-M3.
+- [ ] M5 Fix what it confirms, each with a failing test first:
+  - F1 processes: a zombie runner is dead and the portal reaps before locking (C1); no 0.1 s floor per step (C2); a
+    detached child holding the output does not hold a timeout or cancel (C3); skipped steps do not wait for a slot
+    (C7); the run's own setup sits inside its try (S4).
+  - F2 lock: `ps` read in a fixed locale and zone, start times compared only when taken the same way (C4); a damaged
+    lock is stale (C11); Windows argtypes (S1); adopt under the guard (S3); `--events` must stay in the runs folder
+    (C6).
+  - F3 store, portal and UI: run names reserved on disk (C8); retention removes logs (C9); incomplete events do not
+    break a summary (C10); duplicated launchd text (C12); replay by step id (C5); refresh after an abandoned run and
+    only from the newest request (C14); a job whose limits cannot be set is not used (S2); the portal's child
+    bookkeeping is thread safe and bounded (S5); a failed launch releases the lock (S6).
 
 ### Cleanup
 
@@ -57,8 +67,17 @@ Refactors keep the suites green without changing tests' expectations (a test tha
   the DAG suite's background-child test took 8 s, and fifty run names in a row gave seven distinct ones (the Windows
   clock repeats microseconds). macOS failed a portal test whose Popen mock also caught `ps` in pidinfo. Fixes:
   `winjob.py` (a job object per step), `proc._Tree` (group or job, one place to stop a step's processes), run names
-  bumped when taken, the portal's `_spawn` mocked instead of Popen.
+  bumped when taken, the portal's `_spawn` mocked instead of Popen. CI green on Linux, macOS and Windows (`1bc949f`).
+- 2026-11-08: M4 third independent review on `1bc949f`: 14 confirmed, 7 suspected, no flaky test in 3 runs, the
+  second review's fixes re-verified. Plus a cleanup list (duplicated helpers, five lock path derivations, dead code,
+  stale docstrings) kept for M6.
 
 ## Next step
 
-M4: launch the third independent review on the result of M1-M3.
+M5 F2: failing test for a lock read with `ps` in another time zone.
+- 2026-11-08: M5 F1 inline. RED: a zombie holder kept a lock (and a SIGKILLed portal runner gave 409 forever), 40
+  trivial steps took over 4 s, a child in its own session holding the output kept a step for its full sleep, skipped
+  steps waited for a slot, a setup error left the lock. Fixes: `pidinfo` treats a zombie as dead and reads `ps` in C
+  locale and UTC; the portal reaps before locking; `proc` reads output in a thread and gives up on it 2 s after the
+  tree was stopped (with a line saying so); `done.wait` instead of sleep; skips before slots; setup inside the try.
+

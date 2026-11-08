@@ -103,6 +103,7 @@ def run(portal, body):
     mode = body.get("mode")
     if mode is not None and mode not in pipeline["modes"]:
         return 400, {"error": f"mode must be one of: {', '.join(pipeline['modes']) or 'none (this pipeline has no modes)'}"}
+    _children[:] = [c for c in _children if c.poll() is None]  # reap ended runners first: a zombie looks alive
     events = store.new_run(portal.cfg.state_dir, repo, body["id"])
     if not lock.acquire(portal.cfg.state_dir, repo, body["id"], events.name, starting=True):  # atomic: one run at a time
         return 409, {"error": "this pipeline is already running"}

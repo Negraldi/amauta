@@ -153,10 +153,12 @@ def _schedule(pipeline, ctx, only, mode):
                 needs = [status.get(n) for n in st["needs"]]
                 if any(n is not None and n not in DONE for n in needs) or (ctx["cancel"].exists() and only is None):
                     settle(i, st, "needs" if not ctx["cancel"].exists() else "cancelled")
-                elif all(n in DONE for n in needs) and len(running) < pipeline["max_parallel"]:
-                    reason = _skip_reason(i, st, only, mode)
-                    settle(i, st, reason)
-                    if not reason:
+                elif all(n in DONE for n in needs):
+                    reason = _skip_reason(i, st, only, mode)  # a skipped step takes no slot
+                    if reason:
+                        settle(i, st, reason)
+                    elif len(running) < pipeline["max_parallel"]:
+                        settle(i, st, None)
                         running[pool.submit(_one, i, st, ctx)] = st["id"]
             if running:
                 finished, _ = wait(list(running), timeout=0.5, return_when=FIRST_COMPLETED)
@@ -198,12 +200,13 @@ def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger
     python = python or shutil.which("python3") or shutil.which("python") or sys.executable
     lock_file, name = Path(events).parent / f"{pipeline_id}.lock", Path(events).name
     lock.adopt(lock_file, name)  # Busy when another run of this pipeline is alive
-    cancel, ev, t0, status = cancel_path(events), _Events(events, on_line), time.monotonic(), "failed"
-    restore = _on_signal(cancel)
+    cancel, ev, t0, status, restore = cancel_path(events), None, time.monotonic(), "failed", lambda: None
     base = {"AMAUTA_PIPELINE": pipeline_id, "AMAUTA_PIPELINE_TRIGGER": trigger, "AMAUTA_PIPELINE_MODE": mode or ""}
     ctx = {"repo": repo, "python": python, "ev": ev, "cancel": cancel,
            "env": lambda i: proc.step_env({**base, "AMAUTA_PIPELINE_STEP": str(i + 1)})}
     try:
+        ev, restore = _Events(events, on_line), _on_signal(cancel)  # inside the try: whatever fails, the lock is released
+        ctx["ev"] = ev
         steps = pipeline["steps"]
         ev.emit("run-start", pipeline=pipeline_id, name=pipeline["name"], steps=[s["name"] for s in steps], ids=[s["id"] for s in steps],
                 needs={s["id"]: s["needs"] for s in steps}, trigger=trigger, only=only, mode=mode, pid=os.getpid())
@@ -214,8 +217,9 @@ def run(repo, pipeline_id, events, python=None, on_line=None, only=None, trigger
         status = "cancelled"
     finally:
         restore()
-        ev.emit("run-end", status=status, seconds=round(time.monotonic() - t0, 1))
-        ev.f.close()
+        if ev is not None:
+            ev.emit("run-end", status=status, seconds=round(time.monotonic() - t0, 1))
+            ev.f.close()
         cancel.unlink(missing_ok=True)
         lock.drop(lock_file, name)
     return {"ok": 0, "failed": 1, "cancelled": 130}[status]

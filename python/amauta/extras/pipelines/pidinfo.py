@@ -44,7 +44,27 @@ def alive(pid):
         return False
     except PermissionError:
         return True
-    return True
+    return not _zombie(pid)  # an exited child nobody waited for still answers signal 0
+
+
+def _zombie(pid):
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as f:
+            return f.read().rsplit(")", 1)[1].split()[0] == "Z"
+    except (OSError, IndexError):
+        pass
+    r = _ps(pid, "stat=")
+    return r is not None and r.startswith("Z")
+
+
+def _ps(pid, field):
+    """One `ps` field in a fixed locale and time zone (its dates depend on both), or None."""
+    env = {"LC_ALL": "C", "TZ": "UTC0", "PATH": os.environ.get("PATH", "/bin:/usr/bin")}
+    try:
+        r = subprocess.run(["ps", "-o", field, "-p", str(pid)], capture_output=True, text=True, timeout=5, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
 
 
 def started_at(pid):
@@ -63,8 +83,5 @@ def started_at(pid):
             return "linux:" + f.read().rsplit(")", 1)[1].split()[19]  # field 22: start time in clock ticks after boot
     except (OSError, IndexError):
         pass
-    try:
-        r = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
-        return f"ps:{r.stdout.strip()}" if r.returncode == 0 and r.stdout.strip() else None
-    except (OSError, subprocess.SubprocessError):
-        return None
+    r = _ps(pid, "lstart=")
+    return f"ps:{r}" if r else None

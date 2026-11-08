@@ -360,3 +360,62 @@ class SecondReviewStoreTest(Run):
         finally:
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+class ThirdReviewProcTest(Run):
+    """Third review, F1."""
+
+    @unittest.skipIf(sys.platform == "win32", "zombies are POSIX")
+    def test_a_zombie_holder_is_dead(self):
+        from python.amauta.extras.pipelines import lock, pidinfo
+        f = Path(self.tmp.name) / "p.lock"
+        code = f"import sys; sys.path.insert(0, {str(Path(lock.__file__).resolve().parents[3])!r}); from amauta.extras.pipelines import lock; lock.take({str(f)!r}, 'r')"
+        child = subprocess.Popen([PY, "-c", code])
+        deadline = time.time() + 10
+        while child.poll() is None and time.time() < deadline:  # poll reaps; wait for the exit without reaping instead
+            time.sleep(0.05)
+            if f.exists():
+                break
+        time.sleep(0.5)  # it has exited by now and stays a zombie: nobody waited for it
+        self.assertFalse(pidinfo.alive(child.pid), "a zombie is not alive")
+        self.assertTrue(lock.take(f, "next"))
+        child.wait()
+
+    def test_a_trivial_step_costs_no_tenth_of_a_second(self):
+        self.define({"id": "p", "steps": [CMD("pass") for _ in range(40)]})
+        t0 = time.time()
+        code, _ = self.run_events("p")
+        self.assertEqual(code, 0)
+        self.assertLess(time.time() - t0, 3.5, "40 steps")
+
+    @unittest.skipIf(sys.platform == "win32", "a new session is POSIX; Windows uses a job")
+    def test_a_detached_child_holding_the_output_does_not_hold_the_step(self):
+        leave = "import subprocess, sys; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(15)'], start_new_session=True); print('started')"
+        self.define({"id": "p", "steps": [{"id": "a", "timeout": 30, **CMD(leave)}]})
+        t0 = time.time()
+        code, ev = self.run_events("p")
+        self.assertLess(time.time() - t0, 7)
+        self.assertEqual(self.ends(ev), {"a": "ok"})
+        self.assertTrue(any("still holds its output" in e.get("text", "") for e in ev))
+        hold = leave + "; import time; time.sleep(30)"
+        self.define({"id": "p", "steps": [{"id": "a", "timeout": 1, **CMD(hold)}]})
+        t0 = time.time()
+        code, ev = self.run_events("p")
+        self.assertLess(time.time() - t0, 7)
+        self.assertEqual(self.ends(ev), {"a": "timeout"})
+
+    def test_skipped_steps_do_not_wait_for_a_slot(self):
+        off = {"enabled": False, **CMD("1")}
+        self.define({"id": "p", "max_parallel": 1, "steps": [{"id": "slow", "needs": [], **CMD("import time; time.sleep(1.5)")},
+                                                             {"id": "o1", "needs": [], **off}, {"id": "o2", "needs": [], **off}]})
+        code, ev = self.run_events("p")
+        order = [e["id"] for e in ev if e["kind"] == "step-end"]
+        self.assertEqual(order[-1], "slow", f"off steps end at once: {order}")
+
+    def test_a_setup_error_still_releases_the_lock(self):
+        from unittest import mock
+        self.define({"id": "p", "steps": [CMD("1")]})
+        events = Path(self.tmp.name) / "s.jsonl"
+        with mock.patch.object(runner, "_Events", side_effect=OSError("disk full")), self.assertRaises(OSError):
+            runner.run(self.repo, "p", events, python=PY)
+        self.assertFalse((Path(self.tmp.name) / "p.lock").exists())
