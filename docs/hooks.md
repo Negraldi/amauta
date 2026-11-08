@@ -40,3 +40,5 @@ fail open; an empty stdout is a no-op.
   Security scanners need no trust because they only read code: `gitleaks` (redacted output), `bandit` (Python) and
   `semgrep` with the project's own `.semgrep.yml` (metrics off; never `--config auto`, which downloads rules) run at
   Stop when installed.
+- ODD rule (part of `checks` on edits): checking an item off in `odd/tasks/*.md` is refused while the changed files have
+  errors; see [odd.md](odd.md).

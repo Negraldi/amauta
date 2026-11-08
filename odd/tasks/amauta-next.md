@@ -108,7 +108,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D6 Per-project trust (`amauta check trust`), code-executing checkers, project check at Stop under the single
   Stop policy.
 - [x] D7 Secrets in edited code; gitleaks, semgrep and bandit when on PATH.
-- [ ] D8 ODD rule: a task is not checked off while its checks fail.
+- [x] D8 ODD rule: a task is not checked off while its checks fail.
 
 ### Phase 2c, data content, communication and profiles
 
@@ -281,6 +281,9 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   column, never the value) at edit and at Stop; gitleaks (redacted JSON), bandit and semgrep (project rules only,
   metrics off) run at Stop without trust when installed. Checkers carry `trust: true|false`. RED seen.
 
+- 2026-11-08: D8 done: the edit check refuses a check-off in `odd/tasks/*.md` (new `[x]` items against HEAD) while
+  the Stop check finds errors in the changed files; the orchestrator block says so in one clause. RED seen.
+
 ## Next step
 
-Phase 2b: D8 ODD rule (a task is not checked off while its checks fail). Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D9 data skill (intake records first). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

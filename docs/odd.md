@@ -38,3 +38,9 @@ A task that touches SQL, ETL, spreadsheets, Power BI or metrics adds three secti
 | `## Review` | Written at close: lens and model, the reviewed commit range, one verdict per criterion (passed, failed, unverified), corrections and the delta re-check |
 
 Contracts live outside `odd/tasks/` so task files keep this format.
+
+## Checks before a check-off
+
+An edit of `odd/tasks/*.md` that checks an item off (compared with the committed version) is refused while the changed
+files of the repository have errors the checks engine sees (the same findings as the Stop check, see
+[hooks.md](hooks.md)). Fix the errors, or leave the task open (plan D8, ADR 0006).
