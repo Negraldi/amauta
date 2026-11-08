@@ -284,6 +284,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - 2026-11-08: D8 done: the edit check refuses a check-off in `odd/tasks/*.md` (new `[x]` items against HEAD) while
   the Stop check finds errors in the changed files; the orchestrator block says so in one clause. RED seen.
 
+- 2026-11-08: D9a done: skill `data` (`assets/skills/data/`) with five references (analytical review,
+  transformation, enrichment, metrics and cohorts, provenance), rewritten from the v19 data skills without their
+  gateway, analyst agent and SQL-guard machinery; real data goes through the privacy hook and `amauta privacy`.
+  Intake records in `docs/intake/data-skills.md`. RED seen. Next: D9b powerbi-report, D9c institutional and editorial.
+
 ## Next step
 
-Phase 2c: D9 data skill (intake records first). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D9b powerbi-report with PBIR tools (intake first), then D9c institutional and editorial skills. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
