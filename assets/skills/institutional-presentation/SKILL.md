@@ -14,7 +14,7 @@ delivery check follow `executive-editorial`; the file mechanics follow `doc-form
 
 ## Hard Rules
 
-- Use the template and brand of the project's selected profile. When the project has none, ask for the authorized
+- Use the template and brand of the project's selected profile (`amauta profile show`). When the project has none, ask for the authorized
   template and its intended use; a neutral draft may proceed meanwhile and says that the brand is pending.
 - Never infer a right to use an organization's logo, template or media from an example or from another project.
 - Keep the editable source; never overwrite a user's deck: write a new file.

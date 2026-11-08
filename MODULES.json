@@ -27,7 +27,7 @@
 
     { "id": "portal", "layer": "pillar", "paths": ["src/portal/", "python/amauta/portal/", "assets/skills/amauta-wiki-explain/"], "purpose": "local wiki portal" },
     { "id": "odd", "layer": "pillar", "paths": ["src/review/", "assets/core/agents/review-"], "purpose": "review assess, review mode, Stop reminder, review lenses" },
-    { "id": "data-security", "layer": "pillar", "paths": ["python/amauta/privacy/"], "purpose": "privacy hook, privacy scan/redact/pseudonymize CLI (ADR 0007)" },
+    { "id": "data-security", "layer": "pillar", "paths": ["python/amauta/privacy/", "assets/profiles/"], "purpose": "privacy hook, privacy scan/redact/pseudonymize CLI (ADR 0007)" },
     { "id": "code-security", "layer": "pillar", "paths": ["src/mermaid/"], "purpose": "checkers (Mermaid syntax today)" },
 
     { "id": "code-graph", "layer": "integration", "paths": ["src/codegraph/", "src/graphify/", "assets/skills/graphify-semantic/", "assets/core/agents/graphify-extractor.md"], "purpose": "codegraph and graphify glue" },

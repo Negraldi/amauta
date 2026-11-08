@@ -120,7 +120,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 - [x] D11 Review lenses `analytical` and `communication`, `amauta review pack` (mechanical), number-fidelity and render
   checks; both lenses run in their case even with code review off; analytical: one round plus delta re-check;
   communication: up to two rounds, a fresh reviewer each.
-- [ ] D12 Profiles: `default` profile shipped; private org profile under `<state dir>/profiles/<name>/` extending it;
+- [x] D12 Profiles: `default` profile shipped; private org profile under `<state dir>/profiles/<name>/` extending it;
   project selection; precedence project > org > default; roles only in `people/`; privacy guard on profiles.
 - [ ] D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft.
 - [ ] D14 Portal Security page (counts only), settings toggles, profile shown per project; phase 2 audit; v0.6.0.
@@ -313,6 +313,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   `amauta review numbers`; the orchestrator block runs the lenses even with code review off unless `Lenses: off`.
   The render check is the Stop check over changed deliverables (Mermaid fences, secrets). RED seen.
 
+- 2026-11-08: D12 done: `assets/profiles/default/` (neutral brand, conventions, glossary, sources, roles) and
+  `amauta profile list|new|use|show|check` (`python/amauta/privacy/profiles.py`): layers project > org > default, the
+  selection per git root in the state directory, the guard over the detector catalog plus a person-name check in
+  `people/`. The editorial and data skills point at `amauta profile show`. RED seen.
+
 ## Next step
 
-Phase 2c: D12 profiles (default shipped, private org profile in the state dir, project selection, privacy guard). Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2c: D13 `amauta profile harvest` and `amauta profile import` (the private archive layout) producing a reviewable draft. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.

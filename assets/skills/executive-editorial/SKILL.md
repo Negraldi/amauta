@@ -17,7 +17,8 @@ Load this skill for presentations, reports, documents and dashboards whose reade
 - Before drafting, establish the audience, the decision, the supported claim, and its source, period, population and
   denominator. For a metric add its update cadence, freshness limit and unavailable state.
 - Missing information gets an explicit pending marker. Never infer a business fact or a permission to use a source.
-- Brand (logo, palette, fonts, templates) comes from the project's selected profile; with no profile, stay neutral.
+- Brand (logo, palette, fonts, templates) comes from the project's selected profile (`amauta profile show` prints its
+  files); with no profile, stay neutral.
   Never copy an organization's assets into a shared repository.
 - Synthetic examples say so on the page and are never reused as evidence.
 - Publishing, sending and changing shared spaces are separate actions the user authorizes.

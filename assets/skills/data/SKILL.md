@@ -25,7 +25,8 @@ large files) live in `tabular-data`; this skill is about meaning and evidence.
 - No silent first-row deduplication, no unavailable value read as zero, no unmatched row dropped without a count.
 - Build checks on synthetic fixtures written for the case, never on copies of real records or private business rules.
 - Existing database objects are read-only unless the user authorizes a write; a design does not authorize a connection.
-- The project's confirmed definitions (and its profile, when one is selected) win over imported or guessed ones.
+- The project's confirmed definitions win over imported or guessed ones; the selected profile's glossary and sources
+  (`amauta profile show`) come next.
 
 ## Workflow
 

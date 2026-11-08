@@ -51,6 +51,11 @@ commands.set('privacy', {
   run: (args, io) => runPythonModule('amauta.privacy', args, io),
 });
 
+commands.set('profile', {
+  summary: 'Organization profiles kept on this machine: list, new, use, show, check (brand, conventions, glossary, roles)',
+  run: (args, io) => runPythonModule('amauta.privacy.profiles', args, io),
+});
+
 commands.set('sdd', {
   summary: 'Run the SDD status module (status [change] --cwd DIR --json, continue [change]); used by the SDD skills',
   run: (args, io) => runPythonModule('amauta.sdd', args, io),

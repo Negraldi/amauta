@@ -1,0 +1,5 @@
+{
+  "name": "default",
+  "description": "Neutral profile shipped with amauta: no brand, no organization rules. Organization profiles extend it.",
+  "extends": null
+}
