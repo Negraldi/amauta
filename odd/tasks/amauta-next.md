@@ -104,7 +104,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 2b, code security
 
-- [ ] D5 Checks engine, safe checkers, error baseline per file, edit hook (`PostToolUse`).
+- [x] D5 Checks engine, safe checkers, error baseline per file, edit hook (`PostToolUse`).
 - [ ] D6 Per-project trust (`amauta check trust`), code-executing checkers, project check at Stop under the single
   Stop policy.
 - [ ] D7 Secrets in edited code; gitleaks, semgrep and bandit when on PATH.
@@ -267,6 +267,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
   never denies, fails open), CSV column detection and keyed pseudonymization rewritten without pandas, and
   `amauta privacy scan|redact|pseudonymize`. Parity treats the Read check as Claude-only. RED seen (Python and Node).
 
+- 2026-11-08: D5 done: kernel module `checks` (`src/checks/`): one finding format, `newFindings` by checker and
+  message, the committed version (`git show HEAD:<file>`) as baseline, safe syntax checkers (JSON, `node --check`,
+  `ast.parse`, `tomllib`, `bash -n`) plus the Mermaid checker; the `checks` handler on PostToolUse for Claude's edit
+  tools blocks with the new errors only. RED seen.
+
 ## Next step
 
-Phase 2b: D5 checks engine (one finding format, error baseline per file, PostToolUse edit check). Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 2b: D6 per-project trust (`amauta check trust`), code-executing checkers, project check at Stop. Ask the aesthetic questions (Inca names) before D10/D11.

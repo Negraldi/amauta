@@ -23,3 +23,9 @@ fail open; an empty stdout is a no-op.
   text it found; a failure is silent (ADR 0007). Codex reads files through its shell, so it gets only the prompt check.
   Tools for the data itself: `amauta privacy scan|redact|pseudonymize` (counts, lines and columns, never values; the
   pseudonym key is `<state dir>/privacy.key`, 0600).
+- `checks` (PostToolUse on `Edit|Write|MultiEdit|NotebookEdit`, Claude Code): after an edit, the syntax checkers for the
+  file's type run (JSON in process, JavaScript with `node --check`, Python with `ast.parse`, TOML with `tomllib`, shell
+  with `bash -n`, Mermaid fences in Markdown). None executes repository code. The errors the edit added, compared with
+  the file's last committed version (a new file has no baseline), come back as one block of
+  `file:line:col: error: message [checker]` lines, so Claude fixes them in the same turn. A checker that cannot start
+  or runs over 10 s is skipped (ADR 0006). Codex edits arrive as patches through its shell, so Codex has no edit check yet.

@@ -6,7 +6,7 @@
   "line": 140,
   "readme": 200
  },
- "readme": 474,
+ "readme": 116,
  "files": {
   "bin/amauta.js": {
    "noHeader": true
@@ -277,7 +277,7 @@
    "noHeader": true
   },
   "src/install/servers.js": {
-   "long": 5,
+   "long": 4,
    "noHeader": true
   },
   "src/install/skillstore.js": {

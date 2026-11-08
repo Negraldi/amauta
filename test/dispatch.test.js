@@ -67,8 +67,12 @@ test('install registers one command per event and matcher, with no env, sh or ti
   assert.deepEqual(claude.PreToolUse.map((e) => e.matcher), ['Read|NotebookRead|NotebookEdit', 'Agent']);
   assert.match(claude.PreToolUse[0].hooks[0].command, /--with privacy$/);
   assert.match(claude.UserPromptSubmit[0].hooks[0].command, /--with skill-registry,privacy,telemetry$/);
+  const edit = claude.PostToolUse.find((e) => e.matcher === 'Edit|Write|MultiEdit|NotebookEdit');
+  assert.match(edit.hooks[0].command, /--with checks$/, 'the edit check (plan D5)');
+  assert.ok(edit.hooks[0].timeout >= 30, 'room for a checker and its baseline');
   const codex = desiredCodexHooks({ stateDir: '/s', telemetry: true });
   assert.equal(codex.PreToolUse, undefined, 'Codex reads files through its shell tool; only the prompt check applies');
+  assert.ok(codex.PostToolUse.every((e) => !/--with checks/.test(e.hooks[0].command)), 'Codex edits arrive as patches: no edit check yet');
   assert.match(codex.UserPromptSubmit[0].hooks[0].command, /--with skill-registry,privacy,telemetry --runtime codex$/);
   for (const entries of Object.values(codex)) assert.match(entries[0].hooks[0].command, / --runtime codex$/);
 });

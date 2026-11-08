@@ -58,6 +58,7 @@ export const PREFLIGHT_DENY = JSON.stringify({
  * per event runs them in this order (src/hooks/dispatch.js); the handler names are written into the command.
  */
 export const PRIVACY_MATCHER = 'Read|NotebookRead|NotebookEdit';
+export const EDIT_MATCHER = 'Edit|Write|MultiEdit|NotebookEdit';
 
 const EVENT_PLAN = [
   { event: 'UserPromptSubmit', base: ['skill-registry', 'privacy'], telemetry: ['telemetry'], timeout: 20 },
@@ -82,10 +83,13 @@ export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime
   }
   const pre = [];
   // Data files reach the model through Read; Codex reads through its shell, so it gets only the prompt check (plan D4).
-  const entry = (matcher, names, timeout) => ({ matcher, hooks: [{ type: 'command', command: eventCommand('PreToolUse', names, where), timeout }] });
+  const entry = (matcher, names, timeout, event = 'PreToolUse') =>
+    ({ matcher, hooks: [{ type: 'command', command: eventCommand(event, names, where), timeout }] });
   if (runtime !== 'codex') pre.push(entry(PRIVACY_MATCHER, ['privacy'], 10));
   if (sdd) pre.push(entry('Agent', ['sdd-preflight'], 30));
   if (pre.length) hooks.PreToolUse = pre;
+  // The edit check (plan D5): Claude's edit tools only; Codex edits arrive as patches through its shell.
+  if (runtime !== 'codex') hooks.PostToolUse = [...(hooks.PostToolUse ?? []), entry(EDIT_MATCHER, ['checks'], 60, 'PostToolUse')];
   return hooks;
 }
 

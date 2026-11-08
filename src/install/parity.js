@@ -6,7 +6,7 @@ import { hashOf, isMemoryServer, stdioOf } from './mcpsync.js';
 import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
 import { isAmautaHook } from './servers.js';
 
-const CLAUDE_ONLY = /preflight-hook|sdd-preflight|hook event PreToolUse .*--with privacy\b/;
+const CLAUDE_ONLY = /preflight-hook|sdd-preflight|hook event PreToolUse .*--with privacy\b|hook event PostToolUse .*--with checks\b/;
 
 /** Hook events Codex fires (the ones hooks.json can name). Claude events outside this set have no Codex counterpart. */
 export const CODEX_HOOK_EVENTS = [

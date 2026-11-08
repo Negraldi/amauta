@@ -62,3 +62,13 @@ export async function checkMarkdown(markdown) {
   }
   return results;
 }
+
+/** The Mermaid fences of a markdown file as a checks-engine checker (plan D5): one finding per broken fence. */
+export const mermaidChecker = {
+  name: 'mermaid', exts: ['.md', '.markdown'],
+  run: async (file) => {
+    const { readFile } = await import('node:fs/promises');
+    const results = await checkMarkdown(await readFile(file, 'utf8'));
+    return results.filter((r) => !r.ok).map((r) => ({ line: r.line, col: 1, message: r.error }));
+  },
+};

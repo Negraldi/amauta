@@ -19,6 +19,7 @@ import { syncIfChanged } from '../install/fingerprint.js';
 import { refreshRegistry } from '../registry/skill-registry.js';
 import { reviewStop } from '../review/stop.js';
 import { graphifyConnect } from '../graphify/connect.js';
+import { editCheck } from './checks.js';
 
 const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop', 'SubagentStop'];
 const MAX_STOP_BLOCKS = 2;
@@ -86,6 +87,7 @@ export const REGISTRY = {
   'review-stop': { events: ['SessionStart', 'Stop'], run: (payload) => reviewStop(payload) },
   'graphify-connect': { events: ['SessionStart'], run: (payload) => graphifyConnect(payload) },
   'sync-check': { events: ['SessionStart'], run: async () => (await syncIfChanged({}), null) },
+  checks: { events: ['PostToolUse'], run: (payload, ctx) => editCheck(payload, ctx) },
   telemetry: pythonHandler('amauta.telemetry', TELEMETRY_EVENTS, 5000),
   usage: pythonHandler('amauta.usage', ['Stop', 'SubagentStop'], 10000),
   // Data security (plan D4): asks before a data file is read, warns about a secret in a prompt; never denies.
