@@ -5,23 +5,26 @@ import hmac
 import json
 import re
 import secrets
+import socketserver
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, themes as themes_mod, wikiexplain, wikiprobe
+from .. import extensions
+from . import archify, graphsync as graphsync_mod, projects as projects_mod, settings as settings_mod, wikiprobe
 from . import wikiharness
 from .api import Portal
 
 LOOPBACK = "127.0.0.1"  # fixed on purpose: there is no way to bind another interface
 STATIC = Path(__file__).resolve().parent / "static"
 JS, WOFF2 = "text/javascript; charset=utf-8", "font/woff2"
-STATIC_FILES = {"app.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
+STATIC_FILES = {"app.js": JS, "page-activity.js": JS, "page-memory.js": JS, "page-harness.js": JS, "page-wiki.js": JS, "page-projects.js": JS, "page-siblings.js": JS, "page-settings.js": JS, "page-themes.js": JS, "page-security.js": JS, "page-pipelines.js": JS, "page-pipeline-run.js": JS, "page-guide.js": JS, "page-home.js": JS, "boot.js": JS, "theme.js": JS, "i18n.js": JS, "markdown.js": JS, "wikiroute.js": JS, "mermaid.min.js": JS, "style.css": "text/css; charset=utf-8",
                 "manifest.webmanifest": "application/manifest+json", "icon.svg": "image/svg+xml",
                 "fonts/source-serif-4-latin-400-normal.woff2": WOFF2, "fonts/source-serif-4-latin-400-italic.woff2": WOFF2,
-                "fonts/source-serif-4-latin-600-normal.woff2": WOFF2}
+                "fonts/source-serif-4-latin-600-normal.woff2": WOFF2,
+                **{f"i18n/{name}.json": "application/json; charset=utf-8" for name in ("en", "es", "srv-es")}}  # dictionaries (plan N11b)
 MAX_BODY = 1024
 SETTINGS_MAX_BODY = 4096
 PROJECTS_MAX_BODY = 16384  # up to 50 absolute paths of 1024 characters would not fit in 4 KiB
@@ -32,8 +35,12 @@ PROBE_PATH = "/api/harness/refresh"
 PROBE_MAX_BODY = 1024  # {"server": "<name>"} at most
 EXPLAIN_PATH = "/api/harness/explain"
 EXPLAIN_MAX_BODY = 1024  # {"kind": ..., "id": ...}; ids are at most 200 characters
+# Guarded writes an extra answers (ADR 0009): path -> (extension point, body limit, the answer when the extra is absent).
+EXTRA_WRITES = {EXPLAIN_PATH: ("portal.explain_request", EXPLAIN_MAX_BODY, "wiki explanations are not installed"),
+                "/api/pipelines/run": ("pipelines.run", 1024, "pipelines are not installed"),
+                "/api/pipelines/cancel": ("pipelines.cancel", 1024, "pipelines are not installed")}
 THEMES_MAX_BODY = 8192  # a theme is at most 14 short colors; themes.MAX_FILE (16 KiB) bounds what is read back
-THEMES_WRITES = {"/api/themes": themes_mod.write_theme, "/api/themes/delete": lambda state, body: themes_mod.delete_theme(state, body.get("slug"))}
+THEMES_WRITES = {"/api/themes": "themes.write", "/api/themes/delete": "themes.delete"}  # extension points of the theme_editor extra
 SETTINGS_WRITES = {"/api/settings/preview": "preview", "/api/settings/apply": "apply", "/api/settings/undo/preview": "undo_preview", "/api/settings/undo": "undo"}
 # Mermaid writes a <style> element and style attributes into the SVG it draws, so styles (and only styles) allow 'unsafe-inline';
 # scripts stay 'self' only, with no eval, and nothing can be loaded or sent anywhere but this origin.
@@ -80,6 +87,11 @@ class PortalServer(ThreadingHTTPServer):
         self.graphsync = graphsync_mod.GraphSync(self.portal)
         self.token = secrets.token_urlsafe(32)
         self.port = self.server_address[1]
+
+    def server_bind(self):
+        """Bind without http.server's socket.getfqdn() reverse lookup, which can stall start-up on macOS (plan N9b)."""
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = LOOPBACK, self.server_address[1]
 
     def allowed_hosts(self):
         return {f"{LOOPBACK}:{self.port}", f"localhost:{self.port}"}
@@ -185,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *GRAPH_WRITES, PROBE_PATH, EXPLAIN_PATH, *SETTINGS_WRITES, *THEMES_WRITES):
+        if path not in ("/api/refresh", "/api/heartbeat", PROJECTS_CONFIG, *GRAPH_WRITES, PROBE_PATH, *EXTRA_WRITES, *SETTINGS_WRITES, *THEMES_WRITES):
             return self._json(404, {"error": "not found"})
         if not self._write_guard():
             return
@@ -199,8 +211,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._themes_write(THEMES_WRITES[path])
         if path == PROBE_PATH:
             return self._probe_write()
-        if path == EXPLAIN_PATH:
-            return self._explain_write()
+        if path in EXTRA_WRITES:
+            return self._extra_write(*EXTRA_WRITES[path])
         if path == "/api/heartbeat":
             if self.server.idle is not None:
                 self.server.idle.beat()
@@ -288,11 +300,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self._settings_body(THEMES_MAX_BODY)
         if body is None:
             return
-        try:
-            result = action(self.server.portal.cfg.state_dir, body)
-        except themes_mod.ThemeError as err:
-            return self._json(err.status, err.body())
-        self._json(200, result)
+        missing = (404, {"error": "the theme editor is not installed"})
+        status, payload = extensions.call(action, self.server.portal.cfg.state_dir, body, default=missing)
+        self._json(status, payload)
 
     def _probe_write(self):
         """Ask the configured local stdio MCP servers for their tools (see wikiprobe): same guard and body rules as the other writes, closed schema."""
@@ -305,17 +315,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(err.status, err.body())
         self._json(200, result)
 
-    def _explain_write(self):
-        """Queue a request for a written explanation of one component (see wikiexplain): same guard and body rules, closed schema. The portal calls no model."""
-        body = self._settings_body(EXPLAIN_MAX_BODY)
+    def _extra_write(self, point, limit, absent):
+        """A guarded write an extra answers (wiki explanations, pipelines): same guard and body rules as the other writes."""
+        body = self._settings_body(limit)
         if body is None:
             return
-        try:
-            result = wikiexplain.request(self.server.portal, body)
-        except wikiexplain.ExplainError as err:
-            return self._json(err.status, err.body())
-        wikiharness.forget(self.server.portal)
-        self._json(200, result)
+        status, payload = extensions.call(point, self.server.portal, body, default=(404, {"error": absent}))
+        self._json(status, payload)
 
     def _not_allowed(self):
         self._json(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})

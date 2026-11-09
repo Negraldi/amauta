@@ -9,7 +9,7 @@
   const MAX_INLINE = 20000;    // longer inline runs are shown as plain text (keeps the scanner cheap)
   const MAX_ROWS = 1000;
   const MAX_DEPTH = 4;         // nested quotes and inline nesting
-  const KINDS = ["memory", "skill", "tool", "mcp", "session", "feature", "node", "harness", "usage", "settings", "home"];
+  const KINDS = ["memory", "skill", "tool", "mcp", "session", "feature", "node", "harness", "usage", "settings", "home", "guide"];
 
   function safeHref(raw) {
     const url = String(raw == null ? "" : raw).trim();

@@ -2,6 +2,124 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- PBIR tools: `refs REPORT MODEL` lists the fields, filters and sorts of a report that its model lacks (report only,
+  never repaired); `theme --name N (--colors | --brand FILE | --profile) --out FILE.json` writes a report theme from a
+  palette, warns on low text contrast and never replaces a file without `--force`.
+- `data` skill: a SQL review reference (explain before running, writes only to temporary objects, sargable filters,
+  pipeline-ready scripts); challenge questions and a review certificate in analytical review; a query cache recipe;
+  stock, flow and cohort reconciliation; a lineage record template.
+- `powerbi-report` skill: HTML in DAX and Deneb, storytelling and chart choice with color by direction and two
+  header measures, and a report documentation outline.
+- Intake record `docs/intake/agent-archive.md`: what was taken from the user's private agent archive, rewritten
+  generic, and what stays in the private profile.
+
+### Changed
+
+- `pbir lint` DAX001 no longer flags a division by a nonzero numeric constant.
+- `amauta upgrade` prints the UPGRADING.md notes of every version in the jump (read from the target, without the
+  single-step commands); `--dry-run` fetches and previews the target's own installer from a temporary worktree (files
+  it would write or remove, legacy entries it would replace, choices kept); `--branch <name>` follows a branch on
+  origin before it has a release tag. A test installs v0.4.0 from the history and upgrades it to the current version.
+  The upgrade passes `--no-telemetry`, `--no-privacy`, `--no-checks` and `--persona` again from the last install
+  (install does not keep them by itself). `AMAUTA_INSTALL_ROOT` (internal) tells a previewing installer the real
+  install's checkout.
+
+## [0.7.0] - 2026-11-09
+
+### Added
+
+- Pipelines (extra, ADR 0010): `.amauta/pipelines.json`, `amauta pipeline list|check|run|status|cancel|schedule-hint`,
+  a Pipelines tab with filters, a flow row, history, a live console, notices and a summary on the home page; retries,
+  outputs a step must change, declared schedules with a missed-run check, recipes in the `data` skill.
+- Sibling projects: `portal.json` `siblings` and a health card on the Projects page (last commit, uncommitted
+  changes, MCP server registered for Claude and Codex, age of a watched file); edited in Settings.
+- Pipelines as a DAG (ADR 0011): step `id` and `needs` with parallel steps (`max_parallel`), `blocks` with `use`,
+  sub-pipeline steps, `modes` with `--mode` and a mode picker, several schedules each with its mode.
+
+### Fixed (independent review of the pipelines extra)
+
+- One run of a pipeline at a time, through an atomic lock shared by the portal, the CLI and scheduled runs; a run
+  whose runner stopped reads as abandoned; SIGTERM and Ctrl+C still end a run.
+- Output with U+2028 or NEL no longer freezes a run; the portal reads events by byte offset.
+- A background child no longer holds a step past its end or timeout (POSIX); scripts resolve from the project root
+  and may not leave it through a symlink; steps get the user's PYTHONPATH; outputs must change; private key blocks are
+  redacted; valid hourly and daily schtasks entries; PATH in cron and launchd hints; daylight saving in the
+  missed-run check; a run that cannot start says why.
+
+- Second independent review: a failure blocks its whole chain again (as in 0.6); an error inside a step fails that
+  step only; a stale lock has exactly one new taker and adopting it is atomic; stricter definitions (NUL, types, an
+  off pipeline step), a UTF-8 BOM accepted; run summaries keep step order and ids; a schedule without mode follows the
+  default mode; following an abandoned or never-started run ends; the runner refuses a pipelines.json changed after
+  the portal's trust check; `--step 0` refused; `%` escaped in cron lines.
+
+- Third independent review and follow-ups (ADR 0012): Windows job objects for a step's processes; the lock records its
+  process's start time and treats zombies as dead; a detached child holding a step's output is given up on; no
+  0.1 s floor per step; run names reserved on disk; retention removes logs; replay by step id; a card refreshes its
+  history when the live run it follows ends.
+
+### Changed
+
+- `amauta check trust` records the hash of `.amauta/pipelines.json`; the portal runs pipelines only while that file
+  is unchanged. Trust each project again once after upgrading.
+
+## [0.6.0] - 2026-11-08
+
+### Added
+
+- Data security: a detector catalog (Ecuadorian cedula and RUC, cards, IBAN, e-mail, phones, secrets); the memory
+  guard (secrets refused, identifiers redacted, always on); the privacy hook (asks before a data file is read, warns
+  about a secret in a prompt, never denies); `amauta privacy scan|redact|pseudonymize`.
+- Code security: the checks engine; after an edit and at Stop, syntax and secret checks on changed files report only
+  new errors as `file:line:col: error: message [checker]`; `amauta check trust` allows tsc, eslint, mypy and cargo in
+  one project; gitleaks, bandit and semgrep run when installed; an ODD task cannot be checked off while checks fail.
+- Skills: `data` (five references), `powerbi-report` with PBIR tools (`amauta py amauta.extras.pbir lint|diff|dictionary|layout|rename`),
+  `executive-editorial`, `institutional-presentation`.
+- Agents: `chasqui` (communicator), `taripaq` (analytical lens), `haravec` (communication lens); `amauta review pack`
+  and `amauta review numbers`.
+- Profiles: `amauta profile list|new|use|show|check|import|harvest|accept`, a neutral default shipped, organization
+  profiles kept in the state directory.
+- Portal: a Security page; privacy and checks switches in Settings; each project's profile.
+
+### Changed
+
+- `install` registers the privacy hook and the checks (`--no-privacy`, `--no-checks` turn them off).
+- The orchestrator block runs the lenses for analysis and deliverables even when code review is off.
+
+## [0.5.0] - 2026-11-08
+
+### Added
+
+- Native Windows: the Python interpreter is chosen at install (`--python`, `AMAUTA_PYTHON`) and recorded; skill links
+  are junctions, with a managed copy when a link cannot be made; process trees are stopped with `taskkill /T`; CRLF files
+  keep their line endings; the portal guard knows the Windows system folders. `amauta portal launch` opens Edge or Chrome
+  and `install-launcher` writes a Start menu shortcut. CI runs a portable test subset on Windows and the full suite on
+  Linux and macOS.
+- `MODULES.json` and an architecture test (every file in one module, layer import rules), a simplicity ratchet (file,
+  function and line limits that may only tighten) and ADRs 0001-0009 in `docs/decisions/`.
+- `python/amauta/extras/`: optional extras found by an extension registry (skill impact, wiki explanations, the theme
+  editor backend, the graphify semantic pass); `amauta py <amauta.module>` runs them with the recorded interpreter.
+- Portal: six sidebar pages (Home, Projects, Memory, Activity, Harness, Settings) with tabs for their list routes; the
+  Harness page draws how a session flows through the harness (Mermaid); Activity opens with one summary sentence.
+
+### Changed
+
+- Hooks: one command per event (`hook event <Event> --with handler,...`) runs the handlers in order; one Stop policy
+  combines blocks (at most two per turn); the SDD preflight runs in Node and fails closed for `sdd-*` only.
+- The installer plans both runtimes through one adapter interface.
+- Portal: the top bar holds only search; filters sit above the pages that use them; theme and language are at the foot
+  of the sidebar; dictionaries are JSON files per language; plurals, plain words and empty-table messages.
+- README shortened to an overview; details moved to `docs/`.
+
+### Fixed
+
+- macOS: a bare `python3` (Xcode's 3.9, no `-P`) in the graphify hook, the semantic pass and `amauta portal`; a reverse
+  DNS lookup that stalled the portal's start; `/etc` (resolved to `/private/etc`) accepted as a project path.
+- The Harness page listed amauta's hooks as "other".
+
 ## [0.4.0] - 2026-10-23
 
 ### Added

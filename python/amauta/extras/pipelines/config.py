@@ -1,0 +1,235 @@
+"""`.amauta/pipelines.json`: the pipelines a project defines, read and checked (ADR 0010, 0011).
+
+    {"blocks": {name: step fields},
+     "pipelines": [{"id", "name", "description", "category", "modes", "default_mode", "max_parallel",
+                    "schedule": {...} or [{..., "mode"}], "steps": [...]}]}
+
+A step has a `type`: `command` (`argv`, a list, never a shell string), `python` or `r` (`script`, `args`, optional
+`interpreter`), `notebook` (`path`), or `pipeline` (`pipeline`: another pipeline expanded in its place). Optional:
+`id`, `name`, `needs`, `modes`, `use` (a block), `enabled`, `cwd`, `timeout` (seconds, default 3600), `retries`
+(0-5) with `retry_delay` (seconds, default 30), `outputs` (files the step must change). The graph (ids, needs, blocks,
+sub-pipelines, loops) is graph.py's; this module checks each step's fields, the modes and the schedules. Paths are
+relative to the project and stay inside it; NUL characters and secret-like values are refused (credentials belong to
+the scripts' own configuration). A UTF-8 byte order mark is accepted.
+"""
+
+import hashlib
+import json
+import os
+import re
+from pathlib import Path, PurePosixPath
+
+from ...detectors import secretlike
+from . import graph
+
+FILE = Path(".amauta") / "pipelines.json"
+ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,60}$")
+TYPES = {"command", "python", "r", "notebook"}
+MAX_TIMEOUT = 24 * 3600
+DAYS = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
+EVERY = (5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440)  # each fits cron, Task Scheduler and launchd
+MAX_RETRIES = 5
+MAX_RETRY_DELAY = 3600
+
+
+class ConfigError(ValueError):
+    pass
+
+
+def _inside(rel, what):
+    text = rel.replace("\\", "/") if isinstance(rel, str) else ""
+    absolute = os.path.isabs(text) or PurePosixPath(text).is_absolute() or bool(re.match(r"^[A-Za-z]:", text))
+    if not isinstance(rel, str) or not rel or absolute or ".." in re.split(r"[\\/]", rel):
+        raise ConfigError(f"{what} must be a relative path inside the project: {str(rel)[:80]!r}")
+    return rel
+
+
+def _int(s, key, default, low, high, i):
+    value = s.get(key, default)
+    if type(value) is not int or not low <= value <= high:
+        raise ConfigError(f"step {i + 1}: {key} must be a whole number from {low} to {high}")
+    return value
+
+
+def _no_nul(value, where):
+    """A NUL character cannot reach a program's argv, path or environment: refuse it anywhere in a step."""
+    items = value.values() if isinstance(value, dict) else value if isinstance(value, list) else [value]
+    for v in items:
+        if isinstance(v, (dict, list)):
+            _no_nul(v, where)
+        elif isinstance(v, str) and "\0" in v:
+            raise ConfigError(f"{where}: a value holds a NUL character")
+
+
+def _step(i, s):
+    if not isinstance(s, dict) or s.get("type") not in TYPES:
+        raise ConfigError(f"step {i + 1}: type must be one of {', '.join(sorted(TYPES))}")
+    _no_nul(s, f"step {i + 1}")
+    if type(s.get("enabled", True)) is not bool:
+        raise ConfigError(f"step {i + 1}: enabled must be true or false")
+    out = {"name": str(s.get("name") or f"Step {i + 1}")[:80], "type": s["type"], "enabled": s.get("enabled", True)}
+    if "pipeline" in s:
+        raise ConfigError(f"step {i + 1}: `pipeline` belongs to a step of type pipeline")
+    timeout = s.get("timeout", 3600)
+    if type(timeout) is not int or not 0 < timeout <= MAX_TIMEOUT:
+        raise ConfigError(f"step {i + 1}: timeout must be 1 to {MAX_TIMEOUT} seconds")
+    out["timeout"] = timeout
+    out["cwd"] = _inside(s["cwd"], f"step {i + 1}: cwd") if "cwd" in s else "."
+    out["retries"] = _int(s, "retries", 0, 0, MAX_RETRIES, i)
+    out["retry_delay"] = _int(s, "retry_delay", 30, 0, MAX_RETRY_DELAY, i)
+    outputs = s.get("outputs", [])
+    if not isinstance(outputs, list):
+        raise ConfigError(f"step {i + 1}: outputs must be a list of paths")
+    out["outputs"] = [_inside(o, f"step {i + 1}: output") for o in outputs]
+    if s["type"] == "command":
+        argv = s.get("argv")
+        if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
+            raise ConfigError(f"step {i + 1}: argv must be a non-empty list of strings (no shell)")
+        out["argv"] = argv
+    elif s["type"] in ("python", "r"):
+        out["script"] = _inside(s.get("script"), f"step {i + 1}: script")
+        args = s.get("args", [])
+        if type(args) is not list or not all(type(a) in (str, int, float) for a in args):
+            raise ConfigError(f"step {i + 1}: args must be a list of strings or numbers")
+        out["args"] = [str(a) for a in args]
+        if "interpreter" in s:
+            if not isinstance(s["interpreter"], str) or not s["interpreter"]:
+                raise ConfigError(f"step {i + 1}: interpreter must be a program name or path")
+            out["interpreter"] = s["interpreter"]
+    else:
+        out["path"] = _inside(s.get("path"), f"step {i + 1}: path")
+    return out
+
+
+def parse_time(at):
+    m = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", at if isinstance(at, str) else "")
+    if not m:
+        raise ValueError(f"a time must be HH:MM (24 h): {str(at)[:20]!r}")
+    return int(m.group(1)), int(m.group(2))
+
+
+def _schedules(pid, value, modes):
+    items = value if isinstance(value, list) else [value]
+    out = []
+    for sched in items:
+        sched = dict(sched) if isinstance(sched, dict) else sched  # never change the caller's data
+        mode = sched.pop("mode", None) if isinstance(sched, dict) else None
+        entry = _schedule(pid, sched)
+        if mode is not None:
+            if mode not in modes:
+                raise ConfigError(f"{pid}: schedule mode {mode!r} is not one of the pipeline's modes")
+            entry["mode"] = mode
+        out.append(entry)
+    return out
+
+
+def _modes(p):
+    """(modes, default mode): the pipeline's mode ids, first one by default; [] and None when it has none."""
+    modes = p.get("modes", [])
+    if not isinstance(modes, list) or not all(isinstance(m, str) and graph.STEP_ID.match(m) for m in modes):
+        raise ConfigError(f"{p['id']}: modes must be a list of ids (lowercase letters, digits, '-' and '_')")
+    if len(set(modes)) != len(modes):
+        raise ConfigError(f"{p['id']}: modes are listed twice")
+    if "default_mode" in p and not modes:
+        raise ConfigError(f"{p['id']}: default_mode needs modes")
+    default = p.get("default_mode", modes[0] if modes else None)
+    if modes and default not in modes:
+        raise ConfigError(f"{p['id']}: default_mode must be one of {', '.join(modes)}")
+    return modes, default
+
+
+def _pipeline(p, by_id):
+    modes, default = _modes(p)
+    try:
+        steps = graph.expand(p["id"], by_id, _step)
+        graph.levels(steps)
+    except graph.GraphError as e:
+        raise ConfigError(str(e)) from None
+    for st in steps:
+        sm = st["modes"]
+        if sm is not None and (type(sm) is not list or not sm or not all(isinstance(m, str) and m in modes for m in sm)):
+            raise ConfigError(f"{p['id']}: step {st['id']}: modes must be some of the pipeline's modes ({', '.join(modes) or 'none'})")
+    parallel = p.get("max_parallel", 4)
+    if type(parallel) is not int or not 1 <= parallel <= 16:
+        raise ConfigError(f"{p['id']}: max_parallel must be 1 to 16")
+    schedules = _schedules(p["id"], p["schedule"], modes) if "schedule" in p else []
+    return {"id": p["id"], "name": str(p.get("name") or p["id"])[:120], "description": str(p.get("description") or "")[:500],
+            "category": str(p.get("category") or "")[:40], "modes": modes, "default_mode": default, "max_parallel": parallel,
+            "schedules": schedules, "steps": steps}
+
+
+def _schedule(pid, sched):
+    """Daily {at}, weekly {at, days}, monthly {at, day_of_month} or {every_minutes}: what the OS scheduler should do."""
+    if not isinstance(sched, dict) or not sched or set(sched) - {"at", "days", "day_of_month", "every_minutes"}:
+        raise ConfigError(f"{pid}: schedule must be {{at, days?}}, {{at, day_of_month}} or {{every_minutes}}")
+    if "every_minutes" in sched:
+        if len(sched) > 1 or sched["every_minutes"] not in EVERY or type(sched["every_minutes"]) is not int:
+            raise ConfigError(f"{pid}: every_minutes stands alone and is one of {', '.join(map(str, EVERY))}")
+        return {"every_minutes": sched["every_minutes"]}
+    try:
+        hour, minute = parse_time(sched.get("at"))
+    except ValueError as e:
+        raise ConfigError(f"{pid}: schedule {e}") from None
+    out = {"at": f"{hour:02d}:{minute:02d}"}
+    days, dom = sched.get("days"), sched.get("day_of_month")
+    if days is not None and dom is not None:
+        raise ConfigError(f"{pid}: a schedule has days or day_of_month, not both")
+    if days is not None:
+        if not isinstance(days, list) or not days or not all(isinstance(d, str) and d.lower()[:3] in DAYS for d in days):
+            raise ConfigError(f"{pid}: schedule days must be a list of {', '.join(DAYS)}")
+        out["days"] = sorted({d.lower()[:3] for d in days}, key=DAYS.index)
+    if dom is not None:
+        if type(dom) is not int or not 1 <= dom <= 28:
+            raise ConfigError(f"{pid}: day_of_month must be 1 to 28 (every month has it)")
+        out["day_of_month"] = dom
+    return out
+
+
+def parse(data):
+    items = data.get("pipelines") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise ConfigError('the file must be {"pipelines": [...]}')
+    blocks = data.get("blocks", {})
+    if not isinstance(blocks, dict):
+        raise ConfigError("blocks must be an object: {name: step fields}")
+    by_id = {}
+    for p in items:
+        if not isinstance(p, dict) or not ID.match(str(p.get("id", ""))):
+            raise ConfigError("every pipeline needs an id: lowercase letters, digits, '-' and '_'")
+        if p["id"] in by_id:
+            raise ConfigError(f"duplicate pipeline id: {p['id']}")
+        if not isinstance(p.get("steps"), list) or not p["steps"]:
+            raise ConfigError(f"{p['id']}: steps must be a non-empty list")
+        try:
+            by_id[p["id"]] = graph.with_ids(p["id"], graph.apply_blocks(p["id"], p["steps"], blocks))
+        except graph.GraphError as e:
+            raise ConfigError(str(e)) from None
+    return [_pipeline(p, by_id) for p in items]
+
+
+def _sha256(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def file_sha256(repo):
+    """The hash `amauta check trust` records for the project's pipelines.json (None without one)."""
+    f = Path(repo) / FILE
+    return _sha256(f.read_bytes()) if f.is_file() else None
+
+
+def load(repo, expect_sha256=None):
+    """The project's pipelines. With `expect_sha256`, the file must still be the one whose hash the caller checked."""
+    f = Path(repo) / FILE
+    if not f.is_file():
+        return []
+    raw = f.read_bytes()
+    if expect_sha256 is not None and _sha256(raw) != expect_sha256:
+        raise ConfigError(f"{FILE} changed since it was checked: review it, then run `amauta check trust` again")
+    text = raw.decode("utf-8-sig")  # a byte order mark (Windows Notepad) is fine
+    if secretlike.contains_secret(text):
+        raise ConfigError(f"{FILE} holds a secret-like value; keep credentials in the scripts' own configuration")
+    try:
+        data = json.loads(text)
+    except ValueError as e:
+        raise ConfigError(f"{FILE} is not valid JSON: {e}") from None
+    return parse(data)

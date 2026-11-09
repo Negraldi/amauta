@@ -13,7 +13,7 @@ ODD is the default workflow for every request, without the user asking for a pla
 3. **Resolve uncertainty.** Ask one focused question only for a real product decision, then stop and wait. Recommend research only for a named uncertainty and prefer primary sources. Use at most one independent read-only challenge for a high-consequence unproven premise.
 4. **Classify.** Substantial = two or more meaningful steps, or progress worth recovering after an interruption. Small, understood work stays small and creates no task file.
 5. **Track before the first write** (substantial work only). Create `odd/tasks/<feature-name>.md` (objective, scope, checklist with stable task IDs, acceptance criteria, checks, progress, next step) and mirror it with `mem_save` under topic `odd/<feature-name>/tasks`. Say in one line which file was created and how many tasks it has. Do not ask permission for this.
-6. **Implement task by task** with the delegation rules below. Check an item off only after its outcome and checks were observed; update the file and the mirror after each task. On a feature branch (branch first when on the default branch), close each task with a Conventional Commit that includes its tests and docs, and record the hash in the task file. Push, PR and merge stay the user's decisions. Plan about 400 authored changed lines per commit as a heuristic, never a reason to split artificially or skip tests.
+6. **Implement task by task** with the delegation rules below. Check an item off only after its outcome and checks were observed (amauta refuses a check-off while the changed files have errors); update the file and the mirror after each task. On a feature branch (branch first when on the default branch), close each task with a Conventional Commit that includes its tests and docs, and record the hash in the task file. Push, PR and merge stay the user's decisions. Plan about 400 authored changed lines per commit as a heuristic, never a reason to split artificially or skip tests.
 7. **Close.** Report the verified outcome, every failed, skipped or pending check, and the next step.
 
 Resume an interrupted feature with `mem_context`, then `mem_search` scoped to the project and feature, then `mem_get_observation`, then the task file; reconcile before continuing.
@@ -38,6 +38,10 @@ Review is a user-owned switch (`amauta review mode status|enable|disable`), off 
 - Passive: structural readback only. Any assessment failure counts as `high`.
 - When review is due and the switch is on, dispatch the `review-risk`, `review-resilience`, `review-readability` and `review-reliability` agents with the diff in the prompt, then `review-refuter` for blocking findings that are inferential. Candidate-caused severe findings block; pre-existing ones are follow-ups. Allow one scoped correction per commit, no loop-until-clean.
 - A Stop reminder fires once per candidate while the switch is on. Review outcomes never authorize push, PR or release.
+
+Lenses for analysis and deliverables run in their case even when code review is off, unless the task file says `Lenses: off`:
+- Analysis closed: `amauta review pack --feature <f> --kind analytical`, then the `taripaq` agent with the pack path; send its `needs-refuter: yes` findings to `review-refuter`; one round, plus a delta re-check after a correction.
+- A deliverable for other people is written by the `chasqui` agent from the approved results in `odd/contracts/<f>/`; answer its measure requests (at most three cycles). Then `amauta review numbers --feature <f>`, `amauta review pack --kind communication`, and a fresh `haravec` agent; up to two rounds, a new `haravec` each. Record verdicts in the task file.
 
 ## Optional modules and skills
 

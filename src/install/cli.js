@@ -8,6 +8,7 @@ const OPTIONS = {
   'claude-home': { type: 'string' },
   'claude-json': { type: 'string' },
   'state-dir': { type: 'string' },
+  python: { type: 'string' },
   'codex-home': { type: 'string' },
   'codex-skills-dir': { type: 'string' },
   runtime: { type: 'string' }, // claude | codex | both (default: both when a Codex home exists)
@@ -15,6 +16,8 @@ const OPTIONS = {
   force: { type: 'boolean', default: false },
   persona: { type: 'string' },
   'no-telemetry': { type: 'boolean', default: false },
+  'no-privacy': { type: 'boolean', default: false },
+  'no-checks': { type: 'boolean', default: false },
   'no-mirror-mcp': { type: 'boolean', default: false }, // Codex: do not copy the other Claude MCP servers
   'with-sdd': { type: 'boolean', default: false },
   'with-rea': { type: 'boolean', default: false },
@@ -45,6 +48,7 @@ function parse(args) {
     claudeHome: values['claude-home'],
     claudeJson: values['claude-json'],
     stateDir: values['state-dir'],
+    python: values.python,
     codexHome: values['codex-home'],
     codexSkillsDir: values['codex-skills-dir'],
     runtime: parseRuntime(values.runtime),
@@ -52,6 +56,8 @@ function parse(args) {
     force: values.force,
     persona: values.persona,
     telemetry: !values['no-telemetry'],
+    privacy: !values['no-privacy'],
+    checks: !values['no-checks'],
     mirrorMcp: values['no-mirror-mcp'] ? false : undefined,
     withSdd: tri('sdd'),
     withRea: tri('rea'),
@@ -240,10 +246,10 @@ async function runStatus(opts, io) {
 }
 
 export function registerInstallCommands(commands) {
-  commands.set('install', { summary: 'Install amauta into Claude Code and/or Codex (--runtime claude|codex|both, default both when ~/.codex exists; --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --dry-run --force --persona --no-telemetry --no-mirror-mcp --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
+  commands.set('install', { summary: 'Install amauta into Claude Code and/or Codex (--runtime claude|codex|both, default both when ~/.codex exists; --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --dry-run --force --persona --no-telemetry --no-privacy --no-checks --no-mirror-mcp --with-sdd --with-rea --with-context7 --with-impeccable --with-archify, --without-<module> turns one off, --review-mode on|off, --json)', run: guard(runInstall) });
   commands.set('sync', { summary: 'Sync Claude Code and Codex now: MCP servers both ways (3-way merge), skill links, Codex copies (--dry-run, --json, --no-mirror-mcp, same dirs as install)', run: guard(runSync) });
   commands.set('restore', { summary: 'Restore an installer backup by id, Claude or Codex files (--backup <id> --claude-home --claude-json --codex-home --codex-skills-dir --state-dir --json)', run: guard(runRestore) });
-  commands.set('upgrade', { summary: 'Update this install to the latest release tag (--to <tag> for another, --dry-run, --yes, --claude-home --claude-json --state-dir)', run: (args, io) => runUpgrade(args, io) });
+  commands.set('upgrade', { summary: 'Update this install to the latest release tag (--to <tag> for another, --branch <name> to follow a branch on origin, --dry-run fetches, then previews the new installer, --yes, --claude-home --claude-json --state-dir)', run: (args, io) => runUpgrade(args, io) });
   commands.set('uninstall', { summary: 'Remove everything amauta installed, keeping your own content (--runtime claude|codex|both)', run: guard(runUninstall) });
   commands.set('status', { summary: 'Show what is installed and what is missing, one section per runtime (--runtime claude|codex|both, --deep also probes the graphify SQL extractor)', run: guard(runStatus) });
 }

@@ -82,3 +82,20 @@ test('#/memfile without an id shows the memory list', async () => {
   const env = await boot('#/memfile');
   assert.match(view(env).textContent, /Claude file memories/);
 });
+
+test('a server note with `backticks` shows code spans, never raw backticks, and stays text (plan N12h)', async () => {
+  const reason = 'not mirrored yet: run `amauta graphify hook install --cwd <repo>` (or `<img src=x>`)';
+  const env = await boot('#/memory', { '/api/graphify': { repos: [{ name: 'one', path: '/r/one', available: false, reason }] } });
+  const codes = tree(view(env)).filter((e) => e.tagName === 'code').map((e) => e.textContent);
+  assert.ok(codes.includes('amauta graphify hook install --cwd <repo>'));
+  assert.ok(codes.includes('<img src=x>'));
+  assert.doesNotMatch(view(env).textContent, /`/);
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'img').length, 0);
+});
+
+test('the memory source switch marks the current source with aria-pressed="true" (plan N12h)', async () => {
+  const env = await boot('#/memory');
+  const pressed = tree(view(env)).filter((e) => e.tagName === 'button' && e.getAttribute('aria-pressed') === 'true').map((e) => e.textContent);
+  assert.deepEqual(pressed, ['amauta memory']);
+  assert.ok(tree(view(env)).some((e) => e.tagName === 'button' && e.getAttribute('aria-pressed') === 'false'));
+});

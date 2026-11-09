@@ -1,11 +1,13 @@
 import { packageVersion } from './version.js';
 import { runHook } from './hooks/index.js';
+import { runPythonModule } from './install/python.js';
 import { registerInstallCommands } from './install/cli.js';
 import { registerReviewCommands } from './review/cli.js';
 import { registerPortalCommands } from './portal/cli.js';
 import { registerCodegraphCommands } from './codegraph/index.js';
 import { registerGraphifyCommands } from './graphify/hook.js';
 import { registerMermaidCommands } from './mermaid/cli.js';
+import { registerCheckCommands } from './checks/cli.js';
 
 /**
  * Subcommand registry. Each entry: { summary, run(args, io) -> exit code | Promise }.
@@ -30,7 +32,38 @@ export function helpText() {
 
 commands.set('hook', {
   summary: 'Hook entrypoint used by Claude Code and Codex (skill-registry, review-stop, graphify-connect)',
-  run: (args, io) => runHook(args[0], io),
+  run: (args, io) => runHook(args[0], io, args.slice(1)),
+});
+
+commands.set('py', {
+  summary: 'Run one of amauta\'s Python modules (amauta.*) with the interpreter install chose; used by skills',
+  run: (args, io) => {
+    if (!/^amauta(\.[A-Za-z_][\w]*)+$/.test(args[0] ?? '')) {
+      io.stderr.write('amauta py: only amauta.* modules can be run this way\n');
+      return 2;
+    }
+    return runPythonModule(args[0], args.slice(1), io);
+  },
+});
+
+commands.set('privacy', {
+  summary: 'Local privacy tools: scan, redact or pseudonymize files (counts and columns, never values)',
+  run: (args, io) => runPythonModule('amauta.privacy', args, io),
+});
+
+commands.set('profile', {
+  summary: 'Organization profiles kept on this machine: list, new, use, show, check (brand, conventions, glossary, roles)',
+  run: (args, io) => runPythonModule('amauta.privacy.profiles', args, io),
+});
+
+commands.set('pipeline', {
+  summary: 'Run a project\'s pipelines from .amauta/pipelines.json: list, check, run ID, status, cancel ID, schedule-hint ID',
+  run: (args, io) => runPythonModule('amauta.extras.pipelines', args, io),
+});
+
+commands.set('sdd', {
+  summary: 'Run the SDD status module (status [change] --cwd DIR --json, continue [change]); used by the SDD skills',
+  run: (args, io) => runPythonModule('amauta.sdd', args, io),
 });
 
 registerInstallCommands(commands);
@@ -39,6 +72,7 @@ registerPortalCommands(commands);
 registerCodegraphCommands(commands);
 registerGraphifyCommands(commands);
 registerMermaidCommands(commands);
+registerCheckCommands(commands);
 
 export async function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const [name, ...rest] = argv;

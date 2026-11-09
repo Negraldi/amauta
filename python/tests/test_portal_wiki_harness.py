@@ -84,6 +84,22 @@ class HookPageTest(HarnessBase):
         self.assertEqual(pg["summary"]["path"], str(self.f["home"] / "settings.json"))
         self.assertEqual(pg["summary"]["source"], "Your Claude home")
 
+    def test_the_per_event_dispatcher_is_named_and_described_by_its_handlers(self):
+        s = json.loads((self.f["home"] / "settings.json").read_text())
+        cmd = "node /r/bin/amauta.js hook event UserPromptSubmit --state-dir /s --with skill-registry,telemetry"
+        s["hooks"]["UserPromptSubmit"] = [{"matcher": "", "hooks": [{"type": "command", "command": cmd, "timeout": 20}]}]
+        write(self.f["home"] / "settings.json", json.dumps(s))
+        ident = self.hook_id("UserPromptSubmit", "amauta hooks")
+        self.assertIn("skill-registry, telemetry", self.items("hook")[ident]["title"])
+        pg = self.page("hook", ident)
+        description = pg["summary"]["description"]
+        self.assertIn("skill registry", description)
+        self.assertIn("telemetry database", description)
+        self.assertIsNone(pg["summary"]["note"])
+        es = pg["summary"]["i18n"]["es"]["description"]
+        self.assertIn("registro de skills", es)
+        self.assertIn("base de datos local de telemetría", es)
+
     def test_unknown_commands_are_shown_masked_and_say_there_is_no_summary(self):
         pg = self.page("hook", self.hook_id("Stop", "echo"))
         self.assertIsNone(pg["summary"]["description"])

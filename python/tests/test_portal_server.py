@@ -188,3 +188,18 @@ class RefreshCsrfTest(ServerBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BindTest(unittest.TestCase):
+    def test_binding_never_looks_up_a_host_name(self):
+        """http.server's server_bind calls socket.getfqdn, a reverse DNS lookup that can stall startup for many seconds on
+        macOS (plan N9b). The portal only ever serves 127.0.0.1, so it skips the lookup."""
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Config(state_dir=Path(tmp) / "state", claude_home=Path(tmp) / "home", engram_db=Path(tmp) / "none.db")
+            with mock.patch("socket.getfqdn", side_effect=AssertionError("getfqdn called")):
+                srv = server.make_server(cfg, port=0)
+            try:
+                self.assertEqual(srv.server_name, "127.0.0.1")
+            finally:
+                srv.server_close()

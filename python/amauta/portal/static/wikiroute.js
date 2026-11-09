@@ -5,10 +5,26 @@
   const KINDS = {
     home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
     node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint", themes: "Themes",
+    security: "Security", pipelines: "Pipelines", guide: "Guide",
     hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
   // Hashes of the previous tabbed portal keep working.
   const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" }; // the Diagrams page was folded into Harness
+
+  // The six-page map (ADR 0005, plan N12d): each sidebar page groups the list routes shown as its tabs; item kinds
+  // without a tab belong to the page that lists them. Routes keep their own hashes (a memory topic key may be "lint").
+  const HUBS = {
+    home: ["home"], project: ["project", "feature", "node", "pipelines"],
+    memory: ["memory", "lint"], activity: ["usage", "session", "tool", "mcp"],
+    harness: ["harness", "skill", "component", "guide"], security: ["security"],
+    settings: ["settings", "themes"],
+  };
+  const ITEM_HUB = { memfile: "memory", mcptool: "activity", hook: "harness", connector: "harness", agent: "harness", command: "harness",
+    plugin: "harness", outputstyle: "harness" };
+  const ACTIVITY_TABS = { usage: "usage", sessions: "session", tools: "tool", mcp: "mcp" };
+  function hubOf(kind) {
+    return Object.keys(HUBS).find((hub) => HUBS[hub].includes(kind)) || ITEM_HUB[kind] || "home";
+  }
 
   function decode(part) {
     try { return decodeURIComponent(part); } catch (_) { return part; }
@@ -24,6 +40,10 @@
     if (raw === "" || raw === "/") return { kind: "home", id: "" };
     if (!raw.startsWith("/")) return LEGACY[raw] ? { kind: LEGACY[raw], id: "" } : { kind: "unknown", id: raw };
     const [first, ...rest] = raw.slice(1).split("/");
+    if (first === "activity") {
+      const tab = rest.length === 0 ? "usage" : rest.length === 1 ? ACTIVITY_TABS[rest[0]] : undefined;
+      return tab ? { kind: tab, id: "" } : { kind: "unknown", id: raw };
+    }
     const kind = first === "diagrams" ? "harness" : first;
     if (first === "diagrams") return { kind, id: "" };
     if (!Object.prototype.hasOwnProperty.call(KINDS, kind)) return { kind: "unknown", id: raw };
@@ -216,7 +236,8 @@
   }
 
   // Settings editor (pure). `current` and `draft` have the shape of GET /api/settings `current`.
-  const SETTING_LABELS = { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry" };
+  const SETTING_LABELS = { persona: "Persona", review_mode: "Review mode", telemetry: "Telemetry", privacy: "Privacy hook",
+    checks: "Checks" };
   const MODULE_NAMES = ["sdd", "rea", "context7", "impeccable", "archify"];
   function settingsChanges(current, draft) {
     const out = [];
@@ -248,5 +269,10 @@
     return { key: "advice.other", text: "Try again. If it keeps failing, run amauta install in a terminal.", again: false };
   }
 
-  globalThis.AmautaRoute = { filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso, fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice, KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta, NODE_CAP: 30 };
+  globalThis.AmautaRoute = {
+    HUBS, hubOf, filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso,
+    fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice,
+    KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta,
+    NODE_CAP: 30
+  };
 })();

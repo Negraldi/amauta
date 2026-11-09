@@ -1,6 +1,6 @@
 import unittest
 
-from python.amauta.portal import skillimpact as si
+from python.amauta.extras.skill_impact import skillimpact as si
 
 
 def call(ts, tool="Bash", result="ok", skill=None, cmd=None):

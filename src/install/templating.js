@@ -16,6 +16,10 @@ export const DEFAULT_MODEL_ASSIGNMENTS = Object.freeze({
   'jd-judge-b': 'sonnet',
   'jd-fix-agent': 'sonnet',
   'graphify-extractor': 'haiku',
+  chasqui: 'sonnet', // the communicator (plan D10)
+  // The lenses default to a model other than the work they review (ADR 0008): the orchestrator, chasqui.
+  taripaq: 'sonnet',
+  haravec: 'opus',
   default: 'sonnet',
 });
 

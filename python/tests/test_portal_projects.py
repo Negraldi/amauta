@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import threading
+import unittest
 from unittest import mock
 from pathlib import Path
 
@@ -52,13 +53,13 @@ class ConfigFileTest(ProjectBase):
         for text in (None, "not json", "[]", '{"repos": "x"}', '{"auto_discover": "yes"}'):
             if text is not None:
                 self.cfg_file(text)
-            self.assertEqual(projects.read_config(self.f["state"]), {"repos": [], "auto_discover": True}, text)
+            self.assertEqual(projects.read_config(self.f["state"]), {"repos": [], "auto_discover": True, "siblings": []}, text)
 
     def test_valid_entries_are_kept_and_invalid_ones_dropped(self):
         a = git_dir(self.root / "a")
         (self.root / "file.txt").write_text("x")
         self.cfg_file(json.dumps({"repos": [str(a), "relative/dir", str(self.root / "ghost"), str(self.root / "file.txt"), 5, str(a)], "auto_discover": False}))
-        self.assertEqual(projects.read_config(self.f["state"], home=self.root), {"repos": [str(a.resolve())], "auto_discover": False})
+        self.assertEqual(projects.read_config(self.f["state"], home=self.root), {"repos": [str(a.resolve())], "auto_discover": False, "siblings": []})
 
 
 class OutsideHomeTest(ProjectBase):
@@ -68,12 +69,17 @@ class OutsideHomeTest(ProjectBase):
         super().setUp()
         self.fake_home = self.root / "home"
         self.fake_home.mkdir()
+        self.fake_home = self.fake_home.resolve()  # like home_dir(); macOS: /var is /private/var
         self.data = self.root / "mnt" / "datos"
         self.data.mkdir(parents=True)
         # The temp tree lives under /tmp, itself a system tree, so the tests use a narrower list for the "elsewhere" case.
         patcher = mock.patch.object(projects, "SYSTEM_TREES", ("/proc", "/sys", "/dev", "/run", "/etc", "/usr", "/boot", "/var"))
         patcher.start()
         self.addCleanup(patcher.stop)
+        # On macOS the temp tree is /private/var/folders: keep the rest of /private (/etc and /var resolve there).
+        mac = mock.patch.object(projects, "MACOS_TREES", ("/private/etc", "/private/var/lib", "/private/var/db", "/private/tmp", "/System", "/Library"))
+        mac.start()
+        self.addCleanup(mac.stop)
 
     def test_an_absolute_existing_directory_outside_home_is_accepted(self):
         self.assertEqual(projects.check_repo(str(self.data), self.fake_home), self.data.resolve())
@@ -182,6 +188,14 @@ class ProjectsApiTest(ProjectBase):
         self.assertEqual((a["sessions"], a["memories"], a["odd"]["features"], a["graph"]["mirrored"]), (2, 1, 0, False))  # s7 by cwd, s1 by project name; one live memory
         self.assertEqual(a["origin"], ["discovered"])
 
+    def test_each_project_shows_its_selected_profile(self):
+        """Plan D14: the profile a project selected (amauta profile use), or default."""
+        sel = self.f["state"] / "profiles" / "selection.json"
+        sel.parent.mkdir(parents=True, exist_ok=True)
+        sel.write_text(json.dumps({str(self.alpha.resolve()): "acme"}))
+        p = self.fresh() and self.by_name()
+        self.assertEqual((p["alpha"]["profile"], p["repo"]["profile"]), ("acme", "default"))
+
     def test_config_is_part_of_the_answer(self):
         (self.f["state"] / "portal.json").write_text(json.dumps({"repos": [str(self.alpha)], "auto_discover": False}))
         body = self.fresh() and self.get("/api/projects")
@@ -272,14 +286,14 @@ class ProjectConfigWriteTest(ServerBase):
         link.symlink_to(self.good, target_is_directory=True)
         status, _, body = self.post({"repos": [str(self.good), str(link), str(self.good) + "/"], "auto_discover": False})
         self.assertEqual(status, 200, body)
-        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": False})
+        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": False, "siblings": []})
         self.assertEqual(json.loads(body)["config_repos"], [str(self.good.resolve())])
         self.assertEqual(json.loads(self.request("GET", "/api/projects")[2])["auto_discover"], False)
 
     def test_each_part_of_the_body_is_optional_and_keeps_the_rest(self):
         self.post({"repos": [str(self.good)], "auto_discover": False})
         self.assertEqual(self.post({"auto_discover": True})[0], 200)
-        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": True})
+        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": True, "siblings": []})
 
     def rejected(self, status, body=None, **kw):
         s, _, data = self.post(body, **kw)
@@ -370,3 +384,33 @@ class LinkedWorktreeTest(ProjectBase):
         self.assertEqual(self.names(), ["repo"])
         (self.f["state"] / "portal.json").write_text(json.dumps({"repos": [str(wt)], "auto_discover": True}))
         self.assertEqual(self.names(), ["repo", "main-dev"])
+
+
+class WindowsSystemTreesTest(unittest.TestCase):
+    """Plan N8: on Windows the guard refuses the drive root, Windows, Program Files, ProgramData and the temp dirs."""
+
+    ENV = {"SystemRoot": r"C:\Windows", "ProgramFiles": r"C:\Program Files", "ProgramFiles(x86)": r"C:\Program Files (x86)",
+           "ProgramData": r"C:\ProgramData", "TEMP": r"C:\Users\ana\AppData\Local\Temp"}
+
+    def test_windows_trees_come_from_the_environment_and_match_case_insensitively(self):
+        from python.amauta.portal import projects
+        trees = projects.system_trees("win32", self.ENV)
+        home = r"C:\Users\ana"
+        for bad in (r"C:\\", r"c:\windows\System32", r"C:\Program Files\x", r"C:\ProgramData\y", r"C:\Users\ana\AppData\Local\Temp\t"):
+            self.assertTrue(projects.in_system_tree(bad, home, trees, "win32"), bad)
+        for ok in (r"C:\Users\ana\code\proj", r"D:\datos\proyecto"):
+            self.assertFalse(projects.in_system_tree(ok, home, trees, "win32"), ok)
+
+    def test_posix_trees_are_unchanged(self):
+        from python.amauta.portal import projects
+        self.assertEqual(projects.system_trees("linux", {}), list(projects.SYSTEM_TREES))
+
+    def test_macos_resolved_system_trees_are_refused(self):
+        """On macOS /etc, /var and /tmp resolve to /private/...; the system and library trees are refused too (plan N9b)."""
+        from python.amauta.portal import projects
+        trees = projects.system_trees("darwin", {})
+        home = "/Users/ana"
+        for bad in ("/private/etc", "/private/var/folders/x/T/tmp1", "/private/tmp/p", "/System/Library", "/Library/x", "/etc"):
+            self.assertTrue(projects.in_system_tree(bad, home, trees, "darwin"), bad)
+        for ok in ("/Users/ana/code/proj", "/Users/ana/Library/x", "/Volumes/datos/proyecto"):
+            self.assertFalse(projects.in_system_tree(ok, home, trees, "darwin"), ok)

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { makeEnv, Element } from './helpers/fakedom.js';
-import { runPortal } from './helpers/portalboot.js';
+import { APP_SCRIPTS, runPortal, readApp } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
@@ -48,11 +48,11 @@ const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === '
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 
 test('static files: no innerHTML-style sinks, no external URLs, no inline script or style', async () => {
-  const js = await read('app.js');
+  const js = await readApp();
   for (const sink of ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'new Function', 'localStorage']) assert.ok(!js.includes(sink), sink);
   const html = await read('index.html');
   const css = await read('style.css');
-  for (const [name, text] of [['app.js', js], ['index.html', html], ['style.css', css]]) assert.ok(!/https?:\/\/(?!www\.w3\.org\/2000\/svg)/.test(text), `${name} references an external URL`);
+  for (const [name, text] of [['the UI scripts', js], ['index.html', html], ['style.css', css]]) assert.ok(!/https?:\/\/(?!www\.w3\.org\/2000\/svg)/.test(text), `${name} references an external URL`);
   assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
   assert.match(html, /name="portal-token" content="__PORTAL_TOKEN__"/);
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), 'inline script');
@@ -63,23 +63,38 @@ test('static files: no innerHTML-style sinks, no external URLs, no inline script
   assert.match(css, /overflow-wrap:\s*anywhere/); // long titles must not force horizontal scroll at 375px
 });
 
-test('app.js is valid JavaScript', async () => {
-  const r = spawnSync(process.execPath, ['--check', path.join(STATIC, 'app.js')], { encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
+test('every UI script is valid JavaScript', async () => {
+  for (const file of APP_SCRIPTS) {
+    const r = spawnSync(process.execPath, ['--check', path.join(STATIC, file)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${file}: ${r.stderr}`);
+  }
 });
 
-test('overview (now under #/usage) renders KPIs, chart and the dropped counter; data strings only become text', async () => {
+test('Activity opens with one summary sentence, then the chart; no stat tiles; data strings only become text (plan N12f)', async () => {
   const env = await boot('#/usage');
   const view = env.document.getElementById('view');
   const text = view.textContent;
-  assert.match(text, /Cache hit ratio/);
-  assert.match(text, /50\.0%/);
-  assert.match(text, /7 dropped/);
+  const lead = tree(view).find((e) => e.tagName === 'p' && e.className === 'lead');
+  assert.ok(lead, 'a summary sentence');
+  assert.equal(lead.textContent, 'In this range: 3 messages in 2 sessions, 160 input and 85 output tokens; the cache served 50.0% of the input.');
+  assert.match(text, /4 telemetry events, 7 dropped/);
+  assert.ok(!tree(view).some((e) => e.className === 'grid' || e.className === 'card'), 'no stat tiles');
   assert.ok(tree(view).some((e) => e.tagName === 'svg'));
   assert.ok(tree(view).some((e) => e.tagName === 'rect'));
   assert.ok(text.includes(XSS), 'model name is shown as text');
   assert.equal(tree(view).filter((e) => e.tagName === 'img').length, 0);
   assert.ok(tree(view).every((e) => Object.keys(e.attrs).every((k) => !k.startsWith('on'))));
+});
+
+test('an empty table says so instead of showing a bare header; prose keeps a 72ch reading width (plan N12g)', async () => {
+  const saved = routes['/api/overview'];
+  routes['/api/overview'] = { ...usage, models: [] };
+  try {
+    const env = await boot('#/usage');
+    assert.match(env.document.getElementById('view').textContent, /Nothing to show for this selection/);
+  } finally { routes['/api/overview'] = saved; }
+  const css = await read('style.css');
+  assert.match(css, /#view p \{[^}]*max-width: 72ch/);
 });
 
 for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
@@ -108,7 +123,7 @@ test('refresh button POSTs with the page token and nothing else sensitive', asyn
   const post = env.calls.find((c) => c.url === '/api/refresh');
   assert.equal(post.opts.method, 'POST');
   assert.equal(post.opts.headers['X-Portal-Token'], 'TOKEN-123');
-  assert.match(env.document.getElementById('status').textContent, /2 new message/);
+  assert.match(env.document.getElementById('status').textContent, /New messages: 2\./);
 });
 
 test('API failures render an error panel instead of throwing', async () => {
@@ -211,7 +226,7 @@ test('graph memory: API failures are shown inline', async () => {
 });
 
 test('the page sends a token-authenticated heartbeat every 10 seconds', async () => {
-  const js = await read('app.js');
+  const js = await readApp();
   assert.match(js, /\/api\/heartbeat/);
   assert.match(js, /setInterval\(heartbeat, 10000\)/);
   assert.match(js, /heartbeat[\s\S]{0,200}X-Portal-Token/);

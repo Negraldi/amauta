@@ -1,10 +1,12 @@
-// Hook entrypoints for Claude Code and Codex. Handlers receive the hook JSON from stdin and may
+// Hook entrypoints for Claude Code and Codex. `hook event <Event>` is the per-event dispatcher installed since 0.5;
+// the single-handler names below stay for commands an older install wrote. Handlers receive the hook JSON from stdin and may
 // return one object to print as JSON on stdout. Hooks fail open: any error, malformed
 // input or missing field results in empty stdout and exit code 0.
 import { refreshRegistry } from '../registry/skill-registry.js';
 import { graphifyConnect } from '../graphify/connect.js';
 import { reviewStop } from '../review/stop.js';
 import { syncIfChanged } from '../install/fingerprint.js';
+import { dispatchEvent, parseEventArgs } from './dispatch.js';
 
 export const handlers = new Map([
   ['skill-registry', async (payload) => {
@@ -36,7 +38,20 @@ function parsePayload(text) {
   }
 }
 
-export async function runHook(name, io) {
+/** `hook event <Event> ...`: the per-event dispatcher (plan N7); always exits 0. */
+async function runEvent(args, io) {
+  try {
+    const raw = await readAll(io.stdin ?? process.stdin);
+    const decision = await dispatchEvent({ ...parseEventArgs(args), payload: parsePayload(raw), raw });
+    if (decision) io.stdout.write(`${JSON.stringify(decision)}\n`);
+  } catch {
+    // fail open
+  }
+  return 0;
+}
+
+export async function runHook(name, io, args = []) {
+  if (name === 'event') return runEvent(args, io);
   const handler = handlers.get(name);
   if (!handler) {
     io.stderr.write(`amauta: unknown hook: ${name ?? ''}\n`);

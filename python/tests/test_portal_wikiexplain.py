@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from python.amauta.portal import wikiexplain
+from python.amauta.extras.wiki_explain import wikiexplain
 from python.tests.test_portal_server import ServerBase
 from python.tests.test_portal_wiki_harness import HarnessBase, write
 
@@ -27,7 +27,7 @@ class ExplainBase(HarnessBase):
 
     def cli(self, *args, input=None):
         env = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": str(self.f["state"]), "AMAUTA_CLAUDE_HOME": str(self.f["home"])}
-        return subprocess.run([sys.executable, "-P", "-m", "amauta.portal.wikiexplain", *args, "--repo", str(self.f["repo"])], capture_output=True, text=True, env=env, cwd=self.root, input=input, timeout=60)
+        return subprocess.run([sys.executable, "-P", "-m", "amauta.extras.wiki_explain", *args, "--repo", str(self.f["repo"])], capture_output=True, text=True, env=env, cwd=self.root, input=input, timeout=60)
 
     def write_note_file(self, text="## What it does\n\nIt reviews things.\n"):
         p = self.root / "note.md"

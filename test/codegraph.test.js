@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -15,7 +15,7 @@ const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
 const HOOK = 'codegraph prompt-hook';
 
 async function sandbox({ withCodegraph = true, settings, claudeJson } = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-cg-'));
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gl-cg-'))); // macOS: /var is /private/var
   const t = { root, claudeHome: path.join(root, 'home', '.claude'), claudeJson: path.join(root, 'home', 'claude.json'), stateDir: path.join(root, 'state'), binDir: path.join(root, 'bin'), log: path.join(root, 'calls.log') };
   await mkdir(t.claudeHome, { recursive: true });
   await mkdir(t.binDir);

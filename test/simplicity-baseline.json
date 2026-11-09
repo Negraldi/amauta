@@ -1,0 +1,343 @@
+{
+ "schema": "amauta.simplicity-baseline/v1",
+ "limits": {
+  "file": 400,
+  "function": 60,
+  "line": 140,
+  "readme": 200
+ },
+ "readme": 122,
+ "files": {
+  "bin/amauta.js": {
+   "noHeader": true
+  },
+  "python/amauta/extras/graphify_semantic/semantic_plan.py": {
+   "lines": 699,
+   "long": 8
+  },
+  "python/amauta/extras/skill_impact/skillhist.py": {
+   "long": 12
+  },
+  "python/amauta/extras/skill_impact/skillimpact.py": {
+   "long": 14
+  },
+  "python/amauta/extras/theme_editor/themes.py": {
+   "long": 5
+  },
+  "python/amauta/extras/wiki_explain/__init__.py": {
+   "long": 1
+  },
+  "python/amauta/extras/wiki_explain/wikiexplain.py": {
+   "long": 5
+  },
+  "python/amauta/graph/__main__.py": {
+   "long": 2
+  },
+  "python/amauta/graph/lock.py": {
+   "long": 2
+  },
+  "python/amauta/graph/query.py": {
+   "long": 8
+  },
+  "python/amauta/graph/refresh.py": {
+   "long": 1
+  },
+  "python/amauta/graph/sync.py": {
+   "long": 3
+  },
+  "python/amauta/memory/server.py": {
+   "long": 2
+  },
+  "python/amauta/portal/__main__.py": {
+   "long": 2
+  },
+  "python/amauta/portal/api.py": {
+   "lines": 619,
+   "long": 32
+  },
+  "python/amauta/portal/archify.py": {
+   "long": 11,
+   "fn": 77
+  },
+  "python/amauta/portal/config.py": {
+   "noHeader": true
+  },
+  "python/amauta/portal/diagrams.py": {
+   "long": 1
+  },
+  "python/amauta/portal/graphsync.py": {
+   "long": 4
+  },
+  "python/amauta/portal/projects.py": {
+   "long": 11
+  },
+  "python/amauta/portal/server.py": {
+   "long": 10
+  },
+  "python/amauta/portal/settings.py": {
+   "long": 11
+  },
+  "python/amauta/portal/static/app.js": {
+   "long": 28
+  },
+  "python/amauta/portal/static/boot.js": {
+   "long": 3
+  },
+  "python/amauta/portal/static/i18n.js": {
+   "long": 9
+  },
+  "python/amauta/portal/static/index.html": {
+   "long": 7,
+   "noHeader": true
+  },
+  "python/amauta/portal/static/markdown.js": {
+   "long": 15,
+   "fn": 67
+  },
+  "python/amauta/portal/static/page-activity.js": {
+   "long": 13
+  },
+  "python/amauta/portal/static/page-harness.js": {
+   "long": 16
+  },
+  "python/amauta/portal/static/page-home.js": {
+   "long": 11
+  },
+  "python/amauta/portal/static/page-memory.js": {
+   "long": 8
+  },
+  "python/amauta/portal/static/page-projects.js": {
+   "long": 16
+  },
+  "python/amauta/portal/static/page-settings.js": {
+   "long": 28,
+   "fn": 133
+  },
+  "python/amauta/portal/static/page-themes.js": {
+   "long": 25,
+   "fn": 150
+  },
+  "python/amauta/portal/static/page-wiki.js": {
+   "long": 53
+  },
+  "python/amauta/portal/static/style.css": {
+   "long": 35
+  },
+  "python/amauta/portal/static/theme.js": {
+   "long": 15
+  },
+  "python/amauta/portal/static/wikiroute.js": {
+   "long": 20
+  },
+  "python/amauta/portal/wiki.py": {
+   "lines": 451,
+   "long": 28
+  },
+  "python/amauta/portal/wikibase.py": {
+   "long": 2
+  },
+  "python/amauta/portal/wikifeature.py": {
+   "long": 6
+  },
+  "python/amauta/portal/wikiharness.py": {
+   "lines": 590,
+   "long": 21
+  },
+  "python/amauta/portal/wikihome.py": {
+   "long": 5
+  },
+  "python/amauta/portal/wikilint.py": {
+   "long": 16
+  },
+  "python/amauta/portal/wikimem.py": {
+   "long": 14
+  },
+  "python/amauta/portal/wikiprobe.py": {
+   "long": 10
+  },
+  "python/amauta/portal/wikiproject.py": {
+   "long": 7
+  },
+  "python/amauta/portal/wikisecret.py": {
+   "long": 4
+  },
+  "python/amauta/portal/wikisess.py": {
+   "long": 1
+  },
+  "python/amauta/portal/wikiskills.py": {
+   "long": 7
+  },
+  "python/amauta/portal/wikitools.py": {
+   "long": 60
+  },
+  "python/amauta/portal/wikiusage.py": {
+   "long": 27
+  },
+  "python/amauta/sdd/__main__.py": {
+   "long": 2
+  },
+  "python/amauta/sdd/preflight.py": {
+   "long": 2
+  },
+  "python/amauta/sdd/status.py": {
+   "long": 6,
+   "fn": 88
+  },
+  "python/amauta/telemetry/report.py": {
+   "long": 3
+  },
+  "python/amauta/usage/__main__.py": {
+   "long": 2
+  },
+  "python/amauta/usage/codex.py": {
+   "long": 3
+  },
+  "python/amauta/usage/hook.py": {
+   "long": 1
+  },
+  "python/amauta/usage/ingest.py": {
+   "long": 6
+  },
+  "src/cli.js": {
+   "noHeader": true
+  },
+  "src/codegraph/index.js": {
+   "long": 4,
+   "noHeader": true
+  },
+  "src/core/backup.js": {
+   "long": 1,
+   "noHeader": true
+  },
+  "src/core/fsatomic.js": {
+   "noHeader": true
+  },
+  "src/core/toml.js": {
+   "long": 4
+  },
+  "src/graphify/connect.js": {
+   "noHeader": true
+  },
+  "src/graphify/hook.js": {
+   "long": 14,
+   "noHeader": true
+  },
+  "src/graphify/probe.js": {
+   "long": 8,
+   "noHeader": true
+  },
+  "src/graphify/semantic.js": {
+   "long": 9,
+   "fn": 72,
+   "noHeader": true
+  },
+  "src/install/archify.js": {
+   "noHeader": true
+  },
+  "src/install/assets.js": {
+   "noHeader": true
+  },
+  "src/install/cli.js": {
+   "long": 17,
+   "noHeader": true
+  },
+  "src/install/codex.js": {
+   "lines": 452,
+   "long": 23,
+   "fn": 93,
+   "noHeader": true
+  },
+  "src/install/fingerprint.js": {
+   "long": 1,
+   "noHeader": true
+  },
+  "src/install/impeccable.js": {
+   "long": 3,
+   "noHeader": true
+  },
+  "src/install/installer.js": {
+   "lines": 554,
+   "long": 21,
+   "fn": 101,
+   "noHeader": true
+  },
+  "src/install/mcpsync.js": {
+   "long": 6,
+   "noHeader": true
+  },
+  "src/install/parity.js": {
+   "long": 6,
+   "noHeader": true
+  },
+  "src/install/paths.js": {
+   "long": 2,
+   "noHeader": true
+  },
+  "src/install/sdd.js": {
+   "noHeader": true
+  },
+  "src/install/servers.js": {
+   "long": 4,
+   "noHeader": true
+  },
+  "src/install/skillstore.js": {
+   "long": 6,
+   "noHeader": true
+  },
+  "src/install/templating.js": {
+   "noHeader": true
+  },
+  "src/mcp/server.js": {
+   "long": 1
+  },
+  "src/mcp/tools.js": {
+   "noHeader": true
+  },
+  "src/mermaid/check.js": {
+   "long": 3,
+   "noHeader": true
+  },
+  "src/mermaid/cli.js": {
+   "long": 1,
+   "noHeader": true
+  },
+  "src/portal/cli.js": {
+   "long": 5,
+   "noHeader": true
+  },
+  "src/portal/launch.js": {
+   "long": 6,
+   "fn": 78,
+   "noHeader": true
+  },
+  "src/portal/launcher.js": {
+   "long": 3,
+   "noHeader": true
+  },
+  "src/registry/skill-registry.js": {
+   "long": 6,
+   "noHeader": true
+  },
+  "src/review/assess.js": {
+   "fn": 86,
+   "noHeader": true
+  },
+  "src/review/cli.js": {
+   "long": 3,
+   "noHeader": true
+  },
+  "src/review/mode.js": {
+   "noHeader": true
+  },
+  "src/review/stop.js": {
+   "long": 1,
+   "noHeader": true
+  },
+  "src/util/git.js": {
+   "noHeader": true
+  },
+  "src/version.js": {
+   "noHeader": true
+  }
+ }
+}

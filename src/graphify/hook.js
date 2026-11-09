@@ -5,6 +5,7 @@ import { repoRoot as gitRepoRoot, gitOrNull } from '../util/git.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
 import { resolveTargets } from '../install/paths.js';
 import { shellQuote } from '../install/servers.js';
+import { installedPythonSync } from '../install/python.js';
 import { repoRoot as packageRoot } from '../install/assets.js';
 import { semanticCommand } from './semantic.js';
 
@@ -29,8 +30,9 @@ const CHECKOUT_GUARD = '  [ "$3" = 1 ] || exit 0  # post-checkout: branch switch
  * The lock itself (stale rule, start token, atomic takeover) is python/amauta/graph/lock.py, shared with Node and Python.
  * Failures go to <state-dir>/graphify-hook.log.
  */
-export function hookBlock({ stateDir, event = 'post-commit' }) {
+export function hookBlock({ stateDir, event = 'post-commit', python = 'python3' }) {
   const pythonPath = path.join(packageRoot, 'python');
+  const py = shellQuote(python); // the interpreter install recorded, never a bare python3 (macOS ships 3.9, N9b)
   const log = path.join(stateDir, 'graphify-hook.log');
   return [
     BEGIN,
@@ -46,7 +48,7 @@ export function hookBlock({ stateDir, event = 'post-commit' }) {
     "  # python/amauta/graph/lock.py, shared with Node and the Python writers. Exit 0 = acquired, 75 = held, anything else",
     "  # (no python3 >= 3.11, broken install) = fail open: nothing ran, nothing to clean up, and the reason goes to the log.",
     "  # The helper gets a minimal environment (PATH, HOME, LANG, PYTHONPATH): never API keys.",
-    `  acquire() { aerr="$(env -i PATH="$PATH" HOME="\${HOME-}" LANG="\${LANG-}" PYTHONPATH=${shellQuote(pythonPath)} python3 -P -m amauta.graph.lock acquire --lock "$LOCK" --pid "$me" 2>&1 >/dev/null)"; }`,
+    `  acquire() { aerr="$(env -i PATH="$PATH" HOME="\${HOME-}" LANG="\${LANG-}" PYTHONPATH=${shellQuote(pythonPath)} ${py} -P -m amauta.graph.lock acquire --lock "$LOCK" --pid "$me" 2>&1 >/dev/null)"; }`,
     '  release() { rm -rf "$LOCK" 2>/dev/null; }',
     '  while :; do',
     '    # Owner = this background subshell. `read` is a builtin, so /proc/self is the subshell itself (no helper process,',
@@ -74,7 +76,7 @@ export function hookBlock({ stateDir, event = 'post-commit' }) {
     '      else note "graphify update failed: $out"; fi',
     '    fi',
     '    if [ -f graphify-out/graph.json ]; then',
-    `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} AMAUTA_STATE_DIR=${shellQuote(stateDir)} python3 -P -m amauta.graph sync --repo .\${pend:+ --semantic-pending $pend} 2>&1)" || note "graph sync failed: $out"`,
+    `      out="$(env PYTHONPATH=${shellQuote(pythonPath)} AMAUTA_STATE_DIR=${shellQuote(stateDir)} ${py} -P -m amauta.graph sync --repo .\${pend:+ --semantic-pending $pend} 2>&1)" || note "graph sync failed: $out"`,
     '    fi',
     '    release; trap - EXIT',
     '    [ -e "$LOCK.pending" ] || break',
@@ -138,14 +140,15 @@ function nextHookText(file, original, block, warnings) {
 }
 
 /** Every event hook is checked before any is written, so a refused hook leaves all of them untouched. */
-export async function installHook({ cwd = process.cwd(), stateDir } = {}) {
+export async function installHook({ cwd = process.cwd(), stateDir, python } = {}) {
   const { root, hooks } = await hookLocation(path.resolve(cwd));
   const state = resolveTargets({ stateDir }).stateDir;
+  python ??= installedPythonSync({ ...process.env, AMAUTA_STATE_DIR: state });
   const warnings = [];
   const plans = [];
   for (const { event, file } of hooks) {
     const existing = await readOrNull(file);
-    plans.push({ file, existing, next: nextHookText(file, existing, hookBlock({ stateDir: state, event }), warnings) });
+    plans.push({ file, existing, next: nextHookText(file, existing, hookBlock({ stateDir: state, event, python }), warnings) });
   }
   let changed = false;
   for (const { file, existing, next } of plans) {

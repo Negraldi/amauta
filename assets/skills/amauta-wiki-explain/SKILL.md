@@ -15,9 +15,9 @@ The user asks you to process the wiki explanation requests, or says they pressed
 
 Run the helper exactly as written below (`env ...` sets the module path); quote every value you substitute.
 
-1. `env {{AMAUTA_PYTHONPATH_ENV}} python3 -P -m amauta.portal.wikiexplain list` prints JSON: for each pending request `kind`, `id`, `title`, `summary` (what the portal already knows), `source` (the component's source material: file text, masked config, curated catalog entry) and `exists`. Skip and report any item with `exists: false`.
+1. `{{AMAUTA_PY}} amauta.extras.wiki_explain list` prints JSON: for each pending request `kind`, `id`, `title`, `summary` (what the portal already knows), `source` (the component's source material: file text, masked config, curated catalog entry) and `exists`. Skip and report any item with `exists: false`.
 2. For each item write a short markdown note (about 80-250 words) from `source` only, with these headings: `## What it does`, `## When it runs` (or `## When Claude uses it`), `## Worth knowing` (optional: options, side effects, how it connects to other components). Plain markdown, no frontmatter, no HTML.
-3. Save the note to a temporary file and run `env {{AMAUTA_PYTHONPATH_ENV}} python3 -P -m amauta.portal.wikiexplain write --kind "<kind>" --id "<id>" --file "<note file>"`. It validates the component, stamps the note with the hash of the source it was written from, stores it and removes the request. Do not edit anything under the state directory by hand.
+3. Save the note to a temporary file and run `{{AMAUTA_PY}} amauta.extras.wiki_explain write --kind "<kind>" --id "<id>" --file "<note file>"`. It validates the component, stamps the note with the hash of the source it was written from, stores it and removes the request. Do not edit anything under the state directory by hand.
 4. Report which components got a note and which were skipped, and tell the user to reload the page.
 
 ## Rules

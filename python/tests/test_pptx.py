@@ -7,7 +7,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from python.amauta.graph import pptx
+from python.amauta.extras.graphify_semantic import pptx
 from python.tests.test_semantic_plan import Base
 
 NS = ('xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '

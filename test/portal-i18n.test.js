@@ -3,16 +3,17 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
-import { STATIC } from './helpers/portalboot.js';
+import { STATIC, readApp, readDicts } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const ctx = {};
 vm.runInNewContext(await read('i18n.js'), ctx);
 const I = ctx.AmautaI18n;
+I.install(await readDicts());
 const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;
-const app = await read('app.js');
+const app = await readApp();
 const html = await read('index.html');
 const plain = (x) => JSON.parse(JSON.stringify(x));
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -61,7 +62,7 @@ test('the server-text catalog has a Spanish text with the same placeholders for 
 });
 
 // ---- the keys app.js uses exist, and none is dead ---------------------------------------------------------------------
-const DYNAMIC = /^(kind|hint|status|delta|themeErr|advice|origin|palette\.group)\./;
+const DYNAMIC = /^(kind|hint|status|delta|themeErr|advice|origin|palette\.group|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
 test('every key that app.js uses exists in en; every en key is used', () => {
   const literals = [...app.matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
   const used = new Set(literals);
@@ -257,8 +258,8 @@ test('app.js has no user-visible text outside t(), tn() and ts()', () => {
 });
 
 test('navigation labels and page headings are keys, not literals', () => {
-  assert.match(app, /const SECTIONS = \[\s*\["nav\.knowledge"/);
-  for (const k of ['nav.home', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings']) assert.match(app, new RegExp(`"${k.replace('.', '\\.')}"`), k);
+  assert.match(app, /const SECTIONS = \[\["home", "#\/home", "nav\.home"\]/);
+  for (const k of ['nav.home', 'nav.activity', 'nav.tabs', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings']) assert.match(app, new RegExp(`"${k.replace('.', '\\.')}"`), k);
   for (const heading of [/h\("h1", null, "/, /h\("h2", null, "/, /h\("h3", null, "/, /panel\("/, /teach\("/]) assert.doesNotMatch(app, heading, String(heading));
 });
 
@@ -292,6 +293,27 @@ test('every text in index.html belongs to an element whose id app.js fills from 
 });
 
 // ---- markdown.js shows two fixed texts; the page passes them translated ------------------------------------------------
+test('copy pass (plan N12g): no "(s)" plurals, no jargon, counts through tn()', () => {
+  for (const [name, d] of [['en', EN], ['es', ES]]) {
+    const bad = Object.entries(d).filter(([, v]) => /\((?:s|es)\)/.test(v)).map(([k]) => k);
+    assert.deepEqual(bad, [], `${name}: texts that write plurals as (s)`);
+  }
+  assert.doesNotMatch(EN['harness.review'], /RDD/);
+  assert.notEqual(EN['origin.flag'], 'flag');
+  for (const k of ['project.count', 'project.countAuto', 'set.keptEdited', 'uot.bar', 'uot.summary']) {
+    assert.ok(`${k}.one` in EN && `${k}.other` in EN, `${k} has one/other forms`);
+    assert.ok(app.includes(`"${k}"`) && !app.includes(`t("${k}"`), `${k} is used through tn()`);
+  }
+});
+
+test('the top bar holds only the menu toggle and search; filters sit in a page bar, theme and language in the sidebar (plan N12c)', () => {
+  const topbar = /<header class="topbar">([\s\S]*?)<\/header>/.exec(html)[1];
+  assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]), ['nav-toggle', 'search-open', 'search-text']);
+  const sidebar = /<nav class="sidebar"[\s\S]*?<\/nav>/.exec(html)[0];
+  for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.match(sidebar, new RegExp(`id="${id}"`), id);
+  assert.match(html, /<\/header>\s*<div class="page-bar" id="filters"/);
+});
+
 test('markdown rendering takes its tooltip and table label from the caller', async () => {
   const { makeEnv } = await import('./helpers/fakedom.js');
   const mctx = {};

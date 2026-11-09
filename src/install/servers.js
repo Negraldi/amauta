@@ -1,12 +1,15 @@
 import path from 'node:path';
-import { repoRoot } from './assets.js';
+import { quoteArg } from '../core/platform.js';
+import { installRoot } from './assets.js';
 
-const PYTHON_PATH = path.join(repoRoot, 'python');
+export const PYTHON_PATH = path.join(installRoot, 'python');
+/** The interpreter used when install was not told one (`--python`, AMAUTA_PYTHON); commands then carry no flag. */
+export const DEFAULT_PYTHON = 'python3';
 
 /** Our Python memory MCP server (stdlib only; replaces the compiled engram binary). */
-export const memoryServer = (stateDir) => ({
+export const memoryServer = (stateDir, python = DEFAULT_PYTHON) => ({
   type: 'stdio',
-  command: 'python3',
+  command: python,
   args: ['-P', '-m', 'amauta.memory', 'serve'],
   // AMAUTA_RUNTIME only labels where the server runs; memories are partitioned by project alone, never by runtime.
   env: { PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: stateDir, AMAUTA_RUNTIME: 'claude' },
@@ -16,49 +19,33 @@ export const memoryServer = (stateDir) => ({
  * MCP servers registered in .claude.json (added only when absent).
  * The memory server is returned separately (`memory`) because its key depends on what the user already has.
  */
-export function desiredMcpServers({ stateDir, rea = false, context7 = false } = {}) {
+export function desiredMcpServers({ stateDir, rea = false, context7 = false, python } = {}) {
   return {
-    memory: memoryServer(stateDir),
+    memory: memoryServer(stateDir, python),
     codegraph: { type: 'stdio', command: 'codegraph', args: ['serve', '--mcp'] },
-    'amauta': { type: 'stdio', command: 'node', args: [path.join(repoRoot, 'src', 'mcp', 'server.js')] },
+    'amauta': { type: 'stdio', command: 'node', args: [path.join(installRoot, 'src', 'mcp', 'server.js')] },
     // Opt-in (--with-context7 / --with-rea): third-party servers that run unsandboxed; rea alone lists ~300 tools.
     ...(context7 ? { context7: { command: 'npx', args: ['-y', '--package=@upstash/context7-mcp@2.2.5', '--', 'context7-mcp'] } } : {}),
     ...(rea ? { rea: { command: 'npx', args: ['-y', 'rea-agents@6.4.0', 'mcp'] } } : {}),
   };
 }
 
-const BIN = path.join(repoRoot, 'bin', 'amauta.js');
+const BIN = path.join(installRoot, 'bin', 'amauta.js');
 
 /** Quote a path for a POSIX shell only when it contains unsafe characters. */
-export const shellQuote = (p) => (/^[A-Za-z0-9_./@:+,=-]+$/.test(p) ? p : `'${p.replaceAll("'", `'\\''`)}'`);
+/** One argument of a hook or MCP command line, quoted for the platform's hook shell (src/core/platform.js). */
+export const shellQuote = (p) => quoteArg(p);
 
 /** True for any hook command amauta registered (absolute `node .../amauta.js hook X` or legacy `amauta ...`). */
 export const isAmautaHook = (command) =>
   /(^|[\s/'"])amauta\.js['"]?\s+hook(\s|$)/.test(command) || /(^|\s)-m\s+amauta\.[a-z_]+(\s|$)/.test(command) || command.startsWith('amauta ') || /amauta\.(telemetry|usage)['"]?\s+hook(\s|$)/.test(command) ||
   /amauta\.sdd['"]?\s+preflight-hook([\s)]|$)/.test(command);
 
-const hook = (name, timeout) => ({
-  type: 'command',
-  command: `node ${shellQuote(BIN)} hook ${name}`,
-  ...(timeout ? { timeout } : {}),
-});
+/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`): `amauta sdd`, portable to Windows. */
+export const sddCommand = () => `node ${shellQuote(BIN)} sdd`;
 
-const TELEMETRY_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop', 'SubagentStop'];
-
-/** Local-only telemetry hook: `env` form works in Claude Code hook command strings (run through a shell). */
-const pythonHook = (stateDir, module, timeout) => ({
-  type: 'command',
-  timeout,
-  command: ['env', shellQuote(`PYTHONPATH=${PYTHON_PATH}`), shellQuote(`AMAUTA_STATE_DIR=${stateDir}`), `python3 -P -m ${module} hook`].join(' '),
-});
-const telemetryHook = (stateDir) => pythonHook(stateDir, 'amauta.telemetry', 5);
-/** Transcript usage ingestion: only after a turn or subagent ends. */
-const USAGE_EVENTS = ['Stop', 'SubagentStop'];
-
-/** Command prefix the SDD assets use to call our status module (`{{AMAUTA_SDD}}`) and the preflight hook command. */
-export const sddCommand = () => `env ${shellQuote(`PYTHONPATH=${PYTHON_PATH}`)} python3 -P -m amauta.sdd`;
-
-const PREFLIGHT_DENY = JSON.stringify({
+/** The decision the SDD preflight prints when it cannot run for an `sdd-*` dispatch (fail closed, src/hooks/dispatch.js). */
+export const PREFLIGHT_DENY = JSON.stringify({
   hookSpecificOutput: {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
@@ -67,34 +54,47 @@ const PREFLIGHT_DENY = JSON.stringify({
 });
 
 /**
- * Preflight hook command with a shell-level fail-closed guard. Claude Code only blocks on exit 2 or an explicit deny,
- * so a bare launcher failure would otherwise fail open. The shell reads the payload, runs the Python hook under
- * `timeout 20` when timeout(1) exists (so a hang is cut off before the 30 s hook timeout kills the whole shell, which
- * would fail open), and prints the hook's own output only when it succeeded. When it failed (cannot start, crash,
- * non-zero exit, hang) any partial output is discarded and the deny decision is printed, but only for `sdd-*`
- * dispatches: other agents stay silent. Residual gaps: no `sh`, or no timeout(1) and a hung hook.
+ * Handlers per event and the event's timeout (seconds, the sum of the handlers' own bounds plus slack). One command
+ * per event runs them in this order (src/hooks/dispatch.js); the handler names are written into the command.
  */
-export const sddPreflightCommand = () => {
-  const readPayload = `in=$(cat); T=; command -v timeout >/dev/null 2>&1 && T='timeout 20'`;
-  const onSuccess = `[ -z "$out" ] || printf '%s\\n' "$out"`;
-  const onFailure = `printf '%s' "$in" | grep -q '"subagent_type" *: *"sdd-' && printf '%s\\n' ${shellQuote(PREFLIGHT_DENY)}`;
-  const run = `if out=$(printf '%s' "$in" | $T ${sddCommand()} preflight-hook); then ${onSuccess}; else ${onFailure}; fi`;
-  // Trailing `true`: a failing branch (e.g. closed stdout) must still exit 0, a non-blocking hook error rather than exit 2.
-  return [readPayload, run, 'true'].join('; ');
-};
+export const PRIVACY_MATCHER = 'Read|NotebookRead|NotebookEdit';
+export const EDIT_MATCHER = 'Edit|Write|MultiEdit|NotebookEdit';
 
-/** Hook entries registered in settings.json. */
-export function desiredHooks({ stateDir, telemetry = false, sdd = false } = {}) {
-  const hooks = {
-    UserPromptSubmit: [{ matcher: '', hooks: [hook('skill-registry', 10)] }],
-    SessionStart: [{ matcher: 'startup|resume|clear|compact', hooks: [hook('review-stop', 30), hook('graphify-connect', 10), hook('sync-check', 10)] }],
-    Stop: [{ matcher: '', hooks: [hook('review-stop', 60)] }],
-  };
-  if (telemetry) {
-    for (const event of TELEMETRY_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [telemetryHook(stateDir)] });
-    for (const event of USAGE_EVENTS) (hooks[event] ??= []).push({ matcher: '', hooks: [pythonHook(stateDir, 'amauta.usage', 10)] });
+const EVENT_PLAN = [
+  { event: 'UserPromptSubmit', base: ['skill-registry', 'privacy'], telemetry: ['telemetry'], timeout: 20 },
+  { event: 'SessionStart', base: ['review-stop', 'graphify-connect', 'sync-check'], telemetry: ['telemetry'], timeout: 60 },
+  { event: 'Stop', base: ['review-stop', 'checks'], telemetry: ['telemetry', 'usage'], timeout: 60 },
+  { event: 'PostToolUse', base: [], telemetry: ['telemetry'], timeout: 10 },
+  { event: 'SubagentStop', base: [], telemetry: ['telemetry', 'usage'], timeout: 20 },
+];
+
+const eventCommand = (event, names, { stateDir, runtime, python }) =>
+  [`node ${shellQuote(BIN)} hook event ${event}`, ...(stateDir ? [`--state-dir ${shellQuote(stateDir)}`] : []), `--with ${names.join(',')}`,
+    ...(python && python !== DEFAULT_PYTHON ? [`--python ${shellQuote(python)}`] : []), ...(runtime ? [`--runtime ${runtime}`] : [])].join(' ');
+
+/** The hook switches recorded in state.json; privacy and checks are on unless an install said `--no-...` (plan D14). */
+export const hookSwitches = (s) => ({ telemetry: s.telemetry === true, sdd: s.sdd === true, python: s.python, privacy: s.privacy !== false,
+  checks: s.checks !== false });
+
+/** Hook entries registered in settings.json (Claude) or hooks.json (Codex, `runtime: 'codex'`): one per event. */
+export function desiredHooks({ stateDir, telemetry = false, sdd = false, runtime, python, privacy = true, checks = true } = {}) {
+  const where = { stateDir, runtime, python };
+  const hooks = {};
+  for (const p of EVENT_PLAN) {
+    const off = new Set([...(privacy ? [] : ['privacy']), ...(checks ? [] : ['checks'])]); // plan D14 switches
+    const names = [...p.base.filter((n) => !off.has(n)), ...(telemetry ? p.telemetry : [])];
+    if (names.length === 0) continue;
+    hooks[p.event] = [{ matcher: '', hooks: [{ type: 'command', command: eventCommand(p.event, names, where), timeout: p.timeout }] }];
   }
-  if (sdd) (hooks.PreToolUse ??= []).push({ matcher: 'Agent', hooks: [{ type: 'command', command: sddPreflightCommand(), timeout: 30 }] });
+  const pre = [];
+  // Data files reach the model through Read; Codex reads through its shell, so it gets only the prompt check (plan D4).
+  const entry = (matcher, names, timeout, event = 'PreToolUse') =>
+    ({ matcher, hooks: [{ type: 'command', command: eventCommand(event, names, where), timeout }] });
+  if (runtime !== 'codex' && privacy) pre.push(entry(PRIVACY_MATCHER, ['privacy'], 10));
+  if (sdd) pre.push(entry('Agent', ['sdd-preflight'], 30));
+  if (pre.length) hooks.PreToolUse = pre;
+  // The edit check (plan D5): Claude's edit tools only; Codex edits arrive as patches through its shell.
+  if (runtime !== 'codex' && checks) hooks.PostToolUse = [...(hooks.PostToolUse ?? []), entry(EDIT_MATCHER, ['checks'], 60, 'PostToolUse')];
   return hooks;
 }
 
@@ -135,6 +135,6 @@ export function staleAmautaHooks(settings, wantedCommands) {
  */
 export function isStaleAmautaServer(value) {
   if (!isAmautaServer(value)) return false;
-  const here = (value.args ?? []).includes(path.join(repoRoot, 'src', 'mcp', 'server.js')) || value.env?.PYTHONPATH === PYTHON_PATH;
+  const here = (value.args ?? []).includes(path.join(installRoot, 'src', 'mcp', 'server.js')) || value.env?.PYTHONPATH === PYTHON_PATH;
   return !here;
 }

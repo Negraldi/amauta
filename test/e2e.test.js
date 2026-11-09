@@ -11,6 +11,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { makeRepo } from './helpers/repo.js';
+import { PY } from './helpers/python.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(repoRoot, 'bin', 'amauta.js');
@@ -83,7 +84,7 @@ before(async () => {
   await writeFile(path.join(fakeBin, 'codegraph'), '#!/bin/sh\nexit 0\n');
   await chmod(path.join(fakeBin, 'codegraph'), 0o755);
   pathEnv = `${fakeBin}${path.delimiter}${process.env.PATH}`;
-  env = { ...process.env, HOME: home, PATH: pathEnv, AMAUTA_CLAUDE_HOME: claudeHome, AMAUTA_CLAUDE_JSON: claudeJson, AMAUTA_STATE_DIR: stateDir };
+  env = { ...process.env, AMAUTA_PYTHON: PY, HOME: home, PATH: pathEnv, AMAUTA_CLAUDE_HOME: claudeHome, AMAUTA_CLAUDE_JSON: claudeJson, AMAUTA_STATE_DIR: stateDir };
   project = await makeRepo({ 'README.md': '# e2e project\n', 'package.json': '{}\n' });
   await project.write('odd/tasks/demo.md', '# Demo\n\n- [x] T1 first\n- [ ] T2 second\n');
   project.commit('add tasks');
@@ -136,7 +137,7 @@ test('every registered hook command runs under sh -c and exits 0', async () => {
       assert.equal(r.status, 0, `${event}: ${command}\n${r.stderr}`);
     }
   }
-  const pre = hookCommands('PreToolUse').find((h) => /preflight-hook/.test(h.command));
+  const pre = hookCommands('PreToolUse').find((h) => /--with sdd-preflight/.test(h.command));
   const agent = (type) => ({ ...base, hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: type, prompt: 'x' } });
   const denied = runHook(pre.command, agent('sdd-apply'));
   assert.equal(denied.status, 0);
@@ -168,7 +169,7 @@ test('amauta MCP server: initialize, tools/list and odd_tasks_status', async () 
   await withMcp(mcp['amauta'], async ({ tools, callTool }) => {
     for (const t of ['odd_tasks_status', 'review_assess', 'skill_registry_refresh', 'review_mode_status']) assert.ok(tools.includes(t), t);
     const out = JSON.parse(await callTool('odd_tasks_status', { cwd: project.dir }));
-    assert.deepEqual(out.files, [{ file: 'odd/tasks/demo.md', done: 1, total: 2, next: 'T2 second' }]);
+    assert.deepEqual(out.files, [{ file: 'odd/tasks/demo.md', done: 1, total: 2, blocked: 0, next: 'T2 second' }]);
     assert.deepEqual(out.next, { file: 'odd/tasks/demo.md', item: 'T2 second' });
   });
 });
@@ -176,13 +177,16 @@ test('amauta MCP server: initialize, tools/list and odd_tasks_status', async () 
 test('portal serves /api/overview on 127.0.0.1', async () => {
   const child = spawn('node', [CLI, 'portal', '--port', '0', '--claude-home', claudeHome, '--engram-db', path.join(home, 'none.db')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
   try {
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (d) => { if (err.length < 4000) err += d; });
     const url = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('portal did not start')), 15000);
+      const timer = setTimeout(() => reject(new Error(`portal did not start; stderr: ${err || '(none)'}`)), 15000);
       readline.createInterface({ input: child.stdout }).on('line', (line) => {
         const m = /(http:\/\/127\.0\.0\.1:\d+)\//.exec(line);
         if (m) { clearTimeout(timer); resolve(m[1]); }
       });
-      child.on('exit', (code) => reject(new Error(`portal exited ${code}`)));
+      child.on('exit', (code) => reject(new Error(`portal exited ${code}; stderr: ${err || '(none)'}`)));
     });
     const res = await fetch(`${url}/api/overview`);
     assert.equal(res.status, 200);

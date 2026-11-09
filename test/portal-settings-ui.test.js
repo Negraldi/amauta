@@ -15,7 +15,7 @@ const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;
 
-const CURRENT = { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } };
+const CURRENT = { persona: 'gentleman', review_mode: 'off', telemetry: 'on', privacy: 'on', checks: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } };
 const draftOf = (over = {}) => ({ ...CURRENT, ...over, modules: { ...CURRENT.modules, ...(over.modules || {}) } });
 
 test('settingsChanges and settingsBody describe only what differs, from the closed list', () => {
@@ -84,7 +84,7 @@ test('the page lists every option of the closed list with its current value and 
 test('changing an option marks it with words and a symbol (not color alone) and enables the preview', async () => {
   const { env } = await boot();
   choose(env, 'set-persona', 'neutral');
-  assert.match(view(env).textContent, /◆ changed, was gentleman/);
+  assert.match(view(env).textContent, /◆ changed, was Gentleman/);
   assert.equal(button(env, 'Preview changes').attrs.disabled, undefined);
   choose(env, 'set-persona', 'gentleman');
   assert.doesNotMatch(view(env).textContent, /changed, was/);
@@ -103,9 +103,9 @@ test('Preview changes posts only the changed keys with the token and a JSON cont
   assert.equal(posts[0].headers['Content-Type'], 'application/json');
   assert.deepEqual(posts[0].body, { persona: 'neutral', modules: { sdd: 'on' } });
   const v = view(env);
-  assert.match(v.textContent, /Persona: gentleman → neutral/);
+  assert.match(v.textContent, /Persona: Gentleman → Neutral/);
   assert.match(v.textContent, /Module sdd: off → on/);
-  assert.match(v.textContent, /3 file\(s\) written, 1 removed, 1 kept because you edited them/);
+  assert.match(v.textContent, /Files written: 3\. Removed: 1\. Kept because you edited them: 1\./);
   assert.match(v.textContent, /settings\.json/);
   assert.ok(tree(v).some((e) => e.textContent === XSS), 'a hostile file name is text');
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
@@ -140,7 +140,7 @@ test('Undo previews what reverting changes, asks for confirmation, then posts th
   assert.equal(posts.filter((p) => p.path === 'undo-preview').length, 1);
   assert.deepEqual(posts.find((p) => p.path === 'undo-preview').body, {});
   assert.equal(posts.filter((p) => p.path === 'undo').length, 0, 'a preview alone changes nothing');
-  assert.match(view(env).textContent, /Persona: neutral → gentleman/);
+  assert.match(view(env).textContent, /Persona: Neutral → Gentleman/);
   assert.match(view(env).textContent, /re-runs the installer/);
   button(env, 'Revert these changes').click(); await tick();
   assert.equal(posts.filter((p) => p.path === 'undo').length, 0, 'the first click only asks');
@@ -184,4 +184,10 @@ test('without an install the page says so, and no DOM node gets raw HTML', async
   const { env } = await boot({ '/api/settings': async () => ({ ...SETTINGS, installed: false }) });
   assert.match(view(env).textContent, /not installed yet/);
   assert.ok(tree(view(env)).every((e) => Object.keys(e.attrs).every((k) => !k.startsWith('on'))));
+});
+
+test('the privacy hook and the checks are switches like telemetry (plan D14)', () => {
+  const d = { ...CURRENT, modules: { ...CURRENT.modules }, privacy: 'off', checks: 'off' };
+  assert.deepEqual(plain(R.settingsChanges(CURRENT, d)).map((c) => [c.key, c.from, c.to]), [['privacy', 'on', 'off'], ['checks', 'on', 'off']]);
+  assert.deepEqual(plain(R.settingsBody(CURRENT, d, false)), { privacy: 'off', checks: 'off' });
 });

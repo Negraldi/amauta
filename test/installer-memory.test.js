@@ -37,10 +37,10 @@ const memoryEntry = (t) => ({
   env: { PYTHONPATH: path.join(repo, 'python'), AMAUTA_STATE_DIR: t.stateDir, AMAUTA_RUNTIME: 'claude' },
 });
 const telemetryCommands = (settings) =>
-  Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /amauta\.telemetry hook/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
+  Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /--with (\S+,)?telemetry(,|\s|$)/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
 
 const usageCommands = (settings) =>
-  Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /amauta\.usage hook/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
+  Object.entries(settings.hooks ?? {}).flatMap(([event, es]) => es.flatMap((e) => e.hooks.filter((h) => /--with (\S+,)?usage(,|\s|$)/.test(h.command)).map((h) => ({ event, command: h.command, matcher: e.matcher }))));
 
 test('usage hook is registered for Stop and SubagentStop only, same form as telemetry, and removed by uninstall', async () => {
   const t = await sandbox();
@@ -48,7 +48,7 @@ test('usage hook is registered for Stop and SubagentStop only, same form as tele
   const found = usageCommands(await t.settings());
   assert.deepEqual(found.map((f) => f.event).sort(), ['Stop', 'SubagentStop']);
   for (const f of found) {
-    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} AMAUTA_STATE_DIR=${t.stateDir} python3 -P -m amauta.usage hook`);
+    assert.match(f.command, new RegExp(`amauta\\.js'? hook event ${f.event} --state-dir '?${t.stateDir}'? --with `));
     assert.equal(f.matcher, '');
   }
   assert.ok((await status(t.opts())).ok);
@@ -131,7 +131,7 @@ test('telemetry hooks are registered for five events, marked, and removed by uni
   const found = telemetryCommands(settings);
   assert.deepEqual(found.map((f) => f.event).sort(), [...EVENTS].sort());
   for (const f of found) {
-    assert.equal(f.command, `env PYTHONPATH=${path.join(repo, 'python')} AMAUTA_STATE_DIR=${t.stateDir} python3 -P -m amauta.telemetry hook`);
+    assert.match(f.command, new RegExp(`amauta\\.js'? hook event ${f.event} --state-dir '?${t.stateDir}'? --with `));
     assert.equal(f.matcher, '');
   }
   assert.equal((await t.state()).telemetry, true);
@@ -156,13 +156,16 @@ test('telemetry:false skips the hooks and records it; re-install removes earlier
   await t.cleanup();
 });
 
-test('paths with spaces are shell-quoted in the telemetry hook command', async () => {
+test('paths with spaces are shell-quoted in the hook command, and the command records into that state dir', async () => {
   const t = await sandbox({ stateName: 'my state' });
   await install(t.opts());
-  const [{ command }] = telemetryCommands(await t.settings());
-  assert.ok(command.includes(`'AMAUTA_STATE_DIR=${t.stateDir}'`), command);
-  const sh = spawnSync('sh', ['-c', command.replace('python3 -P -m amauta.telemetry hook', 'printenv AMAUTA_STATE_DIR')], { encoding: 'utf8' });
-  assert.equal(sh.stdout.trim(), t.stateDir);
+  const { command } = telemetryCommands(await t.settings()).find((f) => f.event === 'UserPromptSubmit');
+  assert.ok(command.includes(`'${t.stateDir}'`), command);
+  const payload = JSON.stringify({ session_id: 'q1', hook_event_name: 'UserPromptSubmit', cwd: t.root, prompt: 'x' });
+  const sh = spawnSync('sh', ['-c', command], { encoding: 'utf8', input: payload });
+  assert.equal(sh.status, 0);
+  const db = spawnSync('python3', ['-c', 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute("select count(*) from events where session_id=\'q1\'").fetchone()[0])', path.join(t.stateDir, 'memory.db')], { encoding: 'utf8' });
+  assert.equal(db.stdout.trim(), '1');
   await t.cleanup();
 });
 

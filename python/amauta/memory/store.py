@@ -8,6 +8,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import guard
+
 SCHEMA_VERSION = 7
 
 _MIGRATIONS = {
@@ -197,6 +199,7 @@ class Store:
         return {"id": session_id, "project": project}
 
     def session_end(self, session_id, summary=None):
+        (summary,), _ = guard.clean(summary)
         with self.conn:
             self._ensure_session(session_id, None)
             self.conn.execute(
@@ -208,17 +211,17 @@ class Store:
         return f"manual-save-{project}"
 
     def session_summary(self, content, project=None, session_id=None):
+        (content,), redacted = guard.clean(content)
         project = project or detect_project()
         session_id = session_id or self._default_session(project)
         with self.conn:
             self._ensure_session(session_id, project)
             self.conn.execute("UPDATE sessions SET summary = ? WHERE id = ?", (content, session_id))
-        return self.save(
-            title=f"Session summary: {project}", content=content, type="session_summary",
-            project=project, session_id=session_id,
-        )
+        r = self.save(title=f"Session summary: {project}", content=content, type="session_summary", project=project, session_id=session_id)
+        return {**r, "redacted": redacted} if redacted else r
 
     def save_prompt(self, content, project=None, session_id=None):
+        (content,), redacted = guard.clean(content)
         project = project or detect_project()
         session_id = session_id or self._default_session(project)
         with self.conn:
@@ -227,10 +230,12 @@ class Store:
                 "INSERT INTO prompts (sync_id, session_id, project, content, created_at) VALUES (?, ?, ?, ?, ?)",
                 (f"prompt-{os.urandom(8).hex()}", session_id, project, content, now()),
             )
-        return {"id": cur.lastrowid}
+        return {"id": cur.lastrowid, **({"redacted": redacted} if redacted else {})}
 
     # -- observations -------------------------------------------------------------
     def save(self, title, content, type="note", topic_key=None, scope="project", project=None, session_id=None):
+        (title, content), redacted = guard.clean(title, content)  # the memory guard: secrets refused, identifiers redacted
+        extra = {"redacted": redacted} if redacted else {}
         project = project or detect_project()
         session_id = session_id or self._default_session(project)
         ts = now()
@@ -247,15 +252,16 @@ class Store:
                         "UPDATE observations SET title = ?, content = ?, type = ?, updated_at = ?, revision = ? WHERE id = ?",
                         (title, content, type, ts, row["revision"] + 1, row["id"]),
                     )
-                    return {"id": row["id"], "action": "updated", "revision": row["revision"] + 1}
+                    return {"id": row["id"], "action": "updated", "revision": row["revision"] + 1, **extra}
             cur = self.conn.execute(
                 "INSERT INTO observations (sync_id, session_id, project, scope, type, title, content, topic_key, "
                 "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (f"obs-{os.urandom(8).hex()}", session_id, project, scope, type, title, content, topic_key, ts, ts),
             )
-            return {"id": cur.lastrowid, "action": "created", "revision": 1}
+            return {"id": cur.lastrowid, "action": "created", "revision": 1, **extra}
 
     def update(self, id, title=None, content=None, type=None, topic_key=None):
+        (title, content), redacted = guard.clean(title, content)
         row = self.get(id)
         if row is None:
             raise KeyError(f"observation {id} not found")
@@ -271,7 +277,7 @@ class Store:
                     now(), id,
                 ),
             )
-        return {"id": id, "action": "updated", "revision": row["revision"] + 1}
+        return {"id": id, "action": "updated", "revision": row["revision"] + 1, **({"redacted": redacted} if redacted else {})}
 
     def get(self, id):
         row = self.conn.execute("SELECT * FROM observations WHERE id = ? AND deleted_at IS NULL", (id,)).fetchone()

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { startMenuDir, shortcutCommand } from './windows.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ENTRY = 'amauta-portal.desktop';
@@ -49,7 +50,8 @@ function defaultWhich(name) {
 }
 
 export async function runInstallLauncher(args, io, overrides = {}) {
-  const deps = { nodePath: process.execPath, which: defaultWhich, run: (cmd, a) => spawnSync(cmd, a, { stdio: 'ignore' }), ...overrides };
+  const deps = { platform: process.platform, env: process.env, nodePath: process.execPath, which: defaultWhich,
+    run: (cmd, a, o = {}) => spawnSync(cmd, a, { stdio: 'ignore', ...o }), remove: (f) => fs.rmSync(f, { force: true }), ...overrides };
   let values;
   try {
     values = parseArgs({ args, options: { remove: { type: 'boolean' }, 'applications-dir': { type: 'string' } }, allowPositionals: false, strict: true }).values;
@@ -57,6 +59,7 @@ export async function runInstallLauncher(args, io, overrides = {}) {
     io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
+  if (deps.platform === 'win32') return installWindowsShortcut(values.remove, io, deps);
   const dir = applicationsDir({ flag: values['applications-dir'] });
   const file = path.join(dir, ENTRY);
   try {
@@ -74,5 +77,23 @@ export async function runInstallLauncher(args, io, overrides = {}) {
   const updater = deps.which('update-desktop-database');
   if (updater) { try { deps.run(updater, [dir]); } catch { /* optional cache refresh */ } }
   io.stdout.write(values.remove ? `removed ${file}\n` : `installed ${file}\n`);
+  return 0;
+}
+
+/** Windows: a Start menu shortcut (amauta.lnk) that runs `node <bin> portal launch`, written by PowerShell. */
+function installWindowsShortcut(remove, io, deps) {
+  const lnk = path.win32.join(startMenuDir(deps.env), 'amauta.lnk');
+  if (remove) {
+    deps.remove(lnk);
+    io.stdout.write(`removed ${lnk}\n`);
+    return 0;
+  }
+  const cmd = shortcutCommand({ lnk, nodePath: deps.nodePath, binPath: path.join(repoRoot, 'bin', 'amauta.js') });
+  const r = deps.run(cmd.command, cmd.args, { env: { ...deps.env, ...cmd.env }, windowsHide: true });
+  if (!r || r.status !== 0) {
+    io.stderr.write(`amauta portal: PowerShell could not write ${lnk}\n`);
+    return 1;
+  }
+  io.stdout.write(`installed ${lnk}\n`);
   return 0;
 }

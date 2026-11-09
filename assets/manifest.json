@@ -55,9 +55,17 @@
   ],
   "agents": [
     {
+      "name": "chasqui",
+      "modelKey": "chasqui"
+    },
+    {
       "name": "graphify-extractor",
       "modelKey": "graphify-extractor",
       "toolsLocked": true
+    },
+    {
+      "name": "haravec",
+      "modelKey": "haravec"
     },
     {
       "name": "jd-fix-agent",
@@ -90,6 +98,10 @@
     {
       "name": "review-risk",
       "modelKey": "default"
+    },
+    {
+      "name": "taripaq",
+      "modelKey": "taripaq"
     }
   ],
   "agentsDir": "core/agents",
@@ -98,11 +110,15 @@
     "chained-pr",
     "cognitive-doc-design",
     "cpp-testing",
+    "data",
     "doc-formats",
+    "executive-editorial",
     "graphify-semantic",
+    "institutional-presentation",
     "judgment-day",
     "mermaid-diagrams",
     "node-testing",
+    "powerbi-report",
     "python-testing",
     "r-testing",
     "skill-creator",

@@ -30,7 +30,7 @@ class SaveChunkTest(Env):
             src.write_text(text)
             argv += ["--input", str(src)]
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch("sys.stdin", stdin):
-            from python.amauta.graph import semantic_plan as sp
+            from python.amauta.extras.graphify_semantic import semantic_plan as sp
             code = sp.main(argv)
         return code, (json.loads(out.getvalue()) if out.getvalue().strip() else {}), err.getvalue()
 
@@ -84,7 +84,7 @@ class SaveChunkTest(Env):
         self.rejected(json.dumps({"nodes": [cnode("a")], "edges": [edge(["a"], "a")]}), "source")
 
     def test_rejects_oversized_input(self):
-        with mock.patch("python.amauta.graph.semantic_plan.MAX_CHUNK_BYTES", 50):
+        with mock.patch("python.amauta.extras.graphify_semantic.semantic_plan.MAX_CHUNK_BYTES", 50):
             self.rejected(json.dumps(good_chunk()), "larger than")
 
     def test_endpoints_in_other_chunks_are_allowed_but_reported(self):
@@ -139,6 +139,6 @@ class SaveChunkTest(Env):
 
 class LockHeldExitCodeTest(unittest.TestCase):
     def test_lock_held_maps_to_tempfail_exit_code(self):
-        from python.amauta.graph import semantic_plan
+        from python.amauta.extras.graphify_semantic import semantic_plan
         self.assertEqual(semantic_plan.EXIT_LOCKED, 75)
         self.assertNotIn(semantic_plan.EXIT_LOCKED, (semantic_plan.EXIT_ERROR, semantic_plan.EXIT_NO_VALID, semantic_plan.EXIT_REFUSED))

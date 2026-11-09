@@ -1,3 +1,4 @@
+import unittest
 from datetime import date
 from unittest import mock
 
@@ -72,3 +73,10 @@ class HomeTest(WikiBase):
         self.assertTrue(h["installed"])
         self.assertEqual((h["version"], h["hooks"], h["mcp_servers"], h["skills"], h["agents"], h["telemetry"]), ("0.1.0", 3, 2, 0, 0, True))
         self.assertNotIn("SECRET", str(h))
+
+
+class SessionWhatTest(unittest.TestCase):
+    def test_one_message_is_singular(self):
+        from python.amauta.portal import wikisess
+        self.assertEqual(wikisess.what(1), "session, 1 message")
+        self.assertEqual(wikisess.what(2), "session, 2 messages")

@@ -14,7 +14,7 @@ const GRAPH_OFF = { mirrored: false, nodes: 0, edges: 0, synced_at: null, howto:
 const PROJECTS = { auto_discover: true, config_repos: ['/home/u/beta'], projects: [
   { name: 'repo', path: '/home/u/repo', origin: ['flag'], odd: { features: 1, done: 2, total: 3, percent: 67 }, sessions: 1234, memories: 5, graph: { mirrored: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z' } },
   { name: XSS, path: '/home/u/alpha', origin: ['discovered'], odd: { features: 0, done: 0, total: 0, percent: 0 }, sessions: 2, memories: 0, graph: GRAPH_OFF },
-  { name: 'beta', path: '/home/u/beta', origin: ['config'], odd: { features: 0, done: 0, total: 0, percent: 0 }, sessions: 0, memories: 0, graph: GRAPH_OFF },
+  { name: 'beta', path: '/home/u/beta', origin: ['config'], odd: { features: 0, done: 0, total: 0, percent: 0 }, sessions: 0, memories: 0, graph: GRAPH_OFF, profile: 'acme' },
 ] };
 
 async function boot(hash, over = {}) {
@@ -219,4 +219,11 @@ test('while a refresh is running the buttons are disabled and the page says so',
   const { env } = await boot('#/project/repo', withGraph({ ...GIT_GRAPH, running: true }));
   assert.match(view(env).textContent, /A graph refresh is running/);
   assert.ok('disabled' in byText(view(env), 'button', 'Sync graph now').attrs);
+});
+
+test('a project with an organization profile says which one (plan D14)', async () => {
+  const { env } = await boot('#/project');
+  const text = env.document.getElementById('view').textContent;
+  assert.match(text, /profile acme/);
+  assert.equal((text.match(/profile /g) || []).length, 1, 'default is not repeated on every project');
 });

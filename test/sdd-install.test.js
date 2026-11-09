@@ -31,7 +31,7 @@ async function sandbox({ settings, claudeJson } = {}) {
   return t;
 }
 const sddHooks = (settings) =>
-  (settings.hooks?.PreToolUse ?? []).flatMap((e) => (e.hooks ?? []).filter((h) => /amauta\.sdd preflight-hook/.test(h.command)).map((h) => ({ matcher: e.matcher, ...h })));
+  (settings.hooks?.PreToolUse ?? []).flatMap((e) => (e.hooks ?? []).filter((h) => /hook event PreToolUse .*--with sdd-preflight/.test(h.command)).map((h) => ({ matcher: e.matcher, ...h })));
 const tree = async (dir) => {
   const out = [];
   const walk = async (d) => { for (const e of await readdir(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory() || (e.isSymbolicLink() && (await stat(p)).isDirectory())) await walk(p); else out.push(path.relative(dir, p)); } };
@@ -68,7 +68,7 @@ test('--with-sdd installs skills, agents, commands, shared contracts and the Pre
   assert.equal(hooks.length, 1);
   assert.equal(hooks[0].matcher, 'Agent');
   assert.equal(hooks[0].timeout, 30);
-  assert.ok(hooks[0].command.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m amauta.sdd preflight-hook`), hooks[0].command);
+  assert.ok(hooks[0].command.includes(`${path.join(repo, 'bin', 'amauta.js')} hook event PreToolUse`), hooks[0].command);
   await t.cleanup();
 });
 
@@ -79,7 +79,9 @@ test('no placeholder survives rendering and commands point at our status module'
   assert.ok(files.length > 30);
   for (const f of files) assert.ok(!(await t.read(f)).includes('{{'), `placeholder left in ${f}`);
   const status_ = await t.read('commands/amauta-sdd-status.md');
-  assert.ok(status_.includes(`env PYTHONPATH=${path.join(repo, 'python')} python3 -P -m amauta.sdd status [change] --cwd <repo> --json --instructions`));
+  // A plain node invocation, portable to Windows (plan N8b): no `env`, no `python3` on the command line.
+  assert.ok(status_.includes(`node ${path.join(repo, 'bin', 'amauta.js')} sdd status [change] --cwd <repo> --json --instructions`), status_);
+  assert.ok(!status_.includes('env PYTHONPATH'));
   assert.ok(!(await t.read('skills/_shared/sdd-status-contract.md')).includes('gentle-ai sdd-'));
   for (const f of files.filter((x) => x.startsWith('commands/'))) assert.ok(!/gentle-sdd-/.test(await t.read(f)), `${f} still names /gentle-sdd-*`);
   await t.cleanup();
@@ -224,17 +226,16 @@ const assertDeny = (r) => {
   assert.ok(out.hookSpecificOutput.permissionDecisionReason.length > 0);
 };
 
-test('preflight hook fails closed at shell level: broken PYTHONPATH', async () => {
+test('preflight hook fails closed when the configured Python does not exist', async () => {
   const t = await sandbox();
   await install(t.opts({ withSdd: true }));
   const [hook] = sddHooks(await t.settings());
-  const broken = hook.command.replace(/PYTHONPATH=\S+/, 'PYTHONPATH=/nonexistent-gl-dir');
-  assert.notEqual(broken, hook.command);
-  assertDeny(spawnSync('sh', ['-c', broken], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root }));
+  const env = { ...process.env, AMAUTA_PYTHON: path.join(t.root, 'no-such-python') };
+  assertDeny(spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env }));
   await t.cleanup();
 });
 
-test('preflight hook fails closed at shell level: python3 shadowed by a failing script', async () => {
+test('preflight hook fails closed: python3 shadowed by a failing script', async () => {
   const t = await sandbox();
   await install(t.opts({ withSdd: true }));
   const [hook] = sddHooks(await t.settings());
@@ -249,8 +250,9 @@ test('preflight hook fails closed at shell level: python3 shadowed by a failing 
 
 test('desiredHooks registers the SDD hook as one PreToolUse(Agent) entry (appending to user entries is covered below)', () => {
   const hooks = desiredHooks({ stateDir: '/s', sdd: true });
-  assert.equal(hooks.PreToolUse.length, 1);
-  assert.match(hooks.PreToolUse[0].hooks[0].command, /preflight-hook/);
+  const agent = hooks.PreToolUse.filter((e) => e.matcher === 'Agent');
+  assert.equal(agent.length, 1);
+  assert.match(agent[0].hooks[0].command, /--with sdd-preflight$/);
 });
 
 test('a pre-existing user PreToolUse hook survives install and uninstall with --with-sdd', async () => {
@@ -259,9 +261,9 @@ test('a pre-existing user PreToolUse hook survives install and uninstall with --
   await install(t.opts({ withSdd: true }));
   let pre = (await t.settings()).hooks.PreToolUse;
   assert.deepEqual(pre[0], userHook);
-  assert.equal(pre.length, 2);
+  assert.equal(pre.length, 3, 'the user hook, the privacy Read check and the SDD preflight');
   await install(t.opts({ withSdd: true }));
-  assert.equal((await t.settings()).hooks.PreToolUse.length, 2, 'idempotent');
+  assert.equal((await t.settings()).hooks.PreToolUse.length, 3, 'idempotent');
   await uninstall(t.opts());
   assert.deepEqual((await t.settings()).hooks.PreToolUse, [userHook]);
   await t.cleanup();
@@ -297,24 +299,31 @@ test('preflight guard: a broken launcher denies only sdd-* dispatches and stays 
   await t.cleanup();
 });
 
-test('preflight guard: a hung hook is cut off by the inner timeout and still denies sdd-* (before the 30 s hook timeout kills the shell)', async (ctx) => {
-  if (spawnSync('sh', ['-c', 'command -v timeout']).status !== 0) return ctx.skip('no timeout(1) on this system');
+test('preflight guard: a hung hook is cut off by the inner timeout and still denies sdd-* (before the 30 s hook timeout)', async () => {
   const t = await sandbox();
   await install(t.opts({ withSdd: true }));
   const [hook] = sddHooks(await t.settings());
-  assert.match(hook.command, /timeout 20/);
-  const env = await withFakePython(t, 'exec sleep 30');
+  const env = { ...(await withFakePython(t, 'exec sleep 30')), AMAUTA_PREFLIGHT_TIMEOUT_MS: '1000' };
   const started = Date.now();
-  assertDeny(spawnSync('sh', ['-c', hook.command.replace('timeout 20', 'timeout 1')], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env }));
+  assertDeny(spawnSync('sh', ['-c', hook.command], { input: JSON.stringify(AGENT_PAYLOAD), encoding: 'utf8', cwd: t.root, env }));
   assert.ok(Date.now() - started < 10000);
   await t.cleanup();
 });
 
-test('preflight command is an explicit if/then/else (no `A && {..} || {..}` list whose branches can fall through) and is valid sh', async () => {
-  const { sddPreflightCommand } = await import('../src/install/servers.js');
-  const cmd = sddPreflightCommand();
-  assert.match(cmd, /if out=\$\(printf '%s' "\$in" \| \$T .*preflight-hook\); then /);
-  assert.match(cmd, /; else .*; fi; true$/);
-  assert.ok(!/&& \{|\|\| \{/.test(cmd), `no and-or lists around the branches: ${cmd}`);
-  assert.equal(spawnSync('sh', ['-n', '-c', cmd]).status, 0);
+test('the preflight command is a plain node invocation with no shell syntax (portable to Windows)', () => {
+  const cmd = desiredHooks({ stateDir: '/s', sdd: true }).PreToolUse[0].hooks[0].command;
+  assert.ok(!/[|;&$`]|\bif\b|\bthen\b/.test(cmd), cmd);
+  assert.match(cmd, /^node /);
+});
+
+test('`amauta sdd` runs the Python SDD module with the chosen interpreter and passes its exit status', async () => {
+  const t = await sandbox();
+  const r = spawnSync(process.execPath, [path.join(repo, 'bin', 'amauta.js'), 'sdd', 'status', '--cwd', t.root, '--json'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(typeof JSON.parse(r.stdout), 'object');
+  const bad = spawnSync(process.execPath, [path.join(repo, 'bin', 'amauta.js'), 'sdd', 'status', '--cwd', t.root],
+    { encoding: 'utf8', env: { ...process.env, AMAUTA_PYTHON: path.join(t.root, 'no-python') } });
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /no-python/);
+  await t.cleanup();
 });

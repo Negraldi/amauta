@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from . import wikifeature, wikisess
-from . import graphsync
+from . import graphsync, security, siblings
 from .api import has_table
 
 CONFIG_NAME = "portal.json"
@@ -38,6 +39,35 @@ def home_dir(cfg_home=None):
     return Path(os.path.realpath(cfg_home or os.path.expanduser("~")))
 
 
+MACOS_TREES = ("/private", "/System", "/Library")  # /etc, /var and /tmp resolve into /private on macOS
+WINDOWS_TREE_VARS = ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "TEMP", "TMP")
+
+
+def system_trees(platform=sys.platform, env=os.environ):
+    """Directories a project may not live in: the POSIX trees, or on Windows the ones its environment names."""
+    if platform == "darwin":
+        return list(SYSTEM_TREES) + list(MACOS_TREES)
+    if platform != "win32":
+        return list(SYSTEM_TREES)
+    return [env[v] for v in WINDOWS_TREE_VARS if env.get(v)]
+
+
+def in_system_tree(path, home, trees, platform=sys.platform):
+    """True for a drive or filesystem root, or a path inside one of `trees` that is not under the home directory."""
+    P = PureWindowsPath if platform == "win32" else PurePosixPath
+    norm = (lambda p: P(str(p).lower())) if platform == "win32" else P  # Windows paths are case-insensitive
+    real, home_p = norm(path), norm(home)
+    if real == P(real.anchor):
+        return True
+    under_home = home_p == real or home_p in real.parents
+    for tree in map(norm, trees):
+        if real == tree or tree in real.parents:
+            # A tree inside the home directory (TEMP on Windows) is refused even there; others only outside home.
+            if home_p in tree.parents or not under_home:
+                return True
+    return False
+
+
 def check_repo(raw, home):
     """The normalized (resolved) directory for a configured path; ConfigError says which rule failed."""
     if not isinstance(raw, str):
@@ -49,9 +79,9 @@ def check_repo(raw, home):
     real = Path(os.path.realpath(raw))
     if not real.is_dir():
         raise ConfigError(f"not an existing directory: {raw[:80]}")
-    if real == home or real == Path("/"):
+    if real == home or real == Path(real.anchor):
         raise ConfigError(f"path must not be / or your home directory itself: {raw[:80]}")
-    if home not in real.parents and any(real == Path(t) or Path(t) in real.parents for t in SYSTEM_TREES):
+    if in_system_tree(real, home, system_trees()):
         raise ConfigError(f"path must not be inside a system directory (/etc, /usr, /var, /tmp ...): {raw[:80]}")
     return real
 
@@ -72,8 +102,9 @@ def _clean(repos, home):
 
 
 def read_config(state_dir, home=None):
-    """{"repos": [...], "auto_discover": bool}; a missing, unreadable or malformed file gives the defaults, bad entries are dropped."""
-    out = {"repos": [], "auto_discover": True}
+    """{"repos": [...], "auto_discover": bool, "siblings": [...]}; a missing, unreadable or malformed file gives the defaults,
+    bad entries are dropped."""
+    out = {"repos": [], "auto_discover": True, "siblings": []}
     try:
         data = json.loads((Path(state_dir) / CONFIG_NAME).read_text())
     except (OSError, ValueError):
@@ -81,15 +112,25 @@ def read_config(state_dir, home=None):
     if not isinstance(data, dict):
         return out
     out["repos"] = _clean(data.get("repos"), home_dir(home))
+    def kept(raw):  # a sibling whose folder is gone stays listed, so its card can say so
+        if isinstance(raw, str) and os.path.isabs(raw) and not os.path.exists(raw):
+            return raw
+        return check_repo(raw, home_dir(home))
+    for item in data.get("siblings") if isinstance(data.get("siblings"), list) else []:  # a bad entry is dropped
+        try:
+            out["siblings"] += siblings.clean([item], kept)
+        except (ValueError, ConfigError):
+            continue
     if isinstance(data.get("auto_discover"), bool):
         out["auto_discover"] = data["auto_discover"]
     return out
 
 
 def write_config(state_dir, body, home=None):
-    """Validate a closed-schema body {repos?, auto_discover?} and replace portal.json atomically. Missing keys keep their current value."""
-    if not isinstance(body, dict) or not body or set(body) - {"repos", "auto_discover"}:
-        raise ConfigError("body must be an object with repos and/or auto_discover")
+    """Validate a closed-schema body {repos?, auto_discover?, siblings?} and replace portal.json atomically. Missing keys
+    keep their current value."""
+    if not isinstance(body, dict) or not body or set(body) - {"repos", "auto_discover", "siblings"}:
+        raise ConfigError("body must be an object with repos, auto_discover and/or siblings")
     base = home_dir(home)
     current = read_config(state_dir, home)
     if "repos" in body:
@@ -103,6 +144,11 @@ def write_config(state_dir, body, home=None):
             if real not in seen:
                 seen.append(real)
         current["repos"] = seen
+    if "siblings" in body:
+        try:
+            current["siblings"] = siblings.clean(body["siblings"], lambda raw: check_repo(raw, base))
+        except ValueError as e:
+            raise ConfigError(str(e)) from None
     if "auto_discover" in body:
         if not isinstance(body["auto_discover"], bool):
             raise ConfigError("auto_discover must be true or false")
@@ -289,7 +335,10 @@ def graph_status(portal, repo, detail=False):
 def summary(portal, q=None):
     info = collect(portal)
     out = []
+    selected = security.read_json(Path(portal.cfg.state_dir) / "profiles" / "selection.json", {})  # plan D14
     for repo in info["repos"]:
         out.append({"name": repo.name, "path": str(repo.resolve()), "origin": info["origin"][str(Path(os.path.realpath(repo)))], "odd": odd_summary(repo),
-                    "sessions": len(session_ids(portal, repo)), "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo)})
-    return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"], "projects": out}
+                    "sessions": len(session_ids(portal, repo)), "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo),
+                    "profile": selected.get(os.path.realpath(repo), "default")})
+    return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"],
+            "siblings": info["config"]["siblings"], "projects": out}

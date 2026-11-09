@@ -14,7 +14,9 @@ import stat
 import time
 from pathlib import Path
 
+from .. import extensions
 from . import wikisecret
+from .wikihooks import HOOK_SUMMARIES, known_hook  # noqa: F401 (HOOK_SUMMARIES re-exported for the i18n tests)
 from .api import NotFound
 from .wikibase import _blank, _item, _meta, _ref
 from .wikiusage import SKILL_BYTES, parse_frontmatter
@@ -56,15 +58,6 @@ EVENT_WHEN = {
     "PostCompact": "After the conversation is compacted.",
 }
 HOOK_FALLBACK_WHEN = "When Claude Code reaches this hook event."
-# Curated summaries of the scripts amauta ships: (substring of the command, short name, what it does).
-HOOK_SUMMARIES = (
-    ("amauta.telemetry hook", "amauta telemetry", "Records one hook event (event name, tool, project, size) in the local amauta telemetry database. It reads the event on stdin, sends nothing over the network and never blocks Claude."),
-    ("amauta.usage hook", "amauta usage", "Imports the finished session's token, tool and skill usage from the Claude Code transcript into the local amauta usage database."),
-    ("hook review-stop", "amauta review reminder", "When review mode is on, reminds Claude once per candidate commit to run the amauta review before stopping."),
-    ("hook skill-registry", "amauta skill registry", "Refreshes the project's skill registry (.atl/skill-registry.md) when you submit a prompt, so delegated work sees current skills."),
-    ("hook graphify-connect", "amauta graphify connect", "Connects a git repository that has a graphify graph but no amauta git hooks (installs them and starts one background refresh), so its graph reaches the portal. Skips repositories that ran `amauta graphify hook uninstall`."),
-    ("amauta.memory", "amauta memory", "Runs the amauta memory component."),
-)
 MCP_WHAT = "A Model Context Protocol server: Claude Code starts it or connects to it, and the tools it lists become available to Claude."
 MCP_WHEN = "When a session starts, Claude Code connects to every configured server; Claude then calls its tools when a task needs them."
 AGENT_WHEN = "When Claude delegates a task to this subagent type, or when you pick it."
@@ -216,7 +209,7 @@ def _hook_entry(raw):
     else:
         command = str(h.get("prompt") or "")[:300]
     timeout = h.get("timeout") if isinstance(h.get("timeout"), (int, float)) and not isinstance(h.get("timeout"), bool) else None
-    known = next(((short, what) for needle, short, what in HOOK_SUMMARIES if needle in command), None)
+    known = known_hook(command)
     name = known[0] if known else (_script_name(command) or _first_word(command) or raw["type"])
     title = f"{event} ({raw['matcher']}) \u00b7 {name}" if raw["matcher"] else f"{event} \u00b7 {name}"
     material = {"event": event, "matcher": raw["matcher"], "type": raw["type"], "command": command, "timeout": timeout, "path": raw["path"]}
@@ -225,7 +218,7 @@ def _hook_entry(raw):
             "when": EVENT_WHEN.get(event, HOOK_FALLBACK_WHEN), "source": raw["source"], "path": raw["path"], "material": material,
             "note": None if known else "No curated summary for this command: read the command itself.",
             "meta": _meta(("Event", event), ("Matcher", raw["matcher"] or "(all)"), ("Hook type", raw["type"]), ("Command", command), ("Timeout", f"{timeout:g} s" if timeout is not None else None), ("Scope", raw["scope"])),
-            "plugin": raw.get("plugin")}
+            "plugin": raw.get("plugin"), **({"i18n": {"es": {"description": known[2]}}} if known and known[2] else {})}
 
 
 def _collect_hooks(portal, repos, plugs):
@@ -493,14 +486,10 @@ def build_page(portal, e):
     pg["backlinks"] = [r for r in (_ref_of(entries, k) for k in e["backlinks"]) if r]
     if e.get("usage_col") and e.get("usage_name"):
         _add_usage(portal, pg, e)
-    add_explain(portal, pg, e)
+    explain = extensions.call("harness.explain", portal, e)  # the wiki_explain extra, when present
+    if explain is not None:
+        pg["explain"] = explain
     return pg
-
-
-def add_explain(portal, pg, e):
-    from . import wikiexplain  # lazy: wikiexplain imports this module
-    if e["kind"] in wikiexplain.ALLOWED:
-        pg["explain"] = wikiexplain.page_block(portal, e)
 
 
 def _add_usage(portal, pg, e):
@@ -544,8 +533,8 @@ def groups(portal, q=None):
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
             out.append({"kind": kind, "label": label, "items": items})
             total += len(items)
-    from . import wikiexplain
-    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": len(wikiexplain.pending(portal))}
+    pending = extensions.call("harness.pending", portal, default=0)
+    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending}
 
 
 def search(kind):

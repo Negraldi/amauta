@@ -72,8 +72,9 @@ import json
 from python.amauta.portal import diagrams
 H = ['x"]\\n  click n0 call alert(1)\\n  n9["y', "<img src=x onerror=alert(1)>", "\`back\` [a] (b) {c} | d ; e # f % g & h \\\\ i", "end", "graph TD", "%% comment", "a --> b", ":::cls", "tab\\there\\x00"]
 hs = {"installed": True, "version": H[0], "persona": H[1], "rdd_mode": H[2], "skills": 3, "agents": 2,
-      "hooks": [{"event": t, "kind": "other"} for t in H], "mcp_servers": [{"name": t, "type": H[1], "command": "c"} for t in H]}
-out = [diagrams.architecture(hs, H[2]), diagrams.odd_progress(H[0], [{"done": i % 2 == 0, "title": t} for i, t in enumerate(H)])]
+      "hooks": [{"event": t, "kind": "amauta", "handlers": [t, H[0]]} for t in H] + [{"event": "Stop", "kind": "amauta", "handlers": H}, {"event": "Stop", "kind": "other"}],
+      "mcp_servers": [{"name": t, "type": H[1], "command": "c"} for t in H]}
+out = [diagrams.workflow(hs, H[2]), diagrams.odd_progress(H[0], [{"done": i % 2 == 0, "title": t} for i, t in enumerate(H)])]
 nodes = [{"id": f"i{i}", "label": t, "kind": H[1], "file": H[2], "depth": 0 if i == 0 else 1} for i, t in enumerate(H)]
 out.append(diagrams.graph_neighborhood({"start": ["i0"], "nodes": nodes, "edges": [{"src": "i0", "dst": f"i{i}", "relation": t} for i, t in enumerate(H)]}))
 print(json.dumps(out))

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, stat, realpath } from 'node:fs/promises';
+import { PY } from './helpers/python.js';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -13,7 +14,7 @@ const CANARY = 'sk-ant-CANARY-0123456789abcdef';
 const GRAPH = JSON.stringify({ nodes: [{ id: 'a', label: 'A', file_type: 'code', source_file: 'a.py' }], links: [] });
 
 async function sandbox(fake) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gl-sem-'));
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gl-sem-')));
   const t = { root, repo: path.join(root, 'repo'), state: path.join(root, 'state'), bin: path.join(root, 'bin'), calls: path.join(root, 'calls.log') };
   await mkdir(t.repo, { recursive: true });
   await mkdir(t.bin);
@@ -25,7 +26,7 @@ async function sandbox(fake) {
   }
   t.run = (args, env = {}) => spawnSync(process.execPath, [BIN, 'graphify', 'semantic', '--cwd', t.repo, '--state-dir', t.state, ...args], {
     encoding: 'utf8',
-    env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: root, ...env },
+    env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: root, AMAUTA_PYTHON: PY, ...env },
   });
   t.db = (sql) => {
     const r = spawnSync('python3', ['-P', '-c', `import sqlite3\nprint(sqlite3.connect(${JSON.stringify(path.join(t.state, 'memory.db'))}).execute(${JSON.stringify(sql)}).fetchone())`], { encoding: 'utf8' });
@@ -241,7 +242,7 @@ for (const signal of Object.keys(SIGNO)) {
     const gcFile = path.join(t.root, 'grandchild.pid');
     await writeFile(path.join(t.bin, 'graphify'), `#!/bin/sh\nsleep 300 &\necho $! > "${gcFile}.tmp"; mv "${gcFile}.tmp" "${gcFile}"\necho $$ > "${pidFile}.tmp"; mv "${pidFile}.tmp" "${pidFile}"\nwait\n`, { mode: 0o755 });
     const cli = spawn(process.execPath, [BIN, 'graphify', 'semantic', '--cwd', t.repo, '--state-dir', t.state], {
-      env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: t.root, ANTHROPIC_API_KEY: CANARY }, stdio: 'ignore',
+      env: { PATH: `${t.bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`, HOME: t.root, AMAUTA_PYTHON: PY, ANTHROPIC_API_KEY: CANARY }, stdio: 'ignore',
     });
     const exited = new Promise((res) => cli.on('close', (code, sig) => res({ code, sig })));
     const lock = path.join(t.repo, '.git', 'amauta-graphify.lock');
@@ -298,7 +299,7 @@ test('runSemantic installs no process-wide signal handlers; an abort signal stop
   const before = Object.fromEntries(['SIGINT', 'SIGTERM', 'SIGHUP'].map((n) => [n, process.listenerCount(n)]));
   const ac = new AbortController();
   const io = { stdout: sink(), stderr: sink() };
-  const run = runSemantic({ cwd: t.repo, stateDir: t.state, env: { ANTHROPIC_API_KEY: CANARY, PATH: process.env.PATH }, searchPath: t.bin, signal: ac.signal }, io);
+  const run = runSemantic({ cwd: t.repo, stateDir: t.state, env: { ANTHROPIC_API_KEY: CANARY, PATH: process.env.PATH, AMAUTA_PYTHON: PY }, searchPath: t.bin, signal: ac.signal }, io);
   const pid = await waitFor(() => readFile(pidFile, 'utf8').then((x) => Number.parseInt(x, 10) || 0, () => 0), 'graphify to start');
   for (const n of Object.keys(before)) assert.equal(process.listenerCount(n), before[n], `${n}: the library must not install handlers`);
   ac.abort('SIGTERM');

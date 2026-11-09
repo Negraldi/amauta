@@ -17,9 +17,10 @@ test('hooks.json carries the amauta hooks with the codex runtime tag, in Claude 
   await installCodex(t.opts());
   const { hooks } = await readJson(t.p('hooks.json'));
   const got = commandsOf(hooks);
-  const want = commandsOf(desiredHooks({ stateDir: t.stateDir, telemetry: true, sdd: false }));
+  const want = commandsOf(desiredHooks({ stateDir: t.stateDir, telemetry: true, sdd: false, runtime: 'codex' }));
   assert.deepEqual(got.map((h) => h.event), want.map((h) => h.event));
-  assert.deepEqual(got.map((h) => h.command), want.map((h) => `AMAUTA_RUNTIME=codex ${h.command}`));
+  assert.deepEqual(got.map((h) => h.command), want.map((h) => h.command));
+  assert.ok(got.every((h) => h.command.endsWith(' --runtime codex')));
   assert.deepEqual(got.map((h) => h.timeout), want.map((h) => h.timeout));
   assert.ok(got.every((h) => isAmautaHook(h.command)));
   assert.equal(hooks.SessionStart[0].hooks[0].type, 'command');

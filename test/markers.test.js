@@ -94,3 +94,16 @@ test('ids with regex characters are handled literally', () => {
   const out = injectSection('', 'a.b+c', 'x');
   assert.equal(removeSection(out, 'a.b+c'), '');
 });
+
+test('a CRLF document stays CRLF after inject and remove (Windows editors)', async () => {
+  const { injectSection, removeSection } = await import('../src/core/markers.js');
+  const lone = (s) => /(^|[^\r])\n/.test(s);
+  const crlf = '# Mine\r\nline\r\n';
+  const injected = injectSection(crlf, 'x', 'body one\nmore');
+  assert.ok(!lone(injected), JSON.stringify(injected));
+  const replaced = injectSection(injected, 'x', 'body two');
+  assert.ok(!lone(replaced), JSON.stringify(replaced));
+  assert.ok(replaced.includes('body two\r\n'));
+  assert.ok(!lone(removeSection(replaced, 'x')));
+  assert.equal(injectSection('# Unix\n', 'x', 'b'), '# Unix\n\n<!-- amauta:x -->\nb\n<!-- /amauta:x -->\n', 'LF documents unchanged');
+});

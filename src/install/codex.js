@@ -1,4 +1,4 @@
-import { readlink, rm, rmdir } from 'node:fs/promises';
+import { rm, rmdir } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { injectSection, removeSection, listSections } from '../core/markers.js';
@@ -10,10 +10,22 @@ import { resolveClaudeSource, resolveCodexTargets } from './paths.js';
 import { loadManifest } from './assets.js';
 import { baseFileOf, planMcpSync } from './mcpsync.js';
 import { sourceFingerprint, syncRecordOf } from './fingerprint.js';
-import { ensureTimeouts, needsWrite, readJsonObject, readOrNull, renderSections, safeManagedPath, sha256, statOrNull, toJson, isObject } from './installer.js';
-import { applyLinks, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
-import { AMAUTA_SERVER_NAMES, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook, isStaleAmautaServer, staleAmautaHooks } from './servers.js';
-import { findOnPath } from '../codegraph/index.js';
+import { renderSections } from './installer.js';
+import { resolvePython } from './python.js';
+import {
+  ensureTimeouts, needsWrite, readJsonObject, readOrNull, readStateObject, safeManagedPath, sha256, statOrNull,
+  toJson, isObject
+} from './files.js';
+import { applyPlan, planInstructionBlocks, planManagedFiles, planOwnedHooks, planSkillLinks, realWrites, touchesDisk } from './steps.js';
+import {
+  applyLinks, isOurSkillDir, isSkillKey, namesOf, planManagedLinks, readJsonFile, removeLinks, removePersonalLinks, renderSkillSet,
+  storeDirOf, storePathOf, syncPersonalSkills
+} from './skillstore.js';
+import {
+  AMAUTA_SERVER_NAMES, DEFAULT_PYTHON, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook,
+  hookSwitches, isStaleAmautaServer, staleAmautaHooks
+} from './servers.js';
+import { findOnPath } from '../core/platform.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
 import { packageVersion } from '../version.js';
 
@@ -22,7 +34,7 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
 /**
  * Codex is a second target of the Claude installer: the same manifest, the same content, other paths.
  *   CLAUDE.md blocks        -> <codex home>/AGENTS.md blocks (same marker injector)
- *   settings.json hooks     -> <codex home>/hooks.json (same hook schema; every command carries AMAUTA_RUNTIME=codex)
+ *   settings.json hooks     -> <codex home>/hooks.json (same hook schema; every command passes --runtime codex)
  *   ~/.claude/skills        -> ~/.agents/skills (the same skill set; SDD skills only with --with-sdd)
  *   .claude.json mcpServers -> <codex home>/config.toml [mcp_servers.<same name>] (same command, args and env)
  * Claude-only assets have no Codex meaning and are never installed: output styles (a Claude Code setting) and the
@@ -31,16 +43,14 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  * skills (their rendering is tied to the Claude home).
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
-const RUNTIME_ENV = 'AMAUTA_RUNTIME=codex';
 /** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */
-export function desiredCodexHooks({ stateDir, telemetry }) {
-  const hooks = desiredHooks({ stateDir, telemetry, sdd: false });
-  return Object.fromEntries(Object.entries(hooks).map(([event, entries]) => [event, entries.map((e) => ({ ...e, hooks: e.hooks.map((h) => ({ ...h, command: `${RUNTIME_ENV} ${h.command}` })) }))]));
+export function desiredCodexHooks({ stateDir, telemetry, python, privacy = true, checks = true }) {
+  return desiredHooks({ stateDir, telemetry, sdd: false, runtime: 'codex', python, privacy, checks });
 }
 
 /** The Claude MCP entries for Codex's TOML (no `type`: Codex infers stdio from `command`). Memory is always `engram`. */
-export function desiredCodexServers({ stateDir, rea, context7, codegraph }) {
-  const { memory, ...rest } = desiredMcpServers({ stateDir, rea, context7 });
+export function desiredCodexServers({ stateDir, rea, context7, codegraph, python }) {
+  const { memory, ...rest } = desiredMcpServers({ stateDir, rea, context7, python });
   if (!codegraph) delete rest.codegraph;
   const strip = ({ type: _type, ...value }) => value;
   const out = Object.fromEntries(Object.entries({ engram: memory, ...rest }).map(([name, value]) => [name, strip(value)]));
@@ -53,126 +63,42 @@ const SHARED_SERVERS = ['rea', 'context7', 'codegraph'];
 
 const stateFileOf = (stateDir) => path.join(stateDir, 'codex-state.json');
 
-async function readCodexState(stateDir) {
-  const buf = await readOrNull(stateFileOf(stateDir));
-  if (!buf) return null;
-  try {
-    const state = JSON.parse(buf.toString('utf8'));
-    return isObject(state) && state.schema === CODEX_STATE_SCHEMA ? state : null;
-  } catch {
-    return null;
-  }
-}
+const readCodexState = (stateDir) => readStateObject(stateFileOf(stateDir), CODEX_STATE_SCHEMA);
+const readClaudeState = (stateDir) => readStateObject(path.join(stateDir, 'state.json'));
 
-async function readClaudeState(stateDir) {
-  const buf = await readOrNull(path.join(stateDir, 'state.json'));
-  if (!buf) return null;
-  try {
-    const state = JSON.parse(buf.toString('utf8'));
-    return isObject(state) ? state : null;
-  } catch {
-    return null;
-  }
-}
-
-async function plan(opts) {
-  const t = resolveCodexTargets(opts);
-  const manifest = await loadManifest();
-  const prev = await readCodexState(t.stateDir);
-  const claudeState = await readClaudeState(t.stateDir);
+/** Options for a Codex install: sticky like Claude's; a first Codex install follows what Claude already has. */
+async function resolveCodexOptions(opts, manifest, prev, claudeState) {
   const persona = opts.persona ?? prev?.persona ?? claudeState?.persona ?? 'gentleman';
   if (!manifest.personas[persona]) throw new Error(`unknown persona: ${persona} (expected gentleman or neutral)`);
-  const writes = [];
-  // Opt-in modules are sticky like Claude's; a first Codex install follows what Claude already has.
   const sticky = (flag, key) => (flag === false ? false : flag === true || (prev ?? claudeState)?.[key] === true);
-  const telemetry = opts.telemetry !== false;
-  const sdd = sticky(opts.withSdd, 'sdd');
-  const rea = sticky(opts.withRea, 'rea');
-  const context7 = sticky(opts.withContext7, 'context7');
   // Skill modules follow either runtime: the store holds one rendering and both runtimes link the same names.
   const either = (flag, key) => (flag === false ? false : flag === true || prev?.[key] === true || claudeState?.[key] === true);
-  const impeccable = either(opts.withImpeccable, 'impeccable');
-  const archify = either(opts.withArchify, 'archify');
-  const codegraph = (await findOnPath('codegraph', opts.searchPath)) !== null;
-  const skipped = [];
-  const legacy = []; // amauta entries from an older checkout or adapter that this run replaces
-  const created = prev?.created_files ?? [];
-  const note = (file, existed) => {
-    if (!existed && !created.includes(file) && prev === null) created.push(file);
+  return {
+    persona,
+    telemetry: opts.telemetry !== false, privacy: opts.privacy !== false, checks: opts.checks !== false,
+    sdd: sticky(opts.withSdd, 'sdd'),
+    rea: sticky(opts.withRea, 'rea'),
+    context7: sticky(opts.withContext7, 'context7'),
+    impeccable: either(opts.withImpeccable, 'impeccable'),
+    archify: either(opts.withArchify, 'archify'),
+    codegraph: (await findOnPath('codegraph', opts.searchPath)) !== null,
+    python: resolvePython(opts, prev?.python, claudeState?.python),
   };
+}
 
-  // AGENTS.md: the same marked blocks CLAUDE.md gets.
-  const mdFile = path.join(t.codexHome, 'AGENTS.md');
-  const mdBuf = await readOrNull(mdFile);
-  const sections = await renderSections(manifest, persona);
-  const mdBefore = mdBuf ? mdBuf.toString('utf8') : '';
-  let md = mdBefore;
-  for (const s of sections) md = injectSection(md, s.id, s.body);
-  const wantedIds = new Set(sections.map((s) => s.id));
-  for (const id of prev?.agents_md_sections ?? []) if (!wantedIds.has(id)) md = removeSection(md, id);
-  if (!mdBuf || md !== mdBefore) writes.push({ rel: 'AGENTS.md', path: mdFile, data: Buffer.from(md, 'utf8') });
-
-  note(mdFile, mdBuf !== null);
-
-  // Skills: rendered once into the amauta store (the same bytes the Claude install writes), linked from the Codex skills dir.
-  const rendered = await renderSkillSet(manifest, { sdd, impeccable, archify, stateDir: t.stateDir });
-  const managedFiles = {};
-  const claudeKeeps = (rel) => claudeState?.managed_files?.[rel] !== undefined;
-  for (const [rel, data] of rendered) {
-    const file = storePathOf(t.stateDir, rel);
-    const existing = await readOrNull(file);
-    if (existing === null) writes.push({ rel, path: file, data });
-    else if (existing.equals(data)) {
-      // already in place (the Claude install wrote it): adopt
-    } else if (opts.force || prev?.managed_files?.[rel] === sha256(existing)) writes.push({ rel, path: file, data });
-    else {
-      skipped.push(rel);
-      continue;
-    }
-    managedFiles[rel] = sha256(data);
+/** Names of the MCP servers in .claude.json (for opt-in servers whose entry the other runtime already owns). */
+function claudeServerNames(claudeBuf) {
+  try {
+    const parsed = JSON.parse(claudeBuf?.toString('utf8') ?? '{}');
+    return isObject(parsed?.mcpServers) ? new Set(Object.keys(parsed.mcpServers)) : new Set();
+  } catch {
+    return new Set();
   }
-  const removes = [];
-  for (const [rel, hash] of Object.entries(prev?.managed_files ?? {})) {
-    if (rendered.has(rel) || claudeKeeps(rel)) continue;
-    const file = await safeManagedPath(isSkillKey(rel) ? t.stateDir : t.codexSkillsDir, rel);
-    if (file === null) {
-      skipped.push(rel);
-      continue;
-    }
-    const buf = await readOrNull(file);
-    if (buf === null) continue;
-    if (sha256(buf) === hash) removes.push({ rel, path: file });
-    else skipped.push(rel);
-  }
-  const names = namesOf(rendered);
-  const linkPlan = await planManagedLinks({ skillsDir: t.codexSkillsDir, storeDir: storeDirOf(t.stateDir), names, prevLinks: prev?.skill_links ?? {}, rendered, prevHashes: prev?.managed_files ?? {}, force: opts.force === true });
-  for (const name of linkPlan.foreign) skipped.push(`skills/${name} (not linked: a different directory is there)`);
-  const stillThere = (name) => skipped.some((x) => x.startsWith(`skills/${name}/`));
-  const keptLinks = linkPlan.unlink.filter((u) => stillThere(u.name));
-  linkPlan.unlink = linkPlan.unlink.filter((u) => !stillThere(u.name));
-  const skillLinks = {
-    ...Object.fromEntries(names.filter((n) => !linkPlan.foreign.includes(n)).map((n) => [n, path.join(storeDirOf(t.stateDir), n)])),
-    ...Object.fromEntries(keptLinks.map((u) => [u.name, prev.skill_links[u.name]])),
-  };
+}
 
-  // hooks.json
-  const hooksFile = path.join(t.codexHome, 'hooks.json');
-  const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
-  const wantedHooks = desiredCodexHooks({ stateDir: t.stateDir, telemetry });
-  const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
-  legacy.push(...staleAmautaHooks(hooksIn.data, wantedCommands));
-  let hooks = removeHooksWhere(hooksIn.data, (c) => isAmautaHook(c) && !wantedCommands.has(c));
-  hooks = ensureTimeouts(mergeHooks(hooks, wantedHooks), wantedHooks);
-  if (!hooksIn.existed || !isDeepStrictEqual(hooks, hooksIn.data)) writes.push({ rel: 'hooks.json', path: hooksFile, data: Buffer.from(toJson(hooks), 'utf8') });
-  note(hooksFile, hooksIn.existed);
-
-  // config.toml: only our [mcp_servers.*] tables; every other byte stays.
-  const tomlFile = path.join(t.codexHome, 'config.toml');
-  const tomlBuf = await readOrNull(tomlFile);
-  const tomlBefore = tomlBuf ? tomlBuf.toString('utf8') : '';
-  let toml = tomlBefore;
-  const mirrorMcp = opts.mirrorMcp !== false; // default on; --no-mirror-mcp is per run, not sticky
-  const wanted = desiredCodexServers({ stateDir: t.stateDir, rea, context7, codegraph });
+/** Our [mcp_servers.*] tables in config.toml; returns the new text, what was added, and the one-way (managed) names. */
+function planOwnServers({ toml: tomlIn, wanted, prev, claudeNames, legacy, skipped }) {
+  let toml = tomlIn;
   const ours = (name) => {
     const cur = readMcpServer(toml, name).value;
     return cur !== null && prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(mcpCore(cur), mcpCore(prev.mcp_added[name]));
@@ -180,14 +106,6 @@ async function plan(opts) {
   const mcpAdded = {};
   // Opt-in third-party servers (rea, context7, codegraph) follow the entry the other runtime already has (command, args,
   // env) through the normal two-way sync; the template applies only when neither runtime has one.
-  const claudeBuf = await readOrNull(resolveClaudeSource(opts).claudeJson);
-  let claudeNames = new Set();
-  try {
-    const parsed = JSON.parse(claudeBuf?.toString('utf8') ?? '{}');
-    if (isObject(parsed?.mcpServers)) claudeNames = new Set(Object.keys(parsed.mcpServers));
-  } catch {
-    claudeNames = new Set();
-  }
   const oneWay = new Set(Object.keys(wanted).filter((n) => !SHARED_SERVERS.includes(n)));
   for (const [name, value] of Object.entries(wanted)) {
     const cur = readMcpServer(toml, name);
@@ -208,101 +126,162 @@ async function plan(opts) {
     toml = removeMcpServer(toml, name);
     legacy.push(`mcp ${name}`);
   }
-  // Every other stdio server goes both ways between .claude.json and config.toml (3-way merge against the last synced set).
-  let mirror = { enabled: mirrorMcp, mirrored: [], toClaude: [], removed: [], conflicts: [], transport: [], unsupported: [], excluded: [], staleExcluded: [], unreadable: null };
-  if (mirrorMcp) {
-    const source = resolveClaudeSource(opts);
-    const baseBuf = await readOrNull(baseFileOf(t.stateDir));
-    let base = {};
-    let exclude = []; // the user's own list: <state dir>/mcp-sync.json { "exclude": [...] }
-    try {
-      const parsed = JSON.parse(baseBuf?.toString('utf8') ?? '{}');
-      base = parsed.servers ?? {};
-      if (Array.isArray(parsed.exclude)) exclude = parsed.exclude.filter((n) => typeof n === 'string');
-    } catch {
-      base = {};
-    }
-    const internalPaths = [{ path: '/usr/lib/chatgpt', runtime: 'codex' }, { path: '/opt/claude', runtime: 'claude' }, { path: t.codexHome, runtime: 'codex' }, { path: source.claudeHome, runtime: 'claude' }];
-    if (claudeBuf !== null) {
-      const r = planMcpSync({ claudeText: claudeBuf.toString('utf8'), tomlText: toml, base, managed: oneWay, exclude, internalPaths });
-      toml = r.toml;
-      const rp = r.report;
-      mirror = { enabled: true, mirrored: rp.toCodex, toClaude: rp.toClaude, removed: [...rp.removedFromCodex.map((n) => `codex:${n}`), ...rp.removedFromClaude.map((n) => `claude:${n}`), ...rp.removedExcluded], excluded: rp.excluded, staleExcluded: rp.staleExcluded, conflicts: rp.conflicts, transport: rp.transport, unsupported: rp.unsupported, unreadable: rp.unreadable };
-      if (r.claudeText !== null) writes.push({ rel: '.claude.json', path: source.claudeJson, data: Buffer.from(r.claudeText, 'utf8'), mode: 0o600 });
-      if (r.base !== base || baseBuf === null) {
-        const text = toJson({ schema: 'amauta.mcp-sync/v1', servers: r.base, ...(exclude.length > 0 ? { exclude } : {}) });
-        if (baseBuf?.toString('utf8') !== text && (Object.keys(r.base).length > 0 || exclude.length > 0 || baseBuf !== null)) writes.push({ rel: 'mcp-sync.json', path: baseFileOf(t.stateDir), data: Buffer.from(text, 'utf8') });
-      }
-    }
+  return { toml, mcpAdded, oneWay };
+}
+
+const NO_MIRROR = { mirrored: [], toClaude: [], removed: [], conflicts: [], transport: [], unsupported: [], excluded: [], staleExcluded: [], unreadable: null };
+
+/** Every other stdio server goes both ways between .claude.json and config.toml (3-way merge against the last synced set). */
+async function planMirror({ opts, t, toml, oneWay, claudeBuf, writes }) {
+  if (opts.mirrorMcp === false) return { toml, mirror: { enabled: false, ...NO_MIRROR } }; // --no-mirror-mcp is per run
+  const source = resolveClaudeSource(opts);
+  const baseBuf = await readOrNull(baseFileOf(t.stateDir));
+  let base = {};
+  let exclude = []; // the user's own list: <state dir>/mcp-sync.json { "exclude": [...] }
+  try {
+    const parsed = JSON.parse(baseBuf?.toString('utf8') ?? '{}');
+    base = parsed.servers ?? {};
+    if (Array.isArray(parsed.exclude)) exclude = parsed.exclude.filter((n) => typeof n === 'string');
+  } catch {
+    base = {};
   }
-  if (!tomlBuf || toml !== tomlBefore) writes.push({ rel: 'config.toml', path: tomlFile, data: Buffer.from(toml, 'utf8') });
-  note(tomlFile, tomlBuf !== null);
-  const makeState = (lastBackup) => ({
+  if (claudeBuf === null) return { toml, mirror: { enabled: true, ...NO_MIRROR } };
+  const internalPaths = [{ path: '/usr/lib/chatgpt', runtime: 'codex' }, { path: '/opt/claude', runtime: 'claude' },
+    { path: t.codexHome, runtime: 'codex' }, { path: source.claudeHome, runtime: 'claude' }];
+  const r = planMcpSync({ claudeText: claudeBuf.toString('utf8'), tomlText: toml, base, managed: oneWay, exclude, internalPaths });
+  const rp = r.report;
+  const removed = [...rp.removedFromCodex.map((n) => `codex:${n}`), ...rp.removedFromClaude.map((n) => `claude:${n}`), ...rp.removedExcluded];
+  const mirror = { enabled: true, mirrored: rp.toCodex, toClaude: rp.toClaude, removed, excluded: rp.excluded, staleExcluded: rp.staleExcluded,
+    conflicts: rp.conflicts, transport: rp.transport, unsupported: rp.unsupported, unreadable: rp.unreadable };
+  if (r.claudeText !== null) writes.push({ rel: '.claude.json', path: source.claudeJson, data: Buffer.from(r.claudeText, 'utf8'), mode: 0o600 });
+  if (r.base !== base || baseBuf === null) {
+    const text = toJson({ schema: 'amauta.mcp-sync/v1', servers: r.base, ...(exclude.length > 0 ? { exclude } : {}) });
+    const worth = Object.keys(r.base).length > 0 || exclude.length > 0 || baseBuf !== null;
+    if (baseBuf?.toString('utf8') !== text && worth) writes.push({ rel: 'mcp-sync.json', path: baseFileOf(t.stateDir), data: Buffer.from(text, 'utf8') });
+  }
+  return { toml: r.toml, mirror };
+}
+
+function codexState({ t, prev, o, md, managed, links, mcpAdded, mirror, created }) {
+  return (lastBackup) => ({
     schema: CODEX_STATE_SCHEMA,
     version: packageVersion(),
     installed_at: prev?.installed_at ?? new Date().toISOString(),
     codex_home: t.codexHome,
     codex_skills_dir: t.codexSkillsDir,
-    persona,
+    persona: o.persona,
     last_backup: lastBackup ?? prev?.last_backup ?? null,
-    agents_md_sections: sections.map((s) => s.id),
-    managed_files: managedFiles,
-    skill_links: skillLinks,
-    telemetry,
-    sdd,
-    impeccable,
-    archify,
-    rea,
-    context7,
+    agents_md_sections: md.ids,
+    managed_files: managed.managedFiles,
+    skill_links: links.skillLinks,
+    telemetry: o.telemetry, privacy: o.privacy, checks: o.checks,
+    sdd: o.sdd,
+    impeccable: o.impeccable,
+    archify: o.archify,
+    rea: o.rea,
+    context7: o.context7,
     mcp_added: mcpAdded,
     mcp_unsupported: mirror.unsupported.map((u) => u.name),
+    ...(o.python !== DEFAULT_PYTHON ? { python: o.python } : {}),
     created_files: created,
   });
+}
 
-  const real = [];
-  for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, legacy, makeState, linkPlan, managedNames: new Set(names), mirror, impeccable, manifest };
+async function plan(opts) {
+  const t = resolveCodexTargets(opts);
+  const manifest = await loadManifest();
+  const prev = await readCodexState(t.stateDir);
+  const claudeState = await readClaudeState(t.stateDir);
+  const o = await resolveCodexOptions(opts, manifest, prev, claudeState);
+  const legacy = []; // amauta entries from an older checkout or adapter that this run replaces
+  const created = prev?.created_files ?? [];
+  const note = (file, existed) => {
+    if (!existed && !created.includes(file) && prev === null) created.push(file);
+  };
+
+  // AGENTS.md: the same marked blocks CLAUDE.md gets.
+  const mdFile = path.join(t.codexHome, 'AGENTS.md');
+  const md = await planInstructionBlocks({ rel: 'AGENTS.md', file: mdFile, sections: await renderSections(manifest, o.persona), previousIds: prev?.agents_md_sections ?? [] });
+  note(mdFile, md.existed);
+
+  // Skills: rendered once into the amauta store (the same bytes the Claude install writes), linked from the Codex skills dir.
+  const rendered = await renderSkillSet(manifest, { ...o, stateDir: t.stateDir });
+  const managed = await planManagedFiles({
+    rendered, prevHashes: prev?.managed_files ?? {}, force: opts.force,
+    fileOf: (rel) => storePathOf(t.stateDir, rel),
+    rootOf: (rel) => (isSkillKey(rel) ? t.stateDir : t.codexSkillsDir),
+    keep: (rel) => claudeState?.managed_files?.[rel] !== undefined,
+  });
+  const skipped = managed.skipped;
+  const links = await planSkillLinks({ skillsDir: t.codexSkillsDir, stateDir: t.stateDir, rendered, prevLinks: prev?.skill_links ?? {},
+    prevHashes: prev?.managed_files ?? {}, skipped, force: opts.force === true });
+
+  // hooks.json
+  const hooksFile = path.join(t.codexHome, 'hooks.json');
+  const hooksIn = await readJsonObject(hooksFile, 'hooks.json');
+  const wantedHooks = desiredCodexHooks({ ...o, stateDir: t.stateDir }); // the switches resolveCodexOptions chose
+  const hooksPlan = planOwnedHooks(hooksIn.data, wantedHooks);
+  legacy.push(...hooksPlan.legacy);
+  const hooks = ensureTimeouts(hooksPlan.doc, wantedHooks);
+  const writes = [md.write, ...managed.writes].filter(Boolean);
+  if (!hooksIn.existed || !isDeepStrictEqual(hooks, hooksIn.data)) writes.push({ rel: 'hooks.json', path: hooksFile, data: Buffer.from(toJson(hooks), 'utf8') });
+  note(hooksFile, hooksIn.existed);
+
+  // config.toml: only our [mcp_servers.*] tables; every other byte stays.
+  const tomlFile = path.join(t.codexHome, 'config.toml');
+  const tomlBuf = await readOrNull(tomlFile);
+  const tomlBefore = tomlBuf ? tomlBuf.toString('utf8') : '';
+  const claudeBuf = await readOrNull(resolveClaudeSource(opts).claudeJson);
+  const wanted = desiredCodexServers({ stateDir: t.stateDir, ...o });
+  const own = planOwnServers({ toml: tomlBefore, wanted, prev, claudeNames: claudeServerNames(claudeBuf), legacy, skipped });
+  const { toml, mirror } = await planMirror({ opts, t, toml: own.toml, oneWay: own.oneWay, claudeBuf, writes });
+  if (!tomlBuf || toml !== tomlBefore) writes.push({ rel: 'config.toml', path: tomlFile, data: Buffer.from(toml, 'utf8') });
+  note(tomlFile, tomlBuf !== null);
+
+  return {
+    t, prev, writes: await realWrites(writes), removes: managed.removes, skipped, legacy,
+    makeState: codexState({ t, prev, o, md, managed, links, mcpAdded: own.mcpAdded, mirror, created }),
+    linkPlan: links.linkPlan, managedNames: new Set(links.names), mirror, impeccable: o.impeccable, manifest,
+  };
+}
+
+/** Personal skill links in both directions between the Claude and Codex skills dirs. */
+async function personalSkills(opts, t, managedNames, dryRun = false) {
+  const cs = resolveClaudeSource(opts);
+  const sides = [{ dir: path.join(cs.claudeHome, 'skills'), create: (await statOrNull(cs.claudeHome)) !== null }, { dir: t.codexSkillsDir }];
+  return syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, dryRun, sides });
 }
 
 export async function installCodex(opts = {}) {
-  const { t, prev, writes, removes, skipped, legacy, makeState, mirror, linkPlan, managedNames, impeccable, manifest } = await plan(opts);
+  const p = await plan(opts);
+  const { t, prev, writes, removes, skipped, legacy, mirror, linkPlan, managedNames, impeccable, manifest } = p;
   const files = writes.map((w) => w.rel);
   const removed = removes.map((r) => r.rel);
-  const touches = writes.length > 0 || removes.length > 0 || linkPlan.link.length > 0 || linkPlan.unlink.length > 0;
+  const touches = touchesDisk(p);
+  const engine = manifest.impeccable?.engine.version;
   if (opts.dryRun) {
-    const cs = resolveClaudeSource(opts);
-    const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, dryRun: true, sides: [{ dir: path.join(cs.claudeHome, 'skills'), create: (await statOrNull(cs.claudeHome)) !== null }, { dir: t.codexSkillsDir }] });
+    const personal = await personalSkills(opts, t, managedNames, true);
     const pending = personal.linked.length > 0 || personal.removed.length > 0;
-    const dry = { dryRun: true, changed: touches || pending, files: [...files, ...personal.linked.map((n) => `skills/${n} (link)`)], removed, skipped, legacy, backup: null, mirror, personal };
-    if (impeccable) {
-      const wanted = manifest.impeccable?.engine.version;
-      dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
-    }
+    const listed = [...files, ...personal.linked.map((n) => `skills/${n} (link)`)];
+    const dry = { dryRun: true, changed: touches || pending, files: listed, removed, skipped, legacy, backup: null, mirror, personal };
+    if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === engine ? 'present' : 'would-install', version: engine };
     return dry;
   }
-
   const statePath = stateFileOf(t.stateDir);
-  let backup = null;
-  if (touches) {
-    ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), ...removes.map((r) => r.path), statePath]));
-    for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
-    for (const r of removes) {
-      await rm(r.path, { force: true });
-      await pruneEmptyDirs(path.dirname(r.path), isSkillKey(r.rel) ? storeDirOf(t.stateDir) : t.codexSkillsDir);
-    }
-    await applyLinks(linkPlan, t.codexSkillsDir);
-  }
-  const claudeSource = resolveClaudeSource(opts);
-  const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, sides: [{ dir: path.join(claudeSource.claudeHome, 'skills'), create: (await statOrNull(claudeSource.claudeHome)) !== null }, { dir: t.codexSkillsDir }] });
-  const stateText = toJson(makeState(backup));
+  const backup = touches
+    ? await applyPlan({ stateDir: t.stateDir, statePath, homeRoot: t.codexSkillsDir, skillsDir: t.codexSkillsDir, writes, removes, linkPlan })
+    : null;
+  const personal = await personalSkills(opts, t, managedNames);
+  const stateText = toJson(p.makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
   const recordText = toJson({ fingerprint: await sourceFingerprint(opts) }); // what the next SessionStart check compares with
   if (await needsWrite(syncRecordOf(t.stateDir), recordText)) await writeFileAtomic(syncRecordOf(t.stateDir), recordText);
-  const result = { dryRun: false, changed: touches || stateChanged || !prev || personal.linked.length > 0 || personal.removed.length > 0, files, removed, skipped, legacy, backup, mirror, personal };
+  const linkedAny = personal.linked.length > 0 || personal.removed.length > 0;
+  const result = { dryRun: false, changed: touches || stateChanged || !prev || linkedAny, files, removed, skipped, legacy, backup, mirror, personal };
   if (impeccable) {
     // The engine is one shared store: whichever runtime installs the module prepares it (after the state is written, so a failed run is retried).
-    result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: manifest.impeccable?.engine.version, searchPath: opts.searchPath });
+    result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: engine, searchPath: opts.searchPath });
     if (result.impeccable.engine === 'installed') result.changed = true;
   }
   return result;
@@ -421,7 +400,8 @@ export async function statusCodex(opts = {}) {
 
   const hooks = (await readJsonObject(path.join(t.codexHome, 'hooks.json'), 'hooks.json')).data;
   const commands = (event) => (Array.isArray(hooks.hooks?.[event]) ? hooks.hooks[event] : []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  for (const [event, entries] of Object.entries(desiredCodexHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true }))) {
+  const expectedHooks = desiredCodexHooks({ stateDir: t.stateDir, ...hookSwitches(state) });
+  for (const [event, entries] of Object.entries(expectedHooks)) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);
       add(`hook ${event}`, ok, ok ? cmd : 'missing');
@@ -433,8 +413,8 @@ export async function statusCodex(opts = {}) {
     add(`mcp ${name}`, ok, ok ? '' : 'missing');
   }
   for (const [name, target] of Object.entries(state.skill_links ?? {})) {
-    const cur = await readlink(path.join(t.codexSkillsDir, name)).catch(() => null);
-    add(`skill link ${name}`, cur === target, cur === target ? '' : 'not linked to the amauta store');
+    const ok = await isOurSkillDir(path.join(t.codexSkillsDir, name), target); // a link, or the copy made where links fail
+    add(`skill link ${name}`, ok, ok ? '' : 'not linked to the amauta store');
   }
   for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
     const buf = await readOrNull(storePathOf(t.stateDir, rel));

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeEnv, Element } from './helpers/fakedom.js';
-import { runPortal } from './helpers/portalboot.js';
+import { runPortal, readApp } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
@@ -47,7 +47,7 @@ async function boot(hash, { failRender = false, page } = {}) {
 }
 
 test('app.js initializes mermaid strictly, without auto-start, from the vendored file only', async () => {
-  const js = await read('app.js');
+  const js = await readApp();
   assert.match(js, /startOnLoad:\s*false/);
   assert.match(js, /securityLevel:\s*"strict"/);
   assert.doesNotMatch(js, /securityLevel:\s*"(loose|antiscript|sandbox)"/);
@@ -65,7 +65,7 @@ test('the Harness page draws the architecture diagram and loads mermaid once', a
   assert.equal(log.init[0].startOnLoad, false);
   assert.deepEqual(log.render, [ARCH]);
   assert.equal(log.parsedAs, 'text/html');
-  assert.match(env.document.getElementById('view').textContent, /Architecture/);
+  assert.match(env.document.getElementById('view').textContent, /How a session flows through the harness/);
 });
 
 test('the separate Diagrams page is gone: old links land on Harness and the page never asks /api/diagrams', async () => {

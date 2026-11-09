@@ -48,6 +48,101 @@ const EXTRA_OK = (v) => ['string', 'number', 'boolean'].includes(typeof v) || (A
  * Returns { toml, claudeText (null when unchanged), base, report } where report lists names only:
  *   toCodex / toClaude (added or changed), removedFromCodex / removedFromClaude, conflicts, unsupported ({name, reason}).
  */
+/** Stdio servers of one side split into syncable (`side`), not syncable (`other`, reported) and excluded ones. */
+function classify(entries, { managed, excludedBy, report, prefix = '' }) {
+  const side = new Map();
+  const other = new Set();
+  const excluded = new Map();
+  for (const [name, raw, r] of entries) {
+    if (managed.has(name)) continue;
+    const ex = excludedBy(name, r.value ?? raw);
+    if (ex) excluded.set(name, { ...ex, raw, value: r.value, extras: r.extras });
+    else if (r.reason) {
+      report.unsupported.push({ name, reason: `${prefix}${r.reason}` });
+      other.add(name);
+    } else if (!isMemoryServer(r.value)) side.set(name, { value: r.value, raw, extras: r.extras });
+  }
+  return { side, other, excluded };
+}
+
+/** Excluded servers are never synced; a copy an earlier sync wrote to the other runtime goes only if untouched. */
+function settleExcluded(s, { base, excludedClaude, excludedCodex }) {
+  for (const name of new Set([...excludedClaude.keys(), ...excludedCodex.keys()])) {
+    const c = excludedClaude.get(name);
+    const x = excludedCodex.get(name);
+    s.report.excluded.push(name);
+    if (base[name] === undefined) continue;
+    const runtime = (c ?? x).runtime;
+    const copy = runtime === 'codex' ? c : runtime === 'claude' ? x : undefined; // the side that is not the owner
+    const untouchedCopy = runtime === 'codex' ? isDeepStrictEqual(copy?.raw, { type: 'stdio', ...core(copy?.value ?? {}) }) : Object.keys(copy?.extras ?? {}).length === 0;
+    const intact = copy !== undefined && copy.value !== undefined && hashOf(copy.value) === base[name] && untouchedCopy;
+    if (!intact) {
+      s.report.staleExcluded.push(name);
+      s.nextBase[name] = base[name];
+    } else if (runtime === 'codex') {
+      delete s.servers[name];
+      s.changedClaude = true;
+      s.report.removedExcluded.push(`claude:${name}`);
+    } else {
+      s.toml = removeMcpServer(s.toml, name);
+      s.report.removedExcluded.push(`codex:${name}`);
+    }
+  }
+}
+
+/** Copy Claude's value of `name` to Codex (or remove it there); false when a Codex-only extra cannot be kept. */
+function copyToCodex(s, name, c, x) {
+  if (c) {
+    const extras = x?.extras ?? {};
+    for (const v of Object.values(extras)) if (!EXTRA_OK(v)) return false;
+    s.toml = setMcpServer(s.toml, name, { ...core(c.value), ...extras });
+    s.report.toCodex.push(name);
+  } else {
+    s.toml = removeMcpServer(s.toml, name);
+    s.report.removedFromCodex.push(name);
+  }
+  return true;
+}
+
+/** Copy Codex's value of `name` to Claude (or remove it there), keeping Claude-only keys. */
+function copyToClaude(s, name, c, x) {
+  if (x) {
+    const { type, command: _c, args: _a, env: _e, ...keep } = c?.raw ?? {};
+    s.servers[name] = { type: type ?? 'stdio', ...core(x.value), ...keep };
+    s.report.toClaude.push(name);
+  } else {
+    delete s.servers[name];
+    s.report.removedFromClaude.push(name);
+  }
+  s.changedClaude = true;
+}
+
+/** 3-way decision for one server against the last synced hash `hb`. */
+function syncOne(s, name, c, x, hb) {
+  const hc = c ? hashOf(c.value) : undefined;
+  const hx = x ? hashOf(x.value) : undefined;
+  if (hc === hx) {
+    if (hc !== undefined) s.nextBase[name] = hc;
+  } else if (hb === undefined) {
+    if (c && x) s.report.conflicts.push(name); // both sides have it with different values and there is no common ancestor
+    else if (c) {
+      if (copyToCodex(s, name, c, x)) s.nextBase[name] = hc;
+    } else {
+      copyToClaude(s, name, c, x);
+      s.nextBase[name] = hx;
+    }
+  } else if (hc === hb) {
+    copyToClaude(s, name, c, x); // Codex changed it or removed it
+    if (hx !== undefined) s.nextBase[name] = hx;
+  } else if (hx === hb) {
+    if (!copyToCodex(s, name, c, x)) s.nextBase[name] = hb;
+    else if (hc !== undefined) s.nextBase[name] = hc;
+  } else {
+    s.report.conflicts.push(name);
+    s.nextBase[name] = hb;
+  }
+}
+
 export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set(), exclude = [], internalPaths = [] }) {
   const report = { toCodex: [], toClaude: [], removedFromCodex: [], removedFromClaude: [], conflicts: [], transport: [], unsupported: [], excluded: [], removedExcluded: [], staleExcluded: [], unreadable: null };
   const dirs = asDirs(internalPaths);
@@ -59,8 +154,6 @@ export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set
     if (dir) return { runtime: dir.runtime };
     return userExcluded.has(name) ? { runtime: undefined } : null;
   };
-  const excludedClaude = new Map();
-  const excludedCodex = new Map();
   let claudeData = {};
   if (claudeText.trim() !== '') {
     try {
@@ -72,132 +165,31 @@ export function planMcpSync({ claudeText, tomlText, base = {}, managed = new Set
     }
   }
   const servers = isObject(claudeData.mcpServers) ? { ...claudeData.mcpServers } : {};
-  const claudeSide = new Map();
-  const claudeOther = new Set(); // present in Claude but not a stdio server Codex can take
-  for (const [name, raw] of Object.entries(servers)) {
-    if (managed.has(name)) continue;
-    const r = stdioOf(raw);
-    const ex = excludedBy(name, r.value ?? raw);
-    if (ex) {
-      excludedClaude.set(name, { ...ex, raw, value: r.value });
-      continue;
-    }
-    if (r.reason) {
-      report.unsupported.push({ name, reason: r.reason });
-      claudeOther.add(name);
-    } else if (!isMemoryServer(r.value)) claudeSide.set(name, { value: r.value, raw });
-  }
-  const codexSide = new Map();
-  const codexOther = new Set();
-  for (const name of listMcpServers(tomlText)) {
-    if (managed.has(name)) continue;
+  const claude = classify(Object.entries(servers).map(([name, raw]) => [name, raw, stdioOf(raw)]), { managed, excludedBy, report });
+  const codexEntries = listMcpServers(tomlText).map((name) => {
     const { value } = readMcpServer(tomlText, name);
-    const r = value === null ? { reason: 'unreadable' } : stdioOf(value);
-    const ex = excludedBy(name, r.value ?? value);
-    if (ex) {
-      excludedCodex.set(name, { ...ex, value: r.value, extras: r.extras });
-      continue;
-    }
-    if (r.reason) {
-      report.unsupported.push({ name, reason: `codex: ${r.reason}` });
-      codexOther.add(name);
-    } else if (!isMemoryServer(r.value)) codexSide.set(name, { value: r.value, extras: r.extras });
-  }
-  let toml = tomlText;
-  let changedClaude = false;
-  const nextBase = {};
-  // Excluded servers: never synced. A copy an earlier sync wrote to the other runtime goes only if untouched.
-  for (const name of new Set([...excludedClaude.keys(), ...excludedCodex.keys()])) {
-    const c = excludedClaude.get(name);
-    const x = excludedCodex.get(name);
-    report.excluded.push(name);
-    if (base[name] === undefined) continue;
-    const runtime = (c ?? x).runtime;
-    const copy = runtime === 'codex' ? c : runtime === 'claude' ? x : undefined; // the side that is not the owner
-    if (!copy) {
-      report.staleExcluded.push(name);
-      nextBase[name] = base[name];
-      continue;
-    }
-    const intact = copy.value !== undefined && hashOf(copy.value) === base[name] && (runtime === 'codex' ? isDeepStrictEqual(copy.raw, { type: 'stdio', ...core(copy.value) }) : Object.keys(copy.extras ?? {}).length === 0);
-    if (!intact) {
-      report.staleExcluded.push(name);
-      nextBase[name] = base[name];
-    } else if (runtime === 'codex') {
-      delete servers[name];
-      changedClaude = true;
-      report.removedExcluded.push(`claude:${name}`);
-    } else {
-      toml = removeMcpServer(toml, name);
-      report.removedExcluded.push(`codex:${name}`);
-    }
-  }
-  const names = new Set([...Object.keys(base), ...claudeSide.keys(), ...codexSide.keys()]);
+    return [name, value, value === null ? { reason: 'unreadable' } : stdioOf(value)];
+  });
+  const codex = classify(codexEntries, { managed, excludedBy, report, prefix: 'codex: ' });
+  const s = { toml: tomlText, servers, changedClaude: false, nextBase: {}, report };
+  settleExcluded(s, { base, excludedClaude: claude.excluded, excludedCodex: codex.excluded });
+  const names = new Set([...Object.keys(base), ...claude.side.keys(), ...codex.side.keys()]);
   for (const name of [...names].sort()) {
-    if (managed.has(name) || excludedClaude.has(name) || excludedCodex.has(name)) continue;
+    if (managed.has(name) || claude.excluded.has(name) || codex.excluded.has(name)) continue;
     // Another transport on one side (e.g. HTTP in Codex, stdio in Claude): never converted, left alone on both sides.
-    if ((claudeSide.has(name) && codexOther.has(name)) || (codexSide.has(name) && claudeOther.has(name))) {
+    if ((claude.side.has(name) && codex.other.has(name)) || (codex.side.has(name) && claude.other.has(name))) {
       report.transport.push(name);
-      if (base[name] !== undefined) nextBase[name] = base[name];
+      if (base[name] !== undefined) s.nextBase[name] = base[name];
       continue;
     }
-    const c = claudeSide.get(name);
-    const x = codexSide.get(name);
-    const hc = c ? hashOf(c.value) : undefined;
-    const hx = x ? hashOf(x.value) : undefined;
-    const hb = base[name];
-    const toCodex = () => {
-      if (c) {
-        const extras = x?.extras ?? {};
-        for (const v of Object.values(extras)) if (!EXTRA_OK(v)) return false;
-        toml = setMcpServer(toml, name, { ...core(c.value), ...extras });
-        report.toCodex.push(name);
-      } else {
-        toml = removeMcpServer(toml, name);
-        report.removedFromCodex.push(name);
-      }
-      return true;
-    };
-    const toClaude = () => {
-      if (x) {
-        const { type, command: _c, args: _a, env: _e, ...keep } = c?.raw ?? {};
-        servers[name] = { type: type ?? 'stdio', ...core(x.value), ...keep };
-        report.toClaude.push(name);
-      } else {
-        delete servers[name];
-        report.removedFromClaude.push(name);
-      }
-      changedClaude = true;
-    };
-    if (hc === hx) {
-      if (hc !== undefined) nextBase[name] = hc;
-    } else if (hb === undefined) {
-      if (c && x) {
-        report.conflicts.push(name); // both sides have it with different values and there is no common ancestor
-      } else if (c) {
-        if (toCodex()) nextBase[name] = hc;
-      } else {
-        toClaude();
-        nextBase[name] = hx;
-      }
-    } else if (hc === hb) {
-      toClaude(); // Codex changed it or removed it
-      if (hx !== undefined) nextBase[name] = hx;
-    } else if (hx === hb) {
-      if (toCodex()) {
-        if (hc !== undefined) nextBase[name] = hc;
-      } else nextBase[name] = hb;
-    } else {
-      report.conflicts.push(name);
-      nextBase[name] = hb;
-    }
+    syncOne(s, name, claude.side.get(name), codex.side.get(name), base[name]);
   }
   let outClaude = null;
-  if (changedClaude) {
-    const next = { ...claudeData, mcpServers: servers };
-    if (Object.keys(servers).length === 0) delete next.mcpServers;
+  if (s.changedClaude) {
+    const next = { ...claudeData, mcpServers: s.servers };
+    if (Object.keys(s.servers).length === 0) delete next.mcpServers;
     outClaude = `${JSON.stringify(next, null, 2)}\n`;
   }
-  const same = isDeepStrictEqual(nextBase, base);
-  return { toml, claudeText: outClaude, base: same ? base : nextBase, report };
+  const same = isDeepStrictEqual(s.nextBase, base);
+  return { toml: s.toml, claudeText: outClaude, base: same ? base : s.nextBase, report };
 }

@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { spawn as nodeSpawn } from 'node:child_process';
 import { resolveTargets } from '../install/paths.js';
 import { buildPortalSpawn, OPTIONS } from './cli.js';
+import { windowsBrowsers, windowsOpener } from './windows.js';
 
 const LOOPBACK = '127.0.0.1';
 const BROWSERS = ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'];
@@ -35,9 +36,11 @@ function removeRunFile(stateDir) {
   fs.rmSync(runFilePath(stateDir), { force: true });
 }
 
-/** AMAUTA_BROWSER (a path or a command name) wins, then the Chromium-family candidates in order. */
-export function findBrowser(env, which) {
-  if (env.AMAUTA_BROWSER) return which(env.AMAUTA_BROWSER) ?? (path.isAbsolute(env.AMAUTA_BROWSER) ? env.AMAUTA_BROWSER : null);
+/** AMAUTA_BROWSER (a path or a command name) wins, then the Chromium-family candidates in order (Edge, Chrome on Windows). */
+export function findBrowser(env, which, platform = process.platform, exists = fs.existsSync) {
+  const absolute = platform === 'win32' ? path.win32.isAbsolute : path.isAbsolute;
+  if (env.AMAUTA_BROWSER) return which(env.AMAUTA_BROWSER) ?? (absolute(env.AMAUTA_BROWSER) ? env.AMAUTA_BROWSER : null);
+  if (platform === 'win32') return windowsBrowsers(env).find((p) => exists(p)) ?? null;
   for (const name of BROWSERS) {
     const found = which(name);
     if (found) return found;
@@ -61,6 +64,7 @@ function defaultWhich(env) {
 function defaultDeps(env) {
   return {
     pid: process.pid,
+    platform: process.platform,
     which: defaultWhich(env),
     findFreePort: () => new Promise((resolve, reject) => {
       const srv = net.createServer();
@@ -148,8 +152,8 @@ export async function runLaunch(args, io, overrides = {}, env = process.env) {
   }
   const stateDir = targets.stateDir;
   const me = deps.pid;
-  const browser = findBrowser(env, deps.which);
-  const opener = browser ?? deps.which('xdg-open');
+  const browser = findBrowser(env, deps.which, deps.platform);
+  const opener = browser ?? (deps.platform === 'win32' ? windowsOpener(env) : deps.which('xdg-open'));
   if (!opener) {
     io.stderr.write('amauta portal launch: no Chromium-family browser (google-chrome, chromium) and no xdg-open found; set AMAUTA_BROWSER\n');
     return 1;

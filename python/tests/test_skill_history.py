@@ -5,7 +5,7 @@ import subprocess
 import unittest
 
 from python.amauta.memory import store as mstore
-from python.amauta.portal import skillhist as sh
+from python.amauta.extras.skill_impact import skillhist as sh
 from python.tests.test_portal_wiki import WikiBase
 from python.tests.test_skill_impact import call, sess, turn
 

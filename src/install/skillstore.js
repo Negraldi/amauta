@@ -1,12 +1,13 @@
-import { lstat, mkdir, readdir, readFile, readlink, rm, rmdir, symlink } from 'node:fs/promises';
+import { cp, lstat, mkdir, readdir, readFile, readlink, rm, rmdir, symlink, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { assetPath, listFiles, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
+import { assetPath, installRoot, listFiles, readAssetBuffer, readAssetText } from './assets.js';
 import { renderSddText } from './sdd.js';
 import { renderImpeccableFiles } from './impeccable.js';
 import { renderArchifyFiles } from './archify.js';
 import { shellQuote } from './servers.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
+import { linkType } from '../core/platform.js';
 
 /**
  * The amauta skill store: managed skills are rendered once into `<state dir>/skills/<name>`, and every runtime reaches
@@ -24,11 +25,13 @@ const posix = (rel) => rel.split(path.sep).join('/');
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
 /** Markdown skill files may name helper code of this checkout; resolve those placeholders to shell-safe absolute values. */
-export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'python')) {
+export function renderSkillFile(rel, buf, pythonDir = path.join(installRoot, 'python')) {
   if (!rel.endsWith('.md')) return buf;
   let text = buf.toString('utf8');
   if (!text.includes('{{AMAUTA_')) return buf;
-  // The whole `NAME=value` assignment is quoted, so a checkout path with spaces or quotes still forms one `env` argument.
+  // `amauta py <module>` (plan N8c): a plain node invocation, portable to Windows, that runs our Python modules with the
+  // interpreter install resolved. The older `env PYTHONPATH=...` form stays rendered for a skill an earlier release wrote.
+  text = text.replaceAll('{{AMAUTA_PY}}', `node ${shellQuote(path.join(installRoot, 'bin', 'amauta.js'))} py`);
   text = text.replaceAll('{{AMAUTA_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
   return Buffer.from(text, 'utf8');
 }
@@ -58,6 +61,23 @@ export const namesOf = (rendered) => [...new Set([...rendered.keys()].filter(isS
 export const lstatOrNull = (p) => lstat(p).then((s) => s, () => null);
 const readlinkOrNull = (p) => readlink(p).then((s) => s, () => null);
 
+/** Marker inside a skill directory that amauta copied because a link could not be made (plan N8b). */
+export const COPY_MARKER = '.amauta-copy';
+/** The store path a marked copy came from, or null for any other directory. */
+const copyOrigin = (dir) => readFile(path.join(dir, COPY_MARKER), 'utf8').then((s) => s.trim(), () => null);
+
+/** True when every file of `dir` (the marker aside) is byte-equal to the rendered files of skill `name`, and none is missing. */
+async function sameAsRendered(dir, name, rendered) {
+  const files = ((await filesUnder(dir)) ?? []).map(posix).filter((f) => f !== COPY_MARKER);
+  const wanted = [...rendered.keys()].filter((k) => k.startsWith(`skills/${name}/`));
+  if (files.length !== wanted.length) return false;
+  for (const f of files) {
+    const buf = await readFile(path.join(dir, f)).catch(() => null);
+    if (buf === null || !rendered.get(`skills/${name}/${f}`)?.equals(buf)) return false;
+  }
+  return true;
+}
+
 async function filesUnder(dir) {
   try {
     return await listFiles(dir);
@@ -86,6 +106,8 @@ export async function planManagedLinks({ skillsDir, storeDir, names, prevLinks =
       if (cur === target) continue;
       if (prevLinks[name] !== undefined && cur === prevLinks[name]) link.push({ name, dest, target, replace: true }); // the store moved
       else foreign.push(name);
+    } else if (st.isDirectory() && (await copyOrigin(dest)) === target) {
+      if (!(await sameAsRendered(dest, name, rendered))) link.push({ name, dest, target, replace: true }); // our copy, stale
     } else if (st.isDirectory()) {
       const files = await filesUnder(dest);
       let legacy = files !== null && files.length > 0;
@@ -103,18 +125,32 @@ export async function planManagedLinks({ skillsDir, storeDir, names, prevLinks =
   for (const [name, target] of Object.entries(prevLinks)) {
     if (names.includes(name)) continue;
     const dest = path.join(skillsDir, name);
-    if ((await readlinkOrNull(dest)) === target) unlink.push({ name, dest });
+    if ((await isOurSkillDir(dest, target))) unlink.push({ name, dest });
   }
   return { link, foreign, unlink };
 }
 
-export async function applyLinks({ link, unlink }, skillsDir) {
+/** Our link to `target`, or our marked copy of it. */
+export const isOurSkillDir = async (dest, target) => (await readlinkOrNull(dest)) === target || (await copyOrigin(dest)) === target;
+
+/** Link a skill directory; when the platform refuses (no junction on FAT, some network drives), copy it with a marker. */
+async function linkOrCopy(target, dest, link) {
+  try {
+    await link(target, dest, linkType());
+  } catch {
+    await rm(dest, { recursive: true, force: true });
+    await cp(target, dest, { recursive: true });
+    await writeFile(path.join(dest, COPY_MARKER), `${target}\n`);
+  }
+}
+
+export async function applyLinks({ link, unlink }, skillsDir, { symlink: linkFn = symlink } = {}) {
   if (link.length > 0) await mkdir(skillsDir, { recursive: true });
   for (const l of link) {
     if (l.replace) await rm(l.dest, { recursive: true, force: true });
-    await symlink(l.target, l.dest);
+    await linkOrCopy(l.target, l.dest, linkFn);
   }
-  for (const u of unlink) await rm(u.dest, { force: true });
+  for (const u of unlink) await rm(u.dest, { recursive: true, force: true });
 }
 
 /** Remove the links in `recorded` ({name: target}) that still point where we put them. Returns the names removed. */
@@ -122,8 +158,8 @@ export async function removeLinks(skillsDir, recorded = {}) {
   const gone = [];
   for (const [name, target] of Object.entries(recorded)) {
     const dest = path.join(skillsDir, name);
-    if ((await readlinkOrNull(dest)) === target) {
-      await rm(dest, { force: true });
+    if (await isOurSkillDir(dest, target)) {
+      await rm(dest, { recursive: true, force: true });
       gone.push(name);
     }
   }
@@ -192,7 +228,7 @@ export async function syncPersonalSkills({ stateDir, sides, managed = new Set(),
           linked.push(name);
           if (!dryRun) {
             await mkdir(to.dir, { recursive: true });
-            await symlink(target, dest);
+            await symlink(target, dest, linkType());
           }
           next[dest] = target;
         } else if (!(st.isSymbolicLink() && (await readlinkOrNull(dest)) === target)) conflicts.push(name); // something else already lives there

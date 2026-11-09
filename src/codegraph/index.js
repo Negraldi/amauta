@@ -15,22 +15,9 @@ const PROJECT_MARKERS = [
 
 const exists = (p) => stat(p).then(() => true, () => false);
 
-/** Absolute path of an executable named `name` on `searchPath` (default $PATH), or null. */
-export async function findOnPath(name, searchPath = process.env.PATH ?? '') {
-  for (const dir of searchPath.split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, name);
-    try {
-      const st = await stat(candidate);
-      if (!st.isFile()) continue;
-      await access(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // keep looking
-    }
-  }
-  return null;
-}
+/** Executable lookup lives in the platform layer (PATHEXT on Windows); re-exported for existing callers. */
+export { findOnPath } from '../core/platform.js';
+import { findOnPath } from '../core/platform.js';
 
 const real = (p) => realpath(p).catch(() => path.resolve(p));
 const within = (child, parent) => child === parent || child.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep);

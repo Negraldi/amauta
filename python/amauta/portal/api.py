@@ -14,7 +14,9 @@ from ..graph import query as graph_query
 from ..memory import store as mstore
 from ..telemetry import housekeeping
 from ..usage import codex, ingest
-from . import archify, diagrams, wikifeature
+from .. import extensions
+from .wikihooks import hook_handlers as _hook_handlers, hook_kind as _hook_kind
+from . import archify, diagrams, guide, security, siblings, wikifeature
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
@@ -80,11 +82,11 @@ class Portal:
 
     # ---- dispatch -------------------------------------------------------------------------
     def get(self, path, q):
-        route = _ROUTES.get(path)
-        if route is None:
+        route = _ROUTES.get(path) or (extensions.has(f"GET {path}") and (lambda p, q: extensions.call(f"GET {path}", p, q)))  # ADR 0009
+        if not route:
             return 404, {"error": "not found"}
         try:
-            return 200, getattr(self, route)(q)
+            return 200, route(self, q) if callable(route) else getattr(self, route)(q)  # a function or a method name
         except NotFound:
             return 404, {"error": "not found"}
         except BadRequest as err:
@@ -105,8 +107,7 @@ class Portal:
         return wikiharness.groups(self, q)
 
     def themes(self, q):
-        from . import themes
-        return themes.list_themes(self.cfg.state_dir)
+        return extensions.call("themes.list", self.cfg.state_dir, default=[])  # the theme_editor extra, when present
 
     def projects(self, q):
         from . import projects
@@ -482,7 +483,7 @@ class Portal:
             for entry in entries if isinstance(entries, list) else []:
                 for h in (entry.get("hooks") or []) if isinstance(entry, dict) else []:
                     cmd = h.get("command", "") if isinstance(h, dict) else ""
-                    hooks.append({"event": event, "kind": _hook_kind(cmd)})  # command text of other tools is never exposed
+                    hooks.append({"event": event, "kind": _hook_kind(cmd), "handlers": _hook_handlers(cmd)})  # never other tools' commands
         cj = self._read_json(state.get("claude_json") or "")
         servers = []
         for name, spec in (cj.get("mcpServers") or {}).items():
@@ -516,9 +517,10 @@ class Portal:
 
     # ---- diagrams (Mermaid source is generated here, from the data the views above already use) --------------
     def archify_view(self, q):
-        """Harness architecture drawn by the vendored archify CLI (rendered now, cached by input hash) plus the Mermaid text diagram as the fallback."""
+        """The harness session flow as Mermaid (`fallback`, the page's diagram since N12e) plus, when archify is installed, the
+        full architecture it renders (cached by input hash), which the page links to."""
         hs = self.harness({})
-        fallback = diagrams.architecture(hs, self.cfg.state_dir)
+        fallback = diagrams.workflow(hs, self.cfg.state_dir)
         if not hs.get("installed"):
             return {"installed": False, "available": False, "reason": "amauta is not installed", "fallback": fallback}
         stores = [{"label": "memory.db", "detail": "memories, graph, usage"}] if self.cfg.db_path.exists() else []
@@ -607,20 +609,11 @@ def _valid_price(v) -> bool:
 _OBS_COLUMNS = {"id", "title", "content", "type", "project", "topic_key", "updated_at"}
 
 
-def _hook_kind(cmd: str) -> str:
-    for kind, pat in (("telemetry", r"amauta\.telemetry"), ("usage", r"amauta\.usage"), ("skill-registry", r"amauta\.js\S*\s+hook\s+skill-registry"),
-                      ("review-stop", r"amauta\.js\S*\s+hook\s+review-stop"),
-                      ("graphify-connect", r"amauta\.js\S*\s+hook\s+graphify-connect")):
-        if re.search(pat, cmd):
-            return kind
-    return "other"
-
-
 _ROUTES = {
     "/api/overview": "overview", "/api/tools": "tools", "/api/sessions": "sessions", "/api/costs": "costs",
     "/api/memories": "memories", "/api/memory": "memory", "/api/memory/history": "memory_history",
     "/api/memory-files": "memory_files", "/api/memory-file": "memory_file", "/api/graphify": "graphify",
     "/api/graph/nodes": "graph_nodes", "/api/graph/neighbors": "graph_neighbors",
     "/api/harness": "harness", "/api/harness/components": "harness_components", "/api/odd": "odd", "/api/graph/diagram": "graph_diagram", "/api/archify": "archify_view",
-    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills", "/api/projects": "projects", "/api/themes": "themes",
+    "/api/wiki/page": "wiki_page", "/api/wiki/recent": "wiki_recent", "/api/wiki/search": "wiki_search", "/api/wiki/home": "wiki_home", "/api/wiki/lint": "wiki_lint", "/api/skills": "skills", "/api/projects": "projects", "/api/themes": "themes", "/api/security": lambda portal, q: security.report(portal.cfg), "/api/siblings": lambda portal, q: siblings.health(portal), "/api/guide": lambda p, q: guide.index(p, q), "/api/guide/page": lambda p, q: guide.page(p, q),
 }

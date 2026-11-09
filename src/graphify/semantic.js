@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
+import { killTree } from '../core/platform.js';
 import os from 'node:os';
 import { rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { repoRoot as gitRepoRoot, gitOrNull } from '../util/git.js';
 import { resolveTargets } from '../install/paths.js';
+import { installedPythonSync } from '../install/python.js';
 import { repoRoot as packageRoot } from '../install/assets.js';
 import { findOnPath } from '../codegraph/index.js';
 import { GRAPHIFY_HINT } from './probe.js';
@@ -55,7 +57,7 @@ export function streamMasker(secret) {
   };
 }
 
-const killGroup = (child) => { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } } };
+const killGroup = (child) => killTree(child.pid); // process group on POSIX, taskkill /T on Windows
 
 /**
  * Run a command. The secret is masked in everything we hand back, on the raw stream (a chunk boundary or a missing
@@ -110,6 +112,9 @@ function lockHelperEnv(env = process.env) {
   return out;
 }
 
+// The interpreter install recorded, or AMAUTA_PYTHON; never a bare python3 (macOS ships 3.9, plan N9b).
+const pythonFor = (stateDir, env) => installedPythonSync({ ...env, AMAUTA_STATE_DIR: resolveTargets({ stateDir }, env).stateDir });
+
 const LOCK_BUSY = 75; // EX_TEMPFAIL from `amauta.graph.lock acquire`: held by someone else
 
 /**
@@ -117,9 +122,9 @@ const LOCK_BUSY = 75; // EX_TEMPFAIL from `amauta.graph.lock acquire`: held by s
  * (stale rule, start token, atomic takeover) shared with the post-commit hook and the Python writers; this asks it to
  * record this process as the owner. Returns a release function, or null when the lock is held (fail fast).
  */
-export async function takeLock(lock) {
+export async function takeLock(lock, python = 'python3') {
   const result = await new Promise((resolve) => {
-    const child = spawn('python3', ['-P', '-m', 'amauta.graph.lock', 'acquire', '--lock', lock, '--pid', String(process.pid)], {
+    const child = spawn(python, ['-P', '-m', 'amauta.graph.lock', 'acquire', '--lock', lock, '--pid', String(process.pid)], {
       env: lockHelperEnv(), stdio: ['ignore', 'ignore', 'pipe'],
     });
     let err = '';
@@ -170,7 +175,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
   const lockRel = (await gitOrNull(root, ['rev-parse', '--git-path', 'amauta-graphify.lock']))?.trim();
   const lock = lockRel ? path.resolve(root, lockRel) : null;
   let release;
-  try { release = lock ? await takeLock(lock) : async () => {}; } catch (err) {
+  try { release = lock ? await takeLock(lock, pythonFor(stateDir, env)) : async () => {}; } catch (err) {
     io.stderr.write(`amauta: ${err.message}\n`);
     return 1;
   }
@@ -199,7 +204,7 @@ export async function runSemantic({ cwd = process.cwd(), model, timeout, stateDi
       return 1;
     }
     const { [KEY_VAR]: _omit, ...clean } = env;
-    const sync = await capture('python3', ['-P', '-m', 'amauta.graph', 'sync', '--repo', root, '--semantic-model', chosen], {
+    const sync = await capture(pythonFor(stateDir, env), ['-P', '-m', 'amauta.graph', 'sync', '--repo', root, '--semantic-model', chosen], {
       cwd: root,
       env: { ...clean, PYTHONPATH: path.join(packageRoot, 'python'), AMAUTA_STATE_DIR: resolveTargets({ stateDir }).stateDir },
       secret: key,

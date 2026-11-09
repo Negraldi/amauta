@@ -1,5 +1,67 @@
 # Upgrading
 
+## Across several versions
+
+`amauta upgrade` moves the install in one step and prints the notes below for every version it crosses, oldest
+first, read from the target. `amauta upgrade --dry-run` fetches from origin (git refs only) and previews what the
+new installer would write, remove and replace, without changing any file. To try a branch before it has a release
+tag: `amauta upgrade --branch <name>` (the rollback is the branch you were on).
+
+An install older than this version has the older `upgrade`, without `--branch` and the preview. Its first move to a
+branch is by hand, in the install's checkout (`amauta status` prints where it is):
+
+```bash
+git -C <amauta checkout> fetch origin <branch>:refs/remotes/origin/<branch>
+git -C <amauta checkout> checkout -b <branch> --track origin/<branch>
+amauta install && amauta status
+```
+
+From then on `amauta upgrade` is the new one. Rollback: `git -C <amauta checkout> checkout main && amauta install`.
+
+## From 0.6.0 to 0.7.0
+
+```bash
+amauta upgrade --to v0.7.0
+```
+
+- New: pipelines (`.amauta/pipelines.json`, `amauta pipeline ...`, the Pipelines tab under Projects) and sibling
+  projects (Settings > Sibling projects). Nothing runs until you define a pipeline and run it.
+- Run `amauta check trust` again in each project you trusted: trust now records the hash of `.amauta/pipelines.json`,
+  and the portal runs a project's pipelines only while that file is the one you trusted (also after any change to it).
+- Schedules are your operating system's: `amauta pipeline schedule-hint <id>` prints the entries to register once.
+- Rollback: `amauta upgrade --to v0.6.0`.
+
+## From 0.5.0 to 0.6.0
+
+```bash
+amauta upgrade --to v0.6.0
+```
+
+- New hooks: the privacy hook (UserPromptSubmit; PreToolUse on Read in Claude Code) and the checks (PostToolUse on
+  edits in Claude Code; Stop in both runtimes). Codex asks you to trust the changed hook commands once.
+- Turn them off with `amauta install --no-privacy` or `--no-checks`, or in the portal's Settings.
+- Code-executing checkers (tsc, eslint, mypy, cargo) run only in projects you trust: `amauta check trust`.
+- Memories saved from now on are guarded: secrets are refused and identifiers redacted. Existing memories are unchanged.
+- Rollback: `amauta upgrade --to v0.5.0`.
+
+## From 0.4.0 to 0.5.0
+
+```bash
+amauta upgrade --to v0.5.0
+```
+
+- Hook commands change form: one command per event, `node <amauta>/bin/amauta.js hook event <Event> --state-dir DIR
+  --with handler,... [--runtime codex]`. Install replaces the old per-handler commands (`hook review-stop`,
+  `env PYTHONPATH=... python3 -m amauta.telemetry hook`, the SDD shell guard) and keeps your own hooks.
+- Codex asks you to trust the changed hook commands once, the first time it starts after the upgrade.
+- `--python <interpreter>` (or `AMAUTA_PYTHON`) chooses the Python used by the hooks and the memory server; it must be
+  3.11 or newer and is remembered. Without it nothing changes (`python3`).
+- Portal: the sidebar has six pages (Home, Projects, Memory, Activity, Harness, Settings); the other pages are tabs
+  of those (Activity: Usage, Sessions, Tools, MCP servers; Memory: Lint; Projects: ODD features, Graph; Harness:
+  Skills, Components; Settings: Themes). Every old address keeps working; `#/activity` opens Usage. The top bar holds
+  only search: the usage filters sit above the pages that use them, theme and language at the foot of the sidebar.
+- Rollback: `amauta upgrade --to v0.4.0` writes the old hook commands back.
+
 ## From 0.3.1 to 0.4.0
 
 ```bash

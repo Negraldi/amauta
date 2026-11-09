@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { resolveTargets } from '../install/paths.js';
+import { installedPythonSync } from '../install/python.js';
 import { hookBlock, hookStatus, installHook } from './hook.js';
 
 /**
@@ -17,10 +18,12 @@ export async function graphifyConnect(payload, env = process.env, { spawner = sp
   if (!root || optedOut || installed) return null;
   if (!(await stat(path.join(root, 'graphify-out', 'graph.json')).then((s) => s.isFile(), () => false))) return null;
   const { stateDir } = resolveTargets({}, env);
-  await installHook({ cwd: root, stateDir });
+  const python = installedPythonSync({ ...env, AMAUTA_STATE_DIR: stateDir });
+  await installHook({ cwd: root, stateDir, python });
   // The hook block backgrounds itself (single-flight lock, graphify update, check-update, graph sync): running it once here
   // is exactly the refresh a commit would do. The sh that starts it exits at once.
-  const child = spawner('sh', ['-c', hookBlock({ stateDir, event: 'post-commit' })], { cwd: root, env, detached: true, stdio: 'ignore' });
+  const block = hookBlock({ stateDir, event: 'post-commit', python });
+  const child = spawner('sh', ['-c', block], { cwd: root, env, detached: true, stdio: 'ignore' });
   child.on?.('error', () => {});
   child.unref?.();
   return null;

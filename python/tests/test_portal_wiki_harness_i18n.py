@@ -7,7 +7,7 @@ from python.tests.test_portal_wiki_tools import ToolsBase
 
 
 class HarnessTextCatalogTest(ToolsBase):
-    """Every fixed English text the harness pages send has a Spanish entry in the `srv` catalog of i18n.js."""
+    """Every fixed English text the harness pages send has a Spanish entry in the server catalog i18n/srv-es.json."""
 
     def setUp(self):
         super().setUp()

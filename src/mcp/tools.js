@@ -10,7 +10,8 @@ export class ToolInputError extends Error {}
 const cwdSchema = { cwd: { type: 'string', description: 'Absolute path of the project or repository.' } };
 const schema = (properties = {}) => ({ type: 'object', properties: { ...cwdSchema, ...properties }, required: ['cwd'] });
 
-const CHECKBOX = /^\s*[-*]\s+\[([ xX])\]\s+(.*\S)\s*$/;
+// Top-level checklist items only (docs/odd.md): `- [ ]` open, `- [x]` done, `- [!]` blocked; nested boxes are notes.
+const CHECKBOX = /^- \[([ xX!])\] (.*\S)\s*$/;
 
 async function oddTasksStatus({ cwd }) {
   const dir = path.join(cwd, 'odd', 'tasks');
@@ -22,12 +23,13 @@ async function oddTasksStatus({ cwd }) {
   for (const name of names) {
     const items = (await readFile(path.join(dir, name), 'utf8')).split('\n').flatMap((line) => {
       const m = CHECKBOX.exec(line);
-      return m ? [{ done: m[1] !== ' ', text: m[2] }] : [];
+      return m ? [{ done: m[1] === 'x' || m[1] === 'X', blocked: m[1] === '!', text: m[2] }] : [];
     });
     files.push({
       file: `odd/tasks/${name}`,
       done: items.filter((i) => i.done).length,
       total: items.length,
+      blocked: items.filter((i) => i.blocked).length,
       next: items.find((i) => !i.done)?.text ?? null,
     });
   }
@@ -59,7 +61,7 @@ export const tools = [
   },
   {
     name: 'odd_tasks_status',
-    description: 'Summarize odd/tasks/*.md checkboxes: done/total per file and the next unchecked item.',
+    description: 'Summarize odd/tasks/*.md checkboxes: done/total/blocked per file and the next open item.',
     inputSchema: schema(),
     run: oddTasksStatus,
   },

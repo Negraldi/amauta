@@ -1,26 +1,33 @@
-import { createHash } from 'node:crypto';
-import { lstat, readFile, readlink, rm, rmdir, stat } from 'node:fs/promises';
+import { rm, rmdir } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
-import { injectSection, removeSection, listSections } from '../core/markers.js';
+import { removeSection, listSections } from '../core/markers.js';
 import { deepMerge, mergeHooks, removeHooksWhere } from '../core/jsonmerge.js';
 import { writeFileAtomic } from '../core/fsatomic.js';
+import {
+  ensureTimeouts, isObject, needsWrite, readJsonObject, readOrNull, readStateObject, safeManagedPath, sha256,
+  statOrNull, toJson
+} from './files.js';
+import { resolvePython } from './python.js';
+import { applyPlan, planInstructionBlocks, planManagedFiles, planOwnedHooks, planSkillLinks, realWrites, touchesDisk } from './steps.js';
 import { createBackup, pruneEmptyDirs, restoreBackup } from '../core/backup.js';
 import { resolveCodexTargets, resolveTargets } from './paths.js';
-import { assetPath, listFiles, loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
+import { loadManifest, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
+import { DEFAULT_MODEL_ASSIGNMENTS, engramToolPrefix, renderAgent, resolveAssignment } from './templating.js';
 import {
-  DEFAULT_MODEL_ASSIGNMENTS,
-  engramToolPrefix,
-  renderAgent,
-  resolveAssignment,
-} from './templating.js';
-import { AMAUTA_SERVER_NAMES, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook, isStaleAmautaServer, shellQuote, staleAmautaHooks } from './servers.js';
+  AMAUTA_SERVER_NAMES, DEFAULT_PYTHON, LEGACY_SERVER_ALIASES, desiredHooks, desiredMcpServers, isAmautaHook,
+  hookSwitches, isStaleAmautaServer, staleAmautaHooks
+} from './servers.js';
 import { renderSddFiles } from './sdd.js';
 import { archifyCli } from './archify.js';
 import { engineVersion, ensureEngine, removeEngine } from './impeccable.js';
-import { applyLinks, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks, removePersonalLinks, renderSkillFile, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills } from './skillstore.js';
+import {
+  applyLinks, isOurSkillDir, isSkillKey, namesOf, planManagedLinks, pruneEmptyTree, readJsonFile, removeDanglingLinks, removeLinks,
+  removePersonalLinks, renderSkillFile, renderSkillSet, storeDirOf, storePathOf, syncPersonalSkills
+} from './skillstore.js';
 import { packageVersion } from '../version.js';
-import { CODEGRAPH_HINT, codegraphStatus, findOnPath } from '../codegraph/index.js';
+import { CODEGRAPH_HINT, codegraphStatus } from '../codegraph/index.js';
+import { findOnPath } from '../core/platform.js';
 import { graphifyStatus, lastHookError } from '../graphify/probe.js';
 
 export const STATE_SCHEMA = 'amauta.state/v1';
@@ -37,37 +44,11 @@ const CODEGRAPH_HOOK_TIMEOUT = 10;
 const hasCommand = (settings, event, command) =>
   (Array.isArray(settings.hooks?.[event]) ? settings.hooks[event] : []).some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h?.command === command));
 
-export const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
-export const toJson = (obj) => `${JSON.stringify(obj, null, 2)}\n`;
-export const statOrNull = (p) => stat(p).then((s) => s, () => null);
-export const readOrNull = (p) => readFile(p).then((b) => b, () => null);
-export const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-export async function readJsonObject(file, label) {
-  const buf = await readOrNull(file);
-  if (buf === null) return { data: {}, existed: false };
-  let data;
-  try {
-    data = JSON.parse(buf.toString('utf8'));
-  } catch (err) {
-    throw new Error(`cannot parse ${label} (${file}): ${err.message}. Nothing was changed.`);
-  }
-  if (!isObject(data)) throw new Error(`${label} (${file}) is not a JSON object. Nothing was changed.`);
-  return { data, existed: true };
-}
+export { ensureTimeouts, isObject, needsWrite, readJsonObject, readOrNull, safeManagedPath, sha256, statOrNull, toJson } from './files.js';
 
 const statePathOf = (stateDir) => path.join(stateDir, 'state.json');
 
-async function readState(stateDir) {
-  const buf = await readOrNull(statePathOf(stateDir));
-  if (!buf) return null;
-  try {
-    const state = JSON.parse(buf.toString('utf8'));
-    return isObject(state) ? state : null;
-  } catch {
-    return null;
-  }
-}
+const readState = (stateDir) => readStateObject(statePathOf(stateDir));
 
 const isOurs = (servers, prev, key) =>
   key in servers && ((prev?.mcp_added?.[key] !== undefined && isDeepStrictEqual(servers[key], prev.mcp_added[key])) || (AMAUTA_SERVER_NAMES.includes(key) && isStaleAmautaServer(servers[key])));
@@ -82,19 +63,6 @@ function chooseMemoryKey({ settings, currentServers, prev }) {
   const last = prev?.memory_server_key;
   if (last && (isOurs(currentServers, prev, last) || !(last in currentServers))) return last;
   return 'engram' in currentServers && !isOurs(currentServers, prev, 'engram') ? 'amauta-memory' : 'engram';
-}
-
-/** Set `timeout` on installed hooks that lack one, matched by event and exact command from `owned`. */
-export function ensureTimeouts(settings, owned) {
-  let out = settings;
-  for (const [event, entries] of Object.entries(owned)) {
-    const want = new Map(entries.flatMap((e) => e.hooks).filter((h) => h.timeout).map((h) => [h.command, h.timeout]));
-    const current = out.hooks?.[event];
-    if (!Array.isArray(current)) continue;
-    const next = current.map((e) => (!Array.isArray(e?.hooks) ? e : { ...e, hooks: e.hooks.map((h) => (h && want.has(h.command) && h.timeout === undefined ? { ...h, timeout: want.get(h.command) } : h)) }));
-    if (!isDeepStrictEqual(next, current)) out = { ...out, hooks: { ...out.hooks, [event]: next } };
-  }
-  return out;
 }
 
 const PERMISSION_KINDS = ['ask', 'deny'];
@@ -135,28 +103,6 @@ const abs = (claudeHome, rel) => path.join(claudeHome, ...rel.split('/'));
 /** Skills live in the amauta store (state dir); everything else under the Claude home. */
 const fileOf = (t, rel) => (isSkillKey(rel) ? storePathOf(t.stateDir, rel) : abs(t.claudeHome, rel));
 
-/**
- * Path of a managed_files key that is safe to delete, or null. state.json is plain data, so a key is untrusted:
- * no absolute paths, no `..`, the resolved target must stay inside claudeHome, and no component below claudeHome
- * may be a symlink (a symlinked parent would redirect the delete elsewhere).
- */
-export async function safeManagedPath(claudeHome, rel) {
-  if (typeof rel !== 'string' || rel === '' || rel.includes('\\') || rel.includes('\0') || path.isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) return null;
-  const parts = rel.split('/');
-  if (parts.some((p) => p === '' || p === '.' || p === '..')) return null;
-  const root = path.resolve(claudeHome);
-  const target = path.resolve(root, ...parts);
-  if (!target.startsWith(root + path.sep)) return null;
-  let cur = root;
-  for (const part of parts) {
-    cur = path.join(cur, part);
-    const st = await lstat(cur).catch(() => null);
-    if (st === null) return target; // nothing there (yet): the caller sees a missing file
-    if (st.isSymbolicLink()) return null;
-  }
-  return target;
-}
-
 export { renderSkillFile };
 
 /** Managed files (relative posix path -> Buffer) rendered for this install. */
@@ -191,156 +137,87 @@ export async function renderSections(manifest, persona) {
   return out;
 }
 
-export const needsWrite = async (file, data, mode) => {
-  const st = await statOrNull(file);
-  if (!st) return true;
-  if (mode !== undefined && (st.mode & 0o777) !== mode) return true;
-  const current = await readOrNull(file);
-  return !current || !current.equals(Buffer.isBuffer(data) ? data : Buffer.from(data));
-};
-
-/** Compute everything install would do, without touching the disk. */
-async function plan(opts) {
-  const t = resolveTargets(opts);
-  const manifest = await loadManifest();
+/** Options resolved from the flags and the previous state; modules are sticky (an absent flag keeps the earlier choice). */
+async function resolveOptions(opts, manifest, prev, settings, currentServers) {
   const persona = opts.persona ?? 'gentleman';
   if (!manifest.personas[persona]) throw new Error(`unknown persona: ${persona} (expected gentleman or neutral)`);
-  const prev = await readState(t.stateDir);
-
-  const settingsFile = abs(t.claudeHome, 'settings.json');
-  const mdFile = abs(t.claudeHome, 'CLAUDE.md');
-  const settingsIn = await readJsonObject(settingsFile, 'settings.json');
-  const claudeJsonIn = await readJsonObject(t.claudeJson, '.claude.json');
-  const mdBuf = await readOrNull(mdFile);
-
-  const assignments = { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) };
-  const telemetry = opts.telemetry !== false;
-  // Optional modules are sticky (an absent flag keeps the earlier choice); an explicit `false` (--without-*) turns one off.
-  const sticky = (flag, key) => (flag === false ? false : flag === true || prev?.[key] === true);
-  const sdd = sticky(opts.withSdd, 'sdd'); // optional module
-  const impeccable = sticky(opts.withImpeccable, 'impeccable'); // optional design skill + pinned npm engine
-  const archify = sticky(opts.withArchify, 'archify'); // optional diagram skill (pure Node, vendored)
   if (opts.rddMode !== undefined && !RDD_MODES.includes(opts.rddMode)) throw new Error(`unknown review mode: ${opts.rddMode} (expected on or off)`);
-  const codegraphOnPath = (await findOnPath('codegraph', opts.searchPath)) !== null;
-  const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
+  // An explicit `false` (--without-*) turns a module off.
+  const sticky = (flag, key) => (flag === false ? false : flag === true || prev?.[key] === true);
   // Opt-in MCP servers, sticky like sdd. A state that predates the opt-in (no key at all) registered both servers by
   // default: keep each one that is still exactly what we wrote (carry-over); an edited entry is the user's.
-  const optIn = (flag, key) => flag !== false && (flag === true || prev?.[key] === true || (prev !== null && prev?.[key] === undefined && isOurs(currentServers, prev, key)));
-  const rea = optIn(opts.withRea, 'rea');
-  const context7 = optIn(opts.withContext7, 'context7');
-  const memoryKey = chooseMemoryKey({ settings: settingsIn.data, currentServers, prev });
-  const engramPrefix = engramToolPrefix(settingsIn.data, memoryKey ?? 'engram');
-  const writes = [];
-  const skipped = [];
-  const legacy = []; // amauta entries from an older checkout or adapter that this run replaces
-  const managedFiles = {};
-
-  // Managed files (output style, skills, agents).
-  const rendered = await renderManagedFiles(manifest, { persona, assignments, engramPrefix, sdd, impeccable, archify, stateDir: t.stateDir });
-  const codexState = await readJsonFile(path.join(t.stateDir, 'codex-state.json'));
-  const otherKeeps = (rel) => isSkillKey(rel) && codexState?.managed_files?.[rel] !== undefined; // the Codex install still uses this store file
-  for (const [rel, data] of rendered) {
-    const file = fileOf(t, rel);
-    const existing = await readOrNull(file);
-    if (existing === null) {
-      writes.push({ rel, path: file, data });
-    } else if (existing.equals(data)) {
-      // already in place: adopt
-    } else if (opts.force || prev?.managed_files?.[rel] === sha256(existing)) {
-      writes.push({ rel, path: file, data });
-    } else {
-      skipped.push(rel);
-      continue;
-    }
-    managedFiles[rel] = sha256(data);
-  }
-  // Managed files this install no longer renders (an optional module turned off, or a file a newer version dropped):
-  // removed only while byte-identical to what we wrote; an edited one is the user's and stays.
-  const removes = [];
-  for (const [rel, hash] of Object.entries(prev?.managed_files ?? {})) {
-    if (rendered.has(rel) || otherKeeps(rel)) continue;
-    const file = await safeManagedPath(isSkillKey(rel) ? t.stateDir : t.claudeHome, rel);
-    if (file === null) {
-      skipped.push(rel);
-      continue;
-    }
-    const buf = await readOrNull(file);
-    if (buf === null) continue;
-    if (sha256(buf) === hash) removes.push({ rel, path: file });
-    else skipped.push(rel);
-  }
-
-  // Skill links: <claude home>/skills/<name> -> the amauta store. A real copy goes away only when every file in it is
-  // byte-equal to what amauta installed; an edited copy is kept and reported (--force replaces it).
-  const linkPlan = await planManagedLinks({ skillsDir: abs(t.claudeHome, 'skills'), storeDir: storeDirOf(t.stateDir), names: namesOf(rendered), prevLinks: prev?.skill_links ?? {}, rendered, prevHashes: prev?.managed_files ?? {}, force: opts.force === true });
-  for (const name of linkPlan.foreign) skipped.push(`skills/${name} (not linked: a different directory is there)`);
-  // A module turned off keeps its link while an edited file of it stays in the store.
-  const stillThere = (name) => skipped.some((x) => x.startsWith(`skills/${name}/`));
-  const keptLinks = linkPlan.unlink.filter((u) => stillThere(u.name));
-  linkPlan.unlink = linkPlan.unlink.filter((u) => !stillThere(u.name));
-  const skillLinks = {
-    ...Object.fromEntries(namesOf(rendered).filter((n) => !linkPlan.foreign.includes(n)).map((n) => [n, path.join(storeDirOf(t.stateDir), n)])),
-    ...Object.fromEntries(keptLinks.map((u) => [u.name, prev.skill_links[u.name]])),
+  const optIn = (flag, key) => flag !== false &&
+    (flag === true || prev?.[key] === true || (prev !== null && prev?.[key] === undefined && isOurs(currentServers, prev, key)));
+  const memoryKey = chooseMemoryKey({ settings, currentServers, prev });
+  return {
+    persona,
+    assignments: { ...DEFAULT_MODEL_ASSIGNMENTS, ...(prev?.model_assignments ?? {}) },
+    telemetry: opts.telemetry !== false, privacy: opts.privacy !== false, checks: opts.checks !== false, // --no-* (plan D14)
+    sdd: sticky(opts.withSdd, 'sdd'),
+    impeccable: sticky(opts.withImpeccable, 'impeccable'), // optional design skill + pinned npm engine
+    archify: sticky(opts.withArchify, 'archify'), // optional diagram skill (pure Node, vendored)
+    codegraphOnPath: (await findOnPath('codegraph', opts.searchPath)) !== null,
+    rea: optIn(opts.withRea, 'rea'),
+    context7: optIn(opts.withContext7, 'context7'),
+    memoryKey,
+    engramPrefix: engramToolPrefix(settings, memoryKey ?? 'engram'),
+    python: resolvePython(opts, prev?.python),
   };
+}
 
-  // CLAUDE.md sections.
-  const sections = await renderSections(manifest, persona);
-  const mdBefore = mdBuf ? mdBuf.toString('utf8') : '';
-  let md = mdBefore;
-  for (const s of sections) md = injectSection(md, s.id, s.body);
-  // Sections an earlier version installed and this one no longer ships: those its state lists, plus the known retired
-  // ids (so a missing or reset state.json still converges). Removing an outer section takes nested markers with it.
-  const wantedIds = new Set(sections.map((s) => s.id));
-  for (const id of new Set([...(prev?.claude_md_sections ?? []), ...RETIRED_SECTIONS])) if (!wantedIds.has(id)) md = removeSection(md, id);
-  if (!mdBuf || md !== mdBefore) writes.push({ rel: 'CLAUDE.md', path: mdFile, data: Buffer.from(md, 'utf8') });
+/** codegraph's own prompt hook: only when the tool is installed, never duplicated, removed only if we added it. */
+function planCodegraphHook(settingsBefore, settings, prev, onPath) {
+  const wasThere = hasCommand(settingsBefore, 'UserPromptSubmit', CODEGRAPH_PROMPT_HOOK);
+  const weAdded = prev?.codegraph_hook_added === true && wasThere;
+  const drop = weAdded && !onPath; // a hook we added must not outlive the tool: it would fail on every prompt
+  let out = settings;
+  if (drop) out = removeHooksWhere(out, (c) => c === CODEGRAPH_PROMPT_HOOK);
+  if (onPath && !wasThere) {
+    const entry = { matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK, timeout: CODEGRAPH_HOOK_TIMEOUT }] };
+    out = mergeHooks(out, { UserPromptSubmit: [entry] });
+  }
+  return { settings: out, added: !drop && (weAdded || (onPath && !wasThere)) };
+}
 
-  // settings.json.
+/** settings.json: output style, permission rules, our hooks with timeouts, codegraph's hook. */
+async function planSettings({ manifest, t, prev, o, settingsIn }) {
   const overlay = JSON.parse(await readAssetText(manifest.settingsOverlay));
-  const styleName = manifest.personas[persona].styleName;
-  const settingsPrevStyle = prev?.settings_prev ? prev.settings_prev.outputStyle : (settingsIn.data.outputStyle ?? null);
+  const styleName = manifest.personas[o.persona].styleName;
+  const prevStyle = prev?.settings_prev ? prev.settings_prev.outputStyle : (settingsIn.data.outputStyle ?? null);
   // Permissions: the overlay's `ask` and `deny` rules are appended after the user's own. State records only the rules
   // we appended (`permissions_added`); a rule the user already had is never recorded, so it is never removed.
   const permissions = mergePermissions(settingsIn.data, prev, overlay);
   let settings = deepMerge(settingsIn.data, { outputStyle: styleName });
   if (permissions.changed) settings = { ...settings, permissions: permissions.value };
-  const wantedHooks = desiredHooks({ stateDir: t.stateDir, telemetry, sdd });
-  const wantedCommands = new Set(Object.values(wantedHooks).flatMap((es) => es.flatMap((e) => e.hooks.map((h) => h.command))));
-  // Drop stale amauta hook commands (e.g. PATH-based ones from earlier versions) before adding ours.
-  legacy.push(...staleAmautaHooks(settings, wantedCommands));
-  settings = removeHooksWhere(settings, (c) => isAmautaHook(c) && !wantedCommands.has(c));
-  settings = mergeHooks(settings, wantedHooks);
-  // codegraph's own prompt hook: only when the tool is installed, never duplicated, and only removed again if we added it.
-  const hookWasThere = hasCommand(settingsIn.data, 'UserPromptSubmit', CODEGRAPH_PROMPT_HOOK);
-  const weAddedHook = prev?.codegraph_hook_added === true && hookWasThere;
-  const dropHook = weAddedHook && !codegraphOnPath; // a hook we added must not outlive the tool: it would fail on every prompt
-  const codegraphHookAdded = !dropHook && (weAddedHook || (codegraphOnPath && !hookWasThere));
-  if (dropHook) settings = removeHooksWhere(settings, (c) => c === CODEGRAPH_PROMPT_HOOK);
-  if (codegraphOnPath && !hookWasThere) {
-    settings = mergeHooks(settings, { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: CODEGRAPH_PROMPT_HOOK, timeout: CODEGRAPH_HOOK_TIMEOUT }] }] });
-  }
+  const wantedHooks = desiredHooks({ ...o, stateDir: t.stateDir }); // the switches resolveOptions chose
+  const hooks = planOwnedHooks(settings, wantedHooks); // drops stale amauta commands (e.g. PATH-based ones) first
+  const codegraph = planCodegraphHook(settingsIn.data, hooks.doc, prev, o.codegraphOnPath);
   // Hooks we own keep a timeout across upgrades (mergeHooks keeps an older entry as is when its command did not change).
   const owned = { ...wantedHooks };
-  if (codegraphHookAdded) owned.UserPromptSubmit = [...(owned.UserPromptSubmit ?? []), { hooks: [{ command: CODEGRAPH_PROMPT_HOOK, timeout: CODEGRAPH_HOOK_TIMEOUT }] }];
-  settings = ensureTimeouts(settings, owned);
-  if (!settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data)) {
-    writes.push({ rel: 'settings.json', path: settingsFile, data: Buffer.from(toJson(settings), 'utf8') });
+  if (codegraph.added) {
+    owned.UserPromptSubmit = [...(owned.UserPromptSubmit ?? []), { hooks: [{ command: CODEGRAPH_PROMPT_HOOK, timeout: CODEGRAPH_HOOK_TIMEOUT }] }];
   }
+  settings = ensureTimeouts(codegraph.settings, owned);
+  const file = abs(t.claudeHome, 'settings.json');
+  const changed = !settingsIn.existed || !isDeepStrictEqual(settings, settingsIn.data);
+  const write = changed ? { rel: 'settings.json', path: file, data: Buffer.from(toJson(settings), 'utf8') } : null;
+  return { write, legacy: hooks.legacy, prevStyle, permissionsAdded: permissions.added, codegraphHookAdded: codegraph.added };
+}
 
-  // .claude.json MCP servers (only when absent; never overwrite a user's entry).
-  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir, rea, context7 });
-  if (memoryKey) wanted[memoryKey] = memory;
-  if (!codegraphOnPath && !isOurs(currentServers, prev, 'codegraph')) delete wanted.codegraph; // external tool: register only when present
+/** .claude.json MCP servers: added only when absent; ours from an earlier install are refreshed; a user's entry stays. */
+async function planClaudeMcp({ t, prev, o, claudeJsonIn, currentServers }) {
+  const legacy = [];
+  const { memory, ...wanted } = desiredMcpServers({ stateDir: t.stateDir, rea: o.rea, context7: o.context7, python: o.python });
+  if (o.memoryKey) wanted[o.memoryKey] = memory;
+  if (!o.codegraphOnPath && !isOurs(currentServers, prev, 'codegraph')) delete wanted.codegraph; // external tool: only when present
   const mcpAdded = {};
   const servers = { ...currentServers };
   for (const [name, value] of Object.entries(wanted)) {
-    if (!(name in currentServers)) {
-      servers[name] = value;
-      mcpAdded[name] = value;
-    } else if (isOurs(currentServers, prev, name)) {
-      if (!isDeepStrictEqual(currentServers[name], value) && !(prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(currentServers[name], prev.mcp_added[name]))) legacy.push(`mcp ${name}`);
-      servers[name] = value; // ours from an earlier install (or an older checkout): refresh it
-      mcpAdded[name] = value;
-    }
+    if (name in currentServers && !isOurs(currentServers, prev, name)) continue;
+    const ownedBefore = prev?.mcp_added?.[name] !== undefined && isDeepStrictEqual(currentServers[name], prev.mcp_added[name]);
+    if (name in currentServers && !isDeepStrictEqual(currentServers[name], value) && !ownedBefore) legacy.push(`mcp ${name}`);
+    servers[name] = value; // new, or ours from an earlier install (or an older checkout): refresh it
+    mcpAdded[name] = value;
   }
   for (const name of LEGACY_SERVER_ALIASES) {
     if (name in wanted || !(name in servers) || !isStaleAmautaServer(servers[name])) continue;
@@ -348,99 +225,133 @@ async function plan(opts) {
     legacy.push(`mcp ${name}`);
   }
   // Entries we added before that are no longer wanted (e.g. the old compiled engram) go away if untouched.
-  for (const name of Object.keys(prev?.mcp_added ?? {})) {
-    if (!(name in wanted) && isOurs(currentServers, prev, name)) delete servers[name];
-  }
+  for (const name of Object.keys(prev?.mcp_added ?? {})) if (!(name in wanted) && isOurs(currentServers, prev, name)) delete servers[name];
   const claudeJson = { ...claudeJsonIn.data, mcpServers: servers };
-  if (!claudeJsonIn.existed || !isDeepStrictEqual(claudeJson, claudeJsonIn.data) ||
-      ((await statOrNull(t.claudeJson))?.mode & 0o777) !== 0o600) {
-    writes.push({ rel: '.claude.json', path: t.claudeJson, data: Buffer.from(toJson(claudeJson), 'utf8'), mode: 0o600 });
-  }
+  const wrongMode = process.platform !== 'win32' && ((await statOrNull(t.claudeJson))?.mode & 0o777) !== 0o600; // no POSIX modes on Windows
+  const changed = !claudeJsonIn.existed || !isDeepStrictEqual(claudeJson, claudeJsonIn.data) || wrongMode;
+  const write = changed ? { rel: '.claude.json', path: t.claudeJson, data: Buffer.from(toJson(claudeJson), 'utf8'), mode: 0o600 } : null;
+  return { write, legacy, mcpAdded };
+}
 
-  const created = prev?.created_files ?? [
-    ...(mdBuf ? [] : [mdFile]),
-    ...(settingsIn.existed ? [] : [settingsFile]),
-    ...(claudeJsonIn.existed ? [] : [t.claudeJson]),
-  ];
+/** Option changes against the previous state, for the install report. */
+function optionChanges(prev, seen) {
+  if (prev === null) return {};
+  const was = { persona: prev.persona, rdd_mode: prev.rdd_mode ?? 'off' };
+  for (const k of ['telemetry', 'sdd', 'rea', 'impeccable', 'archify', 'context7']) was[k] = prev[k] === true;
+  const out = {};
+  for (const [k, v] of Object.entries(seen)) if (was[k] !== v && !(k === 'rea' && prev.rea === undefined && v === was.rea)) out[k] = { from: was[k], to: v };
+  return out;
+}
 
-  const rddMode = opts.rddMode ?? prev?.rdd_mode ?? 'off';
-  const rddChanged = prev !== null && opts.rddMode !== undefined && opts.rddMode !== (prev.rdd_mode ?? 'off');
-  const stateChanges = {};
-  if (prev !== null) {
-    const seen = { persona, telemetry, sdd, rea, impeccable, archify, context7, rdd_mode: rddMode };
-    const was = { persona: prev.persona, telemetry: prev.telemetry === true, sdd: prev.sdd === true, rea: prev.rea === true, impeccable: prev.impeccable === true, archify: prev.archify === true, context7: prev.context7 === true, rdd_mode: prev.rdd_mode ?? 'off' };
-    for (const [k, v] of Object.entries(seen)) if (was[k] !== v && !(k === 'rea' && prev.rea === undefined && v === was.rea)) stateChanges[k] = { from: was[k], to: v };
-  }
-
-  const makeState = (lastBackup) => ({
+function claudeState({ t, prev, o, rddMode, rddChanged, managed, links, md, settingsPlan, mcp, created }) {
+  return (lastBackup) => ({
     schema: STATE_SCHEMA,
     version: packageVersion(),
     installed_at: prev?.installed_at ?? new Date().toISOString(),
     claude_home: t.claudeHome,
     claude_json: t.claudeJson,
     components: COMPONENTS,
-    persona,
-    model_assignments: assignments,
+    persona: o.persona,
+    model_assignments: o.assignments,
     rdd_mode: rddMode,
     ...(rddChanged ? { rdd_mode_recorded_at: new Date().toISOString() } : prev?.rdd_mode_recorded_at ? { rdd_mode_recorded_at: prev.rdd_mode_recorded_at } : {}),
     last_backup: lastBackup ?? prev?.last_backup ?? null,
-    managed_files: managedFiles,
-    skill_links: skillLinks,
-    claude_md_sections: sections.map((s) => s.id),
-    settings_prev: { outputStyle: settingsPrevStyle },
-    permissions_added: permissions.added,
+    managed_files: managed.managedFiles,
+    skill_links: links.skillLinks,
+    claude_md_sections: md.ids,
+    settings_prev: { outputStyle: settingsPlan.prevStyle },
+    permissions_added: settingsPlan.permissionsAdded,
     ...(legacyDenyOf(prev).length > 0 ? { legacy_deny: legacyDenyOf(prev) } : {}),
-    mcp_added: mcpAdded,
-    memory_server_key: memoryKey,
-    telemetry,
-    sdd,
-    impeccable,
-    archify,
-    rea,
-    context7,
-    codegraph_hook_added: codegraphHookAdded,
+    mcp_added: mcp.mcpAdded,
+    memory_server_key: o.memoryKey,
+    telemetry: o.telemetry, privacy: o.privacy, checks: o.checks,
+    sdd: o.sdd,
+    impeccable: o.impeccable,
+    archify: o.archify,
+    rea: o.rea,
+    context7: o.context7,
+    codegraph_hook_added: settingsPlan.codegraphHookAdded,
+    ...(o.python !== DEFAULT_PYTHON ? { python: o.python } : {}),
     created_files: created,
   });
+}
 
-  const real = [];
-  for (const w of writes) if (await needsWrite(w.path, w.data, w.mode)) real.push(w);
-  return { t, prev, writes: real, removes, skipped, legacy, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas: prev?.impeccable === true, linkPlan, managedNames: new Set(namesOf(rendered)) };
+/** Compute everything install would do, without touching the disk. */
+async function plan(opts) {
+  const t = resolveTargets(opts);
+  const manifest = await loadManifest();
+  const prev = await readState(t.stateDir);
+  const settingsIn = await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json');
+  const claudeJsonIn = await readJsonObject(t.claudeJson, '.claude.json');
+  const currentServers = isObject(claudeJsonIn.data.mcpServers) ? claudeJsonIn.data.mcpServers : {};
+  const o = await resolveOptions(opts, manifest, prev, settingsIn.data, currentServers);
+
+  // Managed files (output style, skills, agents) and the skill links into the store.
+  const rendered = await renderManagedFiles(manifest, { ...o, stateDir: t.stateDir });
+  const codexState = await readJsonFile(path.join(t.stateDir, 'codex-state.json'));
+  const managed = await planManagedFiles({
+    rendered, prevHashes: prev?.managed_files ?? {}, force: opts.force,
+    fileOf: (rel) => fileOf(t, rel),
+    rootOf: (rel) => (isSkillKey(rel) ? t.stateDir : t.claudeHome),
+    keep: (rel) => isSkillKey(rel) && codexState?.managed_files?.[rel] !== undefined, // the Codex install still uses it
+  });
+  const links = await planSkillLinks({
+    skillsDir: abs(t.claudeHome, 'skills'), stateDir: t.stateDir, rendered, prevLinks: prev?.skill_links ?? {},
+    prevHashes: prev?.managed_files ?? {}, skipped: managed.skipped, force: opts.force === true,
+  });
+  // CLAUDE.md sections; retired ids are dropped too, so a missing or reset state.json still converges.
+  const mdFile = abs(t.claudeHome, 'CLAUDE.md');
+  const md = await planInstructionBlocks({
+    rel: 'CLAUDE.md', file: mdFile, sections: await renderSections(manifest, o.persona),
+    previousIds: prev?.claude_md_sections ?? [], retired: RETIRED_SECTIONS,
+  });
+  const settingsPlan = await planSettings({ manifest, t, prev, o, settingsIn });
+  const mcp = await planClaudeMcp({ t, prev, o, claudeJsonIn, currentServers });
+
+  const created = prev?.created_files ?? [
+    ...(md.existed ? [] : [mdFile]),
+    ...(settingsIn.existed ? [] : [abs(t.claudeHome, 'settings.json')]),
+    ...(claudeJsonIn.existed ? [] : [t.claudeJson]),
+  ];
+  const rddMode = opts.rddMode ?? prev?.rdd_mode ?? 'off';
+  const rddChanged = prev !== null && opts.rddMode !== undefined && opts.rddMode !== (prev.rdd_mode ?? 'off');
+  const seen = { persona: o.persona, telemetry: o.telemetry, sdd: o.sdd, rea: o.rea, impeccable: o.impeccable, archify: o.archify, context7: o.context7, rdd_mode: rddMode };
+  const writes = [...managed.writes, md.write, settingsPlan.write, mcp.write].filter(Boolean);
+  return {
+    t, prev, writes: await realWrites(writes), removes: managed.removes, skipped: managed.skipped,
+    legacy: [...settingsPlan.legacy, ...mcp.legacy],
+    makeState: claudeState({ t, prev, o, rddMode, rddChanged, managed, links, md, settingsPlan, mcp, created }),
+    impeccable: o.impeccable, manifest, stateChanges: optionChanges(prev, seen), rddChanged,
+    impeccableWas: prev?.impeccable === true, linkPlan: links.linkPlan, managedNames: new Set(links.names),
+  };
 }
 
 export async function install(opts = {}) {
-  const { t, prev, writes, removes, skipped, legacy, makeState, impeccable, manifest, stateChanges, rddChanged, impeccableWas, linkPlan, managedNames } = await plan(opts);
-  const files = writes.map((w) => w.rel);
-  const removed = removes.map((r) => r.rel);
+  const p = await plan(opts);
+  const { t, prev, writes, removes, skipped, legacy, impeccable, manifest, stateChanges, linkPlan, managedNames } = p;
+  const report = { files: writes.map((w) => w.rel), removed: removes.map((r) => r.rel), skipped, legacy, state_changes: stateChanges };
   const wanted = manifest.impeccable?.engine.version;
-  const touches = writes.length > 0 || removes.length > 0 || rddChanged || linkPlan.link.length > 0 || linkPlan.unlink.length > 0;
+  const touches = touchesDisk(p) || p.rddChanged;
   if (opts.dryRun) {
-    const dry = { dryRun: true, changed: touches, files, removed, skipped, legacy, state_changes: stateChanges, backup: null };
+    const dry = { dryRun: true, changed: touches, ...report, backup: null };
     if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === wanted ? 'present' : 'would-install', version: wanted };
     return dry;
   }
-
   const statePath = statePathOf(t.stateDir);
-  let backup = null;
-  if (touches) {
-    ({ dir: backup } = await createBackup(t.stateDir, [...writes.map((w) => w.path), ...removes.map((r) => r.path), statePath]));
-    for (const w of writes) await writeFileAtomic(w.path, w.data, w.mode === undefined ? {} : { mode: w.mode });
-    for (const r of removes) {
-      await rm(r.path, { force: true });
-      await pruneEmptyDirs(path.dirname(r.path), isSkillKey(r.rel) ? storeDirOf(t.stateDir) : t.claudeHome);
-    }
-    await applyLinks(linkPlan, abs(t.claudeHome, 'skills'));
-  }
-  const stateText = toJson(makeState(backup));
+  const backup = touches
+    ? await applyPlan({ stateDir: t.stateDir, statePath, homeRoot: t.claudeHome, skillsDir: abs(t.claudeHome, 'skills'), writes, removes, linkPlan })
+    : null;
+  const stateText = toJson(p.makeState(backup));
   const stateChanged = await needsWrite(statePath, stateText);
   if (stateChanged) await writeFileAtomic(statePath, stateText);
-  const result = { dryRun: false, changed: touches || stateChanged || !prev, files, removed, skipped, legacy, state_changes: stateChanges, backup };
+  const result = { dryRun: false, changed: touches || stateChanged || !prev, ...report, backup };
   if ((await statOrNull(path.join(t.stateDir, 'codex-state.json'))) !== null) {
-    const c = resolveCodexTargets(opts);
-    const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, sides: [{ dir: abs(t.claudeHome, 'skills') }, { dir: c.codexSkillsDir }] });
+    const sides = [{ dir: abs(t.claudeHome, 'skills') }, { dir: resolveCodexTargets(opts).codexSkillsDir }];
+    const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, sides });
     if (personal.linked.length > 0 || personal.removed.length > 0) result.changed = true;
     result.personal = personal;
   }
-  if (impeccableWas && !impeccable) await removeEngine(t.stateDir);
+  if (p.impeccableWas && !impeccable) await removeEngine(t.stateDir);
   if (impeccable) {
     // After the state is written, so a failed or offline npm run is retried by the next install.
     result.impeccable = await ensureEngine({ stateDir: t.stateDir, version: wanted, searchPath: opts.searchPath });
@@ -582,7 +493,8 @@ export async function status(opts = {}) {
 
   const settings = (await readJsonObject(abs(t.claudeHome, 'settings.json'), 'settings.json')).data;
   const commands = (event) => (settings.hooks?.[event] ?? []).flatMap((e) => (e.hooks ?? []).map((h) => h.command));
-  for (const [event, entries] of Object.entries(desiredHooks({ stateDir: t.stateDir, telemetry: state.telemetry === true, sdd: state.sdd === true }))) {
+  const expectedHooks = desiredHooks({ stateDir: t.stateDir, ...hookSwitches(state) });
+  for (const [event, entries] of Object.entries(expectedHooks)) {
     for (const cmd of entries.flatMap((e) => e.hooks.map((h) => h.command))) {
       const ok = commands(event).includes(cmd);
       add(`hook ${event}`, ok, ok ? cmd : 'missing');
@@ -609,8 +521,8 @@ export async function status(opts = {}) {
   for (const name of Object.keys(state.mcp_added ?? {})) add(`mcp ${name}`, name in servers, name in servers ? '' : 'missing');
 
   for (const [name, target] of Object.entries(state.skill_links ?? {})) {
-    const cur = await readlink(abs(t.claudeHome, `skills/${name}`)).catch(() => null);
-    add(`skill link ${name}`, cur === target, cur === target ? '' : 'not linked to the amauta store');
+    const ok = await isOurSkillDir(abs(t.claudeHome, `skills/${name}`), target); // a link, or the copy made where links fail
+    add(`skill link ${name}`, ok, ok ? '' : 'not linked to the amauta store');
   }
   for (const [rel, hash] of Object.entries(state.managed_files ?? {})) {
     const buf = await readOrNull(fileOf(t, rel));

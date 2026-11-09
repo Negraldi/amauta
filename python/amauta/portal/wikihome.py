@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from . import skillimpact, wiki
+from .. import extensions
+from . import wiki
 from .api import columns
 
 PER_DAY = 20
@@ -76,4 +77,5 @@ def health(portal):
 
 
 def home(portal, q):
-    return {"activity": activity(portal), "spending": spending(portal), "health": health(portal), "impact": skillimpact.ranking(portal)}
+    impact = extensions.call("home.impact", portal)  # the skill_impact extra, when present
+    return {"activity": activity(portal), "spending": spending(portal), "health": health(portal), "impact": impact}

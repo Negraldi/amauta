@@ -5,6 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { graphifyStatus, GRAPHIFY_HINT } from '../src/graphify/probe.js';
 
+// macOS cannot use a script as a #! interpreter (ENOEXEC); a real graphify launcher names a binary python (plan N9b).
+const NESTED_SHEBANG = process.platform === 'darwin' && 'macOS refuses a script as a #! interpreter';
+
 // A fake graphify launcher whose shebang points at a fake "python" that reports each requested module as ok/missing.
 async function sandbox({ missing = [], shebang = 'python' } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'gl-gfmt-'));
@@ -25,7 +28,7 @@ test('install hint covers sql, anthropic, pdf, office and the R grammar pack in 
   assert.match(GRAPHIFY_HINT, /pipx inject graphifyy tree-sitter-language-pack/);
 });
 
-test('non-deep status does not run the interpreter and reports no formats', async () => {
+test('non-deep status does not run the interpreter and reports no formats', { skip: NESTED_SHEBANG }, async () => {
   const t = await sandbox();
   const s = await graphifyStatus({ searchPath: t.bin });
   assert.equal(s.formats, null);
@@ -34,7 +37,7 @@ test('non-deep status does not run the interpreter and reports no formats', asyn
   await t.cleanup();
 });
 
-test('deep status reports R, PDF, DOCX and XLSX availability from the launcher interpreter', async () => {
+test('deep status reports R, PDF, DOCX and XLSX availability from the launcher interpreter', { skip: NESTED_SHEBANG }, async () => {
   const t = await sandbox();
   const s = await graphifyStatus({ searchPath: t.bin, deep: true });
   assert.deepEqual(s.formats, { r: true, pdf: true, docx: true, xlsx: true, pptx: true });
@@ -49,7 +52,7 @@ test('deep status reports R, PDF, DOCX and XLSX availability from the launcher i
   await t.cleanup();
 });
 
-test('deep status names the exact pipx command for each missing format', async () => {
+test('deep status names the exact pipx command for each missing format', { skip: NESTED_SHEBANG }, async () => {
   const t = await sandbox({ missing: ['tree_sitter_language_pack', 'openpyxl'] });
   const s = await graphifyStatus({ searchPath: t.bin, deep: true });
   assert.deepEqual(s.formats, { r: false, pdf: true, docx: true, xlsx: false, pptx: true });

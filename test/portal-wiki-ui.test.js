@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
 import { makeEnv } from './helpers/fakedom.js';
-import { runPortal, STATIC } from './helpers/portalboot.js';
+import { runPortal, STATIC, APP_SCRIPTS } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const XSS = '<img src=x onerror=alert(1)>';
@@ -176,13 +176,24 @@ test('existing views stay reachable as pages: legacy hashes, list routes and usa
   assert.match(view(env).textContent, /No usage data yet/);  // the old overview stays reachable under #/usage
 });
 
-test('the sidebar lists every section, marks the current page and shows recent changes as links', async () => {
+test('a page that belongs to a group shows the group tabs and the sidebar marks the group (plan N12d)', async () => {
+  const { env } = await boot('#/tool');
+  const byHref = Object.fromEntries(tree(env.document.getElementById('nav')).filter((e) => e.tagName === 'a').map((a) => [a.getAttribute('href'), a]));
+  assert.equal(byHref['#/activity'].getAttribute('aria-current'), 'page');
+  const tabs = tree(view(env)).find((e) => e.tagName === 'nav');
+  assert.ok(tabs, 'tab bar');
+  assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool', '#/mcp']);
+  assert.equal(tree(tabs).find((e) => e.attrs.href === '#/tool').getAttribute('aria-current'), 'page');
+  const mem = await boot('#/memory');
+  assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav')), ['#/memory', '#/lint']);
+});
+
+test('the sidebar lists the 6+1 pages, marks the current one and shows recent changes as links (plan N12d)', async () => {
   const { env } = await boot('#/memory');
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  for (const h of ['#/home', '#/memory', '#/skill', '#/tool', '#/mcp', '#/session', '#/feature', '#/node', '#/harness', '#/usage', '#/settings']) assert.ok(byHref[h], h);
-  assert.equal(byHref['#/diagrams'], undefined, 'no Diagrams entry in the sidebar');
+  assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/home', '#/project', '#/memory', '#/activity', '#/harness', '#/security', '#/settings']);
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
   assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
   const recent = env.document.getElementById('recent');
@@ -286,8 +297,8 @@ test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none 
   const html = await read('index.html');
   const css = await read('style.css');
   assert.match(html, /<dialog id="palette"/);
-  const order = [...html.matchAll(/<script src="\/static\/([\w.]+)"><\/script>/g)].map((m) => m[1]);
-  assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', 'app.js']);
+  const order = [...html.matchAll(/<script src="\/static\/([\w.-]+)"><\/script>/g)].map((m) => m[1]);
+  assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', ...APP_SCRIPTS]);
   assert.match(html, /<main id="view"/);
   assert.match(html, /<nav class="sidebar"[^>]*aria-label/);
   assert.match(css, /@font-face\s*{[^}]*Source Serif 4[^}]*\/static\/fonts\/source-serif-4-latin-400-normal\.woff2/);
@@ -390,22 +401,20 @@ test('a feature page draws the task grid once and notes a capped document; a nod
   assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
 });
 
-test('the Harness page embeds archify in a sandboxed iframe on its own route, and falls back to Mermaid with the reason', async () => {
+test('the Harness page shows the session flow in Mermaid and links archify, never frames it (plan N12e)', async () => {
   const url = '/archify/' + 'a'.repeat(64) + '.html';
   const harness = { '/api/harness': { installed: true, version: '1', hooks: [], mcp_servers: [], components: [], managed_files: 0, telemetry: false, rdd_mode: 'on', persona: 'neutral' } };
-  let { env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url, components: 12, fallback: 'flowchart LR\n  n0["A"]' } });
-  let frames = tree(view(env)).filter((e) => e.tagName === 'iframe');
-  assert.equal(frames.length, 1);
-  assert.equal(frames[0].getAttribute('src'), url);
-  assert.equal(frames[0].getAttribute('sandbox'), 'allow-scripts'); // never allow-same-origin
-  assert.match(view(env).textContent, /12 components drawn by archify/);
-  assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 0);
-  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url: 'https://evil.example/x.html', components: 1, fallback: 'flowchart LR\n  n0["A"]' } }));
-  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0, 'only our own route is ever framed');
-  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: false, reason: XSS, fallback: 'flowchart LR\n  n0["A"]' } }));
-  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0);
+  const flow = 'flowchart LR\n  n0["A"]';
+  let { env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url, components: 12, fallback: flow } });
+  assert.equal(tree(view(env)).filter((e) => e.tagName === 'iframe').length, 0, 'no foreign visual language in the page');
+  assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 1, 'the Mermaid session flow is the diagram');
+  assert.match(view(env).textContent, /How a session flows through the harness/);
+  const full = tree(view(env)).filter((e) => e.tagName === 'a' && e.getAttribute('href') === url);
+  assert.equal(full.length, 1, 'archify is one link to its own route');
+  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: true, url: 'https://evil.example/x.html', components: 1, fallback: flow } }));
+  assert.ok(!hrefs(view(env)).includes('https://evil.example/x.html'), 'only our own archify route is ever linked');
+  ({ env } = await boot('#/harness', { ...harness, '/api/archify': { installed: true, available: false, reason: XSS, fallback: flow } }));
   assert.equal(tree(view(env)).filter((e) => /diagram/.test(cls(e))).length, 1);
-  assert.ok(view(env).textContent.includes(XSS));
   assert.equal(tree(view(env)).filter((e) => e.tagName === 'img').length, 0);
 });
 
@@ -454,6 +463,29 @@ test('home: recent activity grouped by day is the main column; spending and heal
   assert.match(rail.textContent, /Hooks/);
   assert.ok(!tree(rail).some((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)), 'activity is not in the rail');
   assert.equal(env.document.getElementById('filters').hidden, true);
+});
+
+test('no page shows a raw dictionary key such as tok.input (impeccable critique P1)', async () => {
+  const { env } = await boot('#/home', { '/api/wiki/home': HOME });
+  const textOnly = (e) => e.tagName && (e.children ?? []).every((c) => !c.tagName); // an element holding only text
+  const leaks = tree(view(env)).filter((e) => textOnly(e) && /^[a-z]+\.[a-z_]+(\.[a-z_]+)*$/.test((e.textContent || '').trim()));
+  assert.deepEqual(leaks.map((e) => e.textContent), []);
+});
+
+test('every page opens with its title (impeccable critique P1: one page skeleton)', async () => {
+  const stubs = {
+    '/api/wiki/home': HOME, '/api/memories': { available: true, items: [], types: [] }, '/api/memory-files': { items: [] },
+    '/api/graphify': { repos: [] }, '/api/projects': { projects: [] }, '/api/sessions': { available: true, projects: [], sessions: [] },
+    '/api/harness': { installed: false }, '/api/archify': { installed: false }, '/api/harness/components': null,
+  };
+  for (const [hash, title] of [['#/memory', 'Memory'], ['#/usage', 'Usage'], ['#/session', 'Sessions'], ['#/harness', 'Harness'], ['#/home', null]]) {
+    const { env } = await boot(hash, stubs);
+    assert.doesNotMatch(view(env).textContent, /^Error/, `${hash} rendered the error panel`);
+    const first = tree(view(env)).find((e) => /^h[1-6]$/.test(e.tagName)); // the first heading in reading order
+    assert.equal(first?.tagName, 'h1', `${hash}: first heading is ${first?.tagName}`);
+    if (title) assert.equal(first.textContent, title, hash);
+    assert.equal(tree(view(env)).filter((e) => e.tagName === 'h1').length, 1, `${hash}: one h1`);
+  }
 });
 
 test('home teaches when there is no activity, no usage data and no install', async () => {
@@ -564,4 +596,20 @@ test('home rail explains an empty ranking and tolerates an older server without 
   assert.ok(!/Skill impact/.test(tree(view(env)).find((e) => e.tagName === 'aside').textContent));
   ({ env } = await boot('#/home', { '/api/wiki/home': HOME }));
   assert.ok(!/Skill impact/.test(tree(view(env)).find((e) => e.tagName === 'aside').textContent));
+});
+
+test('the Security page shows protections, checkers, trusted projects, profiles and redaction counts (plan D14)', async () => {
+  const report = { protections: { memory_guard: 'on', privacy: 'off', checks: 'on', installed: true },
+    trusted: [{ name: 'app', path: '/work/app', since: '2026-11-08T10:00:00Z' }],
+    checkers: [{ name: 'tsc', installed: true, needs_trust: true }, { name: 'gitleaks', installed: false, needs_trust: false }],
+    profiles: { names: ['default', 'acme'], drafts: 1, selected: [{ project: 'app', profile: 'acme' }] },
+    redacted: { cedula: 2, email: 1 } };
+  const { env } = await boot('#/security', { '/api/security': report });
+  const text = view(env).textContent;
+  assert.match(text, /Security/);
+  assert.match(text, /privacy hook is off/i);
+  for (const needle of ['tsc', 'gitleaks', '/work/app', 'acme', 'cedula']) assert.ok(text.includes(needle), needle);
+  assert.match(text, /1 draft/);
+  const nav = tree(env.document.getElementById('nav')).find((e) => e.attrs.href === '#/security');
+  assert.equal(nav.getAttribute('aria-current'), 'page');
 });
