@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - `pbir lint` DAX001 no longer flags a division by a nonzero numeric constant.
+- `amauta upgrade` prints the UPGRADING.md notes of every version in the jump (read from the target, without the
+  single-step commands); `--dry-run` fetches and previews the target's own installer from a temporary worktree (files
+  it would write or remove, legacy entries it would replace, choices kept); `--branch <name>` follows a branch on
+  origin before it has a release tag. A test installs v0.4.0 from the history and upgrades it to the current version.
 
 ## [0.7.0] - 2026-11-09
 

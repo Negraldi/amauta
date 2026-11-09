@@ -74,7 +74,7 @@ Los comandos principales, todos de `amauta --help`:
 | `amauta install` / `uninstall` / `status` | Instala en Claude Code y Codex, lo quita o informa qué hay |
 | `amauta sync` | Sincroniza Claude Code y Codex ahora: servidores MCP en ambos sentidos, enlaces de skills, copias |
 | `amauta restore --backup ID` | Deshace una instalación desde su respaldo |
-| `amauta upgrade` | Mueve esta instalación a la última etiqueta de versión (`--dry-run`, `--to <tag>`) |
+| `amauta upgrade` | Mueve esta instalación a la última etiqueta de versión (`--dry-run`, `--to <tag>`, `--branch <nombre>`) |
 | `amauta portal` | Inicia el portal local en 127.0.0.1 |
 | `amauta review assess` / `mode` / `pack` / `numbers` | Riesgo de revisión, el interruptor de revisión, paquetes de lentes, fidelidad de cifras |
 | `amauta check trust` / `untrust` / `status` | Confía en un proyecto para checkers que ejecutan código y para ejecuciones de pipelines desde el portal |

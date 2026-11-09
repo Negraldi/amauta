@@ -75,7 +75,7 @@ La página de Ajustes del portal cambia una lista cerrada de estas opciones ejec
 | `amauta status [--runtime ...] [--deep] [--json]` | Qué está instalado y qué falta; desviaciones, conflictos MCP, paridad; `--deep` también sondea el extractor SQL de graphify |
 | `amauta sync [--dry-run] [--json] [--no-mirror-mcp]` | Servidores MCP en ambos sentidos, enlaces de skills, copias de Codex |
 | `amauta restore --backup ID` | Restaura un respaldo del instalador por id (`YYYYMMDDTHHMMSSZ`), archivos de Claude o de Codex |
-| `amauta upgrade [--dry-run] [--to <tag>] [--yes]` | Actualiza el checkout a la última etiqueta de versión y reinstala; `--to` elige otra etiqueta, también para volver atrás |
+| `amauta upgrade [--dry-run] [--to <tag> \| --branch <nombre>] [--yes]` | Actualiza el checkout a la última etiqueta de versión y reinstala; `--to` elige otra etiqueta, también para volver atrás; `--branch` sigue una rama de origin (una vista previa); muestra las notas de cada versión del salto, y `--dry-run` anticipa lo que cambiaría el instalador nuevo |
 | `amauta version` | Imprime la versión |
 
 ## Cómo trabaja

@@ -1,5 +1,23 @@
 # Upgrading
 
+## Across several versions
+
+`amauta upgrade` moves the install in one step and prints the notes below for every version it crosses, oldest
+first, read from the target. `amauta upgrade --dry-run` fetches from origin (git refs only) and previews what the
+new installer would write, remove and replace, without changing any file. To try a branch before it has a release
+tag: `amauta upgrade --branch <name>` (the rollback is the branch you were on).
+
+An install older than this version has the older `upgrade`, without `--branch` and the preview. Its first move to a
+branch is by hand, in the install's checkout (`amauta status` prints where it is):
+
+```bash
+git -C <amauta checkout> fetch origin <branch>
+git -C <amauta checkout> checkout -b <branch> --track origin/<branch>
+amauta install && amauta status
+```
+
+From then on `amauta upgrade` is the new one. Rollback: `git -C <amauta checkout> checkout main && amauta install`.
+
 ## From 0.6.0 to 0.7.0
 
 ```bash

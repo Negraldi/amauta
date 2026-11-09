@@ -75,7 +75,7 @@ The portal's Settings page changes a closed list of these options by running `am
 | `amauta status [--runtime ...] [--deep] [--json]` | What is installed and missing; drift, MCP conflicts, parity; `--deep` also probes graphify's SQL extractor |
 | `amauta sync [--dry-run] [--json] [--no-mirror-mcp]` | MCP servers both ways, skill links, Codex copies |
 | `amauta restore --backup ID` | Restore an installer backup by id (`YYYYMMDDTHHMMSSZ`), Claude or Codex files |
-| `amauta upgrade [--dry-run] [--to <tag>] [--yes]` | Update the checkout to the latest release tag and reinstall; `--to` picks another tag, for a rollback too |
+| `amauta upgrade [--dry-run] [--to <tag> \| --branch <name>] [--yes]` | Update the checkout to the latest release tag and reinstall; `--to` picks another tag, for a rollback too; `--branch` follows a branch on origin (a preview); it prints the notes of every version in the jump, and `--dry-run` previews what the new installer would change |
 | `amauta version` | Print the version |
 
 ## How it works
