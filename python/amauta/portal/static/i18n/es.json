@@ -440,8 +440,8 @@
  "usage.messagesN.other": "{n} mensajes",
  "usage.sessionsN.one": "{n} sesión",
  "usage.sessionsN.other": "{n} sesiones",
- "usage.summary": "En este rango: {messages} en {sessions}, {input} tokens de entrada y {output} de salida; la caché sirvió {hit} de la entrada.",
- "usage.summaryNoCache": "En este rango: {messages} en {sessions}, {input} tokens de entrada y {output} de salida.",
+ "usage.summary": "Se gastaron {input} tokens de entrada y {output} de salida en {messages} repartidos en {sessions}; la caché sirvió {hit} de la entrada.",
+ "usage.summaryNoCache": "Se gastaron {input} tokens de entrada y {output} de salida en {messages} repartidos en {sessions}.",
  "usage.mcpTools": "Herramientas MCP",
  "usage.modelSplit": "Reparto por modelo",
  "usage.noSessionsRange": "No hay sesiones en este intervalo.",
@@ -515,7 +515,6 @@
  "uot.summary.other": "{n} llamadas en los {days} días hasta {last}.",
  "harness.review": "Modo de revisión",
  "table.empty": "No hay nada que mostrar para esta selección.",
- "common.show": "Mostrar",
  "set.privacy": "Hook de privacidad",
  "set.privacy.help": "Activado: Claude pregunta antes de leer un archivo de datos (CSV, Excel, Parquet, una base de datos) fuera de las carpetas de pruebas y ejemplos, y usted recibe un aviso cuando un mensaje parece contener un secreto. Desactivado: esos hooks se eliminan.",
  "set.checks": "Comprobaciones",
@@ -695,5 +694,13 @@
  "mem.filesN.other": "{n} memorias en archivos de Claude.",
  "lint.title": "Calidad de la memoria",
  "lint.prompts": "Cada elemento es una invitación a revisar: son sugerencias de revisión, nunca veredictos.",
- "graph.repo": "Repositorio"
+ "graph.repo": "Repositorio",
+ "filters.allTime": "todo el historial",
+ "filters.anyProject": "todos los proyectos",
+ "filters.anyRuntime": "todos los entornos",
+ "usage.costLead": "Costo estimado: {cost}.",
+ "usage.chartLabel": "Tokens por día del {from} al {to}; los valores exactos están en la tabla de abajo.",
+ "usage.perDay": "Valores por día",
+ "usage.includeCache": "Incluir caché",
+ "usage.segments": "Tipo"
 }

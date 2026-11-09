@@ -163,15 +163,14 @@ test('Memory never filters by the hidden Project select, and the filter bar is h
 
 test('the Tools and skills segment lives in the hash: ?seg= selects it and a click writes it', async () => {
   const { env } = await boot('#/tool?seg=mcp');
-  const buttons = tree(view(env)).filter((e) => e.tagName === 'button' && e.getAttribute('aria-pressed') != null);
-  const pressed = buttons.filter((b) => b.getAttribute('aria-pressed') === 'true');
-  assert.equal(pressed.length, 1);
-  assert.match(pressed[0].textContent, /MCP servers/);
+  const links = tree(view(env)).filter((e) => e.tagName === 'a' && /^#\/tool\?seg=/.test(e.getAttribute('href'))); // links since T5
+  const current = links.filter((b) => b.getAttribute('aria-current') === 'true');
+  assert.equal(current.length, 1);
+  assert.match(current[0].textContent, /MCP servers/);
   assert.match(view(env).textContent, /engram/);
-  buttons.find((b) => /^Skills/.test(b.textContent)).click();
-  assert.equal(env.location.hash, '#/tool?seg=skills');
+  assert.equal(links.find((b) => /^Skills/.test(b.textContent)).getAttribute('href'), '#/tool?seg=skills');
   const usage = await boot('#/usage');
-  assert.equal(tree(view(usage.env)).filter((e) => e.getAttribute && e.getAttribute('aria-pressed') != null).length, 0, 'the segment shows once, on its tab');
+  assert.equal(tree(view(usage.env)).filter((e) => e.getAttribute && e.getAttribute('aria-current') === 'true').length, 0, 'the segment shows once, on its tab');
 });
 
 test('an old hash is rewritten in place (replaceState) and renders the new page', async () => {

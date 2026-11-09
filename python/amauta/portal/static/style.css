@@ -217,6 +217,21 @@ td.n, th.n { text-align: right; }
 td.n { white-space: nowrap; font-family: var(--mono); font-size: 0.95em; }
 svg { max-width: 100%; height: auto; display: block; }
 svg text { fill: var(--ink-muted); font-size: 11px; }
+/* Usage chart: marks in an SVG that stretches to the panel; axis labels are HTML so they stay >= 12px on a phone. */
+.chart-plot { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s2); }
+.chart-svg { display: block; width: 100%; height: 200px; overflow: visible; }
+.chart-svg rect { stroke: var(--bg); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.chart-svg .axis { vector-effect: non-scaling-stroke; }
+.chart-y { display: flex; flex-direction: column; justify-content: space-between; height: 200px; font-size: 0.75rem;
+  line-height: 1; color: var(--ink-muted); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.chart-x { display: flex; justify-content: space-between; gap: var(--s2); margin-top: var(--s1); font-size: 0.75rem;
+  color: var(--ink-muted); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.chart-values { margin-top: var(--s3); }
+.chart-values summary { cursor: pointer; min-height: var(--hit); display: list-item; color: var(--accent); }
+label.check { display: inline-flex; align-items: center; gap: var(--s1); min-height: var(--hit); margin-bottom: var(--s2); }
+.page-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s4); }
+.page-head > .lead { flex-basis: 100%; }
+.filter-state { margin: 0; color: var(--ink-muted); font-family: var(--mono); font-size: 0.8125rem; }
 .axis { stroke: var(--line); }
 .f-input { fill: var(--c-input); } .f-output { fill: var(--c-output); } .f-cache_read { fill: var(--c-cache-read); } .f-cache_write { fill: var(--c-cache-write); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-bottom: var(--s2); font-size: 0.8125rem; }

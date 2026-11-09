@@ -440,8 +440,8 @@
  "usage.messagesN.other": "{n} messages",
  "usage.sessionsN.one": "{n} session",
  "usage.sessionsN.other": "{n} sessions",
- "usage.summary": "In this range: {messages} in {sessions}, {input} input and {output} output tokens; the cache served {hit} of the input.",
- "usage.summaryNoCache": "In this range: {messages} in {sessions}, {input} input and {output} output tokens.",
+ "usage.summary": "You spent {input} input and {output} output tokens in {messages} across {sessions}; the cache served {hit} of the input.",
+ "usage.summaryNoCache": "You spent {input} input and {output} output tokens in {messages} across {sessions}.",
  "usage.mcpTools": "MCP tools",
  "usage.modelSplit": "Model split",
  "usage.noSessionsRange": "No sessions in this range.",
@@ -515,7 +515,6 @@
  "uot.summary.other": "{n} calls in the {days} days up to {last}.",
  "harness.review": "Review mode",
  "table.empty": "Nothing to show for this selection.",
- "common.show": "Show",
  "set.privacy": "Privacy hook",
  "set.privacy.help": "On: Claude asks before reading a data file (CSV, Excel, Parquet, a database) outside test and example folders, and you get a warning when a prompt seems to hold a secret. Off: those hooks are removed.",
  "set.checks": "Checks",
@@ -695,5 +694,13 @@
  "mem.filesN.other": "{n} Claude file memories.",
  "lint.title": "Memory quality",
  "lint.prompts": "Each item below is a prompt to look again: these are review prompts, never verdicts.",
- "graph.repo": "Repository"
+ "graph.repo": "Repository",
+ "filters.allTime": "all time",
+ "filters.anyProject": "all projects",
+ "filters.anyRuntime": "all runtimes",
+ "usage.costLead": "Estimated cost: {cost}.",
+ "usage.chartLabel": "Tokens per day from {from} to {to}; the exact values are in the table below.",
+ "usage.perDay": "Values per day",
+ "usage.includeCache": "Include cache",
+ "usage.segments": "Kind"
 }

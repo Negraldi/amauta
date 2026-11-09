@@ -108,7 +108,7 @@ function diagramBox(source, caption) {
   return box;
 }
 
-const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", graphRepo: null, sort: {}, projectNames: [], themes: [],
+const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", graphRepo: null, usageCache: false, sort: {}, projectNames: [], themes: [],
   themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
 const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value, runtime: $("runtime").value });
@@ -149,44 +149,7 @@ function sessionColumns() {
     { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums];
 }
 
-function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h("span", null, h("span", { class: `sw f-${k}` }), t(l)))); }
-
-function stackedChart(daily) {
-  if (!daily.length) return empty(t("usage.noneRange"));
-  const W = 720, H = 220, L = 44, B = 22, T = 8, PR = 6;
-  const totals = daily.map((d) => KINDS.reduce((a, [k]) => a + (d[k] || 0), 0));
-  const max = Math.max(...totals, 1);
-  const bw = (W - L - PR) / daily.length;
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": t("usage.tokensPerDay") });
-  for (const f of [0, 0.5, 1]) {
-    const y = T + (H - T - B) * (1 - f);
-    root.append(svg("line", { x1: L, x2: W - PR, y1: y, y2: y, class: "axis" }), svg("text", { x: L - 4, y: y + 4, "text-anchor": "end" }, short(max * f)));
-  }
-  daily.forEach((d, i) => {
-    let y = H - B;
-    const g = svg("g", null, svg("title", null, `${R.fmtDate(d.day)}: ` + KINDS.map(([k, l]) => `${t(l)} ${fmt(d[k])}`).join(", ")));
-    for (const [k] of KINDS) {
-      const hgt = ((d[k] || 0) / max) * (H - T - B);
-      y -= hgt;
-      if (hgt > 0) g.append(svg("rect", { x: L + i * bw + 1, y, width: Math.max(bw - 2, 1), height: hgt, class: `f-${k}` }));
-    }
-    root.append(g);
-    if (daily.length <= 12 || i % Math.ceil(daily.length / 8) === 0) root.append(svg("text", { x: L + i * bw + bw / 2, y: H - 6, "text-anchor": "middle" }, R.fmtDate(d.day)));
-  });
-  return h("div", null, legend(), root);
-}
-
-function modelBars(models) {
-  const total = models.reduce((a, m) => a + KINDS.reduce((s, [k]) => s + (m[k] || 0), 0), 0) || 1;
-  return table("models", [
-    { key: "model", label: t("col.model") }, { key: "messages", label: t("col.messages"), num: true },
-    { key: "input", label: t("tok.input"), num: true }, { key: "output", label: t("tok.output"), num: true },
-    { key: "cache_read", label: t("tok.cache_read"), num: true }, { key: "cache_write", label: t("tok.cache_write"), num: true },
-    { key: "share", label: t("col.share"), num: true, render: (v) => pct(v) },
-  ], models.map((m) => ({ ...m, share: KINDS.reduce((s, [k]) => s + (m[k] || 0), 0) / total })));
-}
-
-const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage,
+const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewSkillCatalog, tool: viewTools, mcp: viewTools,
   component: (r) => (r.query && r.query.kind === "skill" ? viewSkillCatalog(r) : viewComponents(r)), session: viewSessions,
   memory: viewMemories, memfile: viewMemoryFiles, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings,
   lint: viewLint, themes: viewThemes, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide });
@@ -197,15 +160,16 @@ async function renderRoute(route) {
   if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
   const out = await VIEWS()[kind](route); // a view that needs the item (the guide's page) or its ?seg= reads it from the route
   const tabs = tabBar(route);
-  const page = out.some(hasTitle) ? out : [pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)), ...out];
+  const head = pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`), null, R.showsFilters(route) ? filterState() : null); // Activity: filters in words
+  const page = out.some(hasTitle) ? out : [head, ...out];
   return tabs ? [tabs, ...page] : page;
 }
 // Every page opens with exactly one title (impeccable critique, plan N12b); views that build their own h1 keep it.
-const PAGE_TITLES = { harness: "nav.harnessPage" };
+const PAGE_TITLES = { harness: "nav.harnessPage", tool: "nav.toolsSkills", mcp: "nav.toolsSkills" };
 const isH1 = (n) => String(n.tagName).toLowerCase() === "h1";
 const hasTitle = (n) => Boolean(n && n.tagName) && (isH1(n) || Array.from(n.children || []).some(hasTitle));
-function pageHead(title, intro) {
-  return h("header", { class: "page-head" }, h("h1", null, title), intro ? h("p", { class: "lead" }, intro) : null);
+function pageHead(title, intro, aside) {
+  return h("header", { class: "page-head" }, h("h1", null, title), aside, intro ? h("p", { class: "lead" }, intro) : null);
 }
 
 // The sidebar: one block per job group (R.NAV) with its label; the foot group (Guide, Settings) sits apart at the bottom.

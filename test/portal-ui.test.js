@@ -76,7 +76,7 @@ test('Activity opens with one summary sentence, then the chart; no stat tiles; d
   const text = view.textContent;
   const lead = tree(view).find((e) => e.tagName === 'p' && e.className === 'lead');
   assert.ok(lead, 'a summary sentence');
-  assert.equal(lead.textContent, 'In this range: 3 messages in 2 sessions, 160 input and 85 output tokens; the cache served 50.0% of the input.');
+  assert.equal(lead.textContent, 'You spent 160 input and 85 output tokens in 3 messages across 2 sessions; the cache served 50.0% of the input.');
   assert.match(text, /4 telemetry events, 7 dropped/);
   assert.ok(!tree(view).some((e) => e.className === 'grid' || e.className === 'card'), 'no stat tiles');
   assert.ok(tree(view).some((e) => e.tagName === 'svg'));

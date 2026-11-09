@@ -17,7 +17,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T2 Shell + identity tokens (moved from T8: DESIGN.md table, style.css, theme.js BASES change together): grouped sidebar, top bar (breadcrumb, search, theme quick toggle, refresh), sidebar footer cleanup
 - [x] T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories)
 - [x] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
-- [ ] T5 Activity: usage, sessions, one tools-and-skills table
+- [x] T5 Activity: usage, sessions, one tools-and-skills table
 - [ ] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
 - [ ] T7 Settings: preferences, projects and siblings, appearance (themes, language)
 - [ ] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
@@ -104,9 +104,23 @@ Target after redesign: >= 32/40, no P1.
   Python portal 492 OK, simplicity green (baseline shrank). Changed expectations: memory source and graph tests moved to
   links / #/node; the failing-search test presses Enter; CSS tests read both stylesheets.
 
+- 2026-11-09 T5 (route: delegated writer). #/usage leads with one "You spent ..." sentence (plus "Estimated cost" when
+  prices are on); the chart moved out of app.js into page-activity.js: input and output by default, cache read/write
+  behind a visible "Include cache" checkbox (state kept for the session), continuous date axis (fillDays, empty days as
+  zero columns), marks in a stretching SVG with 1px surface gaps, axis labels as HTML at 12px (also at 375px), hover
+  title per day, and a "Values per day" details/summary table in date order. Data colors are the --c-* tokens only.
+  #/session uses app.js sessionColumns(); the projects table that silently set the filter is gone (the Project filter is
+  the one control). #/tool is titled "Tools and skills"; the segments are links (aria-current="true") in a nav, state in
+  ?seg=. Activity page heads show the filters in words ("30 days · all projects · all runtimes"). RED first
+  (test/portal-activity.test.js 7/7 failing), then GREEN: portal node 378/378, simplicity green (baseline shrank).
+  Changed expectations: the usage lead sentence text; the ?seg= test checks links with aria-current instead of buttons.
+  Dataviz validator on the data tokens: light input/output pass; cache read (slate, C 0.02) fails the chroma floor and
+  is 2.66:1 on white (relieved by the per-day table), and the dark steps sit outside the validator's lightness band
+  (L 0.72-0.80): retune in T8 if wanted (DESIGN.md table and theme.js BASES change together).
+
 ## Next step
 
-T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash. Carry-overs: the
-Sessions page (page-activity.js viewSessions) should switch to app.js sessionColumns() (T5); the Sessions tab filters by
-the usage project name, while the hub summary counts git-root sessions too (server data, out of scope); page section
-headings, rails, tables and data colors are only token-level so far (T8 visual pass).
+T6 Harness wiki: overview (one-line health, readable diagram, hooks table with handler and status), unified catalog,
+security, group label "Harness wiki". Carry-overs: the running dev server must be restarted to serve style-pages.css
+(new allowlist entry); document.title on #/tool still says the kind label ("Tool"); T8: progress bars on --accent, data
+token chroma/lightness per the dataviz validator, filter-state wraps under the title on narrow content widths.
