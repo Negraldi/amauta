@@ -11,8 +11,9 @@ import re
 from ...privacy.columns import name_categories
 
 PERSONAL = {"cedula", "ruc", "passport", "dni", "person_name", "email", "phone", "address", "account", "card"}
-# A '/' that is not a comment and not followed by a nonzero numeric constant ("/ 100" cannot divide by zero).
-_DIVISION = re.compile(r"(?<![/*])/(?![/*])(?!\s*(?:0*[1-9]\d*(?:\.\d+)?|0*\.\d*[1-9]\d*)(?![\w.\[]))")
+# A '/' that is not a comment and not followed by a nonzero numeric constant ("/ 100" cannot divide by zero). No two
+# unbounded digit runs touch, so a long run of digits is scanned once.
+_DIVISION = re.compile(r"(?<![/*])/(?![/*])(?!\s*(?:0*[1-9]\d*(?:\.\d+)?|0*\.0*[1-9]\d*)(?![\w.\[]))")
 _ITERATOR_CALCULATE = re.compile(r"\b(SUMX|AVERAGEX|MINX|MAXX|COUNTX|RANKX|FILTER)\s*\((?:[^()]|\([^()]*\))*\bCALCULATE\s*\(", re.I)
 _FILTER_ALL = re.compile(r"\bFILTER\s*\(\s*ALL\s*\(", re.I)
 _COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/|\"(?:[^\"]|\"\")*\"", re.S)

@@ -62,37 +62,45 @@ Print counts and timings, never rows: every output line is kept in the run's his
 
 Analysis runs many times; the database query should not. Keep the result as Parquet under a folder the repository
 ignores (`data/raw/`), with a small record of where it came from, and let later steps and notebooks read the file.
+The cache wraps the script above, so batches, temporary tables and the connection setting are the same.
 
 ```python
-"""cached_query.py SQL_FILE NAME [--refresh]: data/raw/NAME.parquet from the query, reused until --refresh."""
-import hashlib, json, os, sys
+"""cached_query.py SQL_FILE NAME [--refresh]: data/raw/NAME.parquet through sql_to_parquet.py, reused until
+--refresh. It lives in etl/ next to sql_to_parquet.py; SQL_FILE is relative to the project root."""
+import hashlib, json, os, subprocess, sys
 from datetime import datetime, timezone
 from pathlib import Path
-import polars as pl      # third-party: pip install polars connectorx
+import pyarrow.parquet as pq
 
-ROOT = Path(__file__).resolve().parents[1]           # the project root, whatever the working folder
-sql_file, name, refresh = Path(sys.argv[1]), sys.argv[2], "--refresh" in sys.argv[3:]
+ROOT = Path(__file__).resolve().parents[1]           # etl/ is one folder below the project root
+sql_file, name, refresh = ROOT / sys.argv[1], sys.argv[2], "--refresh" in sys.argv[3:]
 raw = ROOT / "data" / "raw"
 out, meta = raw / f"{name}.parquet", raw / f"{name}.json"
-query = sql_file.read_text(encoding="utf-8")
-source = os.environ.get("REPORT_DB_LABEL", "")       # a non-secret name of the database, never the URI
-digest = hashlib.sha256((source + "\n" + query).encode()).hexdigest()
-known = json.loads(meta.read_text()) if meta.is_file() else {}
+source = os.environ.get("REPORT_DB_LABEL", "")       # a non-secret name of the database, never the connection string
+digest = hashlib.sha256(source.encode() + b"\n" + sql_file.read_bytes()).hexdigest()
+try:
+    known = json.loads(meta.read_text(encoding="utf-8"))
+except (OSError, ValueError):
+    known = {}                                       # no record, or a broken one: extract again
 if out.is_file() and known.get("sha256") == digest and not refresh:
     print(f"cached {out} ({known.get('rows')} rows, extracted {known.get('extracted_at')})")
     sys.exit(0)
-frame = pl.read_database_uri(query, os.environ["REPORT_DB_URI"])  # the URI is kept outside the repository
 raw.mkdir(parents=True, exist_ok=True)
-frame.write_parquet(out.with_suffix(".tmp"))
-os.replace(out.with_suffix(".tmp"), out)            # an interrupted run never leaves a half file as "cached"
-meta.write_text(json.dumps({"sha256": digest, "source": source, "rows": frame.height,
-                            "extracted_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}) + "\n")
-print(f"{frame.height:,} rows -> {out}")
+meta.unlink(missing_ok=True)                         # no record until the new file is complete
+tmp = raw / f".{name}.{os.getpid()}.parquet"
+subprocess.run([sys.executable, str(Path(__file__).with_name("sql_to_parquet.py")), str(sql_file), str(tmp)], check=True)
+os.replace(tmp, out)
+record = {"sha256": digest, "source": source, "rows": pq.read_metadata(out).num_rows,
+          "extracted_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+meta_tmp = raw / f".{name}.{os.getpid()}.json"
+meta_tmp.write_text(json.dumps(record) + "\n", encoding="utf-8")
+os.replace(meta_tmp, meta)
 ```
 
-A changed query or source label runs again on its own; `--refresh` forces a new extraction when the data changed. In a notebook,
-call it in one cell and read with `pl.scan_parquet` in the next. The JSON record is the fingerprint the provenance
-reference asks for.
+A changed script or source label extracts again on its own; `--refresh` forces it when the data changed. A run cut
+off at any point leaves either the old pair or no record, never a record that describes the wrong file. In a notebook,
+run it in one cell and read the file in the next (`pl.scan_parquet` or `pd.read_parquet`). The JSON record is the
+fingerprint the [provenance](provenance.md) reference asks for.
 
 ## Refresh a workbook (Windows with Excel)
 

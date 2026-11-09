@@ -6,7 +6,7 @@ Reads report.json, every page.json and every visual.json. A reference is a `{"Ex
 table}}, "Property": name}` node; its place is `filter` under a filterConfig, `sort` under a sortDefinition, otherwise
 `field`. A reference by a query alias (`SourceRef.Source`) has no table name and is skipped, and so is a report-level
 measure (`SourceRef.Schema` "extension", defined in the report, not the model). Not checked: hierarchy levels
-(they carry no field name) and bookmarks.
+(they carry no field name) and bookmarks. Names are compared without case, as the tabular engine does.
 """
 
 import json
@@ -63,11 +63,12 @@ def _sources(report):
 
 
 def audit(report, m):
-    fields = {t["name"]: {o["name"] for o in t["columns"] + t["measures"]} for t in m["tables"]}
+    fields = {t["name"].casefold(): {o["name"].casefold() for o in t["columns"] + t["measures"]} for t in m["tables"]}
     findings = {}
     for where, data in _sources(report):
         for place, table, prop in _walk(data, "field", []):
-            problem = "no such table" if table not in fields else "no such field" if prop not in fields[table] else None
+            t, f = table.casefold(), prop.casefold()
+            problem = "no such table" if t not in fields else "no such field" if f not in fields[t] else None
             if problem:
                 findings.setdefault((where, place, table, prop),
                                     {"where": where, "place": place, "ref": f"{table}[{prop}]", "problem": problem})

@@ -22,7 +22,7 @@ events during an interval; calendar periods, elapsed durations and partial perio
 
 Say which kind each metric is: a stock (what is active at the close), a flow (what entered or left during the period)
 or a cohort (what happened to the group that entered in one period, over a window). Flows reconcile with stocks:
-opening stock + entries + reactivations - exits = closing stock, with every difference explained.
+opening stock + entries + returns - exits = closing stock, with every difference explained.
 
 ## Synthetic acceptance cases
 

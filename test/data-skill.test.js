@@ -37,7 +37,7 @@ test('pipeline recipes: database, workbook and mail steps as the project\'s own 
   assert.ok(r.length > 2000 && r.length < 12000, `${r.length} chars`);
   for (const needle of [/"retries"/, /"outputs"/, /AMAUTA_PIPELINE_TRIGGER/, /RefreshAll/, /CalculateUntilAsyncQueriesDone/, /ReplyAll/,
     /\bGO\b/, /amauta pipeline check/, /environment variable|config file/i]) assert.match(r, needle, String(needle));
-  for (const banned of [/PWD=\w/, /password\s*=\s*["'][^"']+["']/i, /@[a-z]+\.(com|ec|pe)\b/i, /\\\\Users\\\\/]) assert.doesNotMatch(r, banned, String(banned));
+  for (const banned of [/PWD=\w/, /password\s*=\s*["'][^"']+["']/i, /@[a-z]+\.[a-z]{2,3}\b/i, /\\\\Users\\\\/]) assert.doesNotMatch(r, banned, String(banned));
 });
 
 // odd/tasks/agent-archive-intake.md K1-K3, K5, K6: the methods taken from the private agent archive, rewritten generic.

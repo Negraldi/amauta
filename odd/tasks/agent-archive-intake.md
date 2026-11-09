@@ -18,7 +18,7 @@ user's profile on their machine.
    stock, flow and cohort reconciliation in `metrics-and-cohorts`.
 6. Templates: a lineage record (`provenance`) and a report documentation outline (`powerbi-report`).
 7. PBIR tools: `pbir refs` (report field references the model does not have), `pbir theme` (a report theme file from
-   colors or the profile's brand), and DAX001 no longer flags a division by a numeric constant.
+   colors or the profile's brand), and DAX001 no longer flags a division by a nonzero numeric constant.
 
 ## Scope
 
@@ -57,9 +57,9 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
   model lacks; exit 1 when any.
 - [x] T2 `pbir theme --name N (--colors C,... | --brand FILE | --profile) --out FILE`: a Power BI report theme from
   `#rrggbb` colors; the file is written atomically and never over an existing one without `--force`.
-- [x] T3 DAX001: a division by a numeric constant is not flagged.
+- [x] T3 DAX001: a division by a nonzero numeric constant is not flagged.
 - [x] Q1 Cleanup; [x] Q2 independent review; [x] Q3 fixes.
-- [ ] Q4 cleanup; Q5 independent review; Q6 fixes; Q7 cleanup.
+- [x] Q4 cleanup; [x] Q5 independent review; [x] Q6 fixes; [x] Q7 cleanup.
 - [ ] D1 Docs: guide pages (en, es), CHANGELOG, skill and module docs; commit and push.
 
 ## Acceptance criteria
@@ -82,6 +82,14 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
   stamps UTC; SQL dialect and `yyyymmdd` literals stated; the HTML card handles a blank comparison. RED seen for the
   code fixes (3 tests).
 
+- 2026-11-09: Q4: theme permissions set after the write, one contrast threshold. Q5 second review, nine findings.
+  Q6 (RED seen, 5 tests): the DAX001 regex was quadratic on long digit runs (50k chars in 20 s; now linear); refs
+  compares names without case and a non-object model is exit 2; a brand line with a bad color is an error instead of
+  a cut palette, and its background and foreground lines are used; a trimmed name, a folder at --out, "1 data color",
+  the file mode follows the replaced file or the umask. The cache recipe now wraps sql_to_parquet.py (one driver,
+  batches, one connection setting) and never leaves a record that describes the wrong file. Wording: "nonzero",
+  neutral examples; the color allowlist test also catches 8-digit hex and rgb(). Q7: nothing left.
+
 ## Next step
 
-Q4 cleanup, then Q5.
+D1.

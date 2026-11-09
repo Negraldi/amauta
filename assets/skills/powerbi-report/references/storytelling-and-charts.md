@@ -33,7 +33,7 @@ A report moves the same way across pages: summary first, then one page per quest
 
 ## Color with direction
 
-Decide for each metric whether a rise is good or bad before choosing colors. For cancellations, costs or delays,
+Decide for each metric whether a rise is good or bad before choosing colors. For costs, delays or complaints,
 higher is worse: a rise is red and a fall is green. Put the direction in the metric's contract, never in the visual
 only, and never let color alone carry the meaning (add the sign or an arrow).
 

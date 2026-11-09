@@ -25,7 +25,7 @@ Source:        review and QA framework · sha256 6fb20ab3f800b7a90551a2a596a4d93
 What it does:  four review pillars (blind spots, robustness, assumptions, value) and a certification block per delivery
 Decision:      rewrite  ->  assets/skills/data/references/analytical-review.md (challenge table, review certificate)
 Why:           it sharpens the existing four questions; the step-by-step protocol is already ODD and amauta's agents
-Private data:  removed: business rules, table names, status-value meanings, filters of a commercial base
+Private data:  removed: business rules, table names, status-value meanings, the filters of a target list
 ```
 
 ```
@@ -67,7 +67,7 @@ Origin tests:  none ported; new tests on synthetic fixtures (python/tests/test_p
 Private data:  removed: the palette, a local path
 ```
 
-Also from the DAX reference: a division by a numeric constant cannot be zero, so DAX001 of `pbir lint` no longer
+Also from the DAX reference: a division by a nonzero numeric constant cannot fail, so DAX001 of `pbir lint` no longer
 flags it (the original's "never use /" is too broad).
 
 Not taken at all: the rules on one person's coding style; the domain metrics reference

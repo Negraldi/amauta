@@ -62,7 +62,10 @@ def load(path):
     """A model.bim file, a *.SemanticModel folder (model.bim or definition/tables/*.tmdl), or a TMDL tables folder."""
     p = Path(path)
     if p.is_file():
-        return parse_bim(json.loads(p.read_text(encoding="utf-8-sig")))
+        data = json.loads(p.read_text(encoding="utf-8-sig"))
+        if not isinstance(data, dict):
+            raise ValueError(f"{p}: expected a JSON object")
+        return parse_bim(data)
     if (p / "model.bim").is_file():
         return load(p / "model.bim")
     tables_dir = next((d for d in (p / "definition" / "tables", p / "tables", p) if d.is_dir() and any(d.glob("*.tmdl"))), None)

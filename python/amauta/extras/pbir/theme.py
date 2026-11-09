@@ -1,6 +1,7 @@
 """A Power BI report theme file from a palette: `{"name", "dataColors", "background", "foreground", "tableAccent"}`,
 the basic part of the report theme schema. The colors come from the command line, from a brand file
-(a `- data colors: #rrggbb, ...` line, as `amauta profile import` writes it) or from the selected profile's brand.md.
+(`- data colors: #rrggbb, ...`, `- background:` and `- foreground:` lines, as `amauta profile import` writes them)
+or from the selected profile's brand.md.
 
 It writes only the file it is given (creating its folder when missing), atomically, readable like any written file,
 and never replaces one without force; a link at that path is replaced, never followed. It does not touch a report:
@@ -29,11 +30,12 @@ def _color(value, what):
 
 
 def build(name, colors, background=None, foreground=None):
-    if not isinstance(name, str) or not name.strip() or len(name) > MAX_NAME:
-        raise ValueError(f"the theme name must be 1 to {MAX_NAME} characters")
+    name = name.strip() if isinstance(name, str) else ""
+    if not name or len(name) > MAX_NAME or not name.isprintable():
+        raise ValueError(f"the theme name must be 1 to {MAX_NAME} printable characters")
     if not 1 <= len(colors) <= MAX_COLORS:
         raise ValueError(f"give 1 to {MAX_COLORS} data colors")
-    out = {"name": name.strip(), "dataColors": [_color(c, "a data color") for c in colors]}
+    out = {"name": name, "dataColors": [_color(c, "a data color") for c in colors]}
     if background:
         out["background"] = _color(background, "the background")
     if foreground:
@@ -56,13 +58,27 @@ def contrast(a, b):
     return (la + 0.05) / (lb + 0.05)
 
 
-def brand_colors(path):
+def _item(line, key):
+    """The value of a `- key: value` list line, or None."""
+    m = re.match(rf"\s*[-*]\s*{key}\s*:(.*)$", line, re.I)
+    return m.group(1).strip() if m else None
+
+
+def brand(path):
+    """{"colors", "background", "foreground"} from a brand file's `- data colors:`, `- background:` and
+    `- foreground:` lines. Every listed data color must be #rrggbb: a palette is never silently cut."""
+    found = {"colors": None, "background": None, "foreground": None}
     for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
-        if re.match(r"\s*[-*]\s*data colou?rs\s*:", line, re.I):
-            found = HEX.findall(line)
-            if found:
-                return found
-    raise ValueError(f"{path} lists no data colors (a line '- data colors: #rrggbb, ...')")
+        colors = _item(line, "data colou?rs")
+        if colors and found["colors"] is None:
+            found["colors"] = [_color(c.strip(), "a data color") for c in colors.split(",") if c.strip()]
+        for key in ("background", "foreground"):
+            value = _item(line, key)
+            if value and found[key] is None and HEX.fullmatch(value):
+                found[key] = value
+    if not found["colors"]:
+        raise ValueError(f"{path} lists no data colors (a line '- data colors: #rrggbb, ...')")
+    return found
 
 
 def profile_brand(cwd=None):
@@ -73,10 +89,21 @@ def profile_brand(cwd=None):
     return entry["path"]
 
 
+def _mode(out):
+    """The mode of the file being replaced, or what a new file gets under the user's umask."""
+    if out.is_file() and not out.is_symlink():
+        return out.stat().st_mode & 0o777
+    mask = os.umask(0)
+    os.umask(mask)
+    return 0o666 & ~mask
+
+
 def write(theme, out, force=False):
     out = Path(out)
     if out.suffix.lower() != ".json":
         raise ValueError(f"{out} must be a .json file")
+    if out.is_dir():
+        raise ValueError(f"{out} is a folder")
     if (out.exists() or out.is_symlink()) and not force:  # is_symlink: a dangling link counts as existing
         raise ValueError(f"{out} exists (use --force to replace it)")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -85,7 +112,7 @@ def write(theme, out, force=False):
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(theme, f, indent=2)
             f.write("\n")
-        os.chmod(tmp, 0o644)  # mkstemp makes it private; a theme is meant to be shared
+        os.chmod(tmp, _mode(out))  # mkstemp makes it private; a theme is meant to be shared
         os.replace(tmp, out)
     except BaseException:
         os.unlink(tmp)

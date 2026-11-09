@@ -6,6 +6,7 @@ a division by a numeric constant alone. Every fixture is synthetic.
 import io
 import json
 import os
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
@@ -71,6 +72,13 @@ class RefsTest(Base):
         with self.assertRaises(ValueError):
             refs.audit(r, model.load(self.model))
 
+    def test_names_match_without_case_and_a_bad_model_is_an_error(self):
+        r = self.report([visual("a", 0, 0, 100, 100, fields=[("Column", "sales", "AMOUNT")])])
+        self.assertEqual(refs.audit(r, model.load(self.model)), [], "tabular names ignore case")
+        bad = self.write("bad.bim", "[]")
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(main(["refs", str(r), str(bad)]), 2)
+
     def test_cli_exit_codes(self):
         r = self.report([visual("a", 0, 0, 100, 100, fields=[("Column", "Sales", "Nope")])])
         out = io.StringIO()
@@ -93,8 +101,10 @@ class ThemeTest(Base):
         for bad in (["red"], ["#12345"], [], ["#112233"] * 65):
             with self.assertRaises(ValueError, msg=bad):
                 theme.build("x", bad)
-        with self.assertRaises(ValueError):
-            theme.build("", ["#112233"])
+        for name in ("", "   ", "a\nb"):
+            with self.assertRaises(ValueError, msg=repr(name)):
+                theme.build(name, ["#112233"])
+        self.assertEqual(theme.build("a" + " " * 70, ["#112233"])["name"], "a", "the length counts after trimming")
         with self.assertRaises(ValueError):
             theme.build("x", ["#112233"], background="url(x)")
 
@@ -108,11 +118,15 @@ class ThemeTest(Base):
         self.assertIn("warning: foreground on background has contrast 1.", out.getvalue())
 
     def test_brand_file_colors(self):
-        brand = self.write("brand.md", "# Brand\n\nTheme a.json\n- name: a\n- data colors: #102030, #405060\n- background: #FFFFFF\n")
-        self.assertEqual(theme.brand_colors(brand), ["#102030", "#405060"])
+        brand = self.write("brand.md", "# Brand\n\nTheme a.json\n- name: a\n- data colors: #102030, #405060\n- background: #FFFFFF\n"
+                                       "- foreground: #111111\n")
+        self.assertEqual(theme.brand(brand), {"colors": ["#102030", "#405060"], "background": "#FFFFFF", "foreground": "#111111"})
+        for bad in ("- data colors: #11223344, #445566\n", "- data colors: #abc, #445566\n"):
+            with self.assertRaises(ValueError, msg=bad):
+                theme.brand(self.write("bad.md", bad))
         empty = self.write("empty.md", "# Brand\n\nNeutral. One accent color for emphasis.\n")
         with self.assertRaises(ValueError):
-            theme.brand_colors(empty)
+            theme.brand(empty)
 
     def test_cli_writes_once_and_needs_force_to_replace(self):
         out = self.root / "themes" / "plain.json"
@@ -144,6 +158,16 @@ class ThemeTest(Base):
         with redirect_stderr(io.StringIO()):
             self.assertEqual(main(["theme", "--name", "A", "--colors", "#112233", "--out", str(link)]), 2)
         self.assertFalse((self.root / "target.json").exists(), "a link is never followed")
+        folder = self.root / "dir.json"
+        folder.mkdir()
+        err = io.StringIO()
+        with redirect_stderr(err):
+            self.assertEqual(main(["theme", "--name", "A", "--colors", "#112233", "--out", str(folder), "--force"]), 2)
+        self.assertIn("is a folder", err.getvalue())
+        out = io.StringIO()
+        with redirect_stdout(out):
+            main(["theme", "--name", "A", "--colors", "#112233", "--out", str(self.root / "one.json")])
+        self.assertIn("(1 data color)", out.getvalue())
 
     def test_cli_from_brand_and_profile(self):
         brand = self.write("brand.md", "- data colors: #102030, #405060\n")
@@ -159,6 +183,12 @@ class ThemeTest(Base):
 
 
 class ConstantDivisionTest(unittest.TestCase):
+    def test_long_digit_runs_are_linear(self):
+        expr = "[a] /." + "1" * 50000 + "x / 0." + "1" * 50000 + "y"
+        start = time.monotonic()
+        lint.lint(model.parse_bim(bim(measures=[{"name": "Long", "expression": expr}])))
+        self.assertLess(time.monotonic() - start, 1.0)
+
     def test_division_by_a_number_is_not_flagged(self):
         m = model.parse_bim(bim(measures=[{"name": "Pct", "expression": "[Total] / 100"},
                                           {"name": "Half", "expression": "SUM(Sales[Amount]) / 2.5 * 3"},

@@ -62,12 +62,14 @@ def _theme_args(t):
 
 def _theme(a):
     if a.colors is not None:
-        colors = [c.strip() for c in a.colors.split(",") if c.strip()]
+        found = {"colors": [c.strip() for c in a.colors.split(",") if c.strip()], "background": None, "foreground": None}
     else:
-        colors = theme.brand_colors(a.brand or theme.profile_brand())
-    t = theme.build(a.name, colors, a.background, a.foreground)
-    print(f"wrote {theme.write(t, a.out, a.force)} ({len(t['dataColors'])} data colors)")
-    ratio = theme.contrast(a.background, a.foreground) if a.background and a.foreground else None
+        found = theme.brand(a.brand or theme.profile_brand())
+    background, foreground = a.background or found["background"], a.foreground or found["foreground"]
+    t = theme.build(a.name, found["colors"], background, foreground)
+    n = len(t["dataColors"])
+    print(f"wrote {theme.write(t, a.out, a.force)} ({n} data color{'' if n == 1 else 's'})")
+    ratio = theme.contrast(background, foreground) if background and foreground else None
     if ratio is not None and ratio < theme.MIN_CONTRAST:
         print(f"warning: foreground on background has contrast {ratio:.1f}, below {theme.MIN_CONTRAST}")
     return 0

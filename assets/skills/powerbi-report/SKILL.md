@@ -51,8 +51,8 @@ performance question. Metric, cohort and join definitions follow the `data` skil
    - `{{AMAUTA_PY}} amauta.extras.pbir dictionary MODEL` (a Markdown data dictionary)
    - `{{AMAUTA_PY}} amauta.extras.pbir rename REPORT --table T --from OLD --to NEW` (structural rename in the visuals;
      a dry run until `--apply`; rename the field in the model as well)
-   - `{{AMAUTA_PY}} amauta.extras.pbir theme --name N --profile --out FILE.json` (a report theme from the profile's
-     palette, or `--colors`; the author imports it in Desktop)
+   - `{{AMAUTA_PY}} amauta.extras.pbir theme --name N --out FILE.json` with `--colors C,...`, `--brand FILE` or
+     `--profile` (an organization profile whose brand.md lists data colors); the author imports it in Desktop
 5. Desktop and Service. With permission, open the candidate, refresh when the model changed, check representative DAX
    values, filters and every changed visual; save, close and reopen when the delivery is a persisted file.
 6. Performance only after a correct baseline: measure, change one thing, measure again on the same data.
