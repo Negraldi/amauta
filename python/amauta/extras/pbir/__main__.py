@@ -68,8 +68,8 @@ def _theme(a):
     t = theme.build(a.name, colors, a.background, a.foreground)
     print(f"wrote {theme.write(t, a.out, a.force)} ({len(t['dataColors'])} data colors)")
     ratio = theme.contrast(a.background, a.foreground) if a.background and a.foreground else None
-    if ratio is not None and ratio < 4.5:
-        print(f"warning: foreground on background has contrast {ratio:.1f}, below 4.5")
+    if ratio is not None and ratio < theme.MIN_CONTRAST:
+        print(f"warning: foreground on background has contrast {ratio:.1f}, below {theme.MIN_CONTRAST}")
     return 0
 
 

@@ -19,6 +19,7 @@ from ...privacy import profiles
 HEX = re.compile(r"#[0-9a-fA-F]{6}")
 MAX_COLORS = 64
 MAX_NAME = 60
+MIN_CONTRAST = 4.5  # WCAG AA for normal text
 
 
 def _color(value, what):
@@ -50,7 +51,7 @@ def _luminance(color):
 
 
 def contrast(a, b):
-    """The WCAG contrast ratio of two #rrggbb colors (1 to 21; text wants 4.5 or more)."""
+    """The WCAG contrast ratio of two #rrggbb colors (1 to 21; text wants MIN_CONTRAST or more)."""
     la, lb = sorted((_luminance(a), _luminance(b)), reverse=True)
     return (la + 0.05) / (lb + 0.05)
 
@@ -81,10 +82,10 @@ def write(theme, out, force=False):
     out.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=out.parent, prefix=".theme-", suffix=".tmp")
     try:
-        os.chmod(tmp, 0o644)  # mkstemp makes it private; a theme is meant to be shared
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(theme, f, indent=2)
             f.write("\n")
+        os.chmod(tmp, 0o644)  # mkstemp makes it private; a theme is meant to be shared
         os.replace(tmp, out)
     except BaseException:
         os.unlink(tmp)
