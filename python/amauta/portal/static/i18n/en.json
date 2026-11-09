@@ -557,6 +557,7 @@
  "project.profile": "profile {name}",
  "nav.pipelines": "Pipelines",
  "kind.pipelines": "Pipelines",
+ "kind.guide": "Guide",
  "pipe.lead": "Each project's processes, defined in .amauta/pipelines.json. A run executes on this computer with your permissions; its output appears below as it happens.",
  "pipe.notInstalled": "Pipelines are not installed (the pipelines extra is missing).",
  "pipe.none": "No project defines pipelines yet. Add `.amauta/pipelines.json` to a project (see docs/pipelines.md).",
@@ -655,5 +656,7 @@
  "sib.watchLabel": "File to watch (optional)",
  "sib.ageLabel": "Stale after, in days (optional)",
  "sib.add": "Add sibling",
- "sib.remove": "Remove {name}"
+ "sib.remove": "Remove {name}",
+ "nav.guide": "Guide",
+ "guide.contents": "Contents"
 }

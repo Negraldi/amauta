@@ -343,3 +343,9 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 .toast-bad { border-color: var(--warn); }
 .pipe-card .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
 
+.guide { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); gap: var(--s5, 2rem); align-items: start; }
+.guide-nav { position: sticky; top: var(--s3); font-size: 0.9375rem; }
+.guide-nav ol { padding-left: var(--s4); display: grid; gap: var(--s1); }
+.guide-nav a[aria-current="page"] { font-weight: 600; }
+.guide-page { min-width: 0; }
+@media (max-width: 860px) { .guide { grid-template-columns: minmax(0, 1fr); } .guide-nav { position: static; } }

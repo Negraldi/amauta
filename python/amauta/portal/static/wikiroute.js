@@ -5,7 +5,7 @@
   const KINDS = {
     home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
     node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint", themes: "Themes",
-    security: "Security", pipelines: "Pipelines",
+    security: "Security", pipelines: "Pipelines", guide: "Guide",
     hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
   // Hashes of the previous tabbed portal keep working.
@@ -16,7 +16,7 @@
   const HUBS = {
     home: ["home"], project: ["project", "feature", "node", "pipelines"],
     memory: ["memory", "lint"], activity: ["usage", "session", "tool", "mcp"],
-    harness: ["harness", "skill", "component"], security: ["security"],
+    harness: ["harness", "skill", "component", "guide"], security: ["security"],
     settings: ["settings", "themes"],
   };
   const ITEM_HUB = { memfile: "memory", mcptool: "activity", hook: "harness", connector: "harness", agent: "harness", command: "harness",
