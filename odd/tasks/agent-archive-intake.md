@@ -76,7 +76,7 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
 - 2026-11-09: T1-T3 inline, TDD (RED seen: refs and theme missing, DAX001 flagged `/ 100`). A1, K1-K6 inline,
   structure tests first (5 RED). npm test 859 Node, 947 Python. Q1: refs walker split, one contrast computation.
 - 2026-11-09: Q2 independent review, ten findings. Q3: the test denylist named private terms (pushed in `64fa5bf`):
-  replaced by a placeholder-color allowlist, the history rewrite is the user's decision; `--colors ""` fell back to the
+  replaced by a placeholder-color allowlist; `--colors ""` fell back to the
   profile; report-level measures read as missing; a non-object JSON crashed; DAX001 exempted `/ 0`; a weak test;
   theme files were 0600; the cache recipe now hashes a source label, writes atomically, resolves from the project root,
   stamps UTC; SQL dialect and `yyyymmdd` literals stated; the HTML card handles a blank comparison. RED seen for the
@@ -91,9 +91,12 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
   neutral examples; the color allowlist test also catches 8-digit hex and rgb(). Q7: nothing left.
 
 - 2026-11-09: D1: guide pages (en, es) list `refs` and `theme`, CHANGELOG Unreleased; `check-guide.mjs` ok for both
-  languages. npm test 859 Node, 951 Python. Open for the user: commit `64fa5bf` (and the older data-skill test before
-  `a573499`) still carries private terms in history; removing them needs a history rewrite and a force push.
+  languages. npm test 859 Node, 951 Python.
+- 2026-11-09: history cleaned on the user's decision: the branch's 104 commits were rewritten (and signed) so that no
+  commit carries the private terms (the earlier test denylists and the archive's name in the first plan); commit
+  hashes cited in documents and messages were mapped to the new ones (30 references, each checked by its commit
+  subject); the final tree changed only in those hashes.
 
 ## Next step
 
-None: closed, except the history decision above.
+None: closed.
