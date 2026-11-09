@@ -2,13 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.0] - 2026-11-09
 
 ### Added
 
 - Pipelines (extra, ADR 0010): `.amauta/pipelines.json`, `amauta pipeline list|check|run|status|cancel|schedule-hint`,
   a Pipelines tab with filters, a flow row, history, a live console, notices and a summary on the home page; retries,
   outputs a step must change, declared schedules with a missed-run check, recipes in the `data` skill.
+- Sibling projects: `portal.json` `siblings` and a health card on the Projects page (last commit, uncommitted
+  changes, MCP server registered for Claude and Codex, age of a watched file); edited in Settings.
 - Pipelines as a DAG (ADR 0011): step `id` and `needs` with parallel steps (`max_parallel`), `blocks` with `use`,
   sub-pipeline steps, `modes` with `--mode` and a mode picker, several schedules each with its mode.
 

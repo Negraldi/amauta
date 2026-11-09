@@ -1,5 +1,18 @@
 # Upgrading
 
+## From 0.6.0 to 0.7.0
+
+```bash
+amauta upgrade --to v0.7.0
+```
+
+- New: pipelines (`.amauta/pipelines.json`, `amauta pipeline ...`, the Pipelines tab under Projects) and sibling
+  projects (Settings > Sibling projects). Nothing runs until you define a pipeline and run it.
+- Run `amauta check trust` again in each project you trusted: trust now records the hash of `.amauta/pipelines.json`,
+  and the portal runs a project's pipelines only while that file is the one you trusted (also after any change to it).
+- Schedules are your operating system's: `amauta pipeline schedule-hint <id>` prints the entries to register once.
+- Rollback: `amauta upgrade --to v0.6.0`.
+
 ## From 0.5.0 to 0.6.0
 
 ```bash

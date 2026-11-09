@@ -127,7 +127,7 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ### Phase 3, sibling projects
 
-- [ ] S1 Pipelines (ADR 0010, redesigned after the orchestrator review): S1a engine and `amauta pipeline
+- [x] S1 Pipelines (ADR 0010, redesigned after the orchestrator review): S1a engine and `amauta pipeline
   list|run|status` (`.amauta/pipelines.json`, steps command|python|r|notebook, JSON-lines events, secrets redacted);
   S1b portal Pipelines tab (start as a separate process, trusted projects only, step diagram, live console); S1c
   `schedule-hint` for Task Scheduler, cron and launchd, docs; S1d links and health for the remaining sibling project
@@ -349,11 +349,14 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-Phase 3: the phase 3 audit (docs/audits) and v0.7.0 (CHANGELOG, UPGRADING, package.json), then close S1.
+None: closed. The plan's three phases are done (v0.5.0, v0.6.0, v0.7.0 on the branch); a tag, a pull request and
+the merge are the user's decisions.
 - 2026-11-09: S1d done after the user's choice (a generic health card, no oga code in amauta): `portal.json`
   `siblings` [{name, path, mcp?, watch?, max_age_days?}], validated in `portal/siblings.py`, edited in Settings,
   shown on the Projects page from `GET /api/siblings` (last commit, uncommitted changes, MCP registered in Claude and
   Codex, age of a watched file; ✓ ▲ ✗). RED seen for the backend (module missing) and the UI (2 tests); four exact
   config expectations in test_portal_projects gained the `siblings` key. The pipelines work (S1a-c and two follow-up
   plans) is in odd/tasks/pipelines-dag.md and odd/tasks/pipelines-hardening.md.
+- 2026-11-09: phase 3 audit `docs/audits/2026-11-09-phase-3.md`; v0.7.0 on the branch (CHANGELOG, UPGRADING,
+  package.json; `python/amauta/__init__.py` had stayed at 0.4.0 and now says 0.7.0). S1 closed.
 
