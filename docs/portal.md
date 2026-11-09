@@ -121,6 +121,15 @@ heartbeat every 10 s and a launched server (`--idle-exit`, default 30 s) exits o
 `~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) with `Terminal=false`;
 on Windows it writes the Start menu shortcut `amauta.lnk` through PowerShell.
 
+### Guide (`#/guide[/page]`)
+
+Harness > Guide explains each part of amauta (overview, kernel, install and runtimes, ODD and review, the portal, data
+security, code security, the pipelines orchestrator, sibling projects, optional modules and extras), each page with
+what it is made of, how the parts relate, how you use it, scripts and commands, and how it works, with Mermaid
+diagrams. The pages are Markdown in `python/amauta/portal/guide/<lang>/<page>.md` (English and Spanish, English when
+a translation is missing), served read-only by `GET /api/guide` and `GET /api/guide/page?slug=&lang=` for known pages
+only. `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
+
 ### Sibling projects
 
 Projects that live beside amauta (a data catalog, an ETL repository) are listed in `portal.json` under `siblings`
@@ -140,8 +149,10 @@ missing. The portal reads the folder and those two files only; it never runs a s
 
 The server checks the `Host` header against DNS rebinding, serves a strict CSP (scripts from this origin only, no eval, nothing loaded from or
 sent to another origin; inline styles are allowed because Mermaid writes them into its SVG) and opens every database with `mode=ro` (never
-created, never migrated). Writes are limited to three guarded POST endpoints: Refresh usage (`/api/refresh`, the usage backfill),
-the heartbeat, and the settings editor above; each needs the per-process token and a same-origin check. Hook command text and MCP
+created, never migrated). Writes are limited to a closed set of guarded POST endpoints: Refresh usage (`/api/refresh`, the usage
+backfill), the heartbeat, the settings editor (preview, apply, undo), the projects config (`/api/projects/config`),
+graph sync and connect, harness refresh and explain, themes (save and delete) and pipelines (run and cancel); each
+needs the per-process token and a same-origin check. Hook command text and MCP
 `args`/`env` of other tools are never exposed. Cost estimates stay off unless `<state>/prices.json` exists
 (`{"models": {"<model>": {"input": N, "output": N, "cache_read": N, "cache_write": N}}}`, prices per million tokens; a missing key counts as 0, a non-numeric or negative value is reported under `invalid_prices` and that model is not costed).
 

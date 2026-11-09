@@ -57,7 +57,7 @@ commands.set('profile', {
 });
 
 commands.set('pipeline', {
-  summary: 'Run a project\'s pipelines from .amauta/pipelines.json: list, run ID, status, cancel ID (output streamed live)',
+  summary: 'Run a project\'s pipelines from .amauta/pipelines.json: list, check, run ID, status, cancel ID, schedule-hint ID',
   run: (args, io) => runPythonModule('amauta.extras.pipelines', args, io),
 });
 

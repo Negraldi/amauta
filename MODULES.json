@@ -36,7 +36,7 @@
     { "id": "archify", "layer": "optional", "paths": ["assets/skills/archify/"], "purpose": "diagram skill (--with-archify)", "vendored": true },
     { "id": "impeccable", "layer": "optional", "paths": ["assets/skills/impeccable/"], "purpose": "design skill (--with-impeccable)", "vendored": true },
 
-    { "id": "extras", "layer": "extra", "paths": ["python/amauta/extras/"], "purpose": "optional extras found by the extension registry (skill impact, wiki explanations, theme editor, graphify semantic pass)" },
+    { "id": "extras", "layer": "extra", "paths": ["python/amauta/extras/"], "purpose": "optional extras found by the extension registry (skill impact, wiki explanations, theme editor, graphify semantic pass, PBIR tools, pipelines)" },
 
     { "id": "scripts", "layer": "tooling", "paths": ["scripts/"], "purpose": "gentle-ai migration and the runtime probe" }
   ],
