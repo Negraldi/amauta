@@ -38,7 +38,7 @@ by structure tests (same pages in both languages, the five sections, at least on
 
 - [x] G1 Guide API and the Guide tab: `/api/guide` (the index, per language) and `/api/guide/page` (one page by known
   slug), `#/guide[/slug]` under Harness, Markdown with diagrams, links between pages.
-- [ ] G2 Content in English: ten pages, five sections each, diagrams; facts checked against the code and docs.
+- [x] G2 Content in English: ten pages, five sections each, diagrams; facts checked against the code and docs.
 - [ ] G3 Content in Spanish: the same ten pages.
 - [ ] G4 Docs (docs/portal.md), a look in a real browser, commit and push.
 
@@ -59,4 +59,10 @@ by structure tests (same pages in both languages, the five sections, at least on
 
 ## Next step
 
-G2: the English pages, written by a bounded writer against the code and docs; the content test (held back) must pass.
+G3: the Spanish pages by a bounded writer; then the content test and the doc fixes the writer found (G4).
+- 2026-11-09: G2 delegated (writer, read the docs, ADRs, MODULES.json and code; commands checked against --help): ten
+  English pages, 6,270 to 9,281 characters, two or three diagrams each, `check-guide.mjs en` ok for all. Route:
+  delegated, twenty files are more than one session's context should carry. The writer found five places where the
+  docs lag the code (portal POST list, `checks engine: planned` in architecture.md, the pipeline summary in cli.js,
+  modules.md and extras, and ADR 0006's `--without-checks`); the pages follow the code; G4 fixes the docs.
+
