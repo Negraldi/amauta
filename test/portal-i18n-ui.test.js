@@ -51,7 +51,8 @@ test('the page is complete in Spanish without a missing-key fallback on the home
   assert.match(view(env).textContent, /Actividad reciente/);
   assert.match(view(env).textContent, /Estado del harness/);
   assert.doesNotMatch(view(env).textContent, /\b(Recent activity|Harness health)\b/);
-  assert.match($(env, 'refresh').textContent, /Actualizar uso/);
+  assert.equal($(env, 'refresh').textContent, 'Actualizar');
+  assert.equal($(env, 'display-open').textContent, 'Vista');
   assert.match($(env, 'search-text').textContent, /Buscar en la wiki/);
 });
 
@@ -63,7 +64,7 @@ test('switching the language re-renders the current route and the static chrome 
   assert.equal(lang(env), 'es');
   assert.match(view(env).textContent, /Actividad reciente/);
   assert.match(nav(env).textContent, /Inicio/);
-  assert.equal($(env, 'refresh').textContent, 'Actualizar uso');
+  assert.equal($(env, 'refresh').textContent, 'Actualizar');
   assert.equal($(env, 'palette-input').attrs.placeholder.startsWith('Buscar'), true);
   assert.equal($(env, 'sidebar').attrs['aria-label'], 'Wiki');
   assert.equal($(env, 'prefs').attrs['aria-label'], 'Apariencia');

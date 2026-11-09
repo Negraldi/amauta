@@ -78,7 +78,7 @@
    "long": 11
   },
   "python/amauta/portal/static/app.js": {
-   "long": 26
+   "long": 25
   },
   "python/amauta/portal/static/boot.js": {
    "long": 3
@@ -121,10 +121,10 @@
    "long": 53
   },
   "python/amauta/portal/static/style.css": {
-   "long": 35
+   "long": 27
   },
   "python/amauta/portal/static/theme.js": {
-   "long": 15
+   "long": 13
   },
   "python/amauta/portal/static/wikiroute.js": {
    "long": 19

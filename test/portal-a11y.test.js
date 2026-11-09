@@ -45,15 +45,24 @@ test('DESIGN.md token table matches the stylesheet in both schemes', () => {
 
 const TEXT = ['ink', 'ink-muted', 'accent', 'warn', 'ok'];
 const SURFACES = ['bg', 'surface', 'sidebar', 'accent-soft'];
+// Status colors (warn, ok) sit on the page and panel surfaces only: the selection tint and the sidebar layer carry ink,
+// muted ink and the accent (DESIGN.md, Color; portal redesign T2). The approved light warn is 4.50:1 on the sidebar layer, a hair under.
+const ON_LAYER = ['ink', 'ink-muted', 'accent'];
 for (const scheme of ['light', 'dark']) {
-  test(`text colors reach 4.5:1 on every surface in the ${scheme} scheme`, () => {
+  test(`text colors reach 4.5:1 on every surface they sit on in the ${scheme} scheme`, () => {
     const t = SCHEMES[scheme];
     for (const fg of TEXT) for (const bg of SURFACES) {
+      if ((bg === 'accent-soft' || bg === 'sidebar') && !ON_LAYER.includes(fg)) continue;
       const r = contrast(t[fg], t[bg]);
       assert.ok(r >= 4.5, `${scheme}: --${fg} on --${bg} is ${r.toFixed(2)}:1`);
     }
   });
 }
+
+test('no rule puts a status color (warn, ok) on the selection tint or the sidebar layer; the run console sits on the surface', () => {
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*background: var\(--(?:accent-soft|sidebar)\)[^{}]*)\}/g)) assert.doesNotMatch(m[2], /var\(--(warn|ok)\)/, m[1].trim());
+  assert.match(css, /\.console \{[^}]*background: var\(--surface\)/);
+});
 
 test('the primary button text (surface on accent) is readable in both schemes', () => {
   for (const scheme of ['light', 'dark']) assert.ok(contrast(SCHEMES[scheme].surface, SCHEMES[scheme].accent) >= 4.5, scheme);

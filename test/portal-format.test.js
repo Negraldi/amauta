@@ -134,13 +134,6 @@ test('a wiki page shows grouped numbers and readable dates in its rail and secti
   assert.doesNotMatch(cls(dds.find((d) => /Plan commits/.test(d.textContent))), /\btok\b/, 'prose wraps at spaces');
 });
 
-test('recent changes show a local YYYY-MM-DD HH:MM stamp', async () => {
-  const env = await boot('#/skill/artifact-capabilities', { '/api/wiki/page': PAGE });
-  const recent = env.document.getElementById('recent').textContent;
-  assert.match(recent, /2026-10-02 10:05/);
-  assert.doesNotMatch(recent, /T10:05|\.000Z/);
-});
-
 test('tables format numbers with grouping and date columns as dates', async () => {
   const env = await boot('#/session', {
     '/api/sessions': { available: true, projects: [], sessions: [{ session_id: 'abcdef123456', project: 'p', first_ts: '2026-10-01T00:00:00Z', last_ts: '2026-10-02T09:30:00.123Z', messages: 12345, input: 1000000, output: 2, cache_read: 3, cache_write: 4, model: 'm' }] },

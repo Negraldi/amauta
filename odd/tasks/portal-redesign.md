@@ -14,7 +14,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 
 - [x] T0 Shape: inventory, IA proposal (archify sitemap), design brief confirmed by the user
 - [x] T1 Routing core: new hub map, breadcrumbs, legacy-hash redirects, filters scoped to Activity (tests first)
-- [ ] T2 Shell: grouped sidebar, top bar (breadcrumb, search, theme quick toggle, refresh), sidebar footer cleanup
+- [x] T2 Shell + identity tokens (moved from T8: DESIGN.md table, style.css, theme.js BASES change together): grouped sidebar, top bar (breadcrumb, search, theme quick toggle, refresh), sidebar footer cleanup
 - [ ] T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories)
 - [ ] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
 - [ ] T5 Activity: usage, sessions, one tools-and-skills table
@@ -56,13 +56,25 @@ Target after redesign: >= 32/40, no P1.
 
 - 2026-11-09 T0: worktree ~/amauta-portal-redesign on feat/portal-redesign from origin/main 304fc34. Inventory done
   (Explore mapper, delegated: 19 static files, 4k lines). Route: inline for planning, writers delegated per task.
-- 2026-11-09 T1 committed (delegated writer). Navigation model as data in wikiroute.js (R.NAV, hubOf, tabOf, crumbs,
+- 2026-11-09 T1 committed e65cf63 (verified by coordinator: portal node suites 331/331, LANG=C checks green, no .py touched; route: delegated writer) (delegated writer). Navigation model as data in wikiroute.js (R.NAV, hubOf, tabOf, crumbs,
   redirectOf, routeHash, usageSegment); app.js renders the grouped sidebar, breadcrumb, tabs and an error panel with
   Retry / Go to Today; old hashes rewritten with replaceState; ?seg= drives Tools and skills; palette closes on Esc and
   on route change; Memory no longer reads the hidden Project filter. RED seen first (test/portal-nav.test.js, 14/15
   failing), then GREEN: portal node suites 331/331, Python portal tests 492 OK (`-t .`), simplicity ratchet green.
 
+- 2026-11-09 T2 (route: delegated writer). "Andean ledger" tokens in DESIGN.md, style.css and theme.js BASES (pure
+  neutral surfaces, cochineal accent 22 for links/selection/focus, indigo/ochre/slate/violet data); titles, brand and
+  figures in the system mono (600, -0.02em, balance), Source Serif 4 only in .prose. Shell: sidebar = brand + groups
+  (sentence-case muted labels, current item tint + accent + 600, foot pinned under a hairline); recent list and pickers
+  removed from the sidebar; top bar = Menu, search, status, Refresh, Display ([popover] with theme, Edit themes,
+  language; bottom sheet on phones; closes on route change). Breadcrumb with CSS separators, underline tabs, one
+  button shape (a.button too), error panel with an amber triangle, 24px targets (`--hit`), toast on --z-toast.
+  Status colors kept off the selection tint and the sidebar layer (approved light warn is 4.50:1 on --sidebar; the run
+  console moved to --surface). RED first (test/portal-shell.test.js 11/11 failing), then GREEN: portal node 341/341,
+  Python portal 492 OK, npm test node 895/895 (Python: only the known date-dependent test_pipelines failure).
+
 ## Next step
 
-T2 Shell: style the grouped sidebar (.nav-group, .nav-title, .nav-foot), the breadcrumb (nav.crumbs, today an unstyled
-ol), tabs and the error panel (.error-panel, a.button); move search/refresh into a top bar.
+T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories), using the T2 tab and
+breadcrumb styles. Carry-overs: page section headings, rails, tables and data colors in the new identity are only
+token-level so far (T8 visual pass); the guide uses .prose for the serif (check in T6/T8).

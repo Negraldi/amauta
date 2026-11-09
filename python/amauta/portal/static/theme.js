@@ -8,12 +8,14 @@
   const TOKENS = ["bg", "surface", "sidebar", "ink", "ink-muted", "line", "accent", "accent-soft", "warn", "ok", "c-input", "c-output", "c-cache-read", "c-cache-write"];
   // The built-in schemes (same values as style.css; a test keeps them equal). Missing tokens of a custom theme fall back to its base.
   const BASES = {
-    light: { bg: "oklch(0.985 0.004 200)", surface: "oklch(1 0 0)", sidebar: "oklch(0.965 0.006 200)", ink: "oklch(0.23 0.012 200)", "ink-muted": "oklch(0.45 0.012 200)", line: "oklch(0.89 0.008 200)",
-      accent: "oklch(0.50 0.09 200)", "accent-soft": "oklch(0.95 0.025 200)", warn: "oklch(0.52 0.15 70)", ok: "oklch(0.50 0.12 150)",
-      "c-input": "oklch(0.55 0.13 255)", "c-output": "oklch(0.68 0.14 60)", "c-cache-read": "oklch(0.62 0.11 165)", "c-cache-write": "oklch(0.58 0.13 300)" },
-    dark: { bg: "oklch(0.19 0.008 200)", surface: "oklch(0.225 0.009 200)", sidebar: "oklch(0.165 0.008 200)", ink: "oklch(0.93 0.006 200)", "ink-muted": "oklch(0.74 0.01 200)", line: "oklch(0.32 0.01 200)",
-      accent: "oklch(0.78 0.09 200)", "accent-soft": "oklch(0.30 0.04 200)", warn: "oklch(0.80 0.13 75)", ok: "oklch(0.78 0.12 150)",
-      "c-input": "oklch(0.75 0.11 255)", "c-output": "oklch(0.80 0.12 60)", "c-cache-read": "oklch(0.80 0.10 165)", "c-cache-write": "oklch(0.76 0.10 300)" },
+    light: { bg: "oklch(1 0 0)", surface: "oklch(0.975 0 0)", sidebar: "oklch(0.965 0.003 22)", ink: "oklch(0.22 0.005 22)",
+      "ink-muted": "oklch(0.47 0.008 22)", line: "oklch(0.9 0.004 22)", accent: "oklch(0.50 0.155 22)", "accent-soft": "oklch(0.95 0.025 22)",
+      warn: "oklch(0.55 0.13 70)", ok: "oklch(0.50 0.11 150)", "c-input": "oklch(0.45 0.13 275)", "c-output": "oklch(0.62 0.13 60)",
+      "c-cache-read": "oklch(0.70 0.02 250)", "c-cache-write": "oklch(0.58 0.10 310)" },
+    dark: { bg: "oklch(0.13 0 0)", surface: "oklch(0.17 0 0)", sidebar: "oklch(0.11 0 0)", ink: "oklch(0.93 0.004 22)",
+      "ink-muted": "oklch(0.74 0.008 22)", line: "oklch(0.28 0.004 22)", accent: "oklch(0.74 0.12 22)", "accent-soft": "oklch(0.27 0.05 22)",
+      warn: "oklch(0.80 0.13 75)", ok: "oklch(0.78 0.12 150)", "c-input": "oklch(0.74 0.10 275)", "c-output": "oklch(0.80 0.12 60)",
+      "c-cache-read": "oklch(0.55 0.02 250)", "c-cache-write": "oklch(0.72 0.09 310)" },
   };
   const MAX_NAME = 60, MIN_CONTRAST = 4.5;
   const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;

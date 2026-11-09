@@ -23,16 +23,18 @@ $("nav-toggle").addEventListener("click", () => {
   $("shell").setAttribute("data-nav", open ? "open" : "closed");
   $("nav-toggle").setAttribute("aria-expanded", String(open));
 });
+// Refresh (top bar): imports new usage, then reloads the project list and the current route. Disabled while it runs.
 $("refresh").addEventListener("click", async () => {
   $("status").textContent = t("refresh.running");
+  $("refresh").setAttribute("disabled", "");
   try {
     const r = await fetch("/api/refresh", { method: "POST", headers: { "X-Portal-Token": token } });
     const b = await r.json();
     $("status").textContent = r.ok ? t("refresh.done", { messages: fmt(b.messages), files: fmt(b.files) }) : t("refresh.failed", { reason: ts(b.error) });
     await loadProjects();
-    loadRecent();
     render();
   } catch (err) { $("status").textContent = t("refresh.failed", { reason: err.message }); }
+  finally { $("refresh").removeAttribute("disabled"); }
 });
 for (const id of ["days", "project", "runtime"]) $(id).addEventListener("change", render);
 $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
@@ -43,7 +45,9 @@ function readRoute() {
   if (to && globalThis.history && history.replaceState) history.replaceState(null, "", to);
   state.route = R.parseHash(to || location.hash);
 }
-window.addEventListener("hashchange", () => { closePalette(); readRoute(); render(); });
+// A route change closes the search palette and the Display popover (its Edit themes link navigates).
+function closeDisplay() { const p = $("prefs"); if (typeof p.hidePopover === "function" && p.matches(":popover-open")) p.hidePopover(); }
+window.addEventListener("hashchange", () => { closePalette(); closeDisplay(); readRoute(); render(); });
 readRoute();
 // The dictionaries load first (plan N11b); a failed load still starts the page, in English keys at worst.
 I.load(fetch).catch(() => {}).then(() => {
@@ -51,7 +55,6 @@ I.load(fetch).catch(() => {}).then(() => {
   applyTheme();
   paintPicker();
   if (state.route.kind !== "themes") loadThemes(); // the editor page loads them itself
-  loadRecent();
   loadProjects().then(render);
 });
 // Liveness signal: lets a launcher-started server exit once the window is gone. Failures are silent on purpose.

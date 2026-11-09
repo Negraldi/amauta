@@ -39,12 +39,11 @@ test('CSS: a .date token never wraps', () => {
   assert.match(rule('.date'), /white-space:\s*nowrap/);
 });
 
-test('the sidebar, rail and table cells put every date and date-time in one nowrap .date span', async () => {
+test('the rail and table cells put every date and date-time in one nowrap .date span', async () => {
   const env = await boot('#/skill/x', {
     '/api/sessions': { available: true, projects: [], sessions: [{ session_id: 'abcdef123456', project: 'p', first_ts: '2026-10-01T00:00:00Z', last_ts: '2026-10-02T09:30:00.123Z', messages: 1, input: 1, output: 2, cache_read: 3, cache_write: 4, model: 'm' }] },
   });
   const dates = (id) => tree(env.document.getElementById(id)).filter((e) => has(e, 'date')).map((e) => e.textContent);
-  assert.deepEqual(dates('recent'), ['2026-10-02 10:05']);
   assert.deepEqual(dates('view'), ['2026-09-20 01:44']);
   env.location.hash = '#/session';
   env.listeners.hashchange();
@@ -53,10 +52,12 @@ test('the sidebar, rail and table cells put every date and date-time in one nowr
 });
 
 test('a date inside a sentence is wrapped too, and the sentence text is unchanged', async () => {
-  const env = await boot('#/skill/x');
-  const recent = env.document.getElementById('recent');
-  assert.match(recent.textContent, /memory saved, 2026-10-02 10:05/);
-  const spans = tree(recent).filter((e) => has(e, 'date'));
+  const env = makeEnv({ '/api/sessions': { available: false }, '/api/themes': { themes: [], tokens: [], max: 50 }, '/api/wiki/page': PAGE });
+  env.location.hash = '#/skill/x';
+  const ctx = await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  const line = ctx.h('li', null, 'memory saved, 2026-10-02 10:05'); // every text built with h() goes through the same splitter
+  assert.match(line.textContent, /memory saved, 2026-10-02 10:05/);
+  const spans = tree(line).filter((e) => has(e, 'date'));
   assert.equal(spans.length, 1);
   assert.equal(spans[0].textContent, '2026-10-02 10:05', 'only the date itself is in the span');
 });

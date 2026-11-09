@@ -188,7 +188,7 @@ test('a page that belongs to a group shows the group tabs and the sidebar marks 
   assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav' && e.className === 'tabs')), ['#/memory', '#/memfile', '#/lint']);
 });
 
-test('the sidebar lists the job-based pages, marks the current one and shows recent changes as links (portal redesign T1)', async () => {
+test('the sidebar lists the job-based pages and marks the current one; it has no recent list (portal redesign T1, T2)', async () => {
   const { env } = await boot('#/memory');
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
@@ -197,24 +197,7 @@ test('the sidebar lists the job-based pages, marks the current one and shows rec
     ['#/', '#/project', '#/pipelines', '#/memory', '#/node', '#/usage', '#/harness', '#/component', '#/security', '#/guide', '#/settings']);
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
   assert.equal(byHref['#/'].getAttribute('aria-current'), undefined);
-  const recent = env.document.getElementById('recent');
-  assert.ok(hrefs(recent).includes('#/memory/7'));
-  assert.ok(hrefs(recent).includes('#/session/s1'));
-  assert.match(recent.textContent, /memory saved/);
-  assert.equal(tree(recent).filter((e) => e.tagName === 'img').length, 0);
-});
-
-test('recent changes degrade to a teaching message, never to an error or an unhandled rejection', async () => {
-  const seen = [];
-  const on = (r) => seen.push(r);
-  process.on('unhandledRejection', on);
-  try {
-    let { env } = await boot('#/settings', { '/api/wiki/recent': undefined });
-    assert.match(env.document.getElementById('recent').textContent, /unavailable/);
-    ({ env } = await boot('#/settings', { '/api/wiki/recent': { items: [] } }));
-    assert.match(env.document.getElementById('recent').textContent, /appear here/);
-  } finally { process.off('unhandledRejection', on); }
-  assert.deepEqual(seen, []);
+  assert.ok(!env.calls.some((c) => String(c.url).includes('/api/wiki/recent')), 'Home has the activity feed; the sidebar does not repeat it');
 });
 
 test('Ctrl+K and / open the search palette; / is ignored while typing in a field', async () => {

@@ -12,7 +12,6 @@
  "chrome.language": "Language",
  "chrome.loading": "Loading...",
  "chrome.menu": "Menu",
- "chrome.recent": "Recent changes",
  "chrome.search": "Search the wiki",
  "chrome.skip": "Skip to content",
  "chrome.theme": "Theme",
@@ -86,7 +85,6 @@
  "filters.d90": "90 days",
  "filters.project": "Project",
  "filters.range": "Range",
- "filters.refresh": "Refresh usage",
  "filters.runtime": "Runtime",
  "filters.allRuntimes": "All",
  "filters.claude": "Claude Code",
@@ -301,8 +299,6 @@
  "project.progressOf": "Task progress of {name}",
  "project.summary": "{sessions} sessions, {memories} memories, {graph}",
  "project.taskProgress": "Task progress",
- "recent.empty": "Saved memories, sessions and ODD document edits appear here.",
- "recent.unavailable": "Recent changes are unavailable.",
  "refresh.done": "Done. New messages: {messages}. Files read: {files}.",
  "refresh.failed": "Failed: {reason}",
  "refresh.running": "Refreshing...",
@@ -672,5 +668,7 @@
  "error.lead": "This page could not load.",
  "error.route": "Route: {route}.",
  "error.retry": "Retry",
- "error.home": "Go to Today"
+ "error.home": "Go to Today",
+ "chrome.display": "Display",
+ "chrome.refresh": "Refresh"
 }

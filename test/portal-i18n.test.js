@@ -308,11 +308,12 @@ test('copy pass (plan N12g): no "(s)" plurals, no jargon, counts through tn()', 
   }
 });
 
-test('the top bar holds only the menu toggle and search; filters sit in a page bar, theme and language in the sidebar (plan N12c)', () => {
+test('the top bar holds menu, search, Refresh and the Display popover (theme and language); filters sit in a page bar (T2)', () => {
   const topbar = /<header class="topbar">([\s\S]*?)<\/header>/.exec(html)[1];
-  assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]), ['nav-toggle', 'search-open', 'search-text']);
+  assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]),
+    ['nav-toggle', 'search-open', 'search-text', 'status', 'refresh', 'display-open', 'prefs', 'theme-label', 'theme-picker', 'theme-edit', 'lang-label', 'lang-picker']);
   const sidebar = /<nav class="sidebar"[\s\S]*?<\/nav>/.exec(html)[0];
-  for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.match(sidebar, new RegExp(`id="${id}"`), id);
+  for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.doesNotMatch(sidebar, new RegExp(`id="${id}"`), id);
   assert.match(html, /<\/header>\s*<div class="page-bar" id="filters"/);
 });
 

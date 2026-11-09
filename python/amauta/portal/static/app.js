@@ -265,16 +265,6 @@ async function render() {
   }
 }
 
-async function loadRecent() {
-  const box = $("recent");
-  try {
-    const r = await api("wiki/recent", { limit: 12 });
-    box.replaceChildren(r.items.length
-      ? h("ul", { class: "refs" }, r.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.what)}, ${R.fmtDateTime(i.ts)}`))))
-      : h("p", { class: "muted" }, t("recent.empty")));
-  } catch (_) { box.replaceChildren(h("p", { class: "muted" }, t("recent.unavailable"))); }
-}
-
 function paintProjectSelect() {
   const cur = $("project").value;
   $("project").replaceChildren(h("option", { value: "" }, t("filters.allProjects")), ...state.projectNames.map((name) => h("option", { value: name }, name)));
@@ -289,10 +279,10 @@ async function loadProjects() {
 }
 
 // ---- language: the static text of index.html is filled from the dictionary by id; everything else is built with t() when a route renders ----
-const STATIC_TEXT = [["skip", "chrome.skip"], ["recent-title", "chrome.recent"], ["recent-loading", "chrome.loading"], ["view-loading", "chrome.loading"], ["nav-toggle", "chrome.menu"], ["search-text", "chrome.search"],
+const STATIC_TEXT = [["skip", "chrome.skip"], ["view-loading", "chrome.loading"], ["display-open", "chrome.display"], ["nav-toggle", "chrome.menu"], ["search-text", "chrome.search"],
   ["range-label", "filters.range"], ["opt-7", "filters.d7"], ["opt-30", "filters.d30"], ["opt-90", "filters.d90"], ["opt-365", "filters.d365"], ["opt-3650", "filters.d3650"], ["opt-all-projects", "filters.allProjects"], ["project-label", "filters.project"],
   ["runtime-label", "filters.runtime"], ["opt-all-runtimes", "filters.allRuntimes"], ["opt-claude", "filters.claude"], ["opt-codex", "filters.codex"],
-  ["refresh", "filters.refresh"], ["theme-label", "chrome.theme"], ["theme-edit", "chrome.editThemes"], ["lang-label", "chrome.language"], ["palette-hint", "palette.hint"]];
+  ["refresh", "chrome.refresh"], ["theme-label", "chrome.theme"], ["theme-edit", "chrome.editThemes"], ["lang-label", "chrome.language"], ["palette-hint", "palette.hint"]];
 const STATIC_ATTR = [["sidebar", "aria-label", "chrome.wiki"], ["filters", "aria-label", "chrome.filters"], ["prefs", "aria-label", "chrome.appearance"], ["palette", "aria-label", "chrome.search"],
   ["palette-input", "placeholder", "palette.placeholder"], ["palette-input", "aria-label", "palette.label"], ["palette-results", "aria-label", "palette.results"]];
 function applyStatic() {

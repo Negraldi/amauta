@@ -12,7 +12,6 @@
  "chrome.language": "Idioma",
  "chrome.loading": "Cargando...",
  "chrome.menu": "Menú",
- "chrome.recent": "Cambios recientes",
  "chrome.search": "Buscar en la wiki",
  "chrome.skip": "Saltar al contenido",
  "chrome.theme": "Tema",
@@ -86,7 +85,6 @@
  "filters.d90": "90 días",
  "filters.project": "Proyecto",
  "filters.range": "Intervalo",
- "filters.refresh": "Actualizar uso",
  "filters.runtime": "Entorno",
  "filters.allRuntimes": "Todos",
  "filters.claude": "Claude Code",
@@ -301,8 +299,6 @@
  "project.progressOf": "Avance de tareas de {name}",
  "project.summary": "{sessions} sesiones, {memories} memorias, {graph}",
  "project.taskProgress": "Avance de tareas",
- "recent.empty": "Las memorias guardadas, las sesiones y las ediciones de documentos ODD aparecen aquí.",
- "recent.unavailable": "Los cambios recientes no están disponibles.",
  "refresh.done": "Listo. Mensajes nuevos: {messages}. Archivos leídos: {files}.",
  "refresh.failed": "Falló: {reason}",
  "refresh.running": "Actualizando...",
@@ -672,5 +668,7 @@
  "error.lead": "No se pudo cargar esta página.",
  "error.route": "Ruta: {route}.",
  "error.retry": "Reintentar",
- "error.home": "Ir a Hoy"
+ "error.home": "Ir a Hoy",
+ "chrome.display": "Vista",
+ "chrome.refresh": "Actualizar"
 }
