@@ -19,9 +19,9 @@ test('hashes carry an optional source: formatHash/parseHash round-trip and plain
   assert.equal(R.formatHash('memory', '7', { source: 'engram' }), '#/memory/7?source=engram');
   assert.equal(R.formatHash('memory', '7', { source: 'own' }), '#/memory/7', 'own is the default and stays implicit');
   assert.equal(R.formatHash('memory', '7'), '#/memory/7');
-  assert.deepEqual(plain(R.parseHash('#/memory/7?source=engram')), { kind: 'memory', id: '7', source: 'engram' });
+  assert.deepEqual(plain(R.parseHash('#/memory/7?source=engram')), { kind: 'memory', id: '7', source: 'engram', query: { source: 'engram' } });
   assert.deepEqual(plain(R.parseHash('#/memory/7')), { kind: 'memory', id: '7' });
-  assert.deepEqual(plain(R.parseHash('#/memory/a%3Fb%2Fc?source=engram')), { kind: 'memory', id: 'a?b/c', source: 'engram' });
+  assert.deepEqual(plain(R.parseHash('#/memory/a%3Fb%2Fc?source=engram')), { kind: 'memory', id: 'a?b/c', source: 'engram', query: { source: 'engram' } });
   assert.deepEqual(plain(R.parseHash('#/memory/7?source=evil')), { kind: 'memory', id: '7' }, 'only known sources are accepted');
   assert.deepEqual(plain(R.parseHash(R.formatHash('memfile', '-work-alpha/memory/note.md'))), { kind: 'memfile', id: '-work-alpha/memory/note.md' });
   assert.ok(R.KINDS.memfile);

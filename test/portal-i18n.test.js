@@ -14,6 +14,7 @@ const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;
 const app = await readApp();
+const route = await read('wikiroute.js'); // the navigation model (R.NAV) carries the sidebar, tab and breadcrumb label keys
 const html = await read('index.html');
 const plain = (x) => JSON.parse(JSON.stringify(x));
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -64,7 +65,7 @@ test('the server-text catalog has a Spanish text with the same placeholders for 
 // ---- the keys app.js uses exist, and none is dead ---------------------------------------------------------------------
 const DYNAMIC = /^(kind|hint|status|delta|themeErr|advice|origin|palette\.group|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
 test('every key that app.js uses exists in en; every en key is used', () => {
-  const literals = [...app.matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
+  const literals = [...(app + route).matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
   const used = new Set(literals);
   for (const k of used) assert.ok(k in EN || k + '.other' in EN, `app.js uses ${k}, which is not in en`);
   for (const k of Object.keys(EN)) {
@@ -258,8 +259,9 @@ test('app.js has no user-visible text outside t(), tn() and ts()', () => {
 });
 
 test('navigation labels and page headings are keys, not literals', () => {
-  assert.match(app, /const SECTIONS = \[\["home", "#\/home", "nav\.home"\]/);
-  for (const k of ['nav.home', 'nav.activity', 'nav.tabs', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings']) assert.match(app, new RegExp(`"${k.replace('.', '\\.')}"`), k);
+  assert.match(route, /\{ id: "today", key: "nav\.group\.today", items: \[\{ hub: "home", kind: "home", hash: "#\/", key: "nav\.home" \}\] \}/);
+  assert.match(app, /R\.NAV\.map\(group\)/, 'the sidebar is built from the model');
+  for (const k of ['nav.home', 'nav.activity', 'nav.tabs', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings', 'nav.breadcrumb', 'nav.group.harnessWiki']) assert.match(app + route, new RegExp(`"${k.replaceAll('.', '\\.')}"`), k);
   for (const heading of [/h\("h1", null, "/, /h\("h2", null, "/, /h\("h3", null, "/, /panel\("/, /teach\("/]) assert.doesNotMatch(app, heading, String(heading));
 });
 

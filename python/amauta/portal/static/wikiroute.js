@@ -8,57 +8,130 @@
     security: "Security", pipelines: "Pipelines", guide: "Guide",
     hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
-  // Hashes of the previous tabbed portal keep working.
-  const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" }; // the Diagrams page was folded into Harness
-
-  // The six-page map (ADR 0005, plan N12d): each sidebar page groups the list routes shown as its tabs; item kinds
-  // without a tab belong to the page that lists them. Routes keep their own hashes (a memory topic key may be "lint").
-  const HUBS = {
-    home: ["home"], project: ["project", "feature", "node", "pipelines"],
-    memory: ["memory", "lint"], activity: ["usage", "session", "tool", "mcp"],
-    harness: ["harness", "skill", "component", "guide"], security: ["security"],
-    settings: ["settings", "themes"],
+  // ---- navigation model (portal redesign T1) ----------------------------------------------------------------------
+  // The sidebar is DATA: job groups in order, each item a hub page with its hash, label key and (optionally) the list
+  // routes shown as its tabs. The "foot" group renders apart at the bottom of the sidebar and has no breadcrumb group.
+  const tab = (kind, key) => ({ kind, key });
+  const NAV = [
+    { id: "today", key: "nav.group.today", items: [{ hub: "home", kind: "home", hash: "#/", key: "nav.home" }] },
+    { id: "work", key: "nav.group.work", items: [{ hub: "project", kind: "project", hash: "#/project", key: "nav.project" },
+      { hub: "pipelines", kind: "pipelines", hash: "#/pipelines", key: "nav.pipelines" }] },
+    { id: "knowledge", key: "nav.group.knowledge", items: [{ hub: "memory", kind: "memory", hash: "#/memory", key: "nav.memory",
+      tabs: [tab("memory", "nav.memory"), tab("memfile", "nav.memfile"), tab("lint", "nav.lint")] },
+    { hub: "graph", kind: "node", hash: "#/node", key: "nav.node" }] },
+    { id: "activity", key: "nav.activity", items: [{ hub: "usage", kind: "usage", hash: "#/usage", key: "nav.usage",
+      tabs: [tab("usage", "nav.usage"), tab("session", "nav.session"), tab("tool", "nav.toolsSkills")] }] },
+    { id: "harnessWiki", key: "nav.group.harnessWiki", items: [
+      { hub: "harness", kind: "harness", hash: "#/harness", key: "nav.harnessOverview" },
+      { hub: "component", kind: "component", hash: "#/component", key: "nav.catalog" },
+      { hub: "security", kind: "security", hash: "#/security", key: "nav.security" }] },
+    { id: "foot", key: "nav.group.foot", foot: true, items: [{ hub: "guide", kind: "guide", hash: "#/guide", key: "nav.guide" },
+      { hub: "settings", kind: "settings", hash: "#/settings", key: "nav.settings",
+        tabs: [tab("settings", "nav.settings"), tab("themes", "nav.themes")] }] },
+  ];
+  // An item kind -> the list route that shows it (a hub's own kind or one of its tabs), with the query that list needs.
+  const CATALOG = ["hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"];
+  const LIST_OF = { feature: { kind: "project" }, mcp: { kind: "tool", query: { seg: "mcp" } },
+    skill: { kind: "component", query: { kind: "skill" } },
+    ...Object.fromEntries(CATALOG.map((k) => [k, { kind: "component" }])) };
+  const listOf = (kind) => LIST_OF[kind] || { kind };
+  const NAV_ITEMS = NAV.flatMap((g) => g.items.map((item) => ({ ...item, group: g })));
+  const itemOf = (kind) => {
+    const list = listOf(kind).kind;
+    return NAV_ITEMS.find((i) => i.kind === list || (i.tabs || []).some((t) => t.kind === list)) || null;
   };
-  const ITEM_HUB = { memfile: "memory", mcptool: "activity", hook: "harness", connector: "harness", agent: "harness", command: "harness",
-    plugin: "harness", outputstyle: "harness" };
-  const ACTIVITY_TABS = { usage: "usage", sessions: "session", tools: "tool", mcp: "mcp" };
-  function hubOf(kind) {
-    return Object.keys(HUBS).find((hub) => HUBS[hub].includes(kind)) || ITEM_HUB[kind] || "home";
+  const kindOf = (r) => (typeof r === "string" ? r : (r && r.kind) || "");
+  function hubOf(route) { const item = itemOf(kindOf(route)); return item ? item.hub : "home"; }
+  // The tab of a hub with tabs that a route (list or item) belongs to, or null.
+  function tabOf(route) {
+    const item = itemOf(kindOf(route)), list = listOf(kindOf(route)).kind;
+    return item && (item.tabs || []).some((t) => t.kind === list) ? list : null;
   }
+
+  // The trail from the group to the page: [{key | text, hash?}]. List pages stop at their hub; item pages go through the
+  // list that shows them (a tab when the hub has one), then the item itself (an ODD feature also links its project).
+  function crumbs(route) {
+    const r = route || {}, item = itemOf(r.kind);
+    if (!item || r.kind === "unknown") return [];
+    const out = item.group.foot ? [] : [{ key: item.group.key }];
+    if (!r.id) return [...out, { key: item.key, hash: item.hash }];
+    const list = listOf(r.kind), tabbed = (item.tabs || []).find((t) => t.kind === list.kind);
+    const listHash = list.kind === item.kind && !list.query ? item.hash : routeHash({ kind: list.kind, id: "", query: list.query });
+    out.push({ key: tabbed ? tabbed.key : item.key, hash: listHash });
+    const cut = r.kind === "feature" ? r.id.lastIndexOf("/") : -1;
+    if (cut > 0) out.push({ text: r.id.slice(0, cut), hash: formatHash("project", r.id.slice(0, cut)) }, { text: r.id.slice(cut + 1) });
+    else out.push({ text: r.id });
+    return out;
+  }
+
+  // ---- hashes ---------------------------------------------------------------------------------------------------
+  // Old hashes keep working: they parse to their new route and redirectOf() names the hash to rewrite them to.
+  const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" };
+  const ACTIVITY_TABS = { usage: { kind: "usage" }, sessions: { kind: "session" }, tools: { kind: "tool" }, mcp: LIST_OF.mcp };
+  const MOVED_LISTS = { diagrams: { kind: "harness" }, mcp: LIST_OF.mcp, skill: LIST_OF.skill }; // list routes folded into another page
+  // The Tools and skills segments: hash value -> /api/tools field.
+  const SEGMENTS = { skills: "skills", tools: "tools", mcp: "mcp_servers", mcptools: "mcp_tools", subagents: "subagents" };
+  const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const QUERY = { seg: (v) => own(SEGMENTS, v), kind: (v) => v === "skill", source: (v) => SOURCES.includes(v) };
 
   function decode(part) {
     try { return decodeURIComponent(part); } catch (_) { return part; }
   }
-
-  // "#/memory/arch%2Fwidgets" -> {kind: "memory", id: "arch/widgets"}; "" -> home; unknown kinds -> {kind: "unknown", id: <raw>}.
-  const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
-  function parseHash(hash) {
-    const full = String(hash || "").replace(/^#/, "");
-    const qi = full.indexOf("?");
-    const raw = qi < 0 || !full.startsWith("/") ? full : full.slice(0, qi);
-    const query = qi < 0 || !full.startsWith("/") ? "" : full.slice(qi + 1);
-    if (raw === "" || raw === "/") return { kind: "home", id: "" };
-    if (!raw.startsWith("/")) return LEGACY[raw] ? { kind: LEGACY[raw], id: "" } : { kind: "unknown", id: raw };
-    const [first, ...rest] = raw.slice(1).split("/");
-    if (first === "activity") {
-      const tab = rest.length === 0 ? "usage" : rest.length === 1 ? ACTIVITY_TABS[rest[0]] : undefined;
-      return tab ? { kind: tab, id: "" } : { kind: "unknown", id: raw };
+  function readQuery(text) {
+    const out = {};
+    for (const pair of String(text || "").split("&")) {
+      const [k, v = ""] = pair.split("=");
+      if (own(QUERY, k) && QUERY[k](decode(v))) out[k] = decode(v);
     }
-    const kind = first === "diagrams" ? "harness" : first;
-    if (first === "diagrams") return { kind, id: "" };
-    if (!Object.prototype.hasOwnProperty.call(KINDS, kind)) return { kind: "unknown", id: raw };
-    const out = { kind, id: rest.length ? decode(rest.join("/")) : "" };
-    const source = (/(?:^|&)source=([^&]*)/.exec(query) || [])[1];
-    if (out.id && source && SOURCES.includes(source)) out.source = source;
     return out;
   }
+  const withQuery = (route, query) => (Object.keys(query).length ? { ...route, query } : route);
+  const moved = (target, extra) => ({ route: withQuery({ kind: target.kind, id: "" }, { ...target.query, ...extra }), moved: true });
+
+  // -> {route, moved}: `moved` marks a hash that only survives as a redirect.
+  function resolve(hash) {
+    const full = String(hash || "").replace(/^#/, "");
+    const qi = full.startsWith("/") ? full.indexOf("?") : -1;
+    const raw = qi < 0 ? full : full.slice(0, qi);
+    const query = readQuery(qi < 0 ? "" : full.slice(qi + 1));
+    if (raw === "" || raw === "/") return { route: withQuery({ kind: "home", id: "" }, query), moved: false };
+    if (!raw.startsWith("/")) return LEGACY[raw] ? moved({ kind: LEGACY[raw] }) : { route: { kind: "unknown", id: raw }, moved: false };
+    const [first, ...rest] = raw.slice(1).split("/");
+    if (first === "activity") {
+      const name = rest.length === 0 ? "usage" : rest.length === 1 ? rest[0] : "";
+      const target = own(ACTIVITY_TABS, name) ? ACTIVITY_TABS[name] : null;
+      return target ? moved(target) : { route: { kind: "unknown", id: raw }, moved: false };
+    }
+    if ((rest.length === 0 || first === "diagrams") && own(MOVED_LISTS, first)) return moved(MOVED_LISTS[first], query);
+    if (!own(KINDS, first)) return { route: { kind: "unknown", id: raw }, moved: false };
+    const out = { kind: first, id: rest.length ? decode(rest.join("/")) : "" };
+    if (out.id && query.source) out.source = query.source;
+    return { route: withQuery(out, query), moved: false };
+  }
+  // "#/memory/arch%2Fwidgets" -> {kind: "memory", id: "arch/widgets"}; "" -> home; unknown kinds -> {kind: "unknown", id: <raw>}.
+  // Known query params (?seg=, ?kind=, ?source=) ride along as route.query; anything else is dropped.
+  function parseHash(hash) { return resolve(hash).route; }
+  // The hash an old one should be rewritten to (history.replaceState), or null when the hash is current.
+  function redirectOf(hash) { const r = resolve(hash); return r.moved ? routeHash(r.route) : null; }
 
   // The inverse of parseHash: ids are fully percent-encoded so slashes, '#', '?' and '::' survive a round trip. A non-default source rides after '?'.
   function formatHash(kind, id, opts) {
     const base = id ? `#/${kind}/${encodeURIComponent(id)}` : `#/${kind}`;
     return id && opts && SOURCES.includes(opts.source) ? `${base}?source=${opts.source}` : base;
   }
-
+  // A whole route (kind, id, query) as its canonical hash; Home is "#/".
+  function routeHash(route) {
+    const r = route || {};
+    const q = { ...(r.query || {}) };
+    if (r.source) q.source = r.source;
+    const pairs = Object.keys(QUERY).filter((k) => q[k] && QUERY[k](q[k])).map((k) => `${k}=${encodeURIComponent(q[k])}`);
+    const base = r.kind === "home" && !r.id ? "#/" : `#/${r.kind}${r.id ? "/" + encodeURIComponent(r.id) : ""}`;
+    return pairs.length ? `${base}?${pairs.join("&")}` : base;
+  }
+  // The /api/tools field the Tools and skills page shows, from ?seg= (Tools when absent), and the hash of each segment.
+  function usageSegment(route) { const seg = route && route.query && route.query.seg; return SEGMENTS[seg] || "tools"; }
+  function segmentHash(seg) { return routeHash({ kind: "tool", id: "", query: { seg } }); }
 
   // ---- number and date formatting (one place, used by every page) ----------------------------------------------
   // Numbers group thousands through Intl (the locale follows the UI language). Dates are ALWAYS YYYY-MM-DD; date-times are
@@ -208,11 +281,10 @@
     });
   }
 
-  // The Range and Project filters belong to the usage views: Usage itself and the list routes that read them (never a single page).
-  const FILTERED_LISTS = ["session", "tool", "mcp"];
+  // The Range, Project and Runtime filters belong to the Activity list routes (Usage, Sessions, Tools and skills), never an item.
   function showsFilters(route) {
     const r = route || {};
-    return r.kind === "usage" || (FILTERED_LISTS.includes(r.kind) && !r.id);
+    return !r.id && r.kind !== "unknown" && hubOf(r.kind) === "usage";
   }
 
   // Skill impact: direction is always shown as a shape plus words (lower is better for every metric), never by color alone.
@@ -270,7 +342,8 @@
   }
 
   globalThis.AmautaRoute = {
-    HUBS, hubOf, filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso,
+    NAV, SEGMENTS, hubOf, tabOf, crumbs, redirectOf, routeHash, usageSegment, segmentHash,
+    filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso,
     fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice,
     KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta,
     NODE_CAP: 30

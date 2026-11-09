@@ -7,13 +7,7 @@ const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
 const R = globalThis.AmautaRoute, MD = globalThis.AmautaMarkdown, TH = globalThis.AmautaTheme, I = globalThis.AmautaI18n; // i18n.js, theme.js, markdown.js and wikiroute.js load first (see index.html)
 const { t, tn, ts } = I; // t(key, params): portal chrome; tn(key, n, params): plural; ts(text): English text sent by the server (see i18n.js)
-// The sidebar: six pages (ADR 0005); each links to its hub route, and the page's other routes show as tabs.
-const SECTIONS = [["home", "#/home", "nav.home"], ["project", "#/project", "nav.project"], ["memory", "#/memory", "nav.memory"],
-  ["activity", "#/activity", "nav.activity"], ["harness", "#/harness", "nav.harnessPage"], ["security", "#/security", "nav.security"],
-  ["settings", "#/settings", "nav.settings"]];
-const TAB_LABELS = { usage: "nav.usage", session: "nav.session", tool: "nav.tool", mcp: "nav.mcp", project: "nav.project",
-  feature: "nav.feature", node: "nav.node", memory: "nav.memory", lint: "nav.lint", harness: "nav.harnessPage", skill: "nav.skill",
-  component: "nav.component", settings: "nav.settings", themes: "nav.themes", pipelines: "nav.pipelines", guide: "nav.guide" };
+// The sidebar, the tabs and the breadcrumb are built from the navigation model in wikiroute.js (R.NAV, R.crumbs).
 const KINDS = [["input", "tok.input"], ["output", "tok.output"], ["cache_read", "tok.cache_read"], ["cache_write", "tok.cache_write"]];
 const kindLabel = (kind) => (Object.prototype.hasOwnProperty.call(R.KINDS, kind) ? t(`kind.${kind}`) : kind);
 
@@ -114,7 +108,8 @@ function diagramBox(source, caption) {
   return box;
 }
 
-const state = { route: { kind: "home", id: "" }, shown: null, usageKind: "skills", memSource: "own", sort: {}, projectNames: [], themes: [], themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
+const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", sort: {}, projectNames: [], themes: [],
+  themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
 const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value, runtime: $("runtime").value });
 const runtimeName = (v) => (v === "codex" ? t("filters.codex") : t("filters.claude")); // anything that is not Codex was written by Claude Code
@@ -182,13 +177,15 @@ function modelBars(models) {
   ], models.map((m) => ({ ...m, share: KINDS.reduce((s, [k]) => s + (m[k] || 0), 0) / total })));
 }
 
-async function renderRoute(route, changed) {
+const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage,
+  component: (r) => (r.query && r.query.kind === "skill" ? viewSkillCatalog(r) : viewComponents(r)), session: viewSessions,
+  memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings,
+  lint: viewLint, themes: viewThemes, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide });
+async function renderRoute(route) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach(t("route.notPage"), t("route.noMatch", { id }))];
   if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
-  if (changed && ["skill", "tool", "mcp"].includes(kind)) state.usageKind = { skill: "skills", tool: "tools", mcp: "mcp_servers" }[kind];
-  const views = { home: viewHome, project: viewProjects, usage: viewUsagePage, skill: viewSkillCatalog, component: viewComponents, tool: viewUsage, mcp: viewUsage, session: viewSessions, memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings, lint: viewLint, themes: viewThemes, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide };
-  const out = await views[kind](route); // a view that needs the item (the guide's page) reads it from the route
+  const out = await VIEWS()[kind](route); // a view that needs the item (the guide's page) or its ?seg= reads it from the route
   const tabs = tabBar(route);
   const page = out.some(hasTitle) ? out : [pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)), ...out];
   return tabs ? [tabs, ...page] : page;
@@ -201,17 +198,43 @@ function pageHead(title, intro) {
   return h("header", { class: "page-head" }, h("h1", null, title), intro ? h("p", { class: "lead" }, intro) : null);
 }
 
+// The sidebar: one block per job group (R.NAV) with its label; the foot group (Guide, Settings) sits apart at the bottom.
 function renderNav(route) {
   const hub = R.hubOf(route.kind);
-  const item = ([k, href, label]) => h("li", null, h("a", { href, "aria-current": k === hub ? "page" : false }, t(label)));
-  $("nav").replaceChildren(h("ul", null, SECTIONS.map(item)));
+  const item = (i) => h("li", null, h("a", { href: i.hash, "aria-current": i.hub === hub ? "page" : false }, t(i.key)));
+  const group = (g) => (g.foot
+    ? h("div", { class: "nav-group nav-foot", role: "group", "aria-label": t(g.key) }, h("ul", null, g.items.map(item)))
+    : h("div", { class: "nav-group", role: "group", "aria-labelledby": `nav-g-${g.id}` },
+      h("p", { class: "nav-title muted", id: `nav-g-${g.id}` }, t(g.key)), h("ul", null, g.items.map(item))));
+  $("nav").replaceChildren(...R.NAV.map(group));
 }
-// The tabs of a sidebar page, on its list routes only (an item page keeps its own breadcrumb).
+// The tabs of a sidebar page, on its list routes only (an item page has the breadcrumb instead).
 function tabBar(route) {
-  const tabs = R.HUBS[R.hubOf(route.kind)] || [];
-  if (route.id || tabs.length < 2 || !tabs.includes(route.kind)) return null;
-  const tab = (k) => link(k, "", t(TAB_LABELS[k]), { "aria-current": k === route.kind ? "page" : false });
+  const hub = R.NAV.flatMap((g) => g.items).find((i) => i.hub === R.hubOf(route.kind));
+  const tabs = (hub && hub.tabs) || [];
+  if (route.id || tabs.length < 2 || !tabs.some((x) => x.kind === route.kind)) return null;
+  const tab = (x) => link(x.kind, "", t(x.key), { "aria-current": x.kind === route.kind ? "page" : false });
   return h("nav", { class: "tabs", "aria-label": t("nav.tabs") }, tabs.map(tab));
+}
+// The breadcrumb above the page title: group, hub (or tab), item; the last crumb is the current page. Text nodes only.
+function crumbBar(route) {
+  const trail = R.crumbs(route);
+  if (!trail.length) return null;
+  const last = trail.length - 1;
+  const crumb = (c, i) => {
+    const label = c.key ? t(c.key) : c.text;
+    const here = i === last ? "page" : false;
+    return h("li", null, c.hash && !here ? h("a", { href: c.hash }, label) : h("span", { "aria-current": here }, label));
+  };
+  return h("nav", { class: "crumbs", "aria-label": t("nav.breadcrumb") }, h("ol", null, trail.map(crumb)));
+}
+// A page that failed to load: what happened, where, and two ways on (try again, or go to Today).
+function errorPanel(route, err) {
+  const retry = h("button", { type: "button", onclick: () => { state.shown = null; render(); } }, t("error.retry"));
+  return h("section", { class: "panel error-panel", role: "alert" }, h("h2", null, t("common.error")),
+    h("p", { class: "warn" }, t("error.lead")),
+    h("p", { class: "muted" }, t("error.route", { route: R.routeHash(route) }), " ", h("span", { class: "tok" }, plainReason(err))),
+    h("div", { class: "controls" }, retry, h("a", { href: "#/", class: "button" }, t("error.home"))));
 }
 
 let renderSeq = 0;
@@ -228,15 +251,14 @@ async function render() {
   document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;
   if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }
   try {
-    const nodes = await renderRoute(route, changed);
+    const nodes = await renderRoute(route);
     if (seq !== renderSeq) return;
-    $("view").replaceChildren(...nodes);
+    $("view").replaceChildren(...[crumbBar(route), ...nodes].filter(Boolean));
     state.shown = key;
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {
     if (seq !== renderSeq) return;
-    const error = panel(t("common.error"), h("p", { class: "warn" }, String(err.message || err)));
-    $("view").replaceChildren(...[tabBar(route), error].filter(Boolean)); // the tabs stay usable
+    $("view").replaceChildren(...[crumbBar(route), tabBar(route), errorPanel(route, err)].filter(Boolean)); // the tabs stay usable
     state.shown = key;
   } finally {
     if (seq === renderSeq) $("view").setAttribute("aria-busy", "false");
@@ -305,7 +327,7 @@ function openPalette() {
 }
 function closePalette() {
   const dlg = $("palette");
-  if (dlg.close) dlg.close(); else dlg.setAttribute("open", "false");
+  if (dlg.close) dlg.close(); else dlg.removeAttribute("open");
 }
 function selectResult(index) {
   palette.index = index;

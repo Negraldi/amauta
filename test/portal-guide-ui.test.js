@@ -28,10 +28,11 @@ async function boot(hash) {
   return { env, asked, view: env.document.getElementById('view') };
 }
 
-test('Harness has a Guide tab that opens on the overview, with the list of pages', async () => {
-  const { view, asked } = await boot('#/guide');
+test('the Guide sits in the sidebar foot and opens on the overview, with the list of pages', async () => {
+  const { env, view, asked } = await boot('#/guide');
   const links = tree(view).filter((e) => e.tagName === 'a').map((e) => e.getAttribute('href'));
-  assert.ok(links.includes('#/harness') && links.includes('#/guide'), 'a tab of Harness');
+  const foot = tree(env.document.getElementById('nav')).find((e) => /\bnav-foot\b/.test(e.className || ''));
+  assert.ok(tree(foot).some((e) => e.tagName === 'a' && e.getAttribute('href') === '#/guide' && e.getAttribute('aria-current') === 'page'), 'in the foot');
   assert.ok(links.includes('#/guide/kernel'), 'the list of pages');
   assert.deepEqual(asked[0], ['overview', 'en']);
   assert.match(view.textContent, /What it is made of/);

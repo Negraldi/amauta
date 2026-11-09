@@ -7,6 +7,7 @@ $("palette-input").addEventListener("input", () => { if (searchTimer) clearTimeo
 $("palette-input").addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (palette.items.length) selectResult(R.moveIndex(palette.index, e.key === "ArrowDown" ? 1 : -1, palette.items.length)); }
   else if (e.key === "Enter" && palette.index >= 0) { e.preventDefault(); goResult(palette.index); }
+  else if (e.key === "Escape") { e.preventDefault(); closePalette(); } // type=search clears on Esc; one press closes instead
 });
 $("palette").addEventListener("click", (e) => { if (e.target === $("palette")) closePalette(); });
 $("search-open").addEventListener("click", openPalette);
@@ -36,8 +37,14 @@ $("refresh").addEventListener("click", async () => {
 for (const id of ["days", "project", "runtime"]) $(id).addEventListener("change", render);
 $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
 $("lang-picker").addEventListener("change", (e) => setLanguage(e.target.value));
-window.addEventListener("hashchange", () => { state.route = R.parseHash(location.hash); render(); });
-state.route = R.parseHash(location.hash);
+// An old hash is rewritten in place (no history entry, no second hashchange) and the route it stands for renders.
+function readRoute() {
+  const to = R.redirectOf(location.hash);
+  if (to && globalThis.history && history.replaceState) history.replaceState(null, "", to);
+  state.route = R.parseHash(to || location.hash);
+}
+window.addEventListener("hashchange", () => { closePalette(); readRoute(); render(); });
+readRoute();
 // The dictionaries load first (plan N11b); a failed load still starts the page, in English keys at worst.
 I.load(fetch).catch(() => {}).then(() => {
   applyLanguage(I.loadLang(I.storage()) || I.detect(I.browserLanguage())); // a stored choice wins over the browser language

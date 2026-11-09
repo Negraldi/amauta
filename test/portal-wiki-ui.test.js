@@ -179,23 +179,24 @@ test('existing views stay reachable as pages: legacy hashes, list routes and usa
 test('a page that belongs to a group shows the group tabs and the sidebar marks the group (plan N12d)', async () => {
   const { env } = await boot('#/tool');
   const byHref = Object.fromEntries(tree(env.document.getElementById('nav')).filter((e) => e.tagName === 'a').map((a) => [a.getAttribute('href'), a]));
-  assert.equal(byHref['#/activity'].getAttribute('aria-current'), 'page');
-  const tabs = tree(view(env)).find((e) => e.tagName === 'nav');
+  assert.equal(byHref['#/usage'].getAttribute('aria-current'), 'page');
+  const tabs = tree(view(env)).find((e) => e.tagName === 'nav' && e.className === 'tabs');
   assert.ok(tabs, 'tab bar');
-  assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool', '#/mcp']);
+  assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool']);
   assert.equal(tree(tabs).find((e) => e.attrs.href === '#/tool').getAttribute('aria-current'), 'page');
   const mem = await boot('#/memory');
-  assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav')), ['#/memory', '#/lint']);
+  assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav' && e.className === 'tabs')), ['#/memory', '#/memfile', '#/lint']);
 });
 
-test('the sidebar lists the 6+1 pages, marks the current one and shows recent changes as links (plan N12d)', async () => {
+test('the sidebar lists the job-based pages, marks the current one and shows recent changes as links (portal redesign T1)', async () => {
   const { env } = await boot('#/memory');
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/home', '#/project', '#/memory', '#/activity', '#/harness', '#/security', '#/settings']);
+  assert.deepEqual(links.map((a) => a.getAttribute('href')),
+    ['#/', '#/project', '#/pipelines', '#/memory', '#/node', '#/usage', '#/harness', '#/component', '#/security', '#/guide', '#/settings']);
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
-  assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
+  assert.equal(byHref['#/'].getAttribute('aria-current'), undefined);
   const recent = env.document.getElementById('recent');
   assert.ok(hrefs(recent).includes('#/memory/7'));
   assert.ok(hrefs(recent).includes('#/session/s1'));

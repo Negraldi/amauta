@@ -9,7 +9,7 @@ async function viewMemories() {
   const source = state.memSource;
   const load = guarded(async () => {
     state.memQuery = q.value;
-    const r = await api("memories", { source, q: q.value, project: $("project").value, type: type.value });
+    const r = await api("memories", { source, q: q.value, type: type.value });
     if (r.available && !type.dataset.ready) { r.facets.types.forEach((t) => type.append(h("option", { value: t }, t))); type.dataset.ready = "1"; }
     // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
     mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id), { source }) }, { key: "type", label: t("col.type") }, { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") }, { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items) : empty(t("mem.noMatch"))) : empty(source === "engram" ? t("mem.noEngram") : t("mem.noDb")));

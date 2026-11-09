@@ -101,10 +101,9 @@ for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
   test(`view ${hash} escapes hostile data`, async () => {
     const env = await boot(hash);
     const view = env.document.getElementById('view');
-    if (hash === '#usage') {
-      const tab = tree(view).find((e) => e.tagName === 'button' && e.textContent.startsWith('Tools'));
-      assert.ok(tab, 'Tools tab');
-      tab.click();
+    if (hash === '#usage') { // the usage tables moved to the Tools and skills tab (#/tool); the segment rides in the hash
+      env.location.hash = '#/tool?seg=tools';
+      env.listeners.hashchange();
       await tick();
     }
     assert.ok(view.textContent.includes(XSS), view.textContent.slice(0, 200));

@@ -1,5 +1,5 @@
 "use strict";
-// Activity pages: token usage overview, usage tables and sessions (#/usage, #/session).
+// Activity pages: token usage overview, tools and skills, and sessions (#/usage, #/tool, #/session).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 // Activity opens with one sentence instead of a row of stat tiles (impeccable critique, plan N12f).
@@ -32,15 +32,20 @@ async function viewOverview() {
   return out;
 }
 
-async function viewUsage() {
+// Tools and skills (#/tool): the segment is part of the hash (?seg=), so a reload or a shared link keeps it.
+async function viewUsage(route) {
   const tl = await api("tools", filters());
   if (!tl.available) return [panel(t("nav.usage"), empty(t("usage.nodata")))];
-  const kinds = [["skills", t("nav.skill")], ["tools", t("nav.tool")], ["mcp_servers", t("nav.mcp")], ["mcp_tools", t("usage.mcpTools")], ["subagents", t("usage.subagents")]];
-  const linkKind = { skills: "skill", tools: "tool", mcp_servers: "mcp", mcp_tools: "tool" }[state.usageKind];
+  const kinds = [["skills", t("nav.skill")], ["tools", t("nav.tool")], ["mcp", t("nav.mcp")], ["mcptools", t("usage.mcpTools")],
+    ["subagents", t("usage.subagents")]];
+  const field = R.usageSegment(route), seg = kinds.find(([s]) => R.SEGMENTS[s] === field)[0];
+  const linkKind = { skills: "skill", tools: "tool", mcp_servers: "mcp", mcp_tools: "tool" }[field];
   const cols = [{ key: "name", label: t("col.name"), render: linkKind ? (v) => link(linkKind, v, v) : undefined }, { key: "count", label: t("col.calls"), num: true }, { key: "sessions", label: t("nav.session"), num: true }, { key: "last_used", label: t("col.lastUsed") }];
   return [
-    h("div", { class: "segmented", role: "group", "aria-label": t("common.show") }, kinds.map(([k, l]) => h("button", { type: "button", "aria-pressed": String(state.usageKind === k), onclick: () => { state.usageKind = k; render(); } }, `${l} (${fmt(tl[k].length)})`))),
-    panel(kinds.find(([k]) => k === state.usageKind)[1], tl[state.usageKind].length ? table("usage-" + state.usageKind, cols, tl[state.usageKind]) : empty(t("usage.nothingRange"))),
+    h("div", { class: "segmented", role: "group", "aria-label": t("common.show") }, kinds.map(([s, l]) => h("button", { type: "button",
+      "aria-pressed": String(s === seg), onclick: () => { location.hash = R.segmentHash(s); } },
+    `${l} (${fmt(tl[R.SEGMENTS[s]].length)})`))),
+    panel(kinds.find(([s]) => s === seg)[1], tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(t("usage.nothingRange"))),
   ];
 }
 
@@ -61,5 +66,3 @@ function guarded(fn, into) {
   };
 }
 
-
-async function viewUsagePage() { return [...(await viewOverview()), ...(await viewUsage())]; }

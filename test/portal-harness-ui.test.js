@@ -37,13 +37,13 @@ test('the route table knows every harness component kind and the catalog route',
   for (const k of ['hook', 'mcptool', 'connector', 'agent', 'command', 'plugin', 'outputstyle', 'component']) assert.ok(k in R.KINDS, k);
   assert.deepEqual(plain(R.parseHash('#/hook/Stop%3Aabc12345')), { kind: 'hook', id: 'Stop:abc12345' });
   assert.deepEqual(plain(R.parseHash('#/component')), { kind: 'component', id: '' });
-  // The six-page map (plan N12d): Activity is the group of usage, sessions, tools and MCP servers.
+  // The job-based map (portal redesign T1): Usage is the Activity hub of usage, sessions and tools; the catalog holds every component.
   assert.deepEqual(plain(R.parseHash('#/activity')), { kind: 'usage', id: '' });
   assert.deepEqual(plain(R.parseHash('#/activity/sessions')), { kind: 'session', id: '' });
   assert.deepEqual(plain(R.parseHash('#/activity/nope')), { kind: 'unknown', id: '/activity/nope' });
-  assert.equal(R.hubOf('session'), 'activity');
+  assert.equal(R.hubOf('session'), 'usage');
   assert.equal(R.hubOf('memfile'), 'memory');
-  assert.equal(R.hubOf('hook'), 'harness');
+  assert.equal(R.hubOf('hook'), 'component');
   assert.equal(R.hubOf('themes'), 'settings');
   assert.equal(R.formatHash('mcptool', 'engram/mem_save'), '#/mcptool/engram%2Fmem_save');
 });
@@ -81,9 +81,11 @@ test('the component filter narrows rows and says when nothing matches', async ()
   assert.match(view(env).textContent, /No component matches/);
 });
 
-test('the Harness tabs link to the component catalog', async () => {
+test('the Harness wiki group links the component catalog and marks it current', async () => {
   const env = await boot('#/component');
-  assert.ok(hrefs(view(env)).includes('#/component'));
+  const nav = env.document.getElementById('nav');
+  const catalog = tree(nav).find((e) => e.tagName === 'a' && e.getAttribute('href') === '#/component');
+  assert.equal(catalog.getAttribute('aria-current'), 'page');
 });
 
 const PAGE = (kind, summary, over = {}) => ({ kind, id: 'x', title: 'Stop: amauta usage', body_md: null, meta: [{ label: 'Event', value: 'Stop' }], links: [{ kind: 'plugin', id: 'plug', title: 'plug' }], backlinks: [], sections: [{ heading: 'Source of these facts', items: [{ label: '/home/u/.claude/settings.json', value: 'Your Claude home', kind: null, id: null }] }], missing: [], summary, ...over });
