@@ -14,7 +14,7 @@ import time
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from . import wikifeature, wikisess
-from . import graphsync, security
+from . import graphsync, security, siblings
 from .api import has_table
 
 CONFIG_NAME = "portal.json"
@@ -102,8 +102,9 @@ def _clean(repos, home):
 
 
 def read_config(state_dir, home=None):
-    """{"repos": [...], "auto_discover": bool}; a missing, unreadable or malformed file gives the defaults, bad entries are dropped."""
-    out = {"repos": [], "auto_discover": True}
+    """{"repos": [...], "auto_discover": bool, "siblings": [...]}; a missing, unreadable or malformed file gives the defaults,
+    bad entries are dropped."""
+    out = {"repos": [], "auto_discover": True, "siblings": []}
     try:
         data = json.loads((Path(state_dir) / CONFIG_NAME).read_text())
     except (OSError, ValueError):
@@ -111,15 +112,25 @@ def read_config(state_dir, home=None):
     if not isinstance(data, dict):
         return out
     out["repos"] = _clean(data.get("repos"), home_dir(home))
+    def kept(raw):  # a sibling whose folder is gone stays listed, so its card can say so
+        if isinstance(raw, str) and os.path.isabs(raw) and not os.path.exists(raw):
+            return raw
+        return check_repo(raw, home_dir(home))
+    for item in data.get("siblings") if isinstance(data.get("siblings"), list) else []:  # a bad entry is dropped
+        try:
+            out["siblings"] += siblings.clean([item], kept)
+        except (ValueError, ConfigError):
+            continue
     if isinstance(data.get("auto_discover"), bool):
         out["auto_discover"] = data["auto_discover"]
     return out
 
 
 def write_config(state_dir, body, home=None):
-    """Validate a closed-schema body {repos?, auto_discover?} and replace portal.json atomically. Missing keys keep their current value."""
-    if not isinstance(body, dict) or not body or set(body) - {"repos", "auto_discover"}:
-        raise ConfigError("body must be an object with repos and/or auto_discover")
+    """Validate a closed-schema body {repos?, auto_discover?, siblings?} and replace portal.json atomically. Missing keys
+    keep their current value."""
+    if not isinstance(body, dict) or not body or set(body) - {"repos", "auto_discover", "siblings"}:
+        raise ConfigError("body must be an object with repos, auto_discover and/or siblings")
     base = home_dir(home)
     current = read_config(state_dir, home)
     if "repos" in body:
@@ -133,6 +144,11 @@ def write_config(state_dir, body, home=None):
             if real not in seen:
                 seen.append(real)
         current["repos"] = seen
+    if "siblings" in body:
+        try:
+            current["siblings"] = siblings.clean(body["siblings"], lambda raw: check_repo(raw, base))
+        except ValueError as e:
+            raise ConfigError(str(e)) from None
     if "auto_discover" in body:
         if not isinstance(body["auto_discover"], bool):
             raise ConfigError("auto_discover must be true or false")
@@ -324,4 +340,5 @@ def summary(portal, q=None):
         out.append({"name": repo.name, "path": str(repo.resolve()), "origin": info["origin"][str(Path(os.path.realpath(repo)))], "odd": odd_summary(repo),
                     "sessions": len(session_ids(portal, repo)), "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo),
                     "profile": selected.get(os.path.realpath(repo), "default")})
-    return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"], "projects": out}
+    return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"],
+            "siblings": info["config"]["siblings"], "projects": out}

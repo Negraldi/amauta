@@ -6,14 +6,14 @@ function projectOdd(o) {
   return o.features ? tn("project.odd", o.features, { done: fmt(o.done), total: fmt(o.total), percent: fmt(o.percent), n: fmt(o.features) }) : t("project.noOdd");
 }
 async function viewProjects() {
-  const d = await api("projects");
+  const [d, sibs] = await Promise.all([api("projects"), siblingsBlock()]);
   if (!d.projects.length) return [teach(t("nav.project"), t("project.noneKnown"), h("span", null, link("settings", "", t("project.openSettings"))))];
   return [h("h1", null, t("nav.project")), h("p", { class: "muted" }, tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) }) + " ", t("project.manage"), " ", link("settings", "", t("nav.settings")), "."),
     h("ul", { class: "items" }, d.projects.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, ` ${p.origin.map(originLabel).join(", ")}`),
       p.profile && p.profile !== "default" ? h("span", { class: "muted" }, ` · ${t("project.profile", { name: p.profile })}`) : null,
       h("div", null, projectOdd(p.odd)),
       h("div", { class: "muted" }, t("project.summary", { sessions: fmt(p.sessions), memories: fmt(p.memories), graph: p.graph.mirrored ? t("project.graphMirrored", { at: R.fmtDate(p.graph.synced_at) }) : t("project.graphNot") })),
-      h("div", { class: "muted tok" }, p.path))))];
+      h("div", { class: "muted tok" }, p.path)))), sibs].filter(Boolean);
 }
 
 // Project page extras: one collapsed task-progress diagram per feature (drawn when opened) and the graph memory status or how-to.

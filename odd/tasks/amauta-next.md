@@ -349,4 +349,11 @@ Budget gate: phase 1 must not grow the kernel's line count; phase 2 adds at most
 
 ## Next step
 
-Phase 3: S1d oga_catalog (review its role first), then the phase 3 audit and v0.7.0. Ask the aesthetic questions (Inca names) before D10/D11. Ask the aesthetic questions (Inca names) before D10/D11.
+Phase 3: the phase 3 audit (docs/audits) and v0.7.0 (CHANGELOG, UPGRADING, package.json), then close S1.
+- 2026-11-09: S1d done after the user's choice (a generic health card, no oga code in amauta): `portal.json`
+  `siblings` [{name, path, mcp?, watch?, max_age_days?}], validated in `portal/siblings.py`, edited in Settings,
+  shown on the Projects page from `GET /api/siblings` (last commit, uncommitted changes, MCP registered in Claude and
+  Codex, age of a watched file; ✓ ▲ ✗). RED seen for the backend (module missing) and the UI (2 tests); four exact
+  config expectations in test_portal_projects gained the `siblings` key. The pipelines work (S1a-c and two follow-up
+  plans) is in odd/tasks/pipelines-dag.md and odd/tasks/pipelines-hardening.md.
+

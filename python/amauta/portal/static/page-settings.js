@@ -205,9 +205,9 @@ async function viewSettings() {
   }
 
   buildForm();
-  const projectsBox = await projectsSection();
+  const [projectsBox, siblingsBox] = await Promise.all([projectsSection(), siblingsSection()]);
   root.append(h("h1", null, t("nav.settings")),
     h("p", { class: "muted" }, t("set.intro")),
-    formBox, out, ...(projectsBox ? [projectsBox] : []));
+    formBox, out, ...[projectsBox, siblingsBox].filter(Boolean));
   return [root];
 }

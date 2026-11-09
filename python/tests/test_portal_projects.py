@@ -53,13 +53,13 @@ class ConfigFileTest(ProjectBase):
         for text in (None, "not json", "[]", '{"repos": "x"}', '{"auto_discover": "yes"}'):
             if text is not None:
                 self.cfg_file(text)
-            self.assertEqual(projects.read_config(self.f["state"]), {"repos": [], "auto_discover": True}, text)
+            self.assertEqual(projects.read_config(self.f["state"]), {"repos": [], "auto_discover": True, "siblings": []}, text)
 
     def test_valid_entries_are_kept_and_invalid_ones_dropped(self):
         a = git_dir(self.root / "a")
         (self.root / "file.txt").write_text("x")
         self.cfg_file(json.dumps({"repos": [str(a), "relative/dir", str(self.root / "ghost"), str(self.root / "file.txt"), 5, str(a)], "auto_discover": False}))
-        self.assertEqual(projects.read_config(self.f["state"], home=self.root), {"repos": [str(a.resolve())], "auto_discover": False})
+        self.assertEqual(projects.read_config(self.f["state"], home=self.root), {"repos": [str(a.resolve())], "auto_discover": False, "siblings": []})
 
 
 class OutsideHomeTest(ProjectBase):
@@ -286,14 +286,14 @@ class ProjectConfigWriteTest(ServerBase):
         link.symlink_to(self.good, target_is_directory=True)
         status, _, body = self.post({"repos": [str(self.good), str(link), str(self.good) + "/"], "auto_discover": False})
         self.assertEqual(status, 200, body)
-        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": False})
+        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": False, "siblings": []})
         self.assertEqual(json.loads(body)["config_repos"], [str(self.good.resolve())])
         self.assertEqual(json.loads(self.request("GET", "/api/projects")[2])["auto_discover"], False)
 
     def test_each_part_of_the_body_is_optional_and_keeps_the_rest(self):
         self.post({"repos": [str(self.good)], "auto_discover": False})
         self.assertEqual(self.post({"auto_discover": True})[0], 200)
-        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": True})
+        self.assertEqual(self.saved(), {"repos": [str(self.good.resolve())], "auto_discover": True, "siblings": []})
 
     def rejected(self, status, body=None, **kw):
         s, _, data = self.post(body, **kw)

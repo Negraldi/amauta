@@ -18,7 +18,7 @@ Sessions, Tools, MCP servers), Harness (Skills, Components), Security and Settin
 Runtime filters sit above the pages that use them. The foot of the sidebar has a theme picker (System, Light, Dark, your custom
 themes) and an English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). The
 dictionaries are `static/i18n/{en,es,srv-es}.json`.
-Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true}`, also editable in Settings > Projects) and from the git roots of your sessions. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory and skips linked git worktrees (`git worktree add`; their `.git` is a file), which are checkouts of a project rather than projects, while a worktree you configure yourself is kept; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
+Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true, "siblings": [...]}`, also editable in Settings > Projects) and from the git roots of your sessions. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory and skips linked git worktrees (`git worktree add`; their `.git` is a file), which are checkouts of a project rather than projects, while a worktree you configure yourself is kept; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
 
 ### Routes
 
@@ -120,6 +120,21 @@ it opens Edge or Chrome from their install folders, else `explorer.exe`. The pag
 heartbeat every 10 s and a launched server (`--idle-exit`, default 30 s) exits once the heartbeats stop. `install-launcher` writes
 `~/.local/share/applications/amauta-portal.desktop` (override: `--applications-dir` or `AMAUTA_APPLICATIONS_DIR`) with `Terminal=false`;
 on Windows it writes the Start menu shortcut `amauta.lnk` through PowerShell.
+
+### Sibling projects
+
+Projects that live beside amauta (a data catalog, an ETL repository) are listed in `portal.json` under `siblings`
+and edited in Settings > Sibling projects:
+
+```json
+{ "siblings": [ { "name": "Data catalog", "path": "/home/you/code/catalog", "mcp": "oga-catalog",
+                  "watch": "cuts/ACTIVE", "max_age_days": 35 } ] }
+```
+
+The Projects page shows a card for each (`GET /api/siblings`): its last commit and uncommitted changes, whether its
+MCP server (`mcp`) is registered for Claude (`.claude.json`) and Codex (`config.toml`), and the age of a watched file
+(`watch`, stale after `max_age_days`). A mark says what needs attention: ✓ fine, ▲ attention, ✗ the folder is
+missing. The portal reads the folder and those two files only; it never runs a sibling's code (ADR 0001).
 
 ### Security
 
