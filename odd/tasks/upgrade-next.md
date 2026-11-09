@@ -52,12 +52,16 @@ Strict, ON. Runner: `node --test test/upgrade.test.js test/upgrade-e2e.test.js`,
 ## Progress
 
 - 2026-11-09: plan written from the user's request.
-
 - 2026-11-09: U1, U3, U4 TDD (RED: 3 tests; the refusal test passed before only because --branch was unknown, it now
   checks real validation). runUpgrade split into short functions: the baseline loses its fn, long and header entries.
   U2: a characterization test (0.4.0 installed from the history, then the current install; it passed at once, as the
   migration already existed); CI's full job fetches the whole history so it runs there instead of skipping.
 
+- 2026-11-09: a real run on a fresh clone of `main` with a 0.4.0 install (temporary homes): `--branch
+  feat/amauta-next --dry-run` showed the three sections, 28 files to write and 12 legacy hook entries, removed its
+  worktree. It showed the single-step commands of each section (`upgrade --to v0.5.0`, intermediate rollbacks): now
+  dropped (RED seen). A 0.4.0 install has the old upgrade, without --branch: the first move is documented by hand.
+
 ## Next step
 
-Q1 cleanup, Q2 review.
+Q2 review.

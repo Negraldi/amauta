@@ -33,8 +33,27 @@ export function notesBetween(markdown, from, to) {
   return sections
     .filter((s) => cmpVersion(s.to, from) > 0 && cmpVersion(s.to, to) <= 0)
     .sort((a, b) => cmpVersion(a.to, b.to))
-    .map((s) => s.lines.join('\n').trim())
+    .map((s) => singleStepDropped(s.lines).join('\n').trim())
     .join('\n\n');
+}
+
+/** Drop what only fits a one-version step: a fence of `amauta upgrade --to` lines and the Rollback item (with its
+ * indented continuation). The real rollback of the whole jump is printed at the end. */
+function singleStepDropped(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) {
+      const end = lines.findIndex((l, j) => j > i && /^```/.test(l));
+      const body = end > i ? lines.slice(i + 1, end) : [];
+      if (end > i && body.length && body.every((l) => /^amauta upgrade --to \S+\s*$/.test(l.trim()))) { i = end; continue; }
+    }
+    if (/^- Rollback:/.test(lines[i])) {
+      while (i + 1 < lines.length && /^ {2}\S/.test(lines[i + 1])) i++;
+      continue;
+    }
+    out.push(lines[i]);
+  }
+  return out.filter((l, j, a) => !(l.trim() === '' && (a[j - 1] ?? '').trim() === ''));
 }
 
 /** A file of the repository at a ref, or null. */

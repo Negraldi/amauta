@@ -47,7 +47,7 @@ async function fixture({ extraTag, notes, branch } = {}) {
 const NOTES = {
   '0.1.0': '# Upgrading\n',
   '0.2.0': '# Upgrading\n\n## From 0.1.0 to 0.2.0\n\n- note B\n',
-  '0.3.0': '# Upgrading\n\n## From 0.2.0 to 0.3.0\n\n- note C\n\n## From 0.1.0 to 0.2.0\n\n- note B\n\n## From 0.0.1 to 0.1.0\n\n- note A\n',
+  '0.3.0': '# Upgrading\n\n## From 0.2.0 to 0.3.0\n\n```bash\namauta upgrade --to v0.3.0\n```\n\n- note C\n- Rollback: `amauta upgrade --to v0.2.0`\n  and more.\n- after\n\n## From 0.1.0 to 0.2.0\n\n- note B\n\n## From 0.0.1 to 0.1.0\n\n- note A\n',
   '0.7.0': '# Upgrading\n\n## From 0.6.0 to 0.7.0\n\n- note G\n\n## From 0.1.0 to 0.2.0\n\n- note B\n',
 };
 
@@ -231,6 +231,8 @@ test('the notes of every version in the jump are printed, oldest first, read fro
   assert.ok(t.indexOf('From 0.1.0 to 0.2.0') < t.indexOf('From 0.2.0 to 0.3.0'), t);
   assert.match(t, /note B[\s\S]*note C/);
   assert.doesNotMatch(t, /note A/, 'a section the install already passed is not shown');
+  assert.doesNotMatch(t, /--to v0\.3\.0|Rollback: `amauta upgrade --to v0\.2\.0`|and more/, 'single-step commands are dropped');
+  assert.match(t, /- after/);
   const done = harness();
   assert.equal(await runUpgrade(['--yes'], done.io, { ...done.deps, root: f.inst }), 0, done.errText());
   assert.match(done.text(), /Upgraded[\s\S]*note C/, 'the notes are repeated after the upgrade');
