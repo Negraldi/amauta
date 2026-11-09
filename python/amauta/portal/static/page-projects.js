@@ -245,4 +245,4 @@ async function viewFeatures() {
   return [h("h1", null, t("nav.feature")), h("ul", { class: "items" }, docs.map(item))];
 }
 
-async function viewGraph() { return [h("h1", null, t("nav.node")), await graphifyPanel()]; }
+async function viewGraph() { return graphExplorer(); }

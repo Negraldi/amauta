@@ -55,9 +55,7 @@ test('memory titles are real links to their wiki page (keyboard reachable), with
 });
 
 test('Engram rows link with their source, and the wiki page asks for that source', async () => {
-  const env = await boot('#/memory');
-  tree(view(env)).find((e) => e.tagName === 'button' && e.textContent.startsWith('Engram')).click();
-  await tick();
+  const env = await boot('#/memory?source=engram'); // the source switch is a link: the store lives in the hash (T4)
   const row = anchors(view(env)).find((a) => a.textContent === 'Engram one');
   assert.equal(row.getAttribute('href'), '#/memory/5?source=engram');
   const page = { kind: 'memory', id: '5', title: 'Engram one', body_md: 'b', meta: [], links: [{ kind: 'memory', id: '9', title: 'Other', source: 'engram' }], backlinks: [], sections: [], missing: [] };
@@ -67,7 +65,7 @@ test('Engram rows link with their source, and the wiki page asks for that source
 });
 
 test('file memories link to the memfile wiki page and that page renders the file as prose', async () => {
-  const env = await boot('#/memory');
+  const env = await boot('#/memfile'); // file memories have their own tab (T4)
   const row = anchors(view(env)).find((a) => a.textContent === 'note.md');
   assert.equal(row.getAttribute('href'), '#/memfile/-work-alpha%2Fmemory%2Fnote.md');
   const page = { kind: 'memfile', id: '-work-alpha/memory/note.md', title: 'note.md', body_md: `Hello\n\n${XSS}\n`, meta: [{ label: 'Size', value: '1234', fmt: 'number' }], links: [], backlinks: [], sections: [], missing: [] };
@@ -78,14 +76,15 @@ test('file memories link to the memfile wiki page and that page renders the file
   assert.equal(tree(view(e2)).filter((e) => e.tagName === 'img').length, 0);
 });
 
-test('#/memfile without an id shows the memory list', async () => {
+test('#/memfile without an id shows the memory files list, not the memory search', async () => {
   const env = await boot('#/memfile');
-  assert.match(view(env).textContent, /Claude file memories/);
+  assert.match(view(env).textContent, /1 Claude file memory\./);
+  assert.equal(env.calls.some((c) => String(c.url).startsWith('/api/memories')), false);
 });
 
 test('a server note with `backticks` shows code spans, never raw backticks, and stays text (plan N12h)', async () => {
   const reason = 'not mirrored yet: run `amauta graphify hook install --cwd <repo>` (or `<img src=x>`)';
-  const env = await boot('#/memory', { '/api/graphify': { repos: [{ name: 'one', path: '/r/one', available: false, reason }] } });
+  const env = await boot('#/node', { '/api/graphify': { repos: [{ name: 'one', path: '/r/one', available: false, reason }] } }); // the graph lives at #/node only (T4)
   const codes = tree(view(env)).filter((e) => e.tagName === 'code').map((e) => e.textContent);
   assert.ok(codes.includes('amauta graphify hook install --cwd <repo>'));
   assert.ok(codes.includes('<img src=x>'));
@@ -93,9 +92,9 @@ test('a server note with `backticks` shows code spans, never raw backticks, and 
   assert.equal(tree(view(env)).filter((e) => e.tagName === 'img').length, 0);
 });
 
-test('the memory source switch marks the current source with aria-pressed="true" (plan N12h)', async () => {
+test('the memory source switch marks the current source with aria-current="true" (plan N12h, links since T4)', async () => {
   const env = await boot('#/memory');
-  const pressed = tree(view(env)).filter((e) => e.tagName === 'button' && e.getAttribute('aria-pressed') === 'true').map((e) => e.textContent);
-  assert.deepEqual(pressed, ['amauta memory']);
-  assert.ok(tree(view(env)).some((e) => e.tagName === 'button' && e.getAttribute('aria-pressed') === 'false'));
+  const current = tree(view(env)).filter((e) => e.tagName === 'a' && e.getAttribute('aria-current') === 'true').map((e) => e.textContent);
+  assert.deepEqual(current, ['amauta memory']);
+  assert.ok(tree(view(env)).some((e) => e.tagName === 'a' && e.getAttribute('href') === '#/memory?source=engram' && e.getAttribute('aria-current') == null));
 });

@@ -10,7 +10,7 @@ const read = (f) => readFile(path.join(STATIC, f), 'utf8');
 const ctx = {};
 vm.runInNewContext(await read('wikiroute.js'), ctx);
 const R = ctx.AmautaRoute;
-const css = await read('style.css');
+const css = (await read('style.css') + await read('style-pages.css'));
 const rule = (selector) => {
   const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return [...css.matchAll(new RegExp(`(?:^|\\n|\\})\\s*${esc}\\s*\\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join(' ');

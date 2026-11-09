@@ -6,7 +6,7 @@ import path from 'node:path';
 import { STATIC, readApp } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
-const css = await read('style.css');
+const css = (await read('style.css') + await read('style-pages.css'));
 const html = await read('index.html');
 const app = await readApp();
 const design = await readFile(path.join(STATIC, '..', '..', '..', '..', 'docs', 'DESIGN.md'), 'utf8');

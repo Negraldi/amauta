@@ -51,7 +51,7 @@ test('static files: no innerHTML-style sinks, no external URLs, no inline script
   const js = await readApp();
   for (const sink of ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'new Function', 'localStorage']) assert.ok(!js.includes(sink), sink);
   const html = await read('index.html');
-  const css = await read('style.css');
+  const css = (await read('style.css') + await read('style-pages.css'));
   for (const [name, text] of [['the UI scripts', js], ['index.html', html], ['style.css', css]]) assert.ok(!/https?:\/\/(?!www\.w3\.org\/2000\/svg)/.test(text), `${name} references an external URL`);
   assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
   assert.match(html, /name="portal-token" content="__PORTAL_TOKEN__"/);
@@ -93,7 +93,7 @@ test('an empty table says so instead of showing a bare header; prose keeps a 72c
     const env = await boot('#/usage');
     assert.match(env.document.getElementById('view').textContent, /Nothing to show for this selection/);
   } finally { routes['/api/overview'] = saved; }
-  const css = await read('style.css');
+  const css = (await read('style.css') + await read('style-pages.css'));
   assert.match(css, /#view p \{[^}]*max-width: 72ch/);
 });
 
@@ -161,8 +161,8 @@ test('memories: a failing search is shown inline and never becomes an unhandled 
   await withRoutes({}, '#memories', async (env, rejections) => {
     const view = env.document.getElementById('view');
     delete routes['/api/memories'];
-    const search = tree(view).find((e) => e.tagName === 'button' && e.textContent === 'Search');
-    search.click();
+    const search = tree(view).find((e) => e.tagName === 'input' && e.attrs.type === 'search'); // no Search button since T4: Enter or typing
+    for (const fn of search.listeners.keydown) fn({ key: 'Enter' });
     await tick();
     assert.match(view.textContent, /not found/); // the error message from the API is rendered
     assert.deepEqual(rejections, []);
@@ -190,7 +190,7 @@ test('overview reports invalid prices and an unreadable prices file', async () =
 });
 
 test('graph memory: per-repo stats, searchable node list and neighbors view, all as text', async () => {
-  const env = await boot('#memories');
+  const env = await boot('#/node');
   const view = env.document.getElementById('view');
   assert.match(view.textContent, /6 nodes, 4 edges/);
   assert.match(view.textContent, /2 SQL tables/);
@@ -217,7 +217,7 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
 });
 
 test('graph memory: API failures are shown inline', async () => {
-  await withRoutes({ '/api/graph/nodes': undefined }, '#memories', async (env, rejections) => {
+  await withRoutes({ '/api/graph/nodes': undefined }, '#/node', async (env, rejections) => {
     const view = env.document.getElementById('view');
     assert.match(view.textContent, /not found/);
     assert.deepEqual(rejections, []);

@@ -16,7 +16,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T1 Routing core: new hub map, breadcrumbs, legacy-hash redirects, filters scoped to Activity (tests first)
 - [x] T2 Shell + identity tokens (moved from T8: DESIGN.md table, style.css, theme.js BASES change together): grouped sidebar, top bar (breadcrumb, search, theme quick toggle, refresh), sidebar footer cleanup
 - [x] T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories)
-- [ ] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
+- [x] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
 - [ ] T5 Activity: usage, sessions, one tools-and-skills table
 - [ ] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
 - [ ] T7 Settings: preferences, projects and siblings, appearance (themes, language)
@@ -88,6 +88,21 @@ Target after redesign: >= 32/40, no P1.
   .test.js 20/21 failing), then GREEN: portal node 362/362, Python portal 492 OK, simplicity green (baseline shrank).
   Changed expectations: feature crumb hash now ?tab=features; the list no longer shows session counts (summary moved to
   the hub); graph chip text "Mirrored <date>"/"Not mirrored"; i18n number test uses the ODD figures.
+
+- 2026-11-09 T3 38b2f94 verified by coordinator (portal 362/362, browser: hub tabs, crumbs, plurals). T8 note: progress
+  bars use --accent; move to --ok / data color (accent is links, selection, focus only).
+
+- 2026-11-09 T4 (route: delegated writer). #/memory: the Own/Engram switch is a pair of links (aria-current="true"), the
+  store lives in ?source=engram; search filters as you type (200 ms debounce, Enter at once, no Search button, stale
+  answers dropped); teaching empty state (mem_save). The graph panel and the memory-files table left the memory page.
+  #/memfile shows only the memory-files table (count sentence, teaching empty state). #/lint is titled "Memory quality"
+  with one lead sentence (review prompts, never verdicts). #/node is the one cross-repo explorer: repo picker (choice kept
+  in state for the session), then that repo's search, neighbours and diagram (graphExplorer replaces graphifyPanel).
+  Palette (C6): R.rankResults puts graph nodes after every other kind and caps them at 5 (R.NODE_SEARCH_CAP). style.css
+  split: page components (impact, settings, theme editor, pipelines, guide) moved to style-pages.css (index.html link,
+  server.py STATIC_FILES entry). RED first (test/portal-knowledge.test.js 9/9 failing), then GREEN: portal node 371/371,
+  Python portal 492 OK, simplicity green (baseline shrank). Changed expectations: memory source and graph tests moved to
+  links / #/node; the failing-search test presses Enter; CSS tests read both stylesheets.
 
 ## Next step
 

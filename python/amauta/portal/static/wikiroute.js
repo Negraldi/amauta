@@ -275,6 +275,14 @@
     return flat;
   }
 
+  // Graph nodes can match almost any word: their group goes after every other kind and shows at most NODE_SEARCH_CAP items.
+  const NODE_SEARCH_CAP = 5;
+  function rankResults(groups) {
+    const list = Array.isArray(groups) ? groups : [];
+    const cap = (g) => ({ ...g, items: (g.items || []).slice(0, NODE_SEARCH_CAP) });
+    return [...list.filter((g) => g.kind !== "node"), ...list.filter((g) => g.kind === "node").map(cap)];
+  }
+
   // Wrapping selection for arrow keys over `n` options (-1 = nothing selected yet).
   function moveIndex(index, delta, n) {
     if (n <= 0) return -1;
@@ -372,6 +380,6 @@
     filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso,
     fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice,
     KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta,
-    NODE_CAP: 30
+    rankResults, NODE_SEARCH_CAP, NODE_CAP: 30
   };
 })();

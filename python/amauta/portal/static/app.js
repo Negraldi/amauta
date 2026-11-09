@@ -108,7 +108,7 @@ function diagramBox(source, caption) {
   return box;
 }
 
-const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", sort: {}, projectNames: [], themes: [],
+const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", graphRepo: null, sort: {}, projectNames: [], themes: [],
   themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
 const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
 const filters = () => ({ days: $("days").value, project: $("project").value, runtime: $("runtime").value });
@@ -188,7 +188,7 @@ function modelBars(models) {
 
 const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewSkillCatalog, tool: viewUsage, mcp: viewUsage,
   component: (r) => (r.query && r.query.kind === "skill" ? viewSkillCatalog(r) : viewComponents(r)), session: viewSessions,
-  memory: viewMemories, memfile: viewMemories, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings,
+  memory: viewMemories, memfile: viewMemoryFiles, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings,
   lint: viewLint, themes: viewThemes, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide });
 async function renderRoute(route) {
   const { kind, id } = route;
@@ -346,7 +346,8 @@ function goResult(index) {
 }
 // Search groups arrive named after their kind (memory, skill, ...): shown with the same labels as the pages.
 const groupLabel = (kind) => (`palette.group.${kind}` in I.dict.en ? t(`palette.group.${kind}`) : kind);
-function paintResults(groups, q) {
+function paintResults(found, q) {
+  const groups = R.rankResults(found); // graph nodes last and capped (critique C6)
   const box = $("palette-results");
   palette.items = R.flattenResults(groups);
   palette.nodes = [];

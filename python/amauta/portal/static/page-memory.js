@@ -1,29 +1,52 @@
 "use strict";
-// Memory pages: the memory browser and the lint report (#/memory, #/lint).
+// Memory pages: the memory browser, the memory files and the quality report (#/memory, #/memfile, #/lint).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
-async function viewMemories() {
+// Memories tab: the store is part of the hash (?source=engram), so a reload or a shared link keeps it.
+const memSourceOf = (route) => (route && route.query && route.query.source === "engram" ? "engram" : "own");
+function memSourceSwitch(source) {
+  const item = ([k, l]) => h("a", { href: R.routeHash({ kind: "memory", id: "", query: k === "own" ? {} : { source: k } }),
+    "aria-current": k === source ? "true" : false }, l);
+  return h("nav", { class: "segmented", "aria-label": t("mem.sourceLabel") }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(item));
+}
+function memTable(r, source, query) {
+  if (!r.available) return empty(source === "engram" ? t("mem.noEngram") : t("mem.noDb"));
+  if (!r.items.length) return query ? empty(t("mem.noMatch")) : h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.teach"))));
+  // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
+  return table("mem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id), { source }) },
+    { key: "type", label: t("col.type") }, { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") },
+    { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items);
+}
+async function viewMemories(route) {
+  const source = memSourceOf(route);
+  if (state.memSource !== source) { state.memSource = source; state.memQuery = ""; }
   const q = h("input", { type: "search", placeholder: t("mem.search"), "aria-label": t("mem.search"), value: state.memQuery || "" });
   const type = h("select", { "aria-label": t("col.type") }, h("option", { value: "" }, t("mem.allTypes")));
-  const mine = h("div", null);
-  const source = state.memSource;
+  const mine = h("div", { "aria-live": "polite" });
+  let seq = 0, timer = null;
   const load = guarded(async () => {
+    const mySeq = ++seq;
     state.memQuery = q.value;
     const r = await api("memories", { source, q: q.value, type: type.value });
-    if (r.available && !type.dataset.ready) { r.facets.types.forEach((t) => type.append(h("option", { value: t }, t))); type.dataset.ready = "1"; }
-    // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
-    mine.replaceChildren(r.available ? (r.items.length ? table("mem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id), { source }) }, { key: "type", label: t("col.type") }, { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") }, { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items) : empty(t("mem.noMatch"))) : empty(source === "engram" ? t("mem.noEngram") : t("mem.noDb")));
+    if (mySeq !== seq) return; // a newer search is on its way
+    if (r.available && !type.dataset.ready) { r.facets.types.forEach((v) => type.append(h("option", { value: v }, v))); type.dataset.ready = "1"; }
+    mine.replaceChildren(memTable(r, source, q.value || type.value));
   }, mine);
-  q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  // Filters as you type: one request after a 200 ms pause; Enter searches at once.
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 200); });
+  q.addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); load(); } });
   type.addEventListener("change", load);
   await load();
+  return [memSourceSwitch(source), h("div", { class: "controls" }, q, type), mine];
+}
+
+// Memory files tab: Claude's file memories (MEMORY.md and its notes), one table.
+async function viewMemoryFiles() {
   const files = await api("memory-files");
-  return [
-    h("div", { class: "segmented", role: "group", "aria-label": t("common.show") }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String(state.memSource === k), onclick: () => { state.memSource = k; state.memQuery = ""; render(); } }, l))),
-    panel(t("mem.searchPanel"), h("div", { class: "controls" }, q, type, h("button", { type: "button", onclick: load }, t("common.search"))), mine),
-    panel(t("mem.files", { n: fmt(files.items.length) }), files.items.length ? table("mfiles", [{ key: "name", label: t("col.file"), href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: t("kind.project") }, { key: "size", label: t("col.bytes"), num: true }, { key: "mtime", label: t("col.modified") }], files.items) : empty(t("mem.noFiles"))),
-    await graphifyPanel(),
-  ];
+  if (!files.items.length) return [h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.filesTeach"))))];
+  return [h("p", { class: "muted" }, tn("mem.filesN", files.items.length, { n: fmt(files.items.length) })),
+    table("mfiles", [{ key: "name", label: t("col.file"), href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: t("kind.project") },
+      { key: "size", label: t("col.bytes"), num: true }, { key: "mtime", label: t("col.modified") }], files.items)];
 }
 
 
@@ -41,7 +64,7 @@ function lintCategory(c) {
 async function viewLint() {
   const l = await api("wiki/lint");
   const sc = l.scanned || {};
-  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("nav.lint")),
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("lint.title")), h("p", { class: "lead" }, t("lint.prompts")),
     h("p", { class: "muted" }, t("lint.intro", { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" })),
     l.categories.map(lintCategory)))];
 }

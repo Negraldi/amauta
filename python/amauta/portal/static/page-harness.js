@@ -1,5 +1,5 @@
 "use strict";
-// Harness page: code graph panels and the install architecture (#/harness, #/node).
+// Harness page and the graph explorer: code graph blocks and the install architecture (#/harness, #/node).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 function graphDiagram(repo, node, depth) {
@@ -46,12 +46,25 @@ function graphEmptyState(projects) {
       : h("p", { class: "muted" }, t("graph.noneMirrored")));
 }
 
-async function graphifyPanel() {
+// Knowledge > Graph (#/node): the one cross-repo explorer. A repo picker, then that repo's search, neighbours and diagram.
+async function graphExplorer() {
   const [g, pr] = await Promise.all([api("graphify"), api("projects").catch(() => null)]);
-  const blocks = g.repos.map(graphRepo);
-  await Promise.all(blocks.map((b) => b.ready));
+  if (!g.repos.length) return [graphEmptyState(pr && pr.projects)];
+  const first = g.repos.find((r) => r.available) || g.repos[0];
+  if (!g.repos.some((r) => r.path === state.graphRepo)) state.graphRepo = first.path;
+  const picker = h("select", { "aria-label": t("graph.repo") }, g.repos.map((r) => h("option", { value: r.path }, r.name)));
+  picker.value = state.graphRepo;
+  const box = h("div", null);
+  const show = async () => {
+    const block = graphRepo(g.repos.find((r) => r.path === picker.value) || first);
+    await block.ready;
+    box.replaceChildren(block.el);
+  };
+  picker.addEventListener("change", guarded(async () => { state.graphRepo = picker.value; await show(); }, box));
+  await show();
   const anyReady = g.repos.some((r) => r.available);
-  return panel(t("graph.panel"), ...(anyReady ? [] : [graphEmptyState(pr && pr.projects)]), ...blocks.map((b) => b.el));
+  return [...(anyReady ? [] : [graphEmptyState(pr && pr.projects)]),
+    h("div", { class: "controls" }, h("label", null, t("graph.repo"), " ", picker)), box];
 }
 
 // Harness diagram (plan N12e): the session flow of the harness model in the portal's own Mermaid style. archify, when

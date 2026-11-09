@@ -9,7 +9,7 @@ import { makeEnv } from './helpers/fakedom.js';
 import { runPortal, STATIC } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
-const css = (await read('style.css')).replace(/\/\*[\s\S]*?\*\//g, ''); // comments out, so selectors parse cleanly
+const css = ((await read('style.css') + await read('style-pages.css'))).replace(/\/\*[\s\S]*?\*\//g, ''); // comments out, so selectors parse cleanly
 const html = await read('index.html');
 const tctx = {};
 vm.runInNewContext(await read('theme.js'), tctx);

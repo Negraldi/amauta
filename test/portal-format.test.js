@@ -13,7 +13,7 @@ const R = ctx.AmautaRoute;
 const tick = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 const cls = (e) => e.className || e.attrs.class || '';
-const css = await read('style.css');
+const css = (await read('style.css') + await read('style-pages.css'));
 const rule = (selector) => {
   const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return [...css.matchAll(new RegExp(`(?:^|\\n|\\})\\s*${esc}\\s*\\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join(' ');

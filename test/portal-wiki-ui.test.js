@@ -279,7 +279,7 @@ test('clicking a result navigates; stale responses and empty or failing searches
 
 test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none of the banned patterns', async () => {
   const html = await read('index.html');
-  const css = await read('style.css');
+  const css = (await read('style.css') + await read('style-pages.css'));
   assert.match(html, /<dialog id="palette"/);
   const order = [...html.matchAll(/<script src="\/static\/([\w.-]+)"><\/script>/g)].map((m) => m[1]);
   assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', ...APP_SCRIPTS]);

@@ -104,7 +104,7 @@
    "long": 11
   },
   "python/amauta/portal/static/page-memory.js": {
-   "long": 8
+   "long": 7
   },
   "python/amauta/portal/static/page-settings.js": {
    "long": 28,
@@ -118,7 +118,7 @@
    "long": 51
   },
   "python/amauta/portal/static/style.css": {
-   "long": 27
+   "long": 24
   },
   "python/amauta/portal/static/theme.js": {
    "long": 13

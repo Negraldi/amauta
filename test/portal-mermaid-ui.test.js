@@ -96,7 +96,7 @@ test('mermaid fences in a memory file page are drawn; other fences and prose are
 });
 
 test('selecting a graph node also draws its neighborhood diagram', async () => {
-  const { env, log } = await boot('#memories');
+  const { env, log } = await boot('#/node');
   let node;
   env.document.getElementById('view').walk((e) => { if (e.attrs && e.attrs['data-graph'] !== undefined) node = e; });
   assert.ok(node, 'graph node row not found');
