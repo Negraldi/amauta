@@ -60,7 +60,7 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
 - [x] T3 DAX001: a division by a nonzero numeric constant is not flagged.
 - [x] Q1 Cleanup; [x] Q2 independent review; [x] Q3 fixes.
 - [x] Q4 cleanup; [x] Q5 independent review; [x] Q6 fixes; [x] Q7 cleanup.
-- [ ] D1 Docs: guide pages (en, es), CHANGELOG, skill and module docs; commit and push.
+- [x] D1 Docs: guide pages (en, es), CHANGELOG, skill and module docs; commit and push.
 
 ## Acceptance criteria
 
@@ -90,6 +90,10 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
   batches, one connection setting) and never leaves a record that describes the wrong file. Wording: "nonzero",
   neutral examples; the color allowlist test also catches 8-digit hex and rgb(). Q7: nothing left.
 
+- 2026-11-09: D1: guide pages (en, es) list `refs` and `theme`, CHANGELOG Unreleased; `check-guide.mjs` ok for both
+  languages. npm test 859 Node, 951 Python. Open for the user: commit `64fa5bf` (and the older data-skill test before
+  `a573499`) still carries private terms in history; removing them needs a history rewrite and a force push.
+
 ## Next step
 
-D1.
+None: closed, except the history decision above.

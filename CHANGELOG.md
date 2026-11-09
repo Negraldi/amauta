@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- PBIR tools: `refs REPORT MODEL` lists the fields, filters and sorts of a report that its model lacks (report only,
+  never repaired); `theme --name N (--colors | --brand FILE | --profile) --out FILE.json` writes a report theme from a
+  palette, warns on low text contrast and never replaces a file without `--force`.
+- `data` skill: a SQL review reference (explain before running, writes only to temporary objects, sargable filters,
+  pipeline-ready scripts); challenge questions and a review certificate in analytical review; a query cache recipe;
+  stock, flow and cohort reconciliation; a lineage record template.
+- `powerbi-report` skill: HTML in DAX and Deneb, storytelling and chart choice with color by direction and two
+  header measures, and a report documentation outline.
+- Intake record `docs/intake/agent-archive.md`: what was taken from the user's private agent archive, rewritten
+  generic, and what stays in the private profile.
+
+### Changed
+
+- `pbir lint` DAX001 no longer flags a division by a nonzero numeric constant.
+
 ## [0.7.0] - 2026-11-09
 
 ### Added

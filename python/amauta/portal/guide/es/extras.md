@@ -25,7 +25,7 @@ Los cinco están desactivados por defecto y son persistentes hasta que los desac
 | Explicaciones de la wiki | `extras/wiki_explain/` | `harness.explain`, `harness.pending`, `lint.categories`, `portal.explain_request` | Peticiones en cola de una explicación escrita de un componente del arnés, y las notas que Claude escribe de vuelta |
 | Editor de temas | `extras/theme_editor/` | `themes.list`, `themes.write`, `themes.delete` | Temas claros y oscuros personalizados en `<state dir>/themes/*.json` |
 | Graphify semántico | `extras/graphify_semantic/` | ninguno | La pasada semántica sin clave de API de la skill `graphify-semantic`, más archivos Markdown complementarios para presentaciones de PowerPoint |
-| Herramientas PBIR | `extras/pbir/` | ninguno | Lint, diff, diccionario de datos, auditoría de diseño y un renombrado estructural para proyectos de Power BI, usadas por la skill `powerbi-report` |
+| Herramientas PBIR | `extras/pbir/` | ninguno | Lint, diff, diccionario de datos, auditoría de diseño, referencias rotas a campos, un renombrado estructural y un archivo de tema para proyectos de Power BI, usadas por la skill `powerbi-report` |
 
 ## Cómo se relacionan las partes
 
@@ -93,7 +93,9 @@ Para quitar un extra, borra su carpeta: su pestaña, bloque o comando desaparece
 | `amauta py amauta.extras.pbir diff OLD NEW` | Tablas, columnas y medidas añadidas, quitadas o cambiadas |
 | `amauta py amauta.extras.pbir dictionary MODEL` | Un diccionario de datos en Markdown |
 | `amauta py amauta.extras.pbir layout REPORT` | Visuales fuera de la página, superpuestos o demasiado pequeños; sale con 1 si hay alguno |
+| `amauta py amauta.extras.pbir refs REPORT MODEL` | Campos, filtros y ordenaciones del informe que el modelo no tiene; sale con 1 si hay alguno |
 | `amauta py amauta.extras.pbir rename REPORT --table T --from OLD --to NEW [--apply]` | Renombrado estructural; una prueba en seco a menos que pases `--apply` |
+| `amauta py amauta.extras.pbir theme --name N (--colors C,... \| --brand FILE \| --profile) --out FILE.json` | Un archivo de tema a partir de una paleta, para importarlo en Desktop; nunca sobre un archivo existente sin `--force` |
 | `python3 -P -m amauta.extras.graphify_semantic plan\|save-chunk\|validate\|merge` | Los pasos de la pasada semántica |
 | `python3 -P -m amauta.extras.wiki_explain list` y `write --kind K --id I --file note.md` | Procesa las peticiones de explicación |
 

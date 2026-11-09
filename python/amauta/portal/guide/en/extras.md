@@ -25,7 +25,7 @@ All five are off by default and sticky until you turn them off. `context7` and `
 | Wiki explanations | `extras/wiki_explain/` | `harness.explain`, `harness.pending`, `lint.categories`, `portal.explain_request` | Queued requests for a written explanation of a harness component, and the notes Claude writes back |
 | Theme editor | `extras/theme_editor/` | `themes.list`, `themes.write`, `themes.delete` | Custom light and dark themes in `<state dir>/themes/*.json` |
 | Graphify semantic | `extras/graphify_semantic/` | none | The no-API-key semantic pass of the `graphify-semantic` skill, plus Markdown sidecars for PowerPoint decks |
-| PBIR tools | `extras/pbir/` | none | Lint, diff, data dictionary, layout audit and a structural rename for Power BI projects, used by the `powerbi-report` skill |
+| PBIR tools | `extras/pbir/` | none | Lint, diff, data dictionary, layout audit, broken field references, a structural rename and a report theme file for Power BI projects, used by the `powerbi-report` skill |
 
 ## How the parts relate
 
@@ -93,7 +93,9 @@ To remove an extra, delete its folder: its tab, block or command disappears and 
 | `amauta py amauta.extras.pbir diff OLD NEW` | Tables, columns and measures added, removed or changed |
 | `amauta py amauta.extras.pbir dictionary MODEL` | A Markdown data dictionary |
 | `amauta py amauta.extras.pbir layout REPORT` | Visuals outside the page, overlapping or too small; exit 1 when any |
+| `amauta py amauta.extras.pbir refs REPORT MODEL` | Fields, filters and sorts in the report that the model lacks; exit 1 when any |
 | `amauta py amauta.extras.pbir rename REPORT --table T --from OLD --to NEW [--apply]` | Structural rename; a dry run unless `--apply` |
+| `amauta py amauta.extras.pbir theme --name N (--colors C,... \| --brand FILE \| --profile) --out FILE.json` | A report theme file from a palette, to import in Desktop; never over an existing file without `--force` |
 | `python3 -P -m amauta.extras.graphify_semantic plan\|save-chunk\|validate\|merge` | The steps of the semantic pass |
 | `python3 -P -m amauta.extras.wiki_explain list` and `write --kind K --id I --file note.md` | Process explanation requests |
 
