@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { quoteArg } from '../core/platform.js';
-import { repoRoot } from './assets.js';
+import { installRoot } from './assets.js';
 
-export const PYTHON_PATH = path.join(repoRoot, 'python');
+export const PYTHON_PATH = path.join(installRoot, 'python');
 /** The interpreter used when install was not told one (`--python`, AMAUTA_PYTHON); commands then carry no flag. */
 export const DEFAULT_PYTHON = 'python3';
 
@@ -23,14 +23,14 @@ export function desiredMcpServers({ stateDir, rea = false, context7 = false, pyt
   return {
     memory: memoryServer(stateDir, python),
     codegraph: { type: 'stdio', command: 'codegraph', args: ['serve', '--mcp'] },
-    'amauta': { type: 'stdio', command: 'node', args: [path.join(repoRoot, 'src', 'mcp', 'server.js')] },
+    'amauta': { type: 'stdio', command: 'node', args: [path.join(installRoot, 'src', 'mcp', 'server.js')] },
     // Opt-in (--with-context7 / --with-rea): third-party servers that run unsandboxed; rea alone lists ~300 tools.
     ...(context7 ? { context7: { command: 'npx', args: ['-y', '--package=@upstash/context7-mcp@2.2.5', '--', 'context7-mcp'] } } : {}),
     ...(rea ? { rea: { command: 'npx', args: ['-y', 'rea-agents@6.4.0', 'mcp'] } } : {}),
   };
 }
 
-const BIN = path.join(repoRoot, 'bin', 'amauta.js');
+const BIN = path.join(installRoot, 'bin', 'amauta.js');
 
 /** Quote a path for a POSIX shell only when it contains unsafe characters. */
 /** One argument of a hook or MCP command line, quoted for the platform's hook shell (src/core/platform.js). */
@@ -135,6 +135,6 @@ export function staleAmautaHooks(settings, wantedCommands) {
  */
 export function isStaleAmautaServer(value) {
   if (!isAmautaServer(value)) return false;
-  const here = (value.args ?? []).includes(path.join(repoRoot, 'src', 'mcp', 'server.js')) || value.env?.PYTHONPATH === PYTHON_PATH;
+  const here = (value.args ?? []).includes(path.join(installRoot, 'src', 'mcp', 'server.js')) || value.env?.PYTHONPATH === PYTHON_PATH;
   return !here;
 }

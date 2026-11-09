@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { repoRoot } from '../src/install/assets.js';
-import { defaultPreviewInstall } from '../src/install/upgrade-plan.js';
+import { defaultPreviewInstall, withWorktree } from '../src/install/upgrade-plan.js';
 import { tempDir } from './helpers/tmp.js';
 
 const V040 = 'c973336bc752799909ecdca14f764072d25d78b0'; // the commit tagged v0.4.0, the latest release on main
@@ -31,8 +31,8 @@ test('a 0.4.0 install upgrades to the current version cleanly', { skip: !has040 
   const home = path.join(root, 'home');
   const flags = ['--claude-home', path.join(home, '.claude'), '--claude-json', path.join(home, '.claude.json'),
     '--state-dir', path.join(root, 'state')];
-  const env = { ...process.env, HOME: home, USERPROFILE: home, AMAUTA_NO_NETWORK: '1' };
-  for (const k of Object.keys(env)) if (k.startsWith('AMAUTA_') && k !== 'AMAUTA_NO_NETWORK') delete env[k];
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  for (const k of Object.keys(env)) if (k.startsWith('AMAUTA_')) delete env[k];
 
   const first = run(old, ['install', ...flags], env);
   assert.equal(first.code, 0, first.out);
@@ -40,7 +40,7 @@ test('a 0.4.0 install upgrades to the current version cleanly', { skip: !has040 
   const before = commandsOf(JSON.parse(await readFile(settingsFile, 'utf8')));
   assert.ok(before.some((c) => c.includes(old)), 'the 0.4.0 hooks point at the 0.4.0 checkout');
 
-  const preview = await defaultPreviewInstall(repoRoot, flags);
+  const preview = await defaultPreviewInstall(repoRoot, flags, { env });
   assert.equal(preview.code, 0, 'the current installer previews over the 0.4.0 install');
   assert.ok(preview.report.files.length > 0, 'it would write files');
 
@@ -54,4 +54,13 @@ test('a 0.4.0 install upgrades to the current version cleanly', { skip: !has040 
     'no MCP server still runs the 0.4.0 checkout');
   const status = run(repoRoot, ['status', ...flags], env);
   assert.equal(status.code, 0, status.out);
+
+  // The preview the upgrade runs from a temporary worktree describes the real install: on an install already current,
+  // it would change nothing (a checkout with uncommitted changes differs from its HEAD, so this part needs a clean one).
+  const clean = spawnSync('git', ['-C', repoRoot, 'status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).stdout === '';
+  if (clean) {
+    const viaWorktree = await withWorktree(repoRoot, 'HEAD', (dir) => defaultPreviewInstall(dir, flags, { env, installRoot: repoRoot }));
+    assert.equal(viaWorktree.code, 0);
+    assert.deepEqual([viaWorktree.report.files, viaWorktree.report.legacy], [[], []], JSON.stringify(viaWorktree.report).slice(0, 600));
+  }
 });

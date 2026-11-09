@@ -1,7 +1,7 @@
 import { cp, lstat, mkdir, readdir, readFile, readlink, rm, rmdir, symlink, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { assetPath, listFiles, readAssetBuffer, readAssetText, repoRoot } from './assets.js';
+import { assetPath, installRoot, listFiles, readAssetBuffer, readAssetText } from './assets.js';
 import { renderSddText } from './sdd.js';
 import { renderImpeccableFiles } from './impeccable.js';
 import { renderArchifyFiles } from './archify.js';
@@ -25,13 +25,13 @@ const posix = (rel) => rel.split(path.sep).join('/');
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
 /** Markdown skill files may name helper code of this checkout; resolve those placeholders to shell-safe absolute values. */
-export function renderSkillFile(rel, buf, pythonDir = path.join(repoRoot, 'python')) {
+export function renderSkillFile(rel, buf, pythonDir = path.join(installRoot, 'python')) {
   if (!rel.endsWith('.md')) return buf;
   let text = buf.toString('utf8');
   if (!text.includes('{{AMAUTA_')) return buf;
   // `amauta py <module>` (plan N8c): a plain node invocation, portable to Windows, that runs our Python modules with the
   // interpreter install resolved. The older `env PYTHONPATH=...` form stays rendered for a skill an earlier release wrote.
-  text = text.replaceAll('{{AMAUTA_PY}}', `node ${shellQuote(path.join(repoRoot, 'bin', 'amauta.js'))} py`);
+  text = text.replaceAll('{{AMAUTA_PY}}', `node ${shellQuote(path.join(installRoot, 'bin', 'amauta.js'))} py`);
   text = text.replaceAll('{{AMAUTA_PYTHONPATH_ENV}}', shellQuote(`PYTHONPATH=${pythonDir}`));
   return Buffer.from(text, 'utf8');
 }

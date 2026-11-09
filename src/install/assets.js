@@ -1,9 +1,21 @@
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const assetsRoot = path.join(repoRoot, 'assets');
+
+/**
+ * The checkout the installed commands will run from. Normally this one; `amauta upgrade --dry-run` runs a target's
+ * installer from a temporary worktree and sets AMAUTA_INSTALL_ROOT to the real install, so the hook, server and skill
+ * paths it plans are the ones the upgrade will write. Only an absolute folder holding bin/amauta.js is accepted.
+ */
+export function installRootOf(value, fallback = repoRoot) {
+  if (!value || !path.isAbsolute(value)) return fallback;
+  return existsSync(path.join(value, 'bin', 'amauta.js')) ? path.resolve(value) : fallback;
+}
+export const installRoot = installRootOf(process.env.AMAUTA_INSTALL_ROOT);
 
 export const assetPath = (rel) => path.join(assetsRoot, rel);
 export const readAssetText = (rel) => readFile(assetPath(rel), 'utf8');

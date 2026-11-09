@@ -8,7 +8,7 @@ import path from 'node:path';
 import { git } from '../util/git.js';
 
 const VERSION = /^v?(\d+)\.(\d+)\.(\d+)/;
-const SECTION = /^## From (\S+) to (\S+)\s*$/;
+const SECTION = /^## From (\S+) to (\S+?)(?:\s.*)?$/; // words after the versions are allowed
 const LIST_MAX = 8; // paths listed per kind; the count is always exact
 
 /** Compare two versions ("0.4.0" or "v0.4.0"); a malformed one sorts first. */
@@ -23,9 +23,11 @@ export function cmpVersion(a, b) {
 export function notesBetween(markdown, from, to) {
   const sections = [];
   let current = null;
-  for (const line of String(markdown ?? '').split('\n')) {
-    const m = SECTION.exec(line);
-    if (m || /^## /.test(line)) {
+  let fenced = false;
+  for (const line of String(markdown ?? '').replace(/\r\n/g, '\n').split('\n')) {
+    if (/^```/.test(line)) fenced = !fenced;
+    const m = fenced ? null : SECTION.exec(line);
+    if (m || (!fenced && /^## /.test(line))) {
       current = m ? { to: m[2], lines: [line] } : null;
       if (current) sections.push(current);
     } else if (current) current.lines.push(line);
@@ -59,11 +61,20 @@ function singleStepDropped(lines) {
 /** A file of the repository at a ref, or null. */
 export const readAt = (root, ref, file) => git(root, ['show', `${ref}:${file}`]).catch(() => null);
 
-/** Default preview: the target checkout's own CLI, `install --dry-run --json`, with the upgrade's path flags. */
-export function defaultPreviewInstall(dir, flags) {
+/** Whether a checkout's installer can be told the install it previews for (AMAUTA_INSTALL_ROOT, src/install/assets.js). */
+export async function knowsInstallRoot(dir) {
+  return (await readFile(path.join(dir, 'src', 'install', 'assets.js'), 'utf8').catch(() => '')).includes('AMAUTA_INSTALL_ROOT');
+}
+
+/**
+ * Default preview: the target checkout's own CLI, `install --dry-run --json`, with the upgrade's flags. installRoot is
+ * the real install, so the paths it plans are the ones the upgrade will write (an older installer ignores it).
+ */
+export function defaultPreviewInstall(dir, flags, { env = process.env, installRoot } = {}) {
   return new Promise((resolve) => {
+    const childEnv = installRoot ? { ...env, AMAUTA_INSTALL_ROOT: installRoot } : env;
     const child = spawn(process.execPath, [path.join(dir, 'bin', 'amauta.js'), 'install', '--dry-run', '--json', ...flags],
-      { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'] });
+      { cwd: dir, env: childEnv, stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.on('error', () => resolve({ code: 1, report: null }));
@@ -77,6 +88,7 @@ export function defaultPreviewInstall(dir, flags) {
 
 /** Run fn(dir) on a temporary detached worktree of ref; the worktree is removed whatever happens. */
 export async function withWorktree(root, ref, fn) {
+  await git(root, ['worktree', 'prune']).catch(() => {}); // one left by an interrupted run
   const dir = await mkdtemp(path.join(os.tmpdir(), 'amauta-upgrade-'));
   try {
     await git(root, ['worktree', 'add', '--detach', '--quiet', dir, ref]);
@@ -88,15 +100,23 @@ export async function withWorktree(root, ref, fn) {
   }
 }
 
-const MODULES = ['sdd', 'rea', 'context7', 'impeccable', 'archify'];
-const SWITCHES = ['telemetry', 'privacy', 'checks'];
+const MODULES = ['sdd', 'rea', 'context7', 'impeccable', 'archify']; // sticky in the installer itself
+const SWITCHES = ['telemetry', 'privacy', 'checks']; // not sticky: an install without --no-X turns X back on
+const PERSONA = /^[a-z][a-z-]{0,30}$/;
 
-/** The choices a new install keeps from state.json: optional modules on, default features off. */
+/**
+ * The choices of the last install (state.json): optional modules on (the installer keeps them), and the flags that
+ * must be passed again to keep the rest (`--no-telemetry`, `--no-privacy`, `--no-checks`, `--persona`).
+ */
 export async function keptChoices(stateDir) {
   let state;
   try { state = JSON.parse(await readFile(path.join(stateDir, 'state.json'), 'utf8')); } catch { return null; }
   if (!state || typeof state !== 'object') return null;
-  return { on: MODULES.filter((k) => state[k] === true), off: SWITCHES.filter((k) => state[k] === false) };
+  const again = SWITCHES.filter((k) => state[k] === false).map((k) => `--no-${k}`);
+  if (typeof state.persona === 'string' && PERSONA.test(state.persona) && state.persona !== 'gentleman') {
+    again.push('--persona', state.persona);
+  }
+  return { on: MODULES.filter((k) => state[k] === true), again };
 }
 
 function listed(verb, items) {
@@ -106,10 +126,25 @@ function listed(verb, items) {
   return [`    ${verb}`, ...shown, ...more];
 }
 
-/** The dry-run report lines. preview: { code, report } from the target's installer; kept: keptChoices(). */
+const KINDS = ['files', 'removed', 'legacy', 'skipped'];
+
+/** Claude's and Codex's parts of an install report as one ({ codex: {...} } is what --runtime both adds). */
+function merged(report) {
+  if (!report || typeof report !== 'object') return null;
+  const codex = report.codex && typeof report.codex === 'object' ? report.codex : {};
+  const out = { state_changes: { ...(codex.state_changes ?? {}), ...(report.state_changes ?? {}) } };
+  for (const k of KINDS) out[k] = [...(Array.isArray(report[k]) ? report[k] : []), ...(Array.isArray(codex[k]) ? codex[k] : [])];
+  return out;
+}
+
+/**
+ * The dry-run report lines. preview: { code, report, approximate } from the target's installer (approximate: it
+ * could not be told the real install, so its paths are the temporary copy's); kept: keptChoices().
+ */
 export function reportLines(preview, kept) {
   const out = ['What the new installer would do:'];
-  const r = preview?.report;
+  const r = merged(preview?.report);
+  if (r && preview.approximate) out.push('  approximate: this version\'s installer previews a temporary copy, so paths may differ');
   if (!r || preview.code !== 0) {
     out.push(`  could not preview (the target's installer exited ${preview?.code ?? 1}); the plan above still applies`);
   }
@@ -121,11 +156,11 @@ export function reportLines(preview, kept) {
     out.push(...listed(`would keep ${n('skipped')} file${n('skipped') === 1 ? '' : 's'} you edited:`, r.skipped));
     const changes = Object.keys(r.state_changes ?? {});
     if (changes.length) out.push(`    would change install choices: ${changes.join(', ')}`);
-    if (out.length === 1) out.push('    nothing: the install is already what this version writes');
+    if (out.length === (preview.approximate ? 2 : 1)) out.push('    nothing: the install is already what this version writes');
   }
   if (kept) {
-    const off = kept.off.length ? `; off: ${kept.off.join(', ')}` : '';
-    out.push(`  kept from your last install: ${kept.on.join(', ') || 'no optional module'}${off}`);
+    const again = kept.again.length ? `; passed again: ${kept.again.join(' ')}` : '';
+    out.push(`  kept from your last install: ${kept.on.join(', ') || 'no optional module'}${again}`);
   }
   return out;
 }

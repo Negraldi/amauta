@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { git } from '../util/git.js';
 import { resolveTargets } from './paths.js';
-import { cmpVersion, defaultPreviewInstall, keptChoices, notesBetween, readAt, reportLines, withWorktree } from './upgrade-plan.js';
+import {
+  cmpVersion, defaultPreviewInstall, keptChoices, knowsInstallRoot, notesBetween, readAt, reportLines, withWorktree,
+} from './upgrade-plan.js';
 
 const DEFAULT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -49,8 +51,9 @@ async function inspect(args, root) {
   const shown = (v, n) => JSON.stringify(String(v).slice(0, n));
   if (values.to !== undefined && !TAG.test(values.to)) return `--to must be a release tag like v0.2.0 (got ${shown(values.to, 40)})`;
   if (values.to !== undefined && values.branch !== undefined) return '--to and --branch exclude each other';
-  if (values.branch !== undefined && (values.branch.startsWith('-')
-      || (await gitOrNull(root, ['check-ref-format', '--branch', values.branch])) === null)) {
+  // check-ref-format --branch expands @{-1} and accepts refs/heads/x: the name must come back unchanged.
+  if (values.branch !== undefined && (values.branch.startsWith('-') || values.branch.startsWith('refs/')
+      || (await gitOrNull(root, ['check-ref-format', '--branch', values.branch])) !== values.branch)) {
     return `--branch: not a valid branch name: ${shown(values.branch, 60)}`;
   }
   if ((await gitOrNull(root, ['rev-parse', '--is-inside-work-tree'])) !== 'true') {
@@ -76,7 +79,9 @@ async function inspect(args, root) {
   const tags = remote.split('\n').map((l) => l.split('\t')[1]?.replace(/^refs\/tags\//, ''))
     .filter((t) => t && TAG.test(t));
   const flags = PATH_FLAGS.flatMap(([flag, key]) => (values[key] === undefined ? [] : [flag, values[key]]));
-  return { values, branch, pkg, tags, flags, headSha: await gitOrNull(root, ['rev-parse', 'HEAD']),
+  const dirs = resolveTargets({ claudeHome: values['claude-home'], claudeJson: values['claude-json'], stateDir: values['state-dir'] });
+  const kept = await keptChoices(dirs.stateDir);
+  return { values, branch, pkg, tags, flags, kept, again: kept?.again ?? [], headSha: await gitOrNull(root, ['rev-parse', 'HEAD']),
     described: (await gitOrNull(root, ['describe', '--tags', '--always'])) ?? 'unknown' };
 }
 
@@ -125,11 +130,12 @@ async function moveTo(root, target, s) {
       return null;
     }
     if (!s.localBranch) { await git(root, ['checkout', '-q', '-b', target.name, '--track', `origin/${target.name}`]); return null; }
-    if ((await gitOrNull(root, ['merge-base', '--is-ancestor', target.name, target.ref])) === null) {
+    if ((await gitOrNull(root, ['merge-base', '--is-ancestor', `refs/heads/${target.name}`, target.ref])) === null) {
       return `local branch ${target.name} has commits that are not on origin/${target.name}; nothing was changed`;
     }
     await git(root, ['checkout', '-q', target.name]);
     await git(root, ['merge', '--ff-only', target.ref]);
+    await git(root, ['branch', '-q', `--set-upstream-to=origin/${target.name}`, target.name]); // later upgrades follow it
     return null;
   } catch (e) {
     if (target.kind === 'tag' && !target.detach) {
@@ -150,13 +156,18 @@ function rollbackOf(root, target, s) {
 async function printPlan(root, target, s, out) {
   s.localBranch = target.kind === 'branch'
     && (await gitOrNull(root, ['rev-parse', '--verify', '-q', `refs/heads/${target.name}`])) !== null;
-  const version = JSON.parse((await readAt(root, target.ref, 'package.json')) ?? '{}').version ?? 'unknown';
+  let version = 'unknown';
+  try { version = JSON.parse((await readAt(root, target.ref, 'package.json')) ?? '{}').version ?? version; } catch { /* reported */ }
   out(`  target: ${target.label}, version ${version}`);
   out('Plan:');
   out('  1. git fetch --tags origin   (done)');
   out(`  2. ${switchCommand(target, s)}   (in ${root}, branch ${s.branch})`);
   out('  3. amauta install   (sticky flags are kept)');
   out('  4. amauta status');
+  if (cmpVersion(version, s.pkg) < 0) {
+    out(`Going back from ${s.pkg} to ${version}: the upgrade notes do not apply; see the Rollback lines of UPGRADING.md.`);
+    return '';
+  }
   const notes = notesBetween(await readAt(root, target.ref, 'UPGRADING.md'), s.pkg, version);
   if (notes) out(`Notes for ${s.pkg} -> ${version}:\n\n${notes}\n`);
   return notes;
@@ -164,11 +175,10 @@ async function printPlan(root, target, s, out) {
 
 async function preview(root, target, s, deps, out) {
   const run = deps.previewInstall ?? defaultPreviewInstall;
-  const result = await withWorktree(root, target.ref, (dir) => run(dir, s.flags)).catch(() => ({ code: 1, report: null }));
-  const v = s.values;
-  const dirs = resolveTargets({ claudeHome: v['claude-home'], claudeJson: v['claude-json'], stateDir: v['state-dir'] });
-  const kept = await keptChoices(dirs.stateDir);
-  for (const line of reportLines(result, kept)) out(line);
+  const result = await withWorktree(root, target.ref, async (dir) => ({
+    ...(await run(dir, [...s.flags, ...s.again], { installRoot: root })), approximate: !(await knowsInstallRoot(dir)),
+  })).catch(() => ({ code: 1, report: null }));
+  for (const line of reportLines(result, s.kept)) out(line);
 }
 
 async function finish(root, target, s, deps, out, err, notes) {
@@ -178,7 +188,7 @@ async function finish(root, target, s, deps, out, err, notes) {
     if (!target.detach) return;
     out(`  return to ${s.branch}: git -C ${root} checkout ${s.branch}   (this version has no 'upgrade' command if it predates v0.2.0)`);
   };
-  if ((await runAmauta(['install', ...s.flags])) !== 0) {
+  if ((await runAmauta(['install', ...s.flags, ...s.again])) !== 0) {
     err(`install failed after moving to ${target.name}; the checkout is at ${target.name}`);
     tail();
     return 1;

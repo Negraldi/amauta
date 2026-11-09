@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { runUpgrade } from '../src/install/upgrade.js';
+import { notesBetween, reportLines } from '../src/install/upgrade-plan.js';
 import { tempDir } from './helpers/tmp.js';
 
 const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'amauta.js');
@@ -292,4 +293,63 @@ test('--branch refuses bad names, unknown branches and --to together, before any
   }
   assert.equal(head(f.inst), before);
   assert.equal(git(f.inst, 'symbolic-ref', '--short', 'HEAD'), 'main');
+});
+
+// Review fixes (odd/tasks/upgrade-next.md Q3).
+test('choices install does not keep by itself are passed again to install and to the preview', async () => {
+  const f = await fixture();
+  const state = path.join(f.root, 'state2');
+  await mkdir(state, { recursive: true });
+  await writeFile(path.join(state, 'state.json'), JSON.stringify({ telemetry: false, privacy: true, checks: false, persona: 'neutral', sdd: true }));
+  const dry = harness();
+  assert.equal(await runUpgrade(['--dry-run', '--state-dir', state], dry.io, { ...dry.deps, root: f.inst }), 0, dry.errText());
+  const again = ['--no-telemetry', '--no-checks', '--persona', 'neutral'];
+  assert.deepEqual(dry.calls, [['preview', true, '--state-dir', state, ...again]]);
+  assert.match(dry.text(), /passed again: --no-telemetry --no-checks --persona neutral/);
+  const h = harness();
+  assert.equal(await runUpgrade(['--yes', '--state-dir', state], h.io, { ...h.deps, root: f.inst }), 0, h.errText());
+  assert.deepEqual(h.calls, [['install', '--state-dir', state, ...again], ['status', '--state-dir', state]]);
+});
+
+test('an existing local branch without the right upstream is set to track origin', async () => {
+  const f = await fixture({ branch: true });
+  git(f.inst, 'branch', '-q', '--no-track', 'next', 'main');
+  const h = harness();
+  assert.equal(await runUpgrade(['--branch', 'next', '--yes'], h.io, { ...h.deps, root: f.inst }), 0, h.errText());
+  assert.equal(git(f.inst, 'rev-parse', '--abbrev-ref', 'next@{upstream}'), 'origin/next');
+  assert.equal(await pkgVersion(f.inst), '0.7.0');
+});
+
+test('--branch refuses names git would expand', async () => {
+  const f = await fixture({ branch: true });
+  for (const name of ['@{-1}', 'refs/heads/next']) {
+    const h = harness();
+    assert.equal(await runUpgrade(['--branch', name, '--yes'], h.io, { ...h.deps, root: f.inst }), 1, name);
+    assert.match(h.errText(), /not a valid branch name/, name);
+  }
+});
+
+test('notes: headers with extra words, fenced "## " lines, and no notes when going back', () => {
+  const md = '## From 0.4.0 to 0.5.0 (breaking)\n\n- five\n\n```text\n## not a header\n```\n- still five\n\n## From 0.5.0 to 0.6.0\n\n- six\n';
+  const n = notesBetween(md, '0.4.0', '0.6.0');
+  assert.match(n, /five[\s\S]*not a header[\s\S]*still five[\s\S]*six/);
+  assert.equal(notesBetween(md, '0.6.0', '0.4.0'), '');
+});
+
+test('a downgrade says the notes do not apply; a malformed target package.json is not a crash', async () => {
+  const f = await fixture({ notes: true });
+  git(f.inst, 'merge', '-q', '--ff-only', 'v0.3.0');
+  const h = harness();
+  assert.equal(await runUpgrade(['--to', 'v0.1.0', '--dry-run'], h.io, { ...h.deps, root: f.inst }), 0, h.errText());
+  assert.match(h.text(), /going back/i);
+});
+
+test('the report counts Codex too, and says when the preview is approximate', () => {
+  const report = { files: [], removed: [], skipped: [], legacy: [], state_changes: {},
+    codex: { files: ['/c/.codex/config.toml'], removed: [], skipped: [], legacy: ['hook x'], state_changes: {} } };
+  const t = reportLines({ code: 0, report }, null).join('\n');
+  assert.match(t, /would write 1 file:[\s\S]*config\.toml/);
+  assert.match(t, /replace 1 legacy entry/);
+  assert.doesNotMatch(t, /nothing: the install/);
+  assert.match(reportLines({ code: 0, report, approximate: true }, null).join('\n'), /approximate/);
 });

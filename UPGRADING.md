@@ -11,7 +11,7 @@ An install older than this version has the older `upgrade`, without `--branch` a
 branch is by hand, in the install's checkout (`amauta status` prints where it is):
 
 ```bash
-git -C <amauta checkout> fetch origin <branch>
+git -C <amauta checkout> fetch origin <branch>:refs/remotes/origin/<branch>
 git -C <amauta checkout> checkout -b <branch> --track origin/<branch>
 amauta install && amauta status
 ```
