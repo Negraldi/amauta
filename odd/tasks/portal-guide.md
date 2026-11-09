@@ -39,8 +39,8 @@ by structure tests (same pages in both languages, the five sections, at least on
 - [x] G1 Guide API and the Guide tab: `/api/guide` (the index, per language) and `/api/guide/page` (one page by known
   slug), `#/guide[/slug]` under Harness, Markdown with diagrams, links between pages.
 - [x] G2 Content in English: ten pages, five sections each, diagrams; facts checked against the code and docs.
-- [ ] G3 Content in Spanish: the same ten pages.
-- [ ] G4 Docs (docs/portal.md), a look in a real browser, commit and push.
+- [x] G3 Content in Spanish: the same ten pages.
+- [x] G4 Docs (docs/portal.md), a look in a real browser, commit and push.
 
 ## Acceptance criteria
 
@@ -59,10 +59,16 @@ by structure tests (same pages in both languages, the five sections, at least on
 
 ## Next step
 
-G3: the Spanish pages by a bounded writer; then the content test and the doc fixes the writer found (G4).
+None: closed.
 - 2026-11-09: G2 delegated (writer, read the docs, ADRs, MODULES.json and code; commands checked against --help): ten
   English pages, 6,270 to 9,281 characters, two or three diagrams each, `check-guide.mjs en` ok for all. Route:
   delegated, twenty files are more than one session's context should carry. The writer found five places where the
   docs lag the code (portal POST list, `checks engine: planned` in architecture.md, the pipeline summary in cli.js,
   modules.md and extras, and ADR 0006's `--without-checks`); the pages follow the code; G4 fixes the docs.
+- 2026-11-09: G3 delegated (translator, same structure, diagrams and links): ten Spanish pages, 6,845 to 10,276
+  characters; `check-guide.mjs es` and `en` ok. The content test, held out of the tree while pages were written,
+  passes (3/3); npm test 857 Node, 938 Python.
+- 2026-11-09: G4: docs fixed in `09daee8` (portal writes, checks in the kernel, extras, pipeline summary); ADR 0006
+  still names `--without-checks` (accepted records are not edited; the flag is `--no-checks`, as the guide says).
+  Real browser: `#/guide/kernel` in Spanish, two diagrams drawn as SVG, no page errors, no overflow at 390 px.
 
