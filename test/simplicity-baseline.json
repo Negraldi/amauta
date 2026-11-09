@@ -287,11 +287,6 @@
   "src/install/templating.js": {
    "noHeader": true
   },
-  "src/install/upgrade.js": {
-   "long": 12,
-   "fn": 84,
-   "noHeader": true
-  },
   "src/mcp/server.js": {
    "long": 1
   },

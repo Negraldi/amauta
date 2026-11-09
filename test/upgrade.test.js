@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,7 +12,7 @@ const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bi
 const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
 
 /** Bare origin with v0.1.0 and v0.2.0 (main = v0.2.0), plus a clone of it reset to v0.1.0 that tracks origin/main. */
-async function fixture({ extraTag } = {}) {
+async function fixture({ extraTag, notes, branch } = {}) {
   const root = await tempDir('gl-upg-');
   const origin = path.join(root, 'origin.git');
   const dev = path.join(root, 'dev');
@@ -21,6 +21,7 @@ async function fixture({ extraTag } = {}) {
   git(root, 'clone', '-q', origin, dev);
   const bump = async (version, tag) => {
     await writeFile(path.join(dev, 'package.json'), `${JSON.stringify({ name: 'amauta', version })}\n`);
+    if (notes) await writeFile(path.join(dev, 'UPGRADING.md'), NOTES[version] ?? NOTES['0.1.0']);
     git(dev, 'add', '-A');
     git(dev, 'commit', '-q', '-m', `release ${version}`);
     git(dev, 'tag', tag);
@@ -28,17 +29,38 @@ async function fixture({ extraTag } = {}) {
   await bump('0.1.0', 'v0.1.0');
   await bump('0.2.0', 'v0.2.0');
   if (extraTag) { await bump('0.10.0', 'v0.10.0'); await bump('0.9.0', 'v0.9.0'); git(dev, 'tag', 'nightly'); }
+  if (notes) await bump('0.3.0', 'v0.3.0');
   git(dev, 'push', '-q', 'origin', 'main', '--tags');
+  if (branch) {
+    git(dev, 'checkout', '-q', '-b', 'next');
+    await writeFile(path.join(dev, 'package.json'), `${JSON.stringify({ name: 'amauta', version: '0.7.0' })}\n`);
+    await writeFile(path.join(dev, 'UPGRADING.md'), NOTES['0.7.0']);
+    git(dev, 'add', '-A');
+    git(dev, 'commit', '-q', '-m', 'next 0.7.0');
+    git(dev, 'push', '-q', 'origin', 'next');
+  }
   git(root, 'clone', '-q', origin, inst);
   git(inst, 'reset', '-q', '--hard', 'v0.1.0');
   return { root, origin, dev, inst };
 }
 
-function harness({ confirm, installCode = 0, statusCode = 0 } = {}) {
+const NOTES = {
+  '0.1.0': '# Upgrading\n',
+  '0.2.0': '# Upgrading\n\n## From 0.1.0 to 0.2.0\n\n- note B\n',
+  '0.3.0': '# Upgrading\n\n## From 0.2.0 to 0.3.0\n\n- note C\n\n## From 0.1.0 to 0.2.0\n\n- note B\n\n## From 0.0.1 to 0.1.0\n\n- note A\n',
+  '0.7.0': '# Upgrading\n\n## From 0.6.0 to 0.7.0\n\n- note G\n\n## From 0.1.0 to 0.2.0\n\n- note B\n',
+};
+
+function harness({ confirm, installCode = 0, statusCode = 0, preview } = {}) {
   const out = []; const err = []; const calls = [];
   const io = { stdout: { write: (s) => out.push(s) }, stderr: { write: (s) => err.push(s) } };
   const deps = {
     runAmauta: async (args) => { calls.push(args); return args[0] === 'install' ? installCode : statusCode; },
+    previewInstall: async (dir, flags) => {
+      const ok = (await readFile(path.join(dir, 'package.json'), 'utf8').catch(() => '')).length > 0;
+      calls.push(['preview', ok, ...flags]);
+      return preview ?? { code: 0, report: { files: [], removed: [], skipped: [], legacy: [], state_changes: {} } };
+    },
     ...(confirm === undefined ? {} : { confirm: async (q) => { calls.push(['confirm', q]); return confirm; } }),
   };
   return { io, deps, calls, text: () => out.join(''), errText: () => err.join('') };
@@ -59,7 +81,7 @@ test('--dry-run shows current and target versions and the plan, and changes noth
   assert.match(h.text(), /dry run/i);
   assert.match(h.text(), /merge --ff-only v0\.2\.0/);
   assert.equal(head(f.inst), before);
-  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.calls.filter((c) => c[0] !== 'preview'), [], 'neither install nor status runs');
 });
 
 test('upgrade --yes fast-forwards the branch to the latest tag, runs install then status, prints the rollback', async () => {
@@ -195,4 +217,77 @@ test('the CLI lists upgrade and rejects unknown flags', () => {
   const bad = spawnSync(process.execPath, [bin, 'upgrade', '--nope'], { encoding: 'utf8' });
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /nope/);
+});
+
+// odd/tasks/upgrade-next.md U1, U3, U4.
+const worktrees = (dir) => git(dir, 'worktree', 'list').split('\n').length;
+
+test('the notes of every version in the jump are printed, oldest first, read from the target', async () => {
+  const f = await fixture({ notes: true });
+  const h = harness();
+  assert.equal(await runUpgrade(['--dry-run'], h.io, { ...h.deps, root: f.inst }), 0, h.errText());
+  const t = h.text();
+  assert.match(t, /target: v0\.3\.0/);
+  assert.ok(t.indexOf('From 0.1.0 to 0.2.0') < t.indexOf('From 0.2.0 to 0.3.0'), t);
+  assert.match(t, /note B[\s\S]*note C/);
+  assert.doesNotMatch(t, /note A/, 'a section the install already passed is not shown');
+  const done = harness();
+  assert.equal(await runUpgrade(['--yes'], done.io, { ...done.deps, root: f.inst }), 0, done.errText());
+  assert.match(done.text(), /Upgraded[\s\S]*note C/, 'the notes are repeated after the upgrade');
+});
+
+test('the dry run previews the target installer from a temporary worktree and removes it', async () => {
+  const f = await fixture();
+  const state = path.join(f.root, 'state');
+  await mkdir(state, { recursive: true });
+  await writeFile(path.join(state, 'state.json'), JSON.stringify({ sdd: true, impeccable: false, archify: true }));
+  const report = { files: ['/h/.claude/settings.json', '/h/.claude/skills/new'], removed: ['/h/.claude/old'], skipped: [],
+    legacy: ['hook review-stop'], state_changes: { privacy: [null, true] } };
+  const h = harness({ preview: { code: 0, report } });
+  assert.equal(await runUpgrade(['--dry-run', '--state-dir', state], h.io, { ...h.deps, root: f.inst }), 0, h.errText());
+  assert.deepEqual(h.calls, [['preview', true, '--state-dir', state]], 'the target checkout, with the path flags');
+  assert.equal(worktrees(f.inst), 1, 'the worktree is gone');
+  const t = h.text();
+  assert.match(t, /would write 2 files/);
+  assert.match(t, /settings\.json/);
+  assert.match(t, /would remove 1/);
+  assert.match(t, /replace 1 legacy entr/);
+  assert.match(t, /hook review-stop/);
+  assert.match(t, /kept from your last install: sdd, archify/);
+  const failing = harness({ preview: { code: 1, report: null } });
+  assert.equal(await runUpgrade(['--dry-run'], failing.io, { ...failing.deps, root: f.inst }), 0);
+  assert.match(failing.text(), /could not preview/);
+  assert.equal(worktrees(f.inst), 1);
+});
+
+test('--branch moves to the tip of a branch on origin, and the branch you were on is the rollback', async () => {
+  const f = await fixture({ branch: true });
+  const dry = harness();
+  assert.equal(await runUpgrade(['--branch', 'next', '--dry-run'], dry.io, { ...dry.deps, root: f.inst }), 0, dry.errText());
+  assert.match(dry.text(), /target: branch next/);
+  assert.match(dry.text(), /0\.7\.0/);
+  assert.match(dry.text(), /note G/);
+  assert.equal(git(f.inst, 'symbolic-ref', '--short', 'HEAD'), 'main');
+  const h = harness();
+  assert.equal(await runUpgrade(['--branch', 'next', '--yes'], h.io, { ...h.deps, root: f.inst }), 0, h.errText());
+  assert.equal(git(f.inst, 'symbolic-ref', '--short', 'HEAD'), 'next');
+  assert.equal(git(f.inst, 'rev-parse', '--abbrev-ref', 'next@{upstream}'), 'origin/next');
+  assert.equal(await pkgVersion(f.inst), '0.7.0');
+  assert.deepEqual(h.calls, [['install'], ['status']]);
+  assert.match(h.text(), /rollback: git -C .* checkout main && amauta install/);
+  const again = harness();
+  assert.equal(await runUpgrade(['--branch', 'next', '--yes'], again.io, { ...again.deps, root: f.inst }), 0);
+  assert.match(again.text(), /already/i);
+});
+
+test('--branch refuses bad names, unknown branches and --to together, before anything changes', async () => {
+  const f = await fixture({ branch: true });
+  const before = head(f.inst);
+  for (const args of [['--branch', '-x'], ['--branch', 'a..b'], ['--branch', 'nope'], ['--branch', 'next', '--to', 'v0.1.0']]) {
+    const h = harness();
+    assert.equal(await runUpgrade([...args, '--yes'], h.io, { ...h.deps, root: f.inst }), 1, args.join(' '));
+    assert.deepEqual(h.calls, [], args.join(' '));
+  }
+  assert.equal(head(f.inst), before);
+  assert.equal(git(f.inst, 'symbolic-ref', '--short', 'HEAD'), 'main');
 });
