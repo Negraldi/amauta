@@ -41,8 +41,8 @@ Strict, ON. Runner: `node --test test/upgrade.test.js test/upgrade-e2e.test.js`,
 - [x] U2 End-to-end 0.4.0 to current (skipped with a reason when the 0.4.0 commit is not in the clone).
 - [x] U3 `--branch NAME`.
 - [x] U4 Dry-run report from the target's installer.
-- [ ] Q1 Cleanup; Q2 independent review; Q3 fixes; Q4 cleanup.
-- [ ] D1 Docs; commit and push.
+- [x] Q1 Cleanup; [x] Q2 independent review; [x] Q3 fixes; [x] Q4 cleanup.
+- [x] D1 Docs; commit and push.
 
 ## Acceptance criteria
 
@@ -62,6 +62,18 @@ Strict, ON. Runner: `node --test test/upgrade.test.js test/upgrade-e2e.test.js`,
   worktree. It showed the single-step commands of each section (`upgrade --to v0.5.0`, intermediate rollbacks): now
   dropped (RED seen). A 0.4.0 install has the old upgrade, without --branch: the first move is documented by hand.
 
+- 2026-11-09: D1: UPGRADING.md (several versions in one step, the first move from 0.4.0 by hand), the guide's install
+  and overview pages (en, es), the CLI summary, CHANGELOG.
+- 2026-11-09: Q2 independent review, eleven findings. Q3 (RED seen, 7 tests): the preview planned the temporary
+  worktree's paths, so every hook read as changed: AMAUTA_INSTALL_ROOT now tells the target's installer the real
+  install (an older target is labeled approximate); --no-telemetry, --no-privacy, --no-checks and --persona are not
+  sticky in install, so the upgrade passes them again from state.json (the report said "kept" before); Codex counts
+  in the report; an existing local branch is set to track origin; `@{-1}` and `refs/heads/x` refused; notes accept
+  words after the versions and ignore `## ` inside fences; a downgrade says the notes do not apply; a malformed target
+  package.json is not a crash; the worktree list is pruned first (a Ctrl-C leaves one). Re-run on the fresh 0.4.0
+  clone: 27 files, 5 legacy hook entries, `passed again: --no-telemetry --persona neutral`, worktree removed.
+  Not changed: the dry run fetches (git refs only), as documented.
+
 ## Next step
 
-Q2 review.
+None: closed. Tagging v0.7.0 and the PR are the user's decision.

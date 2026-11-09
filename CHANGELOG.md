@@ -24,6 +24,9 @@ All notable changes to this project are documented here. The format follows [Kee
   single-step commands); `--dry-run` fetches and previews the target's own installer from a temporary worktree (files
   it would write or remove, legacy entries it would replace, choices kept); `--branch <name>` follows a branch on
   origin before it has a release tag. A test installs v0.4.0 from the history and upgrades it to the current version.
+  The upgrade passes `--no-telemetry`, `--no-privacy`, `--no-checks` and `--persona` again from the last install
+  (install does not keep them by itself). `AMAUTA_INSTALL_ROOT` (internal) tells a previewing installer the real
+  install's checkout.
 
 ## [0.7.0] - 2026-11-09
 
