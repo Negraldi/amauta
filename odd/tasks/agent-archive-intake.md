@@ -1,0 +1,77 @@
+# Feature: what the private agent archive teaches, rewritten for amauta
+
+Locator: `odd/tasks/agent-archive-intake.md` (branch `feat/amauta-next`, after `a573499`). Engram mirror:
+`odd/agent-archive-intake/tasks`. Intake record: `docs/intake/agent-archive.md`. Decided with the user on 2026-11-09
+(all seven recommendations of the archive review).
+
+## Objective
+
+Take the general methods of the user's private agent archive into amauta's skills and PBIR tools, clean-room: the
+behavior is read, no text, code, name, palette, server or business rule is copied. The private parts stay in the
+user's profile on their machine.
+
+1. A SQL review reference for the `data` skill.
+2. A challenger checklist and a review certificate in `analytical-review`.
+3. A query cache recipe (query once, keep Parquet, work from the copy) in `pipeline-recipes`.
+4. A reference for HTML in DAX and Deneb (Vega-Lite) in `powerbi-report`, with synthetic examples.
+5. Storytelling and chart selection, titles, inverted semantic colors and two header measures in `powerbi-report`;
+   stock, flow and cohort reconciliation in `metrics-and-cohorts`.
+6. Templates: a lineage record (`provenance`) and a report documentation outline (`powerbi-report`).
+7. PBIR tools: `pbir refs` (report field references the model does not have), `pbir theme` (a report theme file from
+   colors or the profile's brand), and DAX001 no longer flags a division by a numeric constant.
+
+## Scope
+
+In: `assets/skills/data/`, `assets/skills/powerbi-report/`, `python/amauta/extras/pbir/`, their tests, the intake
+record, docs (guide pages, CHANGELOG). Out: repairing reports automatically (a report is only read), a desktop bridge,
+a canvas builder, the archive's templates and harvest scripts, Word generation.
+
+## Constraints
+
+- No private content: no organization, person, server, schema, palette or product names; the archive's 97 DAX and
+  Deneb templates and its catalogs are not used. Examples are synthetic.
+- The archive's mistakes are not inherited: "always DIVIDE", "always a read-uncommitted hint", a keyword denylist as a
+  read-only guard, and `FILTER(ALL(...))` both recommended and flagged.
+- Skills stay small (SKILL.md < 6000 chars, references < 6000, pipeline recipes < 12000); Python stdlib only;
+  simplicity ratchet; `pbir theme` writes only the file it is given and never a report.
+
+## TDD
+
+Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
+`python3 -m unittest python.tests.test_pbir`, `node --test test/data-skill.test.js test/powerbi-skill.test.js`, then
+`npm test`.
+
+## Tasks
+
+- [ ] A1 Intake record `docs/intake/agent-archive.md`: each source by hash, decision and why; what was not taken.
+- [ ] K1 `data/references/sql-review.md`: explain before running, writes only to temporary objects, sargable filters,
+  keys to a temporary table, aggregate to the grain before a join, batch hygiene, UTF-8 scripts, lazy frames, paths
+  and credentials, the delivery format.
+- [ ] K2 `analytical-review`: the challenger questions (blind spots, robustness, assumptions, value) and a review
+  certificate in the deliverable.
+- [ ] K3 `pipeline-recipes`: query cache to Parquet with its fingerprint; a refresh flag.
+- [ ] K4 `powerbi-report/references/html-and-deneb.md`.
+- [ ] K5 `powerbi-report/references/storytelling-and-charts.md`; stock, flow and cohort in `metrics-and-cohorts`.
+- [ ] K6 Lineage record in `provenance`; `powerbi-report/references/report-documentation.md`.
+- [ ] T1 `pbir refs REPORT MODEL`: references in projections, filters and sorts to a table, column or measure the
+  model lacks; exit 1 when any.
+- [ ] T2 `pbir theme --name N (--colors C,... | --brand FILE | --profile) --out FILE`: a Power BI report theme from
+  `#rrggbb` colors; the file is written atomically and never over an existing one without `--force`.
+- [ ] T3 DAX001: a division by a numeric constant is not flagged.
+- [ ] Q1 Cleanup; Q2 independent review; Q3 fixes; Q4 cleanup; Q5 independent review; Q6 fixes; Q7 cleanup.
+- [ ] D1 Docs: guide pages (en, es), CHANGELOG, skill and module docs; commit and push.
+
+## Acceptance criteria
+
+- Every new reference is linked from its SKILL.md and passes the skill tests (size, links, banned words).
+- `pbir refs` and `pbir theme` have tests on synthetic fixtures, `--help` works, and they are listed in the skill.
+- `npm test` green; ratchet and architecture green.
+
+## Progress
+
+- 2026-11-09: plan written from the archive review and the user's request (implement 1 to 7, then three cleanup
+  rounds with two independent reviews and their fixes, then documentation).
+
+## Next step
+
+A1 and K1.
