@@ -140,6 +140,15 @@ function table(id, columns, rows, onRow) {
   return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": t("table.label") }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
+// The session table's columns (#/session and a project's Sessions tab): the id links to its page.
+function sessionColumns() {
+  const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")],
+    ["cache_write", t("tok.cache_write")]].map(([key, label]) => ({ key, label, num: true }));
+  return [{ key: "session_id", label: t("kind.session"), render: (v) => link("session", v, String(v).slice(0, 8)) },
+    { key: "runtime", label: t("col.runtime"), render: runtimeBadge }, { key: "project", label: t("kind.project") },
+    { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums];
+}
+
 function legend() { return h("div", { class: "legend" }, KINDS.map(([k, l]) => h("span", null, h("span", { class: `sw f-${k}` }), t(l)))); }
 
 function stackedChart(daily) {
@@ -184,6 +193,7 @@ const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOvervie
 async function renderRoute(route) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach(t("route.notPage"), t("route.noMatch", { id }))];
+  if (id && kind === "project") return viewProjectHub(route); // one project = one place, its views in ?tab=
   if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
   const out = await VIEWS()[kind](route); // a view that needs the item (the guide's page) or its ?seg= reads it from the route
   const tabs = tabBar(route);
@@ -200,7 +210,7 @@ function pageHead(title, intro) {
 
 // The sidebar: one block per job group (R.NAV) with its label; the foot group (Guide, Settings) sits apart at the bottom.
 function renderNav(route) {
-  const hub = R.hubOf(route.kind);
+  const hub = R.hubOf(route);
   const item = (i) => h("li", null, h("a", { href: i.hash, "aria-current": i.hub === hub ? "page" : false }, t(i.key)));
   const group = (g) => (g.foot
     ? h("div", { class: "nav-group nav-foot", role: "group", "aria-label": t(g.key) }, h("ul", null, g.items.map(item)))

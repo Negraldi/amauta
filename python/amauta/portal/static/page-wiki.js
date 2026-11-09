@@ -123,7 +123,7 @@ function impactBlock(im) {
 }
 
 function pageExtras(pg) {
-  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null, oddDiagramsBlock(pg), projectGraphBlock(pg)];
+  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
 }
 
 function bodyNodes(pg, text = pg.body_md) {
@@ -133,20 +133,38 @@ function bodyNodes(pg, text = pg.body_md) {
   return MD.toDom(MD.parse(text), document, { known, mermaid, headingOffset: 1, labels: { missing: (kind, id) => t("md.missing", { kind, id }), table: t("table.label") } });
 }
 
-async function viewWikiPage(kind, id, source) {
-  let pg;
-  try { pg = await api("wiki/page", { kind, id, source }); } catch (err) {
-    if (/not found|no encontrad/i.test(String(err.message))) return [teach(t("page.none", { kind: kindLabel(kind).toLowerCase() }), t("page.nothingStored", { id }), HINTS.includes(kind) ? t(`hint.${kind}`) : "")];
+// The page data, or null when the server has no such page (any other failure reaches the error panel).
+async function fetchWikiPage(kind, id, source) {
+  try { return await api("wiki/page", { kind, id, source }); } catch (err) {
+    if (/not found|no encontrad/i.test(String(err.message))) return null;
     throw err;
   }
+}
+function noPage(kind, id) {
+  return [teach(t("page.none", { kind: kindLabel(kind).toLowerCase() }), t("page.nothingStored", { id }), HINTS.includes(kind) ? t(`hint.${kind}`) : "")];
+}
+// The rail's details list; `keep` filters the rows (the project hub shows the other facts elsewhere).
+function metaList(pg, keep) {
+  const rows = keep ? pg.meta.filter(keep) : pg.meta;
+  if (!rows.length) return null;
+  return h("dl", { class: "meta" }, rows.flatMap((m) => {
+    const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m));
+    return [h("dt", null, ts(m.label)), R.isPathLike(v) ? h("dd", null, pathNode(v)) : h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)];
+  }));
+}
+
+async function viewWikiPage(kind, id, source) {
+  const pg = await fetchWikiPage(kind, id, source);
+  if (!pg) return noPage(kind, id);
   document.title = `${pg.title} - amauta`;
-  const meta = pg.meta.length ? h("dl", { class: "meta" }, pg.meta.flatMap((m) => { const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m)); return [h("dt", null, ts(m.label)), R.isPathLike(v) ? h("dd", null, pathNode(v)) : h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)]; })) : null;
+  const refs = (list) => (list.length ? refList(list) : null);
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary), pg.refresh ? refreshControl(pg.refresh.server) : null,
-      pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
+      h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
+      pg.refresh ? refreshControl(pg.refresh.server) : null, pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...pg.sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),
-    h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), meta), railBlock(t("page.links"), pg.links.length ? refList(pg.links) : null), railBlock(t("page.linkedFrom"), pg.backlinks.length ? refList(pg.backlinks) : null)))];
+    h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), metaList(pg)),
+      railBlock(t("page.links"), refs(pg.links)), railBlock(t("page.linkedFrom"), refs(pg.backlinks))))];
 }
 
 // Skill catalog: every skill the portal can describe, grouped by source; the filter works on what is already loaded.

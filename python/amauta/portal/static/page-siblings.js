@@ -37,7 +37,7 @@ async function siblingsBlock() {
   try { d = await api("siblings"); } catch (_) { return null; }
   if (!d.siblings || !d.siblings.length) return null;
   return h("section", { class: "page-section" }, h("h2", null, t("sib.title")), h("p", { class: "muted" }, t("sib.lead")),
-    h("div", { class: "pipe-cards" }, d.siblings.map(siblingCard)));
+    h("div", { class: "pipe-cards sib-cards" }, d.siblings.map(siblingCard)));
 }
 
 // Settings: the list with Remove, and a form that adds one. Saved through the projects config (a closed schema).

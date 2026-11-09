@@ -72,7 +72,7 @@ test('hubOf maps every kind (or route) to its sidebar hub; tabOf names the tab o
 test('crumbs: group, hub (or tab) and the item; list pages stop at the hub', () => {
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/hook/X'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' }, { text: 'X' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/feature/proj/name'))),
-    [{ key: 'nav.group.work' }, { key: 'nav.project', hash: '#/project' }, { text: 'proj', hash: '#/project/proj' }, { text: 'name' }]);
+    [{ key: 'nav.group.work' }, { key: 'nav.project', hash: '#/project' }, { text: 'proj', hash: '#/project/proj?tab=features' }, { text: 'name' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/memory/k'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.memory', hash: '#/memory' }, { text: 'k' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/session/id'))), [{ key: 'nav.activity' }, { key: 'nav.session', hash: '#/session' }, { text: 'id' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/mcp/engram'))), [{ key: 'nav.activity' }, { key: 'nav.toolsSkills', hash: '#/tool?seg=mcp' }, { text: 'engram' }]);

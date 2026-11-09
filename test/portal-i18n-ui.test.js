@@ -15,7 +15,7 @@ const SKILL_PAGE = { kind: 'skill', id: 'artifact-capabilities', title: 'artifac
   sections: [{ heading: 'Tools of this server', items: [{ label: 'Read', value: '12 calls', kind: 'tool', id: 'Read' }] }], links: [], backlinks: [], missing: [], usage: null, history: null };
 const MEMORY_PAGE = { kind: 'memory', id: '7', title: 'Decision about caching', body_md: 'We keep the **latest** revision only.', progress: null, meta: [{ label: 'Type', value: 'decision' }, { label: 'Revision', value: 3 }],
   sections: [], links: [], backlinks: [], missing: [], usage: null, history: { available: false, note: 'This store keeps the latest revision only: saving the same topic_key again overwrites the previous text, so there is no earlier text to list or compare.' } };
-const PROJECTS = { auto_discover: true, config_repos: [], projects: [{ name: 'amauta', path: '/home/u/amauta', origin: ['config'], odd: { features: 2, done: 3, total: 5, percent: 60 }, sessions: 1234567, memories: 4, graph: { mirrored: true, nodes: 3, edges: 2, synced_at: '2026-10-05T10:00:00.000Z' } }] };
+const PROJECTS = { auto_discover: true, config_repos: [], projects: [{ name: 'amauta', path: '/home/u/amauta', origin: ['config'], odd: { features: 2, done: 1234567, total: 2000000, percent: 62 }, sessions: 1234567, memories: 4, graph: { mirrored: true, nodes: 3, edges: 2, synced_at: '2026-10-05T10:00:00.000Z' } }] };
 
 async function boot({ language = 'en-US', storage = memoryStorage(), hash = '#/', routes = {}, extra = {} } = {}) {
   const posts = [];
@@ -93,16 +93,15 @@ test('the stored choice wins over the browser language, and a throwing or missin
 
 test('numbers follow the language and region; dates stay YYYY-MM-DD in both languages', async () => {
   const es = await boot({ language: 'es-ES', hash: '#/project' });
-  assert.match(view(es.env).textContent, /1\.234\.567 sesiones/);
-  assert.match(view(es.env).textContent, /grafo reflejado 2026-10-05/);
-  assert.match(view(es.env).textContent, /3 de 5 tareas \(60 %\) en 2 funcionalidades/);
+  assert.match(view(es.env).textContent, /1\.234\.567 de 2\.000\.000 tareas \(62 %\) en 2 funcionalidades/);
+  assert.match(view(es.env).textContent, /Reflejado 2026-10-05/);
   const mx = await boot({ language: 'es-MX', hash: '#/project' });
-  assert.match(view(mx.env).textContent, /1,234,567 sesiones/);
+  assert.match(view(mx.env).textContent, /1,234,567 de 2,000,000 tareas/);
   const en = await boot({ language: 'en-US', hash: '#/project' });
-  assert.match(view(en.env).textContent, /1,234,567 sessions/);
-  assert.match(view(en.env).textContent, /graph mirrored 2026-10-05/);
+  assert.match(view(en.env).textContent, /1,234,567 of 2,000,000 tasks/);
+  assert.match(view(en.env).textContent, /Mirrored 2026-10-05/);
   await switchTo(en.env, 'es');
-  assert.match(view(en.env).textContent, /1\.234\.567 sesiones/, 'the chosen language brings its own separators when the browser region is not Spanish');
+  assert.match(view(en.env).textContent, /1\.234\.567 de 2\.000\.000 tareas/, 'the chosen language brings its own separators when the browser region is not Spanish');
   assert.doesNotMatch(view(en.env).textContent, /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{1,2} de \w+ de \d{4}/);
 });
 

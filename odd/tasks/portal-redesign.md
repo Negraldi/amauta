@@ -15,7 +15,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T0 Shape: inventory, IA proposal (archify sitemap), design brief confirmed by the user
 - [x] T1 Routing core: new hub map, breadcrumbs, legacy-hash redirects, filters scoped to Activity (tests first)
 - [x] T2 Shell + identity tokens (moved from T8: DESIGN.md table, style.css, theme.js BASES change together): grouped sidebar, top bar (breadcrumb, search, theme quick toggle, refresh), sidebar footer cleanup
-- [ ] T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories)
+- [x] T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories)
 - [ ] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
 - [ ] T5 Activity: usage, sessions, one tools-and-skills table
 - [ ] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
@@ -76,8 +76,22 @@ Target after redesign: >= 32/40, no P1.
 - 2026-11-09 T2 verified by coordinator (portal 341/341). Fix: light --warn 0.55 -> 0.535 so it reaches 4.5:1 on every
   surface (it was 4.4998 on --sidebar, 4.45 on --accent-soft); the strict a11y contrast test is restored, not relaxed.
 
+- 2026-11-09 T3 (route: delegated writer). #/project/<name> is a hub with ?tab= (overview default, never written;
+  R.PROJECT_TABS, R.projectTab, R.TAB_KEYS); crumbs Work / Projects / <name> (/ tab). Features (#/feature/p/n) and graph
+  nodes (#/node/repo::id) crumb through the hub (?tab=features / ?tab=graph) and light Projects in the sidebar. Overview:
+  plural-aware summary (tn), ODD progress, graph freshness with Sync now / Connect, rail with Path, Found by and backlinks
+  only (Links list and per-kind lists removed). Features (/api/odd filtered, bar + label, task diagrams), Graph
+  (graphRepo for this repo, link to #/node), Pipelines (/api/pipelines filtered by path or name), Sessions (/api/sessions
+  ?project=, shared sessionColumns in app.js), Memories (/api/memories?project=); each tab has skeleton, teaching empty
+  state and an error panel with Retry. #/project is a table: name, ODD progress bar, graph chip (dot/ring + text), last
+  activity (YYYY-MM-DD from the newest session); siblings below in compact cards. RED first (test/portal-project-hub
+  .test.js 20/21 failing), then GREEN: portal node 362/362, Python portal 492 OK, simplicity green (baseline shrank).
+  Changed expectations: feature crumb hash now ?tab=features; the list no longer shows session counts (summary moved to
+  the hub); graph chip text "Mirrored <date>"/"Not mirrored"; i18n number test uses the ODD figures.
+
 ## Next step
 
-T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories), using the T2 tab and
-breadcrumb styles. Carry-overs: page section headings, rails, tables and data colors in the new identity are only
-token-level so far (T8 visual pass); the guide uses .prose for the serif (check in T6/T8).
+T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash. Carry-overs: the
+Sessions page (page-activity.js viewSessions) should switch to app.js sessionColumns() (T5); the Sessions tab filters by
+the usage project name, while the hub summary counts git-root sessions too (server data, out of scope); page section
+headings, rails, tables and data colors are only token-level so far (T8 visual pass).

@@ -41,27 +41,52 @@
     return NAV_ITEMS.find((i) => i.kind === list || (i.tabs || []).some((t) => t.kind === list)) || null;
   };
   const kindOf = (r) => (typeof r === "string" ? r : (r && r.kind) || "");
-  function hubOf(route) { const item = itemOf(kindOf(route)); return item ? item.hub : "home"; }
+  // A route object for an item that belongs to one project (a feature, a graph node) lights the Projects hub.
+  function hubOf(route) {
+    if (route && typeof route === "object" && ownerOf(route)) return "project";
+    const item = itemOf(kindOf(route));
+    return item ? item.hub : "home";
+  }
   // The tab of a hub with tabs that a route (list or item) belongs to, or null.
   function tabOf(route) {
     const item = itemOf(kindOf(route)), list = listOf(kindOf(route)).kind;
     return item && (item.tabs || []).some((t) => t.kind === list) ? list : null;
   }
 
+  // The project hub's views, carried as ?tab= (overview is the default and never written), and their label keys.
+  const PROJECT_TABS = ["overview", "features", "graph", "pipelines", "sessions", "memories"];
+  const TAB_KEYS = { overview: "project.tab.overview", features: "project.tab.features", graph: "project.tab.graph",
+    pipelines: "project.tab.pipelines", sessions: "project.tab.sessions", memories: "project.tab.memories" };
+  function projectTab(route) { const v = route && route.query && route.query.tab; return PROJECT_TABS.includes(v) ? v : "overview"; }
+  const projectHash = (name, tab) => routeHash({ kind: "project", id: name, query: tab && tab !== "overview" ? { tab } : {} });
+  // Items that live in one project: an ODD feature ("<project>/<name>") and a graph node ("<repo>::<id>").
+  function ownerOf(r) {
+    const id = String(r.id || ""), cut = r.kind === "feature" ? id.lastIndexOf("/") : r.kind === "node" ? id.indexOf("::") : -1;
+    if (cut <= 0) return null;
+    const feature = r.kind === "feature";
+    return { project: id.slice(0, cut), rest: id.slice(cut + (feature ? 1 : 2)), tab: feature ? "features" : "graph" };
+  }
+  const PROJECT_BASE = [{ key: "nav.group.work" }, { key: "nav.project", hash: "#/project" }];
+  function projectCrumbs(r) {
+    const owner = ownerOf(r);
+    if (owner) return [...PROJECT_BASE, { text: owner.project, hash: projectHash(owner.project, owner.tab) }, { text: owner.rest }];
+    const tab = projectTab(r);
+    if (tab === "overview") return [...PROJECT_BASE, { text: r.id }];
+    return [...PROJECT_BASE, { text: r.id, hash: projectHash(r.id) }, { key: TAB_KEYS[tab] }];
+  }
+
   // The trail from the group to the page: [{key | text, hash?}]. List pages stop at their hub; item pages go through the
-  // list that shows them (a tab when the hub has one), then the item itself (an ODD feature also links its project).
+  // list that shows them (a tab when the hub has one), then the item itself. Project pages and items of a project go
+  // through the project hub (Work / Projects / <project> / <tab or item>).
   function crumbs(route) {
     const r = route || {}, item = itemOf(r.kind);
     if (!item || r.kind === "unknown") return [];
+    if (r.id && (r.kind === "project" || ownerOf(r))) return projectCrumbs(r);
     const out = item.group.foot ? [] : [{ key: item.group.key }];
     if (!r.id) return [...out, { key: item.key, hash: item.hash }];
     const list = listOf(r.kind), tabbed = (item.tabs || []).find((t) => t.kind === list.kind);
     const listHash = list.kind === item.kind && !list.query ? item.hash : routeHash({ kind: list.kind, id: "", query: list.query });
-    out.push({ key: tabbed ? tabbed.key : item.key, hash: listHash });
-    const cut = r.kind === "feature" ? r.id.lastIndexOf("/") : -1;
-    if (cut > 0) out.push({ text: r.id.slice(0, cut), hash: formatHash("project", r.id.slice(0, cut)) }, { text: r.id.slice(cut + 1) });
-    else out.push({ text: r.id });
-    return out;
+    return [...out, { key: tabbed ? tabbed.key : item.key, hash: listHash }, { text: r.id }];
   }
 
   // ---- hashes ---------------------------------------------------------------------------------------------------
@@ -73,7 +98,8 @@
   const SEGMENTS = { skills: "skills", tools: "tools", mcp: "mcp_servers", mcptools: "mcp_tools", subagents: "subagents" };
   const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-  const QUERY = { seg: (v) => own(SEGMENTS, v), kind: (v) => v === "skill", source: (v) => SOURCES.includes(v) };
+  const QUERY = { seg: (v) => own(SEGMENTS, v), kind: (v) => v === "skill", source: (v) => SOURCES.includes(v),
+    tab: (v) => v !== "overview" && PROJECT_TABS.includes(v) };
 
   function decode(part) {
     try { return decodeURIComponent(part); } catch (_) { return part; }
@@ -110,7 +136,7 @@
     return { route: withQuery(out, query), moved: false };
   }
   // "#/memory/arch%2Fwidgets" -> {kind: "memory", id: "arch/widgets"}; "" -> home; unknown kinds -> {kind: "unknown", id: <raw>}.
-  // Known query params (?seg=, ?kind=, ?source=) ride along as route.query; anything else is dropped.
+  // Known query params (?seg=, ?kind=, ?source=, ?tab=) ride along as route.query; anything else is dropped.
   function parseHash(hash) { return resolve(hash).route; }
   // The hash an old one should be rewritten to (history.replaceState), or null when the hash is current.
   function redirectOf(hash) { const r = resolve(hash); return r.moved ? routeHash(r.route) : null; }
@@ -342,7 +368,7 @@
   }
 
   globalThis.AmautaRoute = {
-    NAV, SEGMENTS, hubOf, tabOf, crumbs, redirectOf, routeHash, usageSegment, segmentHash,
+    NAV, SEGMENTS, PROJECT_TABS, TAB_KEYS, projectTab, hubOf, tabOf, crumbs, redirectOf, routeHash, usageSegment, segmentHash,
     filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso,
     fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice,
     KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta,

@@ -38,16 +38,15 @@ test('the sidebar has Projects and the old Diagrams entry is gone', async () => 
   assert.ok(!links.includes('#/diagrams'));
 });
 
-test('#/project lists every known project with progress, counts, graph status and a link to its page', async () => {
+test('#/project lists every known project with progress, graph status and a link to its page', async () => {
   const { env } = await boot('#/project');
   const v = view(env);
   const links = hrefs(v);
   assert.ok(links.includes('#/project/repo'));
   assert.ok(links.includes(`#/project/${encodeURIComponent(XSS)}`));
   assert.match(v.textContent, /2 of 3 tasks \(67%\)/);
-  assert.match(v.textContent, /1,234 sessions/);
-  assert.match(v.textContent, /graph mirrored 2026-10-14/i);
-  assert.match(v.textContent, /graph not mirrored/i);
+  assert.match(v.textContent, /Mirrored 2026-10-14/);
+  assert.match(v.textContent, /Not mirrored/);
   assert.match(v.textContent, /discovered/);
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
@@ -67,22 +66,24 @@ const PAGE = {
   graph: GRAPH_OFF,
 };
 
-test('a project page shows progress, linked features, memories, the ODD diagram and the graph how-to when nothing is mirrored', async () => {
+test('a project page shows progress and the graph how-to on Overview; features and the ODD diagram on Features', async () => {
   const { env } = await boot('#/project/repo', { '/api/wiki/page': PAGE });
   const v = view(env);
   assert.ok(env.calls.some((c) => c.url === '/api/wiki/page?kind=project&id=repo'));
   assert.match(v.textContent, /2 of 3 done/);
-  assert.ok(hrefs(v).includes('#/feature/repo%2Ffeat'));
-  assert.ok(hrefs(v).includes('#/memory/9'));
-  assert.match(v.textContent, /feat\.md: 2\/3|feat\.md/);
   assert.match(v.textContent, /Graph memory/);
   assert.match(v.textContent, /amauta graphify hook install/);
-  assert.match(v.textContent, /1,234/);
+  assert.match(v.textContent, /1,234 sessions/);
+  const odd = { '/api/odd': { repos: [{ repo: 'repo', documents: [{ id: 'repo/feat', name: 'feat.md', done: 2, total: 3, tasks: [] }] }] } };
+  const feats = await boot('#/project/repo?tab=features', { '/api/wiki/page': PAGE, ...odd });
+  assert.ok(hrefs(view(feats.env)).includes('#/feature/repo%2Ffeat'));
+  assert.match(view(feats.env).textContent, /feat\.md: 2\/3/);
 });
 
-test('a mirrored project page reports the graph instead of the how-to', async () => {
+test('a mirrored project page reports the sync instead of the how-to and links its Graph tab', async () => {
   const { env } = await boot('#/project/repo', { '/api/wiki/page': { ...PAGE, graph: { mirrored: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z' } } });
-  assert.match(view(env).textContent, /6 nodes, 4 edges/);
+  assert.match(view(env).textContent, /Mirrored 2026-10-14 00:00/);
+  assert.ok(hrefs(view(env)).includes('#/project/repo?tab=graph'));
   assert.doesNotMatch(view(env).textContent, /hook install/);
 });
 
