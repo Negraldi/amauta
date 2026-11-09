@@ -37,10 +37,10 @@ Strict, ON. Runner: `node --test test/upgrade.test.js test/upgrade-e2e.test.js`,
 
 ## Tasks
 
-- [ ] U1 Notes across the jump (parser by semver, read from the target ref).
-- [ ] U2 End-to-end 0.4.0 to current (skipped with a reason when the 0.4.0 commit is not in the clone).
-- [ ] U3 `--branch NAME`.
-- [ ] U4 Dry-run report from the target's installer.
+- [x] U1 Notes across the jump (parser by semver, read from the target ref).
+- [x] U2 End-to-end 0.4.0 to current (skipped with a reason when the 0.4.0 commit is not in the clone).
+- [x] U3 `--branch NAME`.
+- [x] U4 Dry-run report from the target's installer.
 - [ ] Q1 Cleanup; Q2 independent review; Q3 fixes; Q4 cleanup.
 - [ ] D1 Docs; commit and push.
 
@@ -53,6 +53,11 @@ Strict, ON. Runner: `node --test test/upgrade.test.js test/upgrade-e2e.test.js`,
 
 - 2026-11-09: plan written from the user's request.
 
+- 2026-11-09: U1, U3, U4 TDD (RED: 3 tests; the refusal test passed before only because --branch was unknown, it now
+  checks real validation). runUpgrade split into short functions: the baseline loses its fn, long and header entries.
+  U2: a characterization test (0.4.0 installed from the history, then the current install; it passed at once, as the
+  migration already existed); CI's full job fetches the whole history so it runs there instead of skipping.
+
 ## Next step
 
-U1.
+Q1 cleanup, Q2 review.
