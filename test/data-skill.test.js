@@ -5,9 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadManifest, readAssetText } from '../src/install/assets.js';
 
-const REFS = ['analytical-review', 'transformation', 'enrichment', 'metrics-and-cohorts', 'provenance'];
+const REFS = ['analytical-review', 'transformation', 'enrichment', 'metrics-and-cohorts', 'provenance', 'sql-review'];
 
-test('the data skill is registered with a trigger description and links its five references', async () => {
+test('the data skill is registered with a trigger description and links its references', async () => {
   const m = await loadManifest();
   assert.ok(m.skills.includes('data'));
   const text = await readAssetText('skills/data/SKILL.md');
@@ -38,4 +38,18 @@ test('pipeline recipes: database, workbook and mail steps as the project\'s own 
   for (const needle of [/"retries"/, /"outputs"/, /AMAUTA_PIPELINE_TRIGGER/, /RefreshAll/, /CalculateUntilAsyncQueriesDone/, /ReplyAll/,
     /\bGO\b/, /amauta pipeline check/, /environment variable|config file/i]) assert.match(r, needle, String(needle));
   for (const banned of [/PWD=\w/, /password\s*=\s*["'][^"']+["']/i, /@[a-z]+\.(com|ec|pe)\b/i, /\\\\Users\\\\/]) assert.doesNotMatch(r, banned, String(banned));
+});
+
+// odd/tasks/agent-archive-intake.md K1-K3, K5, K6: the methods taken from the private agent archive, rewritten generic.
+test('the archive intake: SQL review, the challenger and its certificate, the query cache, stock and flow, lineage', async () => {
+  const sql = await readAssetText('skills/data/references/sql-review.md');
+  for (const needle of [/sargable/i, /temporary/i, /grain/i, /SET NOCOUNT ON/, /UTF-16/, /scan_parquet|lazy/i, /permission/i])
+    assert.match(sql, needle, String(needle));
+  const review = await readAssetText('skills/data/references/analytical-review.md');
+  for (const needle of [/blind spot/i, /assumption/i, /certificate/i]) assert.match(review, needle, String(needle));
+  const recipes = await readAssetText('skills/data/references/pipeline-recipes.md');
+  assert.match(recipes, /cache/i);
+  assert.match(recipes, /--refresh/);
+  assert.match(await readAssetText('skills/data/references/metrics-and-cohorts.md'), /stock[\s\S]*flow[\s\S]*cohort/i);
+  assert.match(await readAssetText('skills/data/references/provenance.md'), /## Lineage record/);
 });

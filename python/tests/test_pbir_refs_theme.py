@@ -87,6 +87,11 @@ class ThemeTest(Base):
     def test_low_contrast_is_reported(self):
         self.assertLess(theme.contrast("#777777", "#888888"), 4.5)
         self.assertAlmostEqual(theme.contrast("#000000", "#ffffff"), 21.0, places=1)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(main(["theme", "--name", "Gray", "--colors", "#112233", "--background", "#777777",
+                                   "--foreground", "#888888", "--out", str(self.root / "gray.json")]), 0)
+        self.assertIn("warning: foreground on background has contrast 1.", out.getvalue())
 
     def test_brand_file_colors(self):
         brand = self.write("brand.md", "# Brand\n\nTheme a.json\n- name: a\n- data colors: #102030, #405060\n- background: #FFFFFF\n")

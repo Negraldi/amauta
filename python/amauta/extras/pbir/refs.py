@@ -12,16 +12,23 @@ from pathlib import Path
 
 from .layout import _pages
 
-_PLACES = (("filterConfig", "filter"), ("sortDefinition", "sort"))
+_PLACES = {"filterConfig": "filter", "sortDefinition": "sort"}
+
+
+def _entity(node):
+    expr = node.get("Expression")
+    source = expr.get("SourceRef") if isinstance(expr, dict) else None
+    return source.get("Entity") if isinstance(source, dict) else None
 
 
 def _walk(node, place, out):
+    """Append (place, table, field) for every field reference under node."""
     if isinstance(node, dict):
-        entity = ((node.get("Expression") or {}).get("SourceRef") or {}).get("Entity") if isinstance(node.get("Expression"), dict) else None
+        entity = _entity(node)
         if isinstance(entity, str) and isinstance(node.get("Property"), str):
             out.append((place, entity, node["Property"]))
         for key, value in node.items():
-            _walk(value, dict(_PLACES).get(key, place), out)
+            _walk(value, _PLACES.get(key, place), out)
     elif isinstance(node, list):
         for value in node:
             _walk(value, place, out)
@@ -50,12 +57,11 @@ def _sources(report):
 
 def audit(report, m):
     fields = {t["name"]: {o["name"] for o in t["columns"] + t["measures"]} for t in m["tables"]}
-    findings, seen = [], set()
+    findings = {}
     for where, data in _sources(report):
         for place, table, prop in _walk(data, "field", []):
             problem = "no such table" if table not in fields else "no such field" if prop not in fields[table] else None
-            key = (where, place, table, prop)
-            if problem and key not in seen:
-                seen.add(key)
-                findings.append({"where": where, "place": place, "ref": f"{table}[{prop}]", "problem": problem})
-    return findings
+            if problem:
+                findings.setdefault((where, place, table, prop),
+                                    {"where": where, "place": place, "ref": f"{table}[{prop}]", "problem": problem})
+    return list(findings.values())

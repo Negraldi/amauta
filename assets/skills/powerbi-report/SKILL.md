@@ -37,16 +37,22 @@ performance question. Metric, cohort and join definitions follow the `data` skil
 3. Page. New pages are 1280 px wide; keep existing dimensions on changes unrelated to layout. One main question and a
    clear reading order per page; pick visuals by question ([visual catalog](references/visual-catalog.md)): a card for
    one number, bars for categories, a line for time, a table or matrix for exact detail. Composition rules:
-   [clean report design](references/clean-report-design.md). Use the `impeccable` skill for a critique when installed.
+   [clean report design](references/clean-report-design.md); the headline, evidence and detail of a page, chart choice
+   and color by direction: [storytelling and charts](references/storytelling-and-charts.md). HTML cards and Deneb
+   visuals only when approved: [HTML and Deneb](references/html-and-deneb.md). Use the `impeccable` skill for a
+   critique when installed.
 4. Candidate. Inventory pages, visual IDs, fields, filters, bookmarks and interactions before changing an existing
    report. Edit PBIR through the official CLI when installed (check `--help`, never guess syntax) or reviewed JSON; see
    [PBIR authoring notes](references/pbir-authoring-notes.md). Then run the static tools:
    - `{{AMAUTA_PY}} amauta.extras.pbir lint MODEL` (DAX and model rules, warnings)
    - `{{AMAUTA_PY}} amauta.extras.pbir layout REPORT` (outside the page, overlaps, tiny visuals)
+   - `{{AMAUTA_PY}} amauta.extras.pbir refs REPORT MODEL` (fields, filters and sorts that point at nothing)
    - `{{AMAUTA_PY}} amauta.extras.pbir diff OLD NEW` (model changes between two candidates)
    - `{{AMAUTA_PY}} amauta.extras.pbir dictionary MODEL` (a Markdown data dictionary)
    - `{{AMAUTA_PY}} amauta.extras.pbir rename REPORT --table T --from OLD --to NEW` (structural rename in the visuals;
      a dry run until `--apply`; rename the field in the model as well)
+   - `{{AMAUTA_PY}} amauta.extras.pbir theme --name N --profile --out FILE.json` (a report theme from the profile's
+     palette, or `--colors`; the author imports it in Desktop)
 5. Desktop and Service. With permission, open the candidate, refresh when the model changed, check representative DAX
    values, filters and every changed visual; save, close and reopen when the delivery is a persisted file.
 6. Performance only after a correct baseline: measure, change one thing, measure again on the same data.
@@ -54,4 +60,5 @@ performance question. Metric, cohort and join definitions follow the `data` skil
 ## Output Contract
 
 The report contract, the diff of what changed, the static tool results, the values and filter cases checked in the
-real target, viewports inspected, exceptions, open questions and the rollback point (the untouched original).
+real target, viewports inspected, exceptions, open questions and the rollback point (the untouched original). For
+handover, the documentation follows [report documentation](references/report-documentation.md).

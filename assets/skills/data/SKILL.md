@@ -36,7 +36,8 @@ large files) live in `tabular-data`; this skill is about meaning and evidence.
    [transformation](references/transformation.md); row-preserving lookups per [enrichment](references/enrichment.md).
 3. Check on synthetic data: boundary dates, ties, duplicates, nulls versus empty versus unmatched, join fan-out,
    small populations. Diagnose missingness, duplicate keys and outliers with aggregates only.
-4. Record where every number comes from per [provenance](references/provenance.md).
+4. Record where every number comes from per [provenance](references/provenance.md). Before a query or script runs
+   against a database, and when reviewing one, follow [SQL review](references/sql-review.md).
 5. Reconcile and hand over: row and key counts before and after, totals, unresolved questions, limits.
 6. Recurring: make it an amauta pipeline with its own scripts per [pipeline recipes](references/pipeline-recipes.md).
 

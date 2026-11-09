@@ -20,6 +20,10 @@ rules win over imported proposals; a missing definition stays unresolved until i
 Never resolve a tie by taking the first row or read an unavailable input as zero. A stock at a point differs from
 events during an interval; calendar periods, elapsed durations and partial periods are different populations.
 
+Say which kind each metric is: a stock (what is active at the close), a flow (what entered or left during the period)
+or a cohort (what happened to the group that entered in one period, over a window). Flows reconcile with stocks:
+opening stock + entries + reactivations - exits = closing stock, with every difference explained.
+
 ## Synthetic acceptance cases
 
 Use an invented event stream with opaque keys (for example a fictional library: reservation, loan, return) and

@@ -9,7 +9,8 @@ import { loadManifest, readAssetText, repoRoot } from '../src/install/assets.js'
 import { install } from '../src/install/installer.js';
 import { tempDir } from './helpers/tmp.js';
 
-const REFS = ['statistical-contracts', 'calculation-placement', 'clean-report-design', 'semantic-model-conventions', 'pbir-authoring-notes', 'visual-catalog'];
+const REFS = ['statistical-contracts', 'calculation-placement', 'clean-report-design', 'semantic-model-conventions', 'pbir-authoring-notes', 'visual-catalog',
+  'html-and-deneb', 'storytelling-and-charts', 'report-documentation'];
 
 test('the skill is registered with a trigger, links every reference and names only commands that exist', async () => {
   assert.ok((await loadManifest()).skills.includes('powerbi-report'));
@@ -17,7 +18,7 @@ test('the skill is registered with a trigger, links every reference and names on
   assert.match(/^---\n([\s\S]*?)\n---\n/.exec(text)[1], /^description: "Trigger: [^"\n]+"$/m);
   assert.ok(text.length < 6000, `${text.length} chars`);
   for (const ref of REFS) assert.match(text, new RegExp(`\\(references/${ref}\\.md\\)`), ref);
-  for (const cmd of ['lint', 'layout', 'diff', 'dictionary', 'rename']) {
+  for (const cmd of ['lint', 'layout', 'diff', 'dictionary', 'rename', 'refs', 'theme']) {
     assert.match(text, new RegExp(`amauta\\.extras\\.pbir ${cmd}`), cmd);
     const r = spawnSync(process.execPath, [path.join(repoRoot, 'bin', 'amauta.js'), 'py', 'amauta.extras.pbir', cmd, '--help'], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${cmd}: ${r.stderr}`);
@@ -34,4 +35,19 @@ test('install renders the helper command in the skill and in its references', as
   const files = ['SKILL.md', ...(await readdir(path.join(dir, 'references'))).map((f) => path.join('references', f))];
   for (const f of files) assert.ok(!(await readFile(path.join(dir, f), 'utf8')).includes('{{'), f);
   assert.match(await readFile(path.join(dir, 'references', 'semantic-model-conventions.md'), 'utf8'), /amauta\.js'? py amauta\.extras\.pbir lint/);
+});
+
+// odd/tasks/agent-archive-intake.md K4-K6: HTML in DAX and Deneb, storytelling and charts, report documentation;
+// every example is synthetic and no organization palette is named.
+test('the archive intake references: synthetic examples, no brand colors, sizes kept', async () => {
+  const html = await readAssetText('skills/powerbi-report/references/html-and-deneb.md');
+  for (const needle of [/pbiFormat/, /__selected__/, /Vega-Lite/, /SUBSTITUTE/, /profile/i]) assert.match(html, needle, String(needle));
+  const story = await readAssetText('skills/powerbi-report/references/storytelling-and-charts.md');
+  for (const needle of [/headline/i, /\| Bar/i, /unit/i, /higher is worse|rise is bad/i, /ISFILTERED/]) assert.match(story, needle, String(needle));
+  const doc = await readAssetText('skills/powerbi-report/references/report-documentation.md');
+  for (const needle of [/## 1\./, /Refresh/i, /Access/i, /Version/i]) assert.match(doc, needle, String(needle));
+  for (const [name, body] of [['html', html], ['story', story], ['doc', doc]]) {
+    assert.ok(body.length > 1500 && body.length < 6000, `${name}: ${body.length} chars`);
+    assert.doesNotMatch(body, /PRIVATE_TERM_REMOVED/, name);
+  }
 });

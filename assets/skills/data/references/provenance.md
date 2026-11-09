@@ -18,6 +18,21 @@ Every number in a deliverable can be traced back to where it came from, without 
 The inputs it used (by fingerprint), the code commit, the checks that ran and their results, and the reconciliation
 (rows and totals at each step). A chart or a table names its as-of date and population in its caption.
 
+## Lineage record
+
+One per output table or report, kept next to the code that builds it:
+
+```markdown
+# Lineage: <output name>
+Grain: <one row per ...>          Keys: <columns>          Refresh: <cadence, as-of rule>
+| Step | Input (reference, fingerprint) | Operation | Rows out | Check |
+| --- | --- | --- | --- | --- |
+| 1 | <source table or file> | filter <rule>, select <columns> | <count> | <check and result> |
+| 2 | step 1 + <lookup> | left join on <key>, one-to-one checked | <count> | rows in = rows out |
+Business rules: <each rule, its owner and its approval>
+Open questions: <what is not yet decided>
+```
+
 ## Rules
 
 - Hashes and counts identify data without revealing it; use them in commits, issues and review packets instead of rows.
