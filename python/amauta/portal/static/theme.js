@@ -10,7 +10,7 @@
   const BASES = {
     light: { bg: "oklch(1 0 0)", surface: "oklch(0.975 0 0)", sidebar: "oklch(0.965 0.003 22)", ink: "oklch(0.22 0.005 22)",
       "ink-muted": "oklch(0.47 0.008 22)", line: "oklch(0.9 0.004 22)", accent: "oklch(0.50 0.155 22)", "accent-soft": "oklch(0.95 0.025 22)",
-      warn: "oklch(0.55 0.13 70)", ok: "oklch(0.50 0.11 150)", "c-input": "oklch(0.45 0.13 275)", "c-output": "oklch(0.62 0.13 60)",
+      warn: "oklch(0.535 0.13 70)", ok: "oklch(0.50 0.11 150)", "c-input": "oklch(0.45 0.13 275)", "c-output": "oklch(0.62 0.13 60)",
       "c-cache-read": "oklch(0.70 0.02 250)", "c-cache-write": "oklch(0.58 0.10 310)" },
     dark: { bg: "oklch(0.13 0 0)", surface: "oklch(0.17 0 0)", sidebar: "oklch(0.11 0 0)", ink: "oklch(0.93 0.004 22)",
       "ink-muted": "oklch(0.74 0.008 22)", line: "oklch(0.28 0.004 22)", accent: "oklch(0.74 0.12 22)", "accent-soft": "oklch(0.27 0.05 22)",

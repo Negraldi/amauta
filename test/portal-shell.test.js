@@ -26,7 +26,7 @@ const px = (v) => (/rem$/.test(v) ? parseFloat(v) * 16 : parseFloat(v));
 // ---- identity tokens ---------------------------------------------------------------------------------------------
 const ok = (s) => `oklch(${s})`;
 const LIGHT = { bg: '1 0 0', surface: '0.975 0 0', sidebar: '0.965 0.003 22', ink: '0.22 0.005 22', 'ink-muted': '0.47 0.008 22', line: '0.9 0.004 22',
-  accent: '0.50 0.155 22', 'accent-soft': '0.95 0.025 22', warn: '0.55 0.13 70', ok: '0.50 0.11 150',
+  accent: '0.50 0.155 22', 'accent-soft': '0.95 0.025 22', warn: '0.535 0.13 70', ok: '0.50 0.11 150',
   'c-input': '0.45 0.13 275', 'c-output': '0.62 0.13 60', 'c-cache-read': '0.70 0.02 250', 'c-cache-write': '0.58 0.10 310' };
 const DARK = { bg: '0.13 0 0', surface: '0.17 0 0', sidebar: '0.11 0 0', ink: '0.93 0.004 22', 'ink-muted': '0.74 0.008 22', line: '0.28 0.004 22',
   accent: '0.74 0.12 22', 'accent-soft': '0.27 0.05 22', warn: '0.80 0.13 75', ok: '0.78 0.12 150',

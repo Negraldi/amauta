@@ -32,7 +32,7 @@ selection tint (`--accent-soft`) carries ink, muted ink or the accent, never a s
 | `--line` | 0.9 0.004 22 | 0.28 0.004 22 | Hairlines, table rules, control borders |
 | `--accent` | 0.50 0.155 22 | 0.74 0.12 22 | Cochineal: links, selection, focus ring |
 | `--accent-soft` | 0.95 0.025 22 | 0.27 0.05 22 | Selected row, current nav item background |
-| `--warn` | 0.55 0.13 70 | 0.80 0.13 75 | Warnings and errors (with icon + text) |
+| `--warn` | 0.535 0.13 70 | 0.80 0.13 75 | Warnings and errors (with icon + text) |
 | `--ok` | 0.50 0.11 150 | 0.78 0.12 150 | Done/success (with label) |
 | `--c-input` | 0.45 0.13 275 | 0.74 0.10 275 | Data: input tokens (indigo) |
 | `--c-output` | 0.62 0.13 60 | 0.80 0.12 60 | Data: output tokens (ochre) |

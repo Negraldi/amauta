@@ -45,14 +45,10 @@ test('DESIGN.md token table matches the stylesheet in both schemes', () => {
 
 const TEXT = ['ink', 'ink-muted', 'accent', 'warn', 'ok'];
 const SURFACES = ['bg', 'surface', 'sidebar', 'accent-soft'];
-// Status colors (warn, ok) sit on the page and panel surfaces only: the selection tint and the sidebar layer carry ink,
-// muted ink and the accent (DESIGN.md, Color; portal redesign T2). The approved light warn is 4.50:1 on the sidebar layer, a hair under.
-const ON_LAYER = ['ink', 'ink-muted', 'accent'];
 for (const scheme of ['light', 'dark']) {
-  test(`text colors reach 4.5:1 on every surface they sit on in the ${scheme} scheme`, () => {
+  test(`text colors reach 4.5:1 on every surface in the ${scheme} scheme`, () => {
     const t = SCHEMES[scheme];
     for (const fg of TEXT) for (const bg of SURFACES) {
-      if ((bg === 'accent-soft' || bg === 'sidebar') && !ON_LAYER.includes(fg)) continue;
       const r = contrast(t[fg], t[bg]);
       assert.ok(r >= 4.5, `${scheme}: --${fg} on --${bg} is ${r.toFixed(2)}:1`);
     }

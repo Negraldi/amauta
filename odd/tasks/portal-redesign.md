@@ -73,6 +73,9 @@ Target after redesign: >= 32/40, no P1.
   console moved to --surface). RED first (test/portal-shell.test.js 11/11 failing), then GREEN: portal node 341/341,
   Python portal 492 OK, npm test node 895/895 (Python: only the known date-dependent test_pipelines failure).
 
+- 2026-11-09 T2 verified by coordinator (portal 341/341). Fix: light --warn 0.55 -> 0.535 so it reaches 4.5:1 on every
+  surface (it was 4.4998 on --sidebar, 4.45 on --accent-soft); the strict a11y contrast test is restored, not relaxed.
+
 ## Next step
 
 T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories), using the T2 tab and
