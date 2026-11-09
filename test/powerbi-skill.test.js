@@ -38,7 +38,8 @@ test('install renders the helper command in the skill and in its references', as
 });
 
 // odd/tasks/agent-archive-intake.md K4-K6: HTML in DAX and Deneb, storytelling and charts, report documentation;
-// every example is synthetic and no organization palette is named.
+// every example is synthetic and the only colors are a neutral placeholder set (a palette comes from the profile).
+const PLACEHOLDERS = new Set(['#2e7d32', '#c62828', '#222', '#ddd']);
 test('the archive intake references: synthetic examples, no brand colors, sizes kept', async () => {
   const html = await readAssetText('skills/powerbi-report/references/html-and-deneb.md');
   for (const needle of [/pbiFormat/, /__selected__/, /Vega-Lite/, /SUBSTITUTE/, /profile/i]) assert.match(html, needle, String(needle));
@@ -48,6 +49,7 @@ test('the archive intake references: synthetic examples, no brand colors, sizes 
   for (const needle of [/## 1\./, /Refresh/i, /Access/i, /Version/i]) assert.match(doc, needle, String(needle));
   for (const [name, body] of [['html', html], ['story', story], ['doc', doc]]) {
     assert.ok(body.length > 1500 && body.length < 6000, `${name}: ${body.length} chars`);
-    assert.doesNotMatch(body, /PRIVATE_TERM_REMOVED/, name);
+    const colors = [...body.matchAll(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g)].map((m) => m[0].toLowerCase());
+    assert.deepEqual(colors.filter((c) => !PLACEHOLDERS.has(c)), [], `${name}: only neutral placeholder colors`);
   }
 });

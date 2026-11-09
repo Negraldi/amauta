@@ -1,8 +1,9 @@
 """A Power BI report theme file from a palette: `{"name", "dataColors", "background", "foreground", "tableAccent"}`,
-the part of the theme schema every Power BI version reads. The colors come from the command line, from a brand file
+the basic part of the report theme schema. The colors come from the command line, from a brand file
 (a `- data colors: #rrggbb, ...` line, as `amauta profile import` writes it) or from the selected profile's brand.md.
 
-It writes only the file it is given, atomically, and never replaces one without force. It does not touch a report:
+It writes only the file it is given (creating its folder when missing), atomically, readable like any written file,
+and never replaces one without force; a link at that path is replaced, never followed. It does not touch a report:
 import the file in Power BI Desktop (View, Themes, Browse for themes), so the change is the author's, and visible.
 """
 
@@ -75,11 +76,12 @@ def write(theme, out, force=False):
     out = Path(out)
     if out.suffix.lower() != ".json":
         raise ValueError(f"{out} must be a .json file")
-    if (out.exists() or out.is_symlink()) and not force:
+    if (out.exists() or out.is_symlink()) and not force:  # is_symlink: a dangling link counts as existing
         raise ValueError(f"{out} exists (use --force to replace it)")
     out.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=out.parent, prefix=".theme-", suffix=".tmp")
     try:
+        os.chmod(tmp, 0o644)  # mkstemp makes it private; a theme is meant to be shared
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(theme, f, indent=2)
             f.write("\n")

@@ -33,26 +33,30 @@ VAR _prev = [Sales Previous Month]
 VAR _delta = DIVIDE ( _value - _prev, _prev )
 VAR _label = SUBSTITUTE ( SUBSTITUTE ( SUBSTITUTE ( SELECTEDVALUE ( Region[Name], "All regions" ),
     "&", "&amp;" ), "<", "&lt;" ), ">", "&gt;" )
-VAR _color = IF ( _delta >= 0, "var(--good)", "var(--bad)" )
+VAR _color = SWITCH ( TRUE (), ISBLANK ( _delta ), "var(--ink)", _delta >= 0, "var(--good)", "var(--bad)" )
 VAR _bar = FORMAT ( MIN ( MAX ( DIVIDE ( _value, [Sales Target] ), 0 ), 1 ) * 100, "0" )
 RETURN
     "<style>:root{--good:#2e7d32;--bad:#c62828;--ink:#222;--line:#ddd}</style>"
         & "<div style='font-family:sans-serif;color:var(--ink);border:1px solid var(--line);padding:8px'>"
         & "<div>" & _label & "</div>"
         & "<div style='font-size:24px'>" & FORMAT ( _value, "#,0" ) & "</div>"
-        & "<div style='color:" & _color & "'>" & FORMAT ( _delta, "+0.0%;-0.0%" ) & " vs previous month</div>"
-        & "<svg viewBox='0 0 100 6' width='100%' height='6'><rect width='100' height='6' fill='var(--line)'/>"
-        & "<rect width='" & _bar & "' height='6' fill='var(--ink)'/></svg></div>"
+        & "<div style='color:" & _color & "'>"
+        & IF ( ISBLANK ( _delta ), "no previous month", FORMAT ( _delta, "+0.0%;-0.0%" ) & " vs previous month" )
+        & "</div>"
+        & "<svg viewBox='0 0 100 6' width='100%' height='6'><rect width='100' height='6' style='fill:var(--line)'/>"
+        & "<rect width='" & _bar & "' height='6' style='fill:var(--ink)'/></svg></div>"
 ```
 
-The colors above are neutral placeholders; replace them with the profile's tokens. `FORMAT` is right here because the
+The colors above are neutral placeholders; replace them with the profile's tokens. A blank comparison shows as text,
+never as a "good" color. How much CSS a visual honors (custom properties, `<style>`) depends on the HTML visual and
+its version: check it in Desktop, and inline the values if it does not. `FORMAT` is right here because the
 result is display text; numeric measures keep their format string instead.
 
 ## Deneb
 
 - The visual's data is the dataset named `dataset`; fields are the names in the field well.
-- Use the model's format strings with `"formatType": "pbiFormat"` in an encoding (or `pbiFormat()` in an expression)
-  instead of writing a second format.
+- Format with `"formatType": "pbiFormat"` in an encoding (or `pbiFormat()` in an expression) and the same format
+  string the measure has in the model, so the chart and the rest of the report agree.
 - Turn on tooltips, the context menu and cross-filtering in the visual's properties, then use `datum.__selected__`
   to dim the points that are not selected. Check the installed Deneb version's documentation: these names have changed.
 - Keep the spec in the PBIR visual under version control and review it as code.

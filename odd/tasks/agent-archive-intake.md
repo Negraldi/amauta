@@ -43,22 +43,23 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
 
 ## Tasks
 
-- [ ] A1 Intake record `docs/intake/agent-archive.md`: each source by hash, decision and why; what was not taken.
-- [ ] K1 `data/references/sql-review.md`: explain before running, writes only to temporary objects, sargable filters,
+- [x] A1 Intake record `docs/intake/agent-archive.md`: each source by hash, decision and why; what was not taken.
+- [x] K1 `data/references/sql-review.md`: explain before running, writes only to temporary objects, sargable filters,
   keys to a temporary table, aggregate to the grain before a join, batch hygiene, UTF-8 scripts, lazy frames, paths
   and credentials, the delivery format.
-- [ ] K2 `analytical-review`: the challenger questions (blind spots, robustness, assumptions, value) and a review
+- [x] K2 `analytical-review`: the challenger questions (blind spots, robustness, assumptions, value) and a review
   certificate in the deliverable.
-- [ ] K3 `pipeline-recipes`: query cache to Parquet with its fingerprint; a refresh flag.
-- [ ] K4 `powerbi-report/references/html-and-deneb.md`.
-- [ ] K5 `powerbi-report/references/storytelling-and-charts.md`; stock, flow and cohort in `metrics-and-cohorts`.
-- [ ] K6 Lineage record in `provenance`; `powerbi-report/references/report-documentation.md`.
-- [ ] T1 `pbir refs REPORT MODEL`: references in projections, filters and sorts to a table, column or measure the
+- [x] K3 `pipeline-recipes`: query cache to Parquet with its fingerprint; a refresh flag.
+- [x] K4 `powerbi-report/references/html-and-deneb.md`.
+- [x] K5 `powerbi-report/references/storytelling-and-charts.md`; stock, flow and cohort in `metrics-and-cohorts`.
+- [x] K6 Lineage record in `provenance`; `powerbi-report/references/report-documentation.md`.
+- [x] T1 `pbir refs REPORT MODEL`: references in projections, filters and sorts to a table, column or measure the
   model lacks; exit 1 when any.
-- [ ] T2 `pbir theme --name N (--colors C,... | --brand FILE | --profile) --out FILE`: a Power BI report theme from
+- [x] T2 `pbir theme --name N (--colors C,... | --brand FILE | --profile) --out FILE`: a Power BI report theme from
   `#rrggbb` colors; the file is written atomically and never over an existing one without `--force`.
-- [ ] T3 DAX001: a division by a numeric constant is not flagged.
-- [ ] Q1 Cleanup; Q2 independent review; Q3 fixes; Q4 cleanup; Q5 independent review; Q6 fixes; Q7 cleanup.
+- [x] T3 DAX001: a division by a numeric constant is not flagged.
+- [x] Q1 Cleanup; [x] Q2 independent review; [x] Q3 fixes.
+- [ ] Q4 cleanup; Q5 independent review; Q6 fixes; Q7 cleanup.
 - [ ] D1 Docs: guide pages (en, es), CHANGELOG, skill and module docs; commit and push.
 
 ## Acceptance criteria
@@ -72,6 +73,15 @@ Strict, ON for the PBIR tools; structure tests for the skill text. Runner:
 - 2026-11-09: plan written from the archive review and the user's request (implement 1 to 7, then three cleanup
   rounds with two independent reviews and their fixes, then documentation).
 
+- 2026-11-09: T1-T3 inline, TDD (RED seen: refs and theme missing, DAX001 flagged `/ 100`). A1, K1-K6 inline,
+  structure tests first (5 RED). npm test 859 Node, 947 Python. Q1: refs walker split, one contrast computation.
+- 2026-11-09: Q2 independent review, ten findings. Q3: the test denylist named private terms (pushed in `64fa5bf`):
+  replaced by a placeholder-color allowlist, the history rewrite is the user's decision; `--colors ""` fell back to the
+  profile; report-level measures read as missing; a non-object JSON crashed; DAX001 exempted `/ 0`; a weak test;
+  theme files were 0600; the cache recipe now hashes a source label, writes atomically, resolves from the project root,
+  stamps UTC; SQL dialect and `yyyymmdd` literals stated; the HTML card handles a blank comparison. RED seen for the
+  code fixes (3 tests).
+
 ## Next step
 
-A1 and K1.
+Q4 cleanup, then Q5.

@@ -31,8 +31,8 @@ def main(argv=None):
     sub.add_parser("dictionary").add_argument("model")
     sub.add_parser("layout").add_argument("report")
     f = sub.add_parser("refs")
-    f.add_argument("report")
-    f.add_argument("model")
+    f.add_argument("report", help="a *.Report folder")
+    f.add_argument("model", help="its model.bim or *.SemanticModel folder")
     r = sub.add_parser("rename")
     r.add_argument("report")
     r.add_argument("--table", required=True)
@@ -49,19 +49,19 @@ def main(argv=None):
 
 
 def _theme_args(t):
-    t.add_argument("--name", required=True)
+    t.add_argument("--name", required=True, help="the theme name shown in Desktop")
     src = t.add_mutually_exclusive_group(required=True)
     src.add_argument("--colors", help="comma-separated #rrggbb data colors")
     src.add_argument("--brand", help="a brand file with a '- data colors: ...' line")
     src.add_argument("--profile", action="store_true", help="the brand.md of the profile selected for this project")
-    t.add_argument("--background")
-    t.add_argument("--foreground")
-    t.add_argument("--out", required=True)
-    t.add_argument("--force", action="store_true")
+    t.add_argument("--background", help="#rrggbb page background")
+    t.add_argument("--foreground", help="#rrggbb text color (warned when contrast is below 4.5)")
+    t.add_argument("--out", required=True, help="the .json file to write")
+    t.add_argument("--force", action="store_true", help="replace an existing file")
 
 
 def _theme(a):
-    if a.colors:
+    if a.colors is not None:
         colors = [c.strip() for c in a.colors.split(",") if c.strip()]
     else:
         colors = theme.brand_colors(a.brand or theme.profile_brand())

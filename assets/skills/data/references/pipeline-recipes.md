@@ -65,27 +65,32 @@ ignores (`data/raw/`), with a small record of where it came from, and let later 
 
 ```python
 """cached_query.py SQL_FILE NAME [--refresh]: data/raw/NAME.parquet from the query, reused until --refresh."""
-import hashlib, json, os, sys, time
+import hashlib, json, os, sys
+from datetime import datetime, timezone
 from pathlib import Path
 import polars as pl      # third-party: pip install polars connectorx
 
+ROOT = Path(__file__).resolve().parents[1]           # the project root, whatever the working folder
 sql_file, name, refresh = Path(sys.argv[1]), sys.argv[2], "--refresh" in sys.argv[3:]
-out, meta = Path("data/raw") / f"{name}.parquet", Path("data/raw") / f"{name}.json"
+raw = ROOT / "data" / "raw"
+out, meta = raw / f"{name}.parquet", raw / f"{name}.json"
 query = sql_file.read_text(encoding="utf-8")
-digest = hashlib.sha256(query.encode()).hexdigest()
+source = os.environ.get("REPORT_DB_LABEL", "")       # a non-secret name of the database, never the URI
+digest = hashlib.sha256((source + "\n" + query).encode()).hexdigest()
 known = json.loads(meta.read_text()) if meta.is_file() else {}
-if out.is_file() and known.get("query_sha256") == digest and not refresh:
+if out.is_file() and known.get("sha256") == digest and not refresh:
     print(f"cached {out} ({known.get('rows')} rows, extracted {known.get('extracted_at')})")
     sys.exit(0)
 frame = pl.read_database_uri(query, os.environ["REPORT_DB_URI"])  # the URI is kept outside the repository
-out.parent.mkdir(parents=True, exist_ok=True)
-frame.write_parquet(out)
-meta.write_text(json.dumps({"query_sha256": digest, "rows": frame.height,
-                            "extracted_at": time.strftime("%Y-%m-%dT%H:%M:%S")}) + "\n")
+raw.mkdir(parents=True, exist_ok=True)
+frame.write_parquet(out.with_suffix(".tmp"))
+os.replace(out.with_suffix(".tmp"), out)            # an interrupted run never leaves a half file as "cached"
+meta.write_text(json.dumps({"sha256": digest, "source": source, "rows": frame.height,
+                            "extracted_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}) + "\n")
 print(f"{frame.height:,} rows -> {out}")
 ```
 
-A changed query file runs again on its own; `--refresh` forces a new extraction when the data changed. In a notebook,
+A changed query or source label runs again on its own; `--refresh` forces a new extraction when the data changed. In a notebook,
 call it in one cell and read with `pl.scan_parquet` in the next. The JSON record is the fingerprint the provenance
 reference asks for.
 

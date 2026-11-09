@@ -1,7 +1,8 @@
 # SQL and script review
 
 Use before running a query or a script against a database, and when asked to review, speed up or ready one for a
-pipeline. It grants no access: database permissions decide what a connection may do, not this text.
+pipeline. It grants no access: database permissions decide what a connection may do, not this text. The examples are
+T-SQL (SQL Server 2016 or later); the ideas hold in any dialect, with its own syntax for temporary tables.
 
 ## Before it runs
 
@@ -26,8 +27,9 @@ explicit permission for that object, every time.
 
 ## Then fast
 
-- Keep predicates sargable: compare a column as it is stored. `WHERE d >= '2026-01-01' AND d < '2027-01-01'` uses an
-  index; `WHERE YEAR(d) = 2026` does not. Cast a key once when building a temporary table, not inside a join.
+- Keep predicates sargable: compare a column as it is stored. `WHERE d >= '20260101' AND d < '20270101'` uses an
+  index; `WHERE YEAR(d) = 2026` does not (`yyyymmdd` literals read the same under any date format setting). Cast a
+  key once when building a temporary table, not inside a join.
 - Materialize a heavy subquery that is used twice in a temporary table with only the columns needed, and index its
   join keys.
 - To filter by a list of keys from a file, load the distinct keys into a temporary table and join it; do not build a

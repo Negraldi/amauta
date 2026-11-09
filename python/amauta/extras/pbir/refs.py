@@ -4,7 +4,9 @@ never repairs (removing a filter changes what a page shows; that is a decision f
 
 Reads report.json, every page.json and every visual.json. A reference is a `{"Expression": {"SourceRef": {"Entity":
 table}}, "Property": name}` node; its place is `filter` under a filterConfig, `sort` under a sortDefinition, otherwise
-`field`. A reference by a query alias (`SourceRef.Source`) has no table name and is skipped.
+`field`. A reference by a query alias (`SourceRef.Source`) has no table name and is skipped, and so is a report-level
+measure (`SourceRef.Schema` "extension", defined in the report, not the model). Not checked: hierarchy levels
+(they carry no field name) and bookmarks.
 """
 
 import json
@@ -18,7 +20,9 @@ _PLACES = {"filterConfig": "filter", "sortDefinition": "sort"}
 def _entity(node):
     expr = node.get("Expression")
     source = expr.get("SourceRef") if isinstance(expr, dict) else None
-    return source.get("Entity") if isinstance(source, dict) else None
+    if not isinstance(source, dict) or source.get("Schema") == "extension":
+        return None
+    return source.get("Entity")
 
 
 def _walk(node, place, out):
@@ -36,7 +40,10 @@ def _walk(node, place, out):
 
 
 def _read(path):
-    return json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected a JSON object")
+    return data
 
 
 def _sources(report):

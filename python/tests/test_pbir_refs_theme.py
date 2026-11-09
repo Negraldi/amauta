@@ -56,6 +56,20 @@ class RefsTest(Base):
             {"field": {"Aggregation": {"Expression": field("Column", "Sales", "Amount"), "Function": 0}}, "queryRef": "Sum(Sales.Amount)"})
         r = self.report([v])
         self.assertEqual(refs.audit(r, model.load(self.model)), [])
+        v["visual"]["query"]["queryState"]["Values"]["projections"].append(
+            {"field": {"Aggregation": {"Expression": field("Column", "Sales", "Gone"), "Function": 0}}})
+        r = self.report([v])
+        self.assertEqual([f["ref"] for f in refs.audit(r, model.load(self.model))], ["Sales[Gone]"])
+
+    def test_report_measures_are_not_model_fields_and_bad_shapes_are_errors(self):
+        ext = {"field": {"Measure": {"Expression": {"SourceRef": {"Schema": "extension", "Entity": "Sales"}}, "Property": "Report Only"}}}
+        v = visual("a", 0, 0, 100, 100)
+        v["visual"]["query"]["queryState"]["Values"]["projections"].append(ext)
+        r = self.report([v])
+        self.assertEqual(refs.audit(r, model.load(self.model)), [], "a report-level measure lives in the report")
+        (r / "definition/pages/p1/visuals/a/visual.json").write_text("[]")
+        with self.assertRaises(ValueError):
+            refs.audit(r, model.load(self.model))
 
     def test_cli_exit_codes(self):
         r = self.report([visual("a", 0, 0, 100, 100, fields=[("Column", "Sales", "Nope")])])
@@ -116,6 +130,21 @@ class ThemeTest(Base):
         with redirect_stderr(io.StringIO()):
             self.assertEqual(main(["theme", "--name", "x", "--colors", "#000000", "--out", str(self.root / "t.txt")]), 2)
 
+    def test_empty_colors_never_fall_back_and_files_are_readable(self):
+        with redirect_stderr(io.StringIO()), mock.patch.object(theme, "profile_brand") as brand:
+            self.assertEqual(main(["theme", "--name", "A", "--colors", "", "--out", str(self.root / "e.json")]), 2)
+        brand.assert_not_called()
+        out = self.root / "ok.json"
+        with redirect_stdout(io.StringIO()):
+            main(["theme", "--name", "A", "--colors", "#112233", "--out", str(out)])
+        if os.name == "posix":
+            self.assertEqual(out.stat().st_mode & 0o044, 0o044, "readable like any written file")
+        link = self.root / "link.json"
+        link.symlink_to(self.root / "target.json")
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(main(["theme", "--name", "A", "--colors", "#112233", "--out", str(link)]), 2)
+        self.assertFalse((self.root / "target.json").exists(), "a link is never followed")
+
     def test_cli_from_brand_and_profile(self):
         brand = self.write("brand.md", "- data colors: #102030, #405060\n")
         out = self.root / "a.json"
@@ -134,9 +163,11 @@ class ConstantDivisionTest(unittest.TestCase):
         m = model.parse_bim(bim(measures=[{"name": "Pct", "expression": "[Total] / 100"},
                                           {"name": "Half", "expression": "SUM(Sales[Amount]) / 2.5 * 3"},
                                           {"name": "Ratio", "expression": "[Total] / [Count]"},
-                                          {"name": "Scaled", "expression": "[Total] / 1000[x]"}]))
+                                          {"name": "Scaled", "expression": "[Total] / 1000[x]"},
+                                          {"name": "Zero", "expression": "[Total] / 0"},
+                                          {"name": "ZeroDot", "expression": "[Total] / 0.0"}]))
         flagged = {f["object"] for f in lint.lint(m) if f["rule"] == "DAX001"}
-        self.assertEqual(flagged, {"Sales[Ratio]", "Sales[Scaled]"})
+        self.assertEqual(flagged, {"Sales[Ratio]", "Sales[Scaled]", "Sales[Zero]", "Sales[ZeroDot]"})
 
 
 if __name__ == "__main__":
