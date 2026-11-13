@@ -274,5 +274,9 @@
  "Portal: reads memory.db only · {n} skills, {m} agents": "Portal: solo lee memory.db · skills: {n}, agentes: {m}",
  "1 hook of your own": "1 hook propio",
  "{n} hooks of your own": "{n} hooks propios",
- "{n} more nodes not shown": "Nodos sin mostrar: {n}"
+ "{n} more nodes not shown": "Nodos sin mostrar: {n}",
+ "Started": "Inicio",
+ "Last activity": "Última actividad",
+ "Messages": "Mensajes",
+ "Models": "Modelos"
 }

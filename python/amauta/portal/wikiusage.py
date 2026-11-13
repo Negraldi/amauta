@@ -17,6 +17,7 @@ FRONT_KEYS = 12
 FRONT_VALUE = 300
 DAYS = 30
 RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
+SHORT_ID = 8  # the session tables show the first 8 characters of an id
 
 
 # ---- session labels -----------------------------------------------------------------------------------------------
@@ -190,11 +191,21 @@ def session_memories(portal, session_id):
         conn.close()
 
 
+def _full_session_id(conn, ident):
+    """A short id as the session tables show it (its first 8+ characters) opens the one session it starts; else itself."""
+    if len(ident) < SHORT_ID or conn.execute("SELECT 1 FROM usage_messages WHERE session_id = ? LIMIT 1", (ident,)).fetchone():
+        return ident
+    like = ident.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    found = conn.execute("SELECT DISTINCT session_id FROM usage_messages WHERE session_id LIKE ? ESCAPE '\\' LIMIT 2", (like,)).fetchall()
+    return found[0][0] if len(found) == 1 else ident
+
+
 def session_page(portal, ident, q):
     conn = portal._usage_conn()
     if conn is None:
         raise NotFound()
     try:
+        ident = _full_session_id(conn, ident)
         cw = "u.cache_write_5m + u.cache_write_1h"
         t = conn.execute(
             f"SELECT count(*) messages, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, {MAIN_MODEL} model, sum(u.input) input, sum(u.output) output, "
@@ -206,7 +217,7 @@ def session_page(portal, ident, q):
         pg = _blank("session", ident, wikisess.label(portal, ident, t["project"], t["model"], t["messages"], t["first_ts"]))
         models = conn.execute("SELECT coalesce(u.model, 'unknown') model, count(*) n FROM usage_messages u WHERE u.session_id = ? GROUP BY model ORDER BY n DESC, model LIMIT 10", (ident,)).fetchall()
         pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", sessname.project_of(portal, cwd, t["project"])), ("Repository", getattr(sessname.repo_root(portal, cwd), "name", None)), ("Working directory", cwd),
-                           ("Started", t["first_ts"]), ("Ended", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
+                           ("Started", t["first_ts"]), ("Last activity", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
                            ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
         for heading, kind, col, cond in (("Skills", "skill", "c.skill", "c.skill IS NOT NULL"), ("Tools", "tool", "c.tool", "1=1"),
                                          ("MCP servers", "mcp", "c.mcp_server", "c.mcp_server IS NOT NULL"), ("Subagent types", None, "c.subagent_type", "c.subagent_type IS NOT NULL")):

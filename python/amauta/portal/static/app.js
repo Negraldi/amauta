@@ -48,6 +48,9 @@ function svg(tag, attrs, ...kids) {
   return el;
 }
 const fmt = (n) => R.fmtNumber(n);
+// Counts the server wrote into its text ("1446 calls", "opus (1777)") grouped like every other number (session titles go
+// through sessionTitle instead: they can quote the user's first prompt).
+const groupDigits = (text) => String(text).replace(/(?<![\w.,:\/-])\d{4,}(?![\w.,:\/-])/g, (m) => fmt(Number(m)));
 // Short counts; the units come from the dictionary: Spanish says "2,4 mil M", since "billón" (B) is 10^12 there.
 const short = (n) => (n >= 1e9 ? t("num.billions", { n: R.fmtDecimal(n / 1e9, 1) }) : n >= 1e6 ? R.fmtDecimal(n / 1e6, 1) + "M"
   : n >= 1e3 ? R.fmtDecimal(n / 1e3, 1) + "k" : fmt(n || 0));

@@ -27,7 +27,8 @@ function sectionBlock(s) {
   const label = (it) => (CHROME_ITEMS.includes(s.heading) ? ts(it.label) : it.label);
   return h("section", { class: "page-section" }, h("h2", null, ts(s.heading)), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
     it.kind && it.id ? link(it.kind, it.id, it.label, null, it.source) : h("span", null, label(it)),
-    it.value == null ? null : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${ts(R.fmtMeta(it))}`)))));
+    it.value == null ? null : isStatus(it.value) ? statusChip(it.value)
+      : h("span", { class: "muted" }, ` ${groupDigits(ts(R.fmtMeta(it)))}`)))));
 }
 
 function historyBlock(hist) {
@@ -152,7 +153,7 @@ function metaList(pg, keep) {
   if (!rows.length) return null;
   return h("dl", { class: "meta" }, rows.flatMap((m) => {
     const raw = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ")
-      : m.label === "Kind" && pg.kind === "node" ? nodeKind(m.value) : ts(R.fmtMeta(m));
+      : m.label === "Kind" && pg.kind === "node" ? nodeKind(m.value) : groupDigits(ts(R.fmtMeta(m)));
     const v = raw === "true" ? t("common.yes") : raw === "false" ? t("common.no") : raw; // front-matter booleans
     const dt = h("dt", null, `meta.${m.label}` in I.dict.en ? t(`meta.${m.label}`) : ts(m.label)); // SKILL.md keys get labels
     if (R.isPathLike(v)) return [dt, h("dd", null, pathNode(v))];
@@ -173,7 +174,9 @@ function commandBlock(pg) {
 async function viewWikiPage(kind, id, source) {
   const pg = await fetchWikiPage(kind, id, source);
   if (!pg) return noPage(kind, id);
-  state.pageTitle = pg.title || null; // every item's crumb is its title, never its raw id (a memory's "709")
+  // Every item's crumb is its title, never its raw id (a memory's "709"); a session's is its short id, as the session tables
+  // show it, since its title is the whole label (project, first prompt or model and count, date).
+  state.pageTitle = pg.kind === "session" ? String(pg.id).slice(0, 8) : pg.title || null;
   const refs = (list) => (list.length ? refList(list) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
   const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");

@@ -7,8 +7,6 @@ function localDays(days) {
   for (const d of days) for (const i of d.items) { const day = R.fmtDate(i.ts); if (!by.has(day)) by.set(day, []); by.get(day).push(i); }
   return [...by.entries()].filter(([day]) => day !== "-").sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([day, items]) => ({ day, items: items.sort((a, b) => (String(a.ts) < String(b.ts) ? 1 : -1)) }));
 }
-// The server writes counts as plain digits ("session, 11300 messages"): group them like every other number on the page.
-const groupCounts = (text) => String(text).replace(/(?<![\w.,:\/-])\d{4,}(?![\w.,:\/-])/g, (m) => fmt(Number(m)));
 // The feed shows the HOME_DAYS most recent days; Show more adds as many again (client side, the server sends them all).
 const HOME_DAYS = 5;
 // "12 messages, 21:10", or only the time when the title already says the rest (the server leaves `what` empty then). The
@@ -22,7 +20,7 @@ const feedTime = (i) => {
   const time = R.fmtDateTime(i.ts).slice(11) || "?";
   return i.kind === "session" ? t("home.lastActive", { time }) : time;
 };
-const feedTail = (i, day) => [i.what ? groupCounts(ts(i.what)) : "", startedBefore(i, day), feedTime(i)].filter(Boolean).join(", ");
+const feedTail = (i, day) => [i.what ? groupDigits(ts(i.what)) : "", startedBefore(i, day), feedTime(i)].filter(Boolean).join(", ");
 const dayBlock = (d) => h("section", { class: "page-section day" }, h("h3", null, d.day),
   h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${feedTail(i, d.day)}`)))));
 function activityBlock(days) {

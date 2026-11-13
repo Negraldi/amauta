@@ -144,3 +144,21 @@ class MemoryPagingTest(SessionBase):
         group = next(g for g in self.get("/api/wiki/search", q="pager")["groups"] if g["kind"] == "memory")
         self.assertTrue(group["capped"])
         self.assertEqual(group["total"], 60)
+
+
+class SessionPageTest(MixedModelBase):
+    def test_a_unique_short_id_opens_the_session(self):
+        self.mixed_session(sid="b9600f26-aaaa-bbbb-cccc-000000000001")
+        pg = self.page("session", "b9600f26")
+        self.assertEqual(pg["id"], "b9600f26-aaaa-bbbb-cccc-000000000001")
+        self.assertEqual(self.status("/api/wiki/page", kind="session", id="b960"), 404)  # too short to be an id prefix
+
+    def test_an_ambiguous_short_id_is_not_found(self):
+        self.mixed_session(sid="cafe0001-x")
+        self.mixed_session(sid="cafe0001-y")
+        self.assertEqual(self.status("/api/wiki/page", kind="session", id="cafe0001"), 404)
+
+    def test_the_end_of_a_session_is_called_its_last_activity_like_every_table(self):
+        m = self.meta(self.page("session", "s1"))
+        self.assertIn("Last activity", m)
+        self.assertNotIn("Ended", m)

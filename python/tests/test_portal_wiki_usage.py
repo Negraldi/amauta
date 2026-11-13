@@ -100,7 +100,7 @@ class SessionPageTest(SkillBase):
         st.close()
         pg = self.page("session", "s1")
         m = self.labels(pg)
-        self.assertEqual((m["Started"], m["Ended"]), ("2026-10-01T10:00:00.000Z", "2026-10-02T10:00:00.000Z"))
+        self.assertEqual((m["Started"], m["Last activity"]), ("2026-10-01T10:00:00.000Z", "2026-10-02T10:00:00.000Z"))
         self.assertEqual(m["Models"], "claude-x (1), claude-y (1)")
         self.assertEqual((m["Input tokens"], m["Output tokens"], m["Cache read tokens"], m["Cache write tokens"]), ("150", "75", "900", "150"))
         self.assertEqual(m["Working directory"], "/work/alpha")
