@@ -1,10 +1,10 @@
 """Portal: usage by runtime (Claude Code / Codex). Codex has no prices in amauta: tokens only, never an invented cost."""
 import json
-from datetime import date
 from unittest import mock
 
 from python.amauta.memory import store as mstore
-from python.amauta.portal import api, wikihome
+from python.amauta.portal import api
+from python.tests import portal_fixtures as fx
 from python.amauta.portal.config import Config
 from python.amauta.usage import codex
 from python.tests.test_portal import ApiBase
@@ -69,7 +69,7 @@ class FilterTest(RuntimeBase):
 
 class HomeAndSessionTest(RuntimeBase):
     def test_home_spending_splits_by_runtime(self):
-        with mock.patch.object(wikihome, "_today", return_value=date(2026, 10, 5)):
+        with mock.patch.object(api, "datetime", fx.FixedNow):
             s = self.get("/api/wiki/home")["spending"]
         by = {r["runtime"]: {w["days"]: w for w in r["windows"]} for r in s["runtimes"]}
         self.assertEqual([r["runtime"] for r in s["runtimes"]], ["claude", "codex"])
@@ -119,6 +119,6 @@ class OldDatabaseTest(ApiBase):
         self.assertEqual([r["runtime"] for r in self.get("/api/overview", days=3650)["runtimes"]], ["claude"])
         self.assertEqual(len(self.get("/api/sessions", days=3650, runtime="claude")["sessions"]), 1)
         self.assertEqual(self.get("/api/sessions", days=3650, runtime="codex")["sessions"], [])
-        with mock.patch.object(wikihome, "_today", return_value=date(2026, 10, 5)):
+        with mock.patch.object(api, "datetime", fx.FixedNow):
             self.assertEqual([r["runtime"] for r in self.get("/api/wiki/home")["spending"]["runtimes"]], ["claude"])
         self.assertIn({"label": "Runtime", "value": "Claude Code"}, self.get("/api/wiki/page", kind="session", id="s")["meta"])

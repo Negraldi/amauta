@@ -1,6 +1,7 @@
 """Fixture builder shared by the portal tests: a complete fake state dir, Claude home, engram DB and repo."""
 import json
 import sqlite3
+from datetime import date, datetime
 from pathlib import Path
 
 from python.amauta.memory import store as mstore
@@ -8,6 +9,20 @@ from python.amauta.usage import ingest
 from python.tests.test_usage import assistant, tool_use, write_jsonl
 
 XSS = "<img src=x onerror=alert(1)>"
+
+
+def fixed_now(day: date):
+    """A datetime class whose now() is noon (local) on `day`: patch it over api.datetime to pin the usage window."""
+
+    class Fixed(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(day.year, day.month, day.day, 12, 0, 0, tzinfo=tz)
+
+    return Fixed
+
+
+FixedNow = fixed_now(date(2026, 10, 5))
 
 
 def usage_blob(inp, out, cr, w5=0, w1=0, think=0):

@@ -1,9 +1,11 @@
+import os
+import time
 import unittest
 from datetime import date
 from unittest import mock
 
 from python.amauta.memory import store as mstore
-from python.amauta.portal import wikihome
+from python.amauta.portal import api, wikihome
 from python.amauta.usage import ingest
 from python.tests import portal_fixtures as fx
 from python.tests.portal_fixtures import usage_blob
@@ -13,7 +15,7 @@ from python.tests.test_usage import assistant, write_jsonl
 
 class HomeTest(WikiBase):
     def home(self, today=date(2026, 10, 5)):
-        with mock.patch.object(wikihome, "_today", return_value=today):
+        with mock.patch.object(api, "datetime", fx.fixed_now(today)):
             return self.get("/api/wiki/home")
 
     def add_old_session(self):
@@ -82,6 +84,37 @@ class HomeTest(WikiBase):
         self.assertTrue(h["installed"])
         self.assertEqual((h["version"], h["hooks"], h["mcp_servers"], h["skills"], h["agents"], h["telemetry"]), ("0.1.0", 3, 2, 0, 0, True))
         self.assertNotIn("SECRET", str(h))
+
+
+class SpendingAgreesWithUsageTest(WikiBase):
+    """Today's spending and Usage read one function: a message near midnight UTC used to count in one window and not the other."""
+
+    def setUp(self):
+        super().setUp()
+        self._tz = os.environ.get("TZ")
+        os.environ["TZ"] = "America/Bogota"  # UTC-5: 2026-09-05T02:00Z is still 2026-09-04 here
+        time.tzset()
+        write_jsonl(self.f["home"] / "projects" / "-edge" / "s8.jsonl",
+                    [assistant("e1", usage=usage_blob(1000, 500, 0), session="s8", ts="2026-09-05T02:00:00.000Z", cwd="/work/edge")])
+        c = mstore.connect(self.f["state"] / "memory.db")
+        ingest.backfill(c, self.f["home"])
+        c.close()
+
+    def tearDown(self):
+        if self._tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = self._tz
+        time.tzset()
+        super().tearDown()
+
+    def test_every_window_matches_the_overview_for_the_same_days(self):
+        with mock.patch.object(api, "datetime", fx.FixedNow):
+            s = self.get("/api/wiki/home")["spending"]
+            for w in s["windows"]:
+                t = self.get("/api/overview", days=w["days"])["totals"]
+                self.assertEqual({k: w[k] for k in ("input", "output", "cache_read", "cache_write")},
+                                 {k: t[k] for k in ("input", "output", "cache_read", "cache_write")}, w["days"])
 
 
 class SessionWhatTest(unittest.TestCase):

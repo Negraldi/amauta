@@ -25,6 +25,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T10 Runtime-agnostic harness wiki (user, 2026-11-13: "the harness must be agnostic, Claude or Codex"): neutral copy where a claim holds for both runtimes; Overview and Catalog also inventory the Codex target (instruction blocks, hooks, MCP servers, skill links) with a runtime marker per entry
 - [x] T11 Critique follow-ups (user, 2026-11-13: "complete the impeccable critique"): confirm on Remove, graph default view, one name per page, one tab vocabulary, P3 items; then a re-critique
 - [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
+- [ ] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
 
 ## Acceptance criteria
 

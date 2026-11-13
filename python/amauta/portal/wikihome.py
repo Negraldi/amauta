@@ -1,21 +1,15 @@
 """Home data: recent activity grouped by day (main column), a compact spending summary and harness health (right rail). Read-only."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-
 from .. import extensions
 from . import wiki
-from .api import columns
 
 PER_DAY = 20
 DAYS_SHOWN = 14
 FETCH = 100
 WINDOWS = (7, 30)
 TOP_MODELS = 3
-
-
-def _today():
-    return datetime.now(timezone.utc).date()
+KINDS = ("input", "output", "cache_read", "cache_write")
 
 
 def activity(portal):
@@ -27,45 +21,31 @@ def activity(portal):
     return [{"day": d, "items": days[d][:PER_DAY]} for d in sorted(days, reverse=True)[:DAYS_SHOWN]]
 
 
-def _by_runtime(conn, today, cw):
+def _window(portal, days):
+    """One /api/overview call: Today and Usage share the window, the local-day rule and the sums, so their figures cannot drift."""
+    return portal.overview({"days": str(days)})
+
+
+def _sums(row):
+    return {k: row.get(k) or 0 for k in KINDS}
+
+
+def _by_runtime(views):
     """The same token windows per runtime that has usage (Claude first); a database from before the runtime column is all Claude."""
-    rt = "u.runtime" if "runtime" in columns(conn, "usage_messages") else "'claude'"
-    names = [r[0] for r in conn.execute(f"SELECT DISTINCT {rt} FROM usage_messages u ORDER BY {rt} = 'codex', {rt}")]
-    out = []
-    for name in names:
-        windows = []
-        for days in WINDOWS:
-            since = (today - timedelta(days=days)).isoformat()
-            r = conn.execute(f"SELECT coalesce(sum(u.input),0) input, coalesce(sum(u.output),0) output, coalesce(sum(u.cache_read),0) cache_read, "
-                             f"coalesce(sum({cw}),0) cache_write FROM usage_messages u WHERE {rt} = ? AND substr(u.ts, 1, 10) >= ?", (name, since)).fetchone()
-            windows.append({"days": days, **dict(r)})
-        out.append({"runtime": name, "windows": windows})
-    return out
+    per = {days: {r["runtime"]: r for r in v["runtimes"]} for days, v in zip(WINDOWS, views)}
+    names = sorted(set().union(*per.values()), key=lambda n: (n == "codex", n))
+    return [{"runtime": n, "windows": [{"days": d, **_sums(per[d].get(n, {}))} for d in WINDOWS]} for n in names]
 
 
 def spending(portal):
-    conn = portal._usage_conn()
-    if conn is None:
+    views = [_window(portal, days) for days in WINDOWS]
+    if not views[-1]["available"]:
         return {"available": False, "windows": [], "cache_hit_ratio": None, "top_models": [], "runtimes": []}
-    cw = "u.cache_write_5m + u.cache_write_1h"
-    today = _today()
-    try:
-        windows = []
-        for days in WINDOWS:
-            since = (today - timedelta(days=days)).isoformat()
-            r = conn.execute(f"SELECT coalesce(sum(u.input),0) input, coalesce(sum(u.output),0) output, coalesce(sum(u.cache_read),0) cache_read, "
-                             f"coalesce(sum({cw}),0) cache_write FROM usage_messages u WHERE substr(u.ts, 1, 10) >= ?", (since,)).fetchone()
-            windows.append({"days": days, **dict(r)})
-        longest = windows[-1]
-        denom = longest["input"] + longest["cache_read"] + longest["cache_write"]
-        since = (today - timedelta(days=WINDOWS[-1])).isoformat()
-        models = conn.execute(
-            f"SELECT coalesce(u.model, 'unknown') model, sum(u.input + u.output + u.cache_read + {cw}) tokens FROM usage_messages u WHERE substr(u.ts, 1, 10) >= ? "
-            f"GROUP BY model ORDER BY tokens DESC, model LIMIT {TOP_MODELS}", (since,)).fetchall()
-        return {"available": True, "windows": windows, "cache_hit_ratio": longest["cache_read"] / denom if denom else None,
-                "top_models": [{"model": r["model"], "tokens": r["tokens"]} for r in models], "runtimes": _by_runtime(conn, today, cw)}
-    finally:
-        conn.close()
+    longest = views[-1]
+    models = sorted(({"model": m["model"], "tokens": sum(m.get(k) or 0 for k in KINDS)} for m in longest["models"]),
+                    key=lambda m: (-m["tokens"], m["model"]))
+    return {"available": True, "windows": [{"days": d, **_sums(v["totals"])} for d, v in zip(WINDOWS, views)],
+            "cache_hit_ratio": longest["cache_hit_ratio"], "top_models": models[:TOP_MODELS], "runtimes": _by_runtime(views)}
 
 
 def health(portal):
