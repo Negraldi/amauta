@@ -26,6 +26,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T11 Critique follow-ups (user, 2026-11-13: "complete the impeccable critique"): confirm on Remove, graph default view, one name per page, one tab vocabulary, P3 items; then a re-critique
 - [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
 - [x] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
+- [x] T14 Cross-page data agreement (2026-11-13, third independent critique scored 26/40; its P1s are data contradictions, not UI): session start time, model and project agree on every page; memory list says how many of N and pages; active folders that are not listed as projects are explained; session page in the UI language with formatted numbers; P2/P3 items
 
 ## Acceptance criteria
 
@@ -302,6 +303,37 @@ Target after redesign: >= 32/40, no P1.
   A to Z. 14 123523e intro once. 15 b8de122 "Searching." with aria-busy. Checks: LANG=C node --test test/*.test.js
   1067/1067; structure suites green; Python 1000 tests, only the known DeclaredScheduleTest failure.
 
+- 2026-11-13 T14 (route: delegated writer; strict TDD, node --test and python3 -P -m unittest; one commit per item or
+  small group; RED seen before every change, by running the new test on the old code where the first run failed on
+  something else). a e8742a8: root cause, page-home joined the start DATE (fmtDate(started)) with the row's own time,
+  which is the last message; now "started <date time>, last active <time>" (RED 2 node; 3 pinned feed tests updated to
+  the new format). b bc781fb: root cause, every session query took max(u.model), the alphabetically last model;
+  sessfacts.MAIN_MODEL picks the most messages (ties by name, like the Models list), tables add "+N" (RED 2 py, 1 node;
+  one label test expected the old max). c 3278ab4: root cause, membership and the Usage filter/grouping used the stored
+  cwd basename (u.project) while names used sessname; the Projects list took last activity from the first 1000
+  /api/sessions rows keyed by the other name. session_project() is registered on every usage connection (filter,
+  Usage > Projects, search, sessions rows); projects.session_ids, the project page, Projects list (server-side
+  `last`) share sessname.sessions_by_project; sesswhere.py caches transcript folders (15 s) and each cwd; the project
+  tab drops its Project column (RED 4 py, 2 node; 2000-session synthetic run: /api/projects 0.13 s cold, 0.01 s warm).
+  e 803df1b: root cause, discovery read only Claude transcripts (a Codex session never found its repository) and a folder
+  outside any git repository is never a project; Codex rollouts now feed discovery and Projects lists "Active folders
+  that are not projects" (newest 10) with how to add one (RED: Codex discovery test fails on bc781fb, folders test fails
+  on 3278ab4; 1 node). d 4c72bdb: /api/memories returns total and takes offset (memlist.py), Memory shows "Showing 50 of
+  728." and Show more, palette groups say "first 50 of 728" or "50+"; search moved to wikisearch.py (api.py 617 -> 571,
+  wiki.py 451 -> 352) (RED 3 py, 2 node). f e2576ba: srv-es labels, "Ended" renamed "Last activity", groupDigits shared
+  with Today, crumb = short id, a unique 8+ character prefix opens its session (RED 3 py, 2 node). g ec60072: Overview
+  column "Skills in its folder" plus a lead on the three counts, Tools and skills segments "Skills (7 used)" (RED 2).
+  h 4ca628e: "Activity > Sessions" -> "Usage > Sessions", graph sync error "Settings > Projects and siblings" (RED 2).
+  i e0700c5: Sessions per day and Usage > Sessions open newest first (RED 2). j eba64d3: Found by column, lead without
+  origin, project.originCommon removed (RED 2; the T11/T13 provenance tests rewritten for the new rule). k a5ac5fd:
+  diagram shown and centred once drawn, orphan rows without the repeated detail, graph list "Showing 50 of 1,234
+  nodes; 312 ... hidden." (RED 1 py + 1 py + 2 node; 2 pinned diagram tests updated). l cf8d2a8: one On/Off order,
+  phone tabs wrap (a mask gradient is banned by the visual test, DESIGN.md rule updated), page head --s2 between title
+  and lead and --s5 after, Projects uses pageHead (RED 4). Not changed: graph names such as "ref_node_fs" are external
+  references whose graph.json label is the id itself (no human label in the data). Checks: LANG=C node --test
+  test/*.test.js 1088/1088; structure 10/10; Python 1016 tests, only the known DeclaredScheduleTest failure. Not run:
+  browser check (no server allowed in this run).
+
 ### T8 close and T10 verification (coordinator, 2026-11-13)
 
 - Final independent impeccable re-critique: 30/40, no P0 or P1 (baseline 25/40; rounds 29, 30, 30). The 32/40 target
@@ -316,12 +348,12 @@ Target after redesign: >= 32/40, no P1.
 
 ## Next step
 
-All tasks checked (T13 closed by a delegated writer, not yet browser-checked). Push and PR are the owner's decision.
+All tasks checked (T14 closed by a delegated writer, not yet browser-checked). Push and PR are the owner's decision.
 Open, none started:
-- Browser pass at 1024, 1280 and 375px in light and dark after restarting the portal server (Python changed: spending,
-  session names, vendored rules): Today vs Usage figures, session names on Today, Usage and the project page, the
-  wrapped Catalog filter, the folded Usage filters on a phone, the in-row Remove confirm.
-- Usage > Projects still groups by the stored cwd basename (u.project); only a session's own name follows the new rule.
+- Browser pass at 1024, 1280 and 375px in light and dark after restarting the portal server (Python changed: session
+  rule in SQL, memory paging, search module, graph counts): Today rows, Usage > Projects and the project filter, a
+  project's Sessions tab and the Projects list on real data, the folders section, Memory Show more, the centred
+  architecture diagram, the wrapped phone tabs.
 - Restart the amauta memory MCP server so mem_save refuses unspaced bodies; Memory > Quality then lists the stored ones.
 - Settings > Appearance has no theme picker (only the Display popover).
 - T10 leftovers: personal-skill links have no copy fallback where symlinks fail; nothing was run on a real Windows

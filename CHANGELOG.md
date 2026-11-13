@@ -62,6 +62,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Portal cross-page agreement (T14): a session's start time, model and project read the same on every page. Today labels
+  a row's time "last active" and gives an earlier start in full; a session's model is the one with the most messages
+  ("claude-opus-5-5 +1"); one project rule decides membership, the name, last activity, the Usage > Project filter,
+  Usage > Projects and search (Codex rollouts now give their cwd too), and a project's Sessions tab drops its Project
+  column. Projects lists active folders that are not projects, and every row says how it was found in a Found by column.
+  Memory says "Showing 50 of 728." with Show more, and a capped search group says "first 50 of 728" or "50+". The session
+  page is in the UI language with grouped counts, a short-id crumb, and opens from the short id the tables show. Each
+  skill count says what it counts; references name sidebar sections; daily and session tables open newest first; the
+  architecture diagram is shown and centred; orphan memories say why once; the graph list counts shown and hidden nodes;
+  Settings lists On before Off; phone tabs wrap; a page title and its lead sit one spacing step apart.
 - Portal re-critique round (T13): Today's spending reads the same overview as Usage (it summed by UTC day and drifted
   from Usage near midnight); one rule names a session's project on every page (configured project owning the cwd, else
   the repository root, worktrees as their main repository and never a dotfiles repository in $HOME, else the folder),
