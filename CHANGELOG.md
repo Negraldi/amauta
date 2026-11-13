@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Portal critique follow-ups: Remove in Settings > Projects and siblings asks first and offers Undo; the Graph node
   list opens most connected first with vendored, minified and dependency files behind a toggle, and node kinds read as
   words; Activity pages say "Data as of <time>" under Refresh and keep the filter bar under the top bar on wide screens;
-  the architecture diagram fits the column with a Show at full size toggle.
+  the architecture diagram opens at its natural size in a sideways scroller, with a Fit to width toggle.
 - Memory refuses text saved without spaces between words: amauta's memory MCP server (`mem_save`, `mem_update`,
   `mem_save_prompt`, `mem_session_summary`, `mem_session_end`) replies with an error asking the agent to resend the body
   as prose, and Memory > Quality lists notes already stored that way. The external engram server is not covered.
@@ -62,6 +62,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Portal re-critique round (T13): Today's spending reads the same overview as Usage (it summed by UTC day and drifted
+  from Usage near midnight); one rule names a session's project on every page (configured project owning the cwd, else
+  the repository root, worktrees as their main repository and never a dotfiles repository in $HOME, else the folder),
+  and the Today feed says "started <date>" instead of repeating the day; every graph kind is a short word (Concept
+  included); the graph's vendored toggle also hides `.gitattributes` linguist-vendored paths and folders the
+  repository's NOTICE names; the Remove confirm opens in its row and focus returns to it; the Projects lead names an
+  origin only when most rows share it; the Catalog kind filter wraps instead of scrolling; the Usage filters fold under
+  one summary line on a phone; Spanish writes "2,4 mil M", never "B"; one breadcrumb rule (no tab crumb, items by
+  title); Security tables open A to Z; the siblings intro is said once; the search palette says "Searching." while a
+  request is pending.
 - Portal Settings on Windows: a timed-out install called `os.killpg` (POSIX only) and the installer's environment
   dropped `USERPROFILE`, `SYSTEMROOT` and the other variables node and npm need there.
 - Portal Settings reached only Claude Code: an explicit Claude home made the installer look for Codex inside it. Preview,

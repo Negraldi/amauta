@@ -25,7 +25,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T10 Runtime-agnostic harness wiki (user, 2026-11-13: "the harness must be agnostic, Claude or Codex"): neutral copy where a claim holds for both runtimes; Overview and Catalog also inventory the Codex target (instruction blocks, hooks, MCP servers, skill links) with a runtime marker per entry
 - [x] T11 Critique follow-ups (user, 2026-11-13: "complete the impeccable critique"): confirm on Remove, graph default view, one name per page, one tab vocabulary, P3 items; then a re-critique
 - [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
-- [ ] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
+- [x] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
 
 ## Acceptance criteria
 
@@ -286,6 +286,22 @@ Target after redesign: >= 32/40, no P1.
   portal 513 OK, mem 34 OK, full Python 991 with the one known failure (test_pipelines DeclaredScheduleTest). Not run:
   browser check (no server allowed in this run) and the re-critique.
 
+- 2026-11-13 T13 (route: delegated writer; strict TDD, node --test and python3 -P -m unittest; one commit per item).
+  1 fae2313: root cause, wikihome.spending summed `substr(ts,1,10)` (UTC day) from a UTC "today" while /api/overview
+  uses LOCAL_DAY from the local date; a message at 02:00Z counted in one 30-day window only. Spending now calls
+  Portal.overview per window. RED: fixture at UTC-5 (TZ=America/Bogota), input 1160 vs 160. 2 4573da7: root cause,
+  wikisess.repo_name walked to any .git ancestor (the $HOME dotfiles repo won, "negraldi"), Usage showed max(u.project)
+  of stored cwd basenames ("static"), the project page matched by stored name ("amauta"). New sessname.project_of used
+  by labels, /api/sessions and the session page; feed titles drop the date, "started <date>" when earlier (RED 4
+  Python + 1 node). 3 0779f9e natural size default, Fit to width toggle. 4 cf4be5b Concept and short kind words. 5
+  e157aee graph/vendored.py (generic names, -min/.min., .gitattributes linguist-vendored, NOTICE folders). 6 523aa00
+  confirm in its row, focus restored (RED 4/8). 7 7575ce3 lead only for a majority origin. 8 fa6d4f3 segmented-wrap.
+  9 86f3378 details/summary filters. 10 5736299 "2,4 mil M". 11 5624d5e one crumb rule (changed pinned tests for the
+  Settings and project-tab crumbs). 12 not reproduced: Today's lead is a `.lead` inside `.page-head`, which
+  style.css stacks (`.page-head > .lead { flex-basis: 100% }`) exactly like pageHead() on every other page. 13 663b3b2
+  A to Z. 14 123523e intro once. 15 b8de122 "Searching." with aria-busy. Checks: LANG=C node --test test/*.test.js
+  1067/1067; structure suites green; Python 1000 tests, only the known DeclaredScheduleTest failure.
+
 ### T8 close and T10 verification (coordinator, 2026-11-13)
 
 - Final independent impeccable re-critique: 30/40, no P0 or P1 (baseline 25/40; rounds 29, 30, 30). The 32/40 target
@@ -300,10 +316,12 @@ Target after redesign: >= 32/40, no P1.
 
 ## Next step
 
-All tasks checked. Push and PR are the owner's decision. Open, none started:
-- T11 re-critique (impeccable) and a browser pass at 1024, 1280 and 375px in light and dark: restart the portal server
-  first (Python changes: graph ranking, session rows, overview latest, lint category, settings); check the fitted
-  diagram, the sticky filter bar and the segmented controls at 1024px.
+All tasks checked (T13 closed by a delegated writer, not yet browser-checked). Push and PR are the owner's decision.
+Open, none started:
+- Browser pass at 1024, 1280 and 375px in light and dark after restarting the portal server (Python changed: spending,
+  session names, vendored rules): Today vs Usage figures, session names on Today, Usage and the project page, the
+  wrapped Catalog filter, the folded Usage filters on a phone, the in-row Remove confirm.
+- Usage > Projects still groups by the stored cwd basename (u.project); only a session's own name follows the new rule.
 - Restart the amauta memory MCP server so mem_save refuses unspaced bodies; Memory > Quality then lists the stored ones.
 - Settings > Appearance has no theme picker (only the Display popover).
 - T10 leftovers: personal-skill links have no copy fallback where symlinks fail; nothing was run on a real Windows
