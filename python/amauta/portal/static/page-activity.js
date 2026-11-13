@@ -89,6 +89,7 @@ async function viewOverview() {
   const [o, c] = await Promise.all([api("overview", filters()), api("costs", filters())]);
   if (!o.available) return [panel(t("nav.usage"), empty(t("usage.nodata.refresh")))];
   dataAsOf([o.totals.latest]);
+  sortOnce("sessday", "day"); // a daily table opens newest day first, until a header is clicked
   const runtimeCols = [{ key: "runtime", label: t("col.runtime"), render: runtimeBadge }, { key: "sessions", label: t("nav.session"), num: true },
     { key: "messages", label: t("col.messages"), num: true }, ...KINDS.map(([k, l]) => ({ key: k, label: t(l), num: true }))];
   return [
@@ -129,6 +130,7 @@ async function viewSessions() {
   const s = await api("sessions", filters());
   if (!s.available) return [empty(t("usage.nodata"))];
   dataAsOf(s.sessions.map((x) => x.last_ts));
+  sortOnce("sessions", "last_ts"); // newest first, like a project's Sessions tab
   return [s.sessions.length ? table("sessions", sessionColumns(), s.sessions) : empty(t("usage.noSessionsRange"))];
 }
 
