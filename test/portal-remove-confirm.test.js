@@ -75,3 +75,34 @@ test('removing a saved project path asks first and can be undone', async () => {
   await tick();
   assert.deepEqual(posts.at(-1), { repos: ['/home/u/beta'] });
 });
+
+// Re-critique T13 item 6: the confirm opens inside the row it concerns, never under the whole table, and focus never lands
+// on <body>: Go back returns it to the Remove button, a removal moves it to Undo, Undo returns it to the restored row.
+const rowOf = (view, text) => tree(view).find((e) => e.tagName === 'tr' && e.textContent.includes(text));
+
+for (const [kind, label, yes, rowText] of [['sibling', 'Remove Data catalog', 'Remove sibling', 'Data catalog'],
+  ['project path', 'Remove /home/u/beta', 'Remove path', '/home/u/beta']]) {
+  test(`the ${kind} confirm sits in its row and Go back returns focus to Remove`, async () => {
+    const { view, button, confirmBox } = await boot();
+    button(label).click();
+    await tick();
+    const row = rowOf(view, rowText);
+    assert.ok(row && tree(row).includes(confirmBox()), 'the confirm group is inside the row');
+    button('Go back').click();
+    await tick();
+    assert.equal(confirmBox(), undefined);
+    assert.equal(button(label).focused, true, 'focus is back on the Remove button');
+  });
+
+  test(`after a ${kind} removal focus moves to Undo, and after Undo to the restored row's Remove`, async () => {
+    const { button } = await boot();
+    button(label).click();
+    await tick();
+    button(yes).click();
+    await tick();
+    assert.equal(button('Undo').focused, true);
+    button('Undo').click();
+    await tick();
+    assert.equal(button(label).focused, true);
+  });
+}

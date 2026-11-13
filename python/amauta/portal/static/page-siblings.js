@@ -59,23 +59,40 @@ async function saveConfig(store, body, out, repaint, done) {
   }
   store.data = res.data;
   repaint();
-  out.replaceChildren(done ? done() : h("p", { role: "status" }, "✓ " + t("common.saved")));
+  const line = done ? done() : h("p", { role: "status" }, "✓ " + t("common.saved"));
+  out.replaceChildren(line);
+  if (line.focusTarget) line.focusTarget.focus(); // after a removal focus goes to Undo, never to <body>
 }
 
-// Remove asks first, the way every other change in the app does (a confirm group with the accent button and Go back),
-// and the status line after a removal offers Undo, which puts the same entry back where it was.
-function askRemove(box, question, yes, onYes) {
-  const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
-  ok.addEventListener("click", () => { box.replaceChildren(); onYes(); });
-  no.addEventListener("click", () => box.replaceChildren());
-  box.replaceChildren(h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, question),
-    h("div", { class: "actions" }, ok, no)));
-  no.focus();
+// Remove asks first, the way every other change in the app does (a confirm group with the accent button and Go back). The
+// group replaces the Remove button inside its own row, never under the whole table; Go back puts the button back and
+// focuses it. The status line after a removal offers Undo (focused), which puts the same entry back where it was.
+function rowRemove(label, question, yes, onYes) {
+  const cell = h("div", { class: "row-action" }), b = h("button", { type: "button", "aria-label": label }, t("common.remove"));
+  b.addEventListener("click", () => {
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
+    ok.addEventListener("click", () => { cell.replaceChildren(b); onYes(); });
+    no.addEventListener("click", () => { cell.replaceChildren(b); b.focus(); });
+    cell.replaceChildren(h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, question),
+      h("div", { class: "actions" }, ok, no)));
+    no.focus();
+  });
+  cell.append(b);
+  cell.removeButton = b;
+  return cell;
 }
 function removedLine(text, undo) {
   const b = h("button", { type: "button" }, t("common.undo"));
   b.addEventListener("click", undo);
-  return h("p", { role: "status" }, `✓ ${text} `, b);
+  const line = h("p", { role: "status" }, `✓ ${text} `, b);
+  line.focusTarget = b;
+  return line;
+}
+// After Undo the restored row's Remove button takes focus: `want` names the row, paint() calls focus() once it is drawn.
+function refocuser() {
+  let want = null, found = null;
+  return { want: (key) => { want = key; }, offer: (key, cell) => { if (key === want) found = cell.removeButton; return cell; },
+    done: () => { if (found) found.focus(); want = null; found = null; } };
 }
 const putBack = (list, item, at) => [...list.slice(0, at), item, ...list.slice(at)];
 function siblingLoss(s) {
@@ -89,10 +106,10 @@ function siblingLoss(s) {
 function projectsSection(store) {
   const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
   const send = (body, done) => saveConfig(store, body, out, paint, done);
-  const ask = h("div", null);
+  const focus = refocuser();
   function drop(path) {
     const at = store.data.config_repos.indexOf(path);
-    const undo = () => send({ repos: putBack(store.data.config_repos, path, at) });
+    const undo = () => { focus.want(path); send({ repos: putBack(store.data.config_repos, path, at) }); };
     send({ repos: store.data.config_repos.filter((x) => x !== path) }, () => removedLine(t("sp.removed", { path }), undo));
   }
   function paint() {
@@ -105,19 +122,17 @@ function projectsSection(store) {
     box.addEventListener("change", (e) => send({ auto_discover: !!e.target.checked }));
     const only = (p) => p.origin.includes("discovered") && !p.origin.includes("config") && !p.origin.includes("flag");
     const found = data.projects.filter(only);
-    const remove = (_v, row) => {
-      const b = h("button", { type: "button", "aria-label": t("sp.remove", { path: row.path }) }, t("common.remove"));
-      b.addEventListener("click", () => askRemove(ask, t("sp.removeConfirm", { path: row.path }), t("sp.removeYes"), () => drop(row.path)));
-      return b;
-    };
+    const remove = (_v, row) => focus.offer(row.path,
+      rowRemove(t("sp.remove", { path: row.path }), t("sp.removeConfirm", { path: row.path }), t("sp.removeYes"), () => drop(row.path)));
     // Path and action in two columns, so every Remove lines up whatever the path's length.
     const paths = () => table("saved-paths", [{ key: "path", label: t("sib.path"), render: (v) => h("code", { class: "tok" }, v) },
       { key: "remove", label: t("sib.col.actions"), render: remove }], data.config_repos.map((path) => ({ path })));
     root.replaceChildren(h("h2", null, t("nav.project")), h("p", { class: "muted" }, t("sp.intro")),
-      data.config_repos.length ? paths() : h("p", { class: "muted" }, t("sp.none")), ask,
+      data.config_repos.length ? paths() : h("p", { class: "muted" }, t("sp.none")),
       h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
       h("label", { class: "check", for: "project-auto" }, box, t("sp.auto")),
       h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null));
+    focus.done();
   }
   paint();
   return h("div", null, root, out);
@@ -127,10 +142,10 @@ function projectsSection(store) {
 function siblingsSection(store) {
   const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
   const send = (list, done) => saveConfig(store, { siblings: list }, out, paint, done);
-  const ask = h("div", null);
+  const focus = refocuser(), key = (s) => `${s.name}\n${s.path}`;
   function drop(s) {
     const list = store.data.siblings || [], at = list.indexOf(s);
-    const undo = () => send(putBack(store.data.siblings || [], s, at));
+    const undo = () => { focus.want(key(s)); send(putBack(store.data.siblings || [], s, at)); };
     send(list.filter((x) => x !== s), () => removedLine(t("sib.removed", { name: s.name }), undo));
   }
   const field = (id, label, placeholder) => [h("label", { for: id }, label),
@@ -148,11 +163,8 @@ function siblingsSection(store) {
         ...(value(4) ? { max_age_days: Number(value(4)) } : {}) };
       send([...list, entry]);
     });
-    const remove = (_v, s) => {
-      const b = h("button", { type: "button", "aria-label": t("sib.remove", { name: s.name }) }, t("common.remove"));
-      b.addEventListener("click", () => askRemove(ask, siblingLoss(s), t("sib.removeYes"), () => drop(s)));
-      return b;
-    };
+    const remove = (_v, s) => focus.offer(key(s),
+      rowRemove(t("sib.remove", { name: s.name }), siblingLoss(s), t("sib.removeYes"), () => drop(s)));
     const text = (v) => v || "-";
     const watched = (v, s) => (v && s.max_age_days ? tn("sib.watchMax", s.max_age_days, { file: v, n: fmt(s.max_age_days) }) : text(v));
     const columns = [{ key: "name", label: t("sib.name"), render: text },
@@ -160,8 +172,9 @@ function siblingsSection(store) {
       { key: "mcp", label: t("sib.col.mcp"), render: text }, { key: "watch", label: t("sib.col.watch"), render: watched },
       { key: "remove", label: t("sib.col.actions"), render: remove }];
     root.replaceChildren(h("h2", null, t("sib.title")), h("p", { class: "muted" }, t("sib.settingsLead")),
-      list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")), ask,
+      list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")),
       h("div", { class: "sibling-form" }, fields.flat(), add));
+    focus.done();
   }
   paint();
   return h("div", null, root, out);

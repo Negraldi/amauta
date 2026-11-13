@@ -188,7 +188,8 @@ missing. The portal reads the folder and those two files only; it never runs a s
 
 Remove (a saved project path or a sibling) asks first with the usual confirm group, naming what the portal forgets (a
 sibling's MCP server, watched file and age limit) and saying the folder is not touched; the status line after it offers Undo,
-which puts the same entry back in its place.
+which puts the same entry back in its place. The confirm group opens inside the row it concerns, in place of its Remove
+button; Go back returns focus to that button, a removal moves it to Undo, and Undo moves it to the restored row's Remove.
 
 ### Security
 

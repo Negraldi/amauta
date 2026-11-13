@@ -34,6 +34,8 @@
 .settings .notice { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: var(--s2) var(--s3); }
 .settings .notice.warn { border-color: var(--warn); color: var(--ink); }
 .settings .confirm { border: 1px solid var(--line); border-radius: 6px; padding: var(--s2) var(--s3); background: var(--surface); }
+/* A Remove confirm opens in its own row (page-siblings.js rowRemove): wide enough to read, wrapping inside the cell. */
+.row-action .confirm { min-inline-size: min(22rem, 70vw); white-space: normal; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
 button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
 button.primary:active:not(:disabled) { background: var(--accent); filter: brightness(0.94); }
