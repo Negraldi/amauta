@@ -22,6 +22,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T7 Settings: preferences, projects and siblings, appearance (themes, language)
 - [ ] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
 - [x] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
+- [x] T10 Runtime-agnostic harness wiki (user, 2026-11-13: "the harness must be agnostic, Claude or Codex"): neutral copy where a claim holds for both runtimes; Overview and Catalog also inventory the Codex target (instruction blocks, hooks, MCP servers, skill links) with a runtime marker per entry
 
 ## Acceptance criteria
 
@@ -248,6 +249,16 @@ Target after redesign: >= 32/40, no P1.
   1280 and 375 px, light and dark: no page overflow, head order h1/lead/tabs, rail above the feed at 1100 and right at
   1280, menu focus/inert, popover under Display, unknown tabs normalized. The dev server needs a restart for the Python
   changes (local usage days, "1 call", ellipsis).
+- 2026-11-13 T10 (route: delegated writer; strict TDD, node --test + python3 -P -m unittest). Commits: a1ad440 (part 0:
+  Codex home order AMAUTA_CODEX_HOME > <custom claude home>/.codex > CODEX_HOME > ~/.codex in Node and Python, empty
+  values unset, portal build_config, Windows default interpreter `python`), c6d45e5 (part A: Settings passes --codex-home
+  and --codex-skills-dir when a Codex home exists, sandbox rule pinned, Codex plan/backup shown, codex_backup logged),
+  d3d1508 (part B: wikicodex.py, runtimes per catalog entry and skill, Runtime meta row, Overview runtimes table,
+  Security Codex panel), 80e3250 (part C: copy). RED seen per part: paths-codex/platform 2 failing; test_paths 4; settings
+  codex 3; settings UI 2; wiki codex 7 + i18n 1; security codex 2; codex UI 3. GREEN: portal node 469/469, ratchet 10/10,
+  checks 5/5 (LANG=C), install/codex/paths/hooks suites 189/189, Python portal 510 OK, paths/usage/memory OK. Not covered:
+  instruction blocks are on the Overview, not catalog entries (a new kind would grow wikiroute.js past 400); no runtime
+  filter; Codex-only MCP servers are not probed by Refresh descriptions; Windows behavior unverified on a Windows machine.
 
 ## Next step
 
