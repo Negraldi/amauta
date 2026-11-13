@@ -27,10 +27,10 @@ const px = (v) => (/rem$/.test(v) ? parseFloat(v) * 16 : parseFloat(v));
 const ok = (s) => `oklch(${s})`;
 const LIGHT = { bg: '1 0 0', surface: '0.975 0 0', sidebar: '0.965 0.003 22', ink: '0.22 0.005 22', 'ink-muted': '0.47 0.008 22', line: '0.9 0.004 22',
   accent: '0.50 0.155 22', 'accent-soft': '0.95 0.025 22', warn: '0.535 0.13 70', ok: '0.50 0.11 150',
-  'c-input': '0.45 0.13 275', 'c-output': '0.62 0.13 60', 'c-cache-read': '0.70 0.02 250', 'c-cache-write': '0.58 0.10 310' };
+  'c-input': '0.45 0.13 275', 'c-output': '0.62 0.13 60', 'c-cache-read': '0.60 0.035 250', 'c-cache-write': '0.55 0.13 310' };
 const DARK = { bg: '0.13 0 0', surface: '0.17 0 0', sidebar: '0.11 0 0', ink: '0.93 0.004 22', 'ink-muted': '0.74 0.008 22', line: '0.28 0.004 22',
   accent: '0.74 0.12 22', 'accent-soft': '0.27 0.05 22', warn: '0.80 0.13 75', ok: '0.78 0.12 150',
-  'c-input': '0.74 0.10 275', 'c-output': '0.80 0.12 60', 'c-cache-read': '0.55 0.02 250', 'c-cache-write': '0.72 0.09 310' };
+  'c-input': '0.74 0.11 275', 'c-output': '0.80 0.12 60', 'c-cache-read': '0.60 0.03 250', 'c-cache-write': '0.66 0.14 310' };
 
 test('the built-in themes carry the approved identity: pure neutral surfaces, cochineal accent, indigo and ochre data', () => {
   const want = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, ok(v)]));

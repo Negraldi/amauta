@@ -153,7 +153,7 @@ async function memoriesTab(pg) {
   if (!r.items.length) return empty(t("project.memoriesEmpty", { name: pg.id }));
   sortOnce("pmem", "updated_at");
   return table("pmem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id)) },
-    { key: "type", label: t("col.type") }, { key: "topic_key", label: t("col.topic") },
+    { key: "type", label: t("col.type"), render: memType }, { key: "topic_key", label: t("col.topic") },
     { key: "updated_at", label: t("col.updated") }], r.items);
 }
 

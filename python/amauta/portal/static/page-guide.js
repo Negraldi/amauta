@@ -19,5 +19,5 @@ async function viewGuide(route) {
     h("h2", null, t("guide.contents")),
     h("ol", null, index.pages.map((p) => h("li", null,
       link("guide", p.slug, p.title, { "aria-current": p.slug === page.slug ? "page" : false })))));
-  return [h("div", { class: "guide" }, contents, h("article", { class: "doc guide-page" }, body))];
+  return [h("div", { class: "guide" }, contents, h("article", { class: "doc guide-page prose" }, body))];
 }

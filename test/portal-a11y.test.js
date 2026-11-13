@@ -129,13 +129,13 @@ test('the shell hides the filter bar through showsFilters, not a hard-coded list
   assert.doesNotMatch(app, /FILTERED/);
 });
 
-// ---- themes: whatever tokens a theme sets, diagrams stay light and focus stays visible ---------------------------------
-test('diagram cards pin their own light tokens, so a dark or custom theme cannot make Mermaid text unreadable', () => {
+// ---- themes: diagrams follow the page tokens (T8), so they are as readable as the text around them -------------------------
+test('diagram cards take the page tokens and Mermaid is drawn from them, in every scheme', () => {
   const rule = css.match(/\n\.diagram \{([^}]*)\}/)[1];
-  const pinned = tokensIn(rule);
-  for (const name of ['bg', 'surface', 'ink', 'ink-muted', 'line']) assert.deepEqual(pinned[name], SCHEMES.light[name], `--${name} is pinned to the light value`);
-  assert.match(css, /\.archify-frame \{[^}]*background: oklch\(1 0 0\)/);
-  assert.ok(contrast(pinned.ink, pinned.bg) >= 4.5 && contrast(pinned['ink-muted'], pinned.surface) >= 4.5);
+  assert.match(rule, /background: var\(--bg\)/);
+  assert.match(rule, /color: var\(--ink\)/);
+  assert.match(app, /getPropertyValue\(`--\$\{name\}`\)/);
+  for (const scheme of ['light', 'dark']) assert.ok(contrast(SCHEMES[scheme].ink, SCHEMES[scheme].bg) >= 4.5 && contrast(SCHEMES[scheme]['ink-muted'], SCHEMES[scheme].surface) >= 4.5, scheme);
 });
 
 test('forced schemes also set color-scheme so native controls follow the portal theme', () => {

@@ -249,7 +249,8 @@ function skillGroup(sk) {
 }
 function catalogRow(i) {
   const used = i.kind === "skill" && i.uses;
-  const usage = used ? h("div", { class: "muted" }, t("skills.usage", { calls: fmt(i.uses), sessions: fmt(i.sessions), last: R.fmtDate(i.last_used) })) : null;
+  const usage = used ? h("div", { class: "muted" }, t("skills.usage", { calls: tn("skills.calls", i.uses, { n: fmt(i.uses) }), sessions: tn("skills.sessions", i.sessions, { n: fmt(i.sessions) }),
+    last: R.fmtDate(i.last_used) })) : null;
   return h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`),
     i.disabled ? h("span", { class: "chip chip-off" }, `\u25cb ${t("components.disabled")}`) : null,
     i.description ? h("div", null, clip(localized(i, "description"))) : null, usage);
@@ -291,7 +292,7 @@ async function viewCatalog(route) {
   paint();
   const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
   const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
-  return [pageHead(t("nav.catalog"), t("catalog.intro", { n: fmt(total) })), res.err ? errorPanel(route, res.err) : null,
+  return [pageHead(t("nav.catalog"), tn("catalog.intro", total, { n: fmt(total) })), res.err ? errorPanel(route, res.err) : null,
     kindLinks(groups, kind), h("div", { class: "controls" }, box), refresh, list, teachWhere];
 }
 

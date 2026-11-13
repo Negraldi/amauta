@@ -20,6 +20,8 @@ const SETTING_MODULES = [
 ];
 const SETTING_GROUPS = [["set.group.behavior", ["persona", "review_mode"]], ["set.group.hooks", ["telemetry", "privacy", "checks"]]];
 const PERSONA_LABELS = Object.fromEntries(SETTING_OPTIONS[0][2]); // "now Gentleman" matches the select (plan N12h)
+// The plan's lifetime in whole minutes ("valid for 5 minutes", or "1 minute").
+const minutesOf = (plan) => Math.round((plan.expires_in || 300) / 60);
 const valueLabel = (v) => (v === "on" ? t("common.on") : v === "off" ? t("common.off") : PERSONA_LABELS[v] ? t(PERSONA_LABELS[v]) : v);
 const setDisabled = (el, on) => { if (on) el.setAttribute("disabled", ""); else el.removeAttribute("disabled"); };
 
@@ -128,7 +130,7 @@ async function preferencesTab() {
     });
     const cancel = h("button", { type: "button" }, t("set.discard"));
     cancel.addEventListener("click", () => out.replaceChildren());
-    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.previewTitle")), planBlock(plan), h("p", { class: "muted" }, t("set.validFor", { n: fmt(Math.round((plan.expires_in || 300) / 60)) })), h("div", { class: "actions" }, apply, cancel), confirmBox));
+    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.previewTitle")), planBlock(plan), h("p", { class: "muted" }, tn("set.validFor", minutesOf(plan), { n: fmt(minutesOf(plan)) })), h("div", { class: "actions" }, apply, cancel), confirmBox));
   }
   async function runApply(plan) {
     busy("set.applying");
@@ -159,7 +161,7 @@ async function preferencesTab() {
     const cancel = h("button", { type: "button" }, t("set.discard"));
     cancel.addEventListener("click", () => out.replaceChildren());
     out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.undoPreviewTitle")), planBlock(plan),
-      h("p", { class: "muted" }, t("set.undoValid", { n: fmt(Math.round((plan.expires_in || 300) / 60)) })),
+      h("p", { class: "muted" }, tn("set.undoValid", minutesOf(plan), { n: fmt(minutesOf(plan)) })),
       h("div", { class: "actions" }, revert, cancel), confirmBox));
   }
   async function runUndo(plan) {

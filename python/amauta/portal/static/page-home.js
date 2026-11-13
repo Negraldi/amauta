@@ -7,10 +7,12 @@ function localDays(days) {
   for (const d of days) for (const i of d.items) { const day = R.fmtDate(i.ts); if (!by.has(day)) by.set(day, []); by.get(day).push(i); }
   return [...by.entries()].filter(([day]) => day !== "-").sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([day, items]) => ({ day, items: items.sort((a, b) => (String(a.ts) < String(b.ts) ? 1 : -1)) }));
 }
+// The server writes counts as plain digits ("session, 11300 messages"): group them like every other number on the page.
+const groupCounts = (text) => String(text).replace(/(?<![\w.,:\/-])\d{4,}(?![\w.,:\/-])/g, (m) => fmt(Number(m)));
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
   return h("div", null, localDays(days).map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
-    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.what)}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))))));
+    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${groupCounts(ts(i.what))}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))))));
 }
 function spendingBlock(sp) {
   if (!sp.available) return h("p", { class: "muted" }, t("home.noSpending"));

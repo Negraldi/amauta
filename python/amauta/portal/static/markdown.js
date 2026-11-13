@@ -137,6 +137,20 @@
   };
   const isBlockStart = (line) => RE.fence.test(line) || RE.heading.test(line) || RE.hr.test(line) || RE.quote.test(line) || /^ {0,3}(?:[-*+]|1[.)])\s+\S/.test(line);
 
+  // The end (exclusive) of an inline code span or a wikilink that starts at i, or i when none starts there.
+  function cellSpanEnd(t, i) {
+    if (t[i] === "`") {
+      let n = 1;
+      while (t[i + n] === "`") n++;
+      const close = t.indexOf("`".repeat(n), i + n);
+      return close === -1 ? i : close + n;
+    }
+    if (t[i] === "[" && t[i + 1] === "[") {
+      const end = t.indexOf("]]", i + 2);
+      return end !== -1 && !/[[\]]/.test(t.slice(i + 2, end)) ? end + 2 : i;
+    }
+    return i;
+  }
   function splitRow(line) {
     let t = line.trim();
     if (t.startsWith("|")) t = t.slice(1);
@@ -144,7 +158,9 @@
     const cells = [];
     let cur = "";
     for (let i = 0; i < t.length; i++) {
-      if (t[i] === "\\" && t[i + 1] === "|") { cur += "|"; i++; }
+      const skip = cellSpanEnd(t, i); // a closed `code` span or [[wikilink]] is copied whole: its | is not a cell border
+      if (skip > i) { cur += t.slice(i, skip); i = skip - 1; }
+      else if (t[i] === "\\" && t[i + 1] === "|") { cur += "|"; i++; }
       else if (t[i] === "|") { cells.push(cur.trim()); cur = ""; }
       else cur += t[i];
     }

@@ -180,7 +180,7 @@ test('Memories: the project\'s memories with type, topic and date', async () => 
   const env = await boot('#/project/repo?tab=memories');
   assert.ok(env.calls.some((c) => String(c.url).startsWith('/api/memories?') && c.url.includes('project=repo')));
   assert.ok(hrefs(view(env)).includes('#/memory/9'));
-  assert.match(view(env).textContent, /decision/);
+  assert.match(view(env).textContent, /Decision/); // T8: the type is shown with its label
 });
 
 test('Memories with none teaches mem_save', async () => {

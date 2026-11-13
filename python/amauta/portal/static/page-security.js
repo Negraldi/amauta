@@ -9,7 +9,8 @@ const SEC_COLUMNS = {
   trusted: () => [{ key: "name", label: t("kind.project") }, { key: "path", label: t("sec.path") },
     { key: "since", label: t("sec.since") }],
   selected: () => [{ key: "project", label: t("kind.project") }, { key: "profile", label: t("sec.profile") }],
-  redacted: () => [{ key: "kind", label: t("col.kind") }, { key: "n", label: t("sec.count"), num: true }],
+  redacted: () => [{ key: "kind", label: t("col.kind"), render: (v) => enumLabel("redact", v) },
+    { key: "n", label: t("sec.count"), num: true }],
 };
 
 const PROTECTIONS = [["memory_guard", "sec.memoryGuard"], ["privacy", "sec.privacy"], ["checks", "sec.checks"]];

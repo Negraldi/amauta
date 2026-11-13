@@ -31,10 +31,14 @@ function graphRepo(r) {
   }, list);
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
-  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { nodes: fmt(r.nodes), edges: fmt(r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: fmt(r.sql_tables || 0) })),
+  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { ...graphCounts(r.nodes, r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: tn("graph.sqlTables", r.sql_tables || 0, { n: fmt(r.sql_tables || 0) }) })),
     h("p", { class: "muted" }, t("graph.semantic", { pending: r.semantic_pending ? t("common.yes") : t("common.no"), last: r.semantic_at ? t("graph.lastRun", { at: R.fmtDateTime(r.semantic_at), model: r.semantic_model || t("graph.unknownModel") }) : t("common.never") })),
     h("div", { class: "controls" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph"))), list, near) };
 }
+
+// "3 nodes", "1 edge": the two counts of a graph, each with its own plural.
+const graphCounts = (nodes, edges) => ({ nodes: tn("graph.nodeCount", nodes, { n: fmt(nodes) }),
+  edges: tn("graph.edgeCount", edges, { n: fmt(edges) }) });
 
 // Graph memory is filled per project by graphify; when nothing is mirrored yet, say how, and list the projects that already have a graph.
 function graphEmptyState(projects) {
@@ -42,7 +46,7 @@ function graphEmptyState(projects) {
   return h("div", { class: "teach" },
     h("p", null, t("graph.how1"), " ", h("code", null, "amauta graphify hook install"), " ", t("graph.how2"), " ",
       h("code", null, "graphify update ."), " ", t("graph.how3"), " ", h("code", null, "graphify update ."), " ", t("graph.how4"), " ", h("code", null, "python3 -P -m amauta.graph sync --repo ."), "."),
-    mirrored.length ? h("div", null, h("h3", null, t("graph.mirroredProjects")), h("ul", { class: "refs" }, mirrored.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, " " + t("graph.nodesEdges", { nodes: fmt(p.graph.nodes), edges: fmt(p.graph.edges) }))))))
+    mirrored.length ? h("div", null, h("h3", null, t("graph.mirroredProjects")), h("ul", { class: "refs" }, mirrored.map((p) => h("li", null, link("project", p.name, p.name), h("span", { class: "muted" }, " " + t("graph.nodesEdges", graphCounts(p.graph.nodes, p.graph.edges)))))))
       : h("p", { class: "muted" }, t("graph.noneMirrored")));
 }
 
@@ -73,7 +77,8 @@ async function graphExplorer() {
 function archifyBlock(d) {
   if (!d.installed) return null;
   const full = d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)
-    ? h("p", null, h("a", { href: d.url, target: "_blank", rel: "noopener" }, t("harness.drawn", { n: fmt(d.components) }))) : null;
+    ? h("p", null, h("a", { href: d.url, target: "_blank", rel: "noopener" },
+      tn("harness.drawn", d.components, { n: fmt(d.components) }))) : null;
   const label = t("harness.installArch");
   const scroller = d.fallback
     ? h("div", { class: "arch-scroll", tabindex: 0, role: "region", "aria-label": label }, diagramBox(d.fallback, label, true)) : null;
@@ -85,11 +90,13 @@ function archifyBlock(d) {
 const stateChip = (on, word) => h("span", { class: `chip ${on ? "chip-done" : "chip-off"}` }, `${on ? "●" : "○"} ${word}`);
 const disabledCount = (comps) => (comps ? comps.groups.reduce((n, g) => n + g.items.filter((i) => i.disabled).length, 0) : 0);
 
-// "amauta 0.3.0 is installed; 42 components, 1 needs attention (plugin disabled)." from /api/harness and /api/harness/components.
-function healthSentence(hs, comps) {
+// "amauta 0.3.0 is installed; 42 components, 1 needs attention (plugin disabled)." from /api/harness, /api/harness/components and
+// /api/skills: the same total the Catalog shows. Skills that fail to load only drop out of the count.
+function healthSentence(hs, comps, skills) {
   const head = t("harness.health.installed", { version: hs.version || "-" });
   if (!comps) return `${head}.`;
-  const parts = tn("harness.health.components", comps.total, { n: fmt(comps.total) });
+  const total = [...skillGroup(skills), ...comps.groups].reduce((n, g) => n + g.items.length, 0);
+  const parts = tn("harness.health.components", total, { n: fmt(total) });
   const off = disabledCount(comps);
   const attention = off ? tn("harness.health.attention", off, { n: fmt(off) }) : t("harness.health.fine");
   return `${head}; ${parts}, ${attention}.`;
@@ -129,9 +136,9 @@ function hooksTable(hs, comps) {
 }
 
 async function viewHarness() {
-  const [hs, arch, comps] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })),
-    api("harness/components").catch(() => null)]);
-  const title = pageHead(t("nav.harnessPage"), hs.installed ? healthSentence(hs, comps) : null);
+  const [hs, arch, comps, skills] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })),
+    api("harness/components").catch(() => null), api("skills").catch(() => null)]);
+  const title = pageHead(t("nav.harnessPage"), hs.installed ? healthSentence(hs, comps, skills) : null);
   const how = h("div", { class: "teach" }, h("p", null, t("harness.notInstalled")), h("p", null, codeSpans(t("harness.howInstall"))));
   if (!hs.installed) return [title, how];
   const pending = comps && comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null;

@@ -118,7 +118,7 @@ Target after redesign: >= 32/40, no P1.
   is 2.66:1 on white (relieved by the per-day table), and the dark steps sit outside the validator's lightness band
   (L 0.72-0.80): retune in T8 if wanted (DESIGN.md table and theme.js BASES change together).
 
-- 2026-11-12 T6 (route: delegated writer). #/harness leads with one health sentence ("amauta 0.9.1 is installed; 38
+- 2026-11-12 T6 e04dcec (route: delegated writer). #/harness leads with one health sentence ("amauta 0.9.1 is installed; 38
   components, 2 need attention (plugin disabled).", tn plurals, from /api/harness + /api/harness/components; without the
   catalog just "amauta X is installed."), install facts as a dl (version, review mode, telemetry as chips, persona,
   modules, managed files; no cards), the Mermaid session flow behind "Show architecture diagram" in a focusable
@@ -141,7 +141,7 @@ Target after redesign: >= 32/40, no P1.
   Browser (temp fixture server on :8797, the :8790 dev server was not answering): harness, catalog, ?kind=skill, skill
   and hook items, security in light/dark and 375px: no page overflow, no console errors.
 
-- 2026-11-13 T7 (route: delegated writer; commit "feat(portal): settings with preferences, projects and appearance tabs"). #/settings is one page with three tabs in ?tab= (R.SETTINGS_TABS,
+- 2026-11-13 T7 157423f (route: delegated writer; commit "feat(portal): settings with preferences, projects and appearance tabs"). #/settings is one page with three tabs in ?tab= (R.SETTINGS_TABS,
   R.settingsTab; preferences is the default and never written): Preferences (options grouped under Behavior, Hooks and
   privacy, Optional modules; the "changed, was X" mark is ink-muted, not accent; preview/apply/undo unchanged with inline
   status/alert), Projects and siblings (saved paths + auto-discover and a siblings table with Remove, one shared
@@ -154,10 +154,34 @@ Target after redesign: >= 32/40, no P1.
   in set.tab.appearance; projects and siblings settings tests boot ?tab=projects; the theme tabs test checks the redirect
   and the Appearance tab link; i18n DYNAMIC allows set.tab.*; dead keys sib.none, sp.pathLabel, kind.themes removed.
 
+- 2026-11-13 T8 fix part (route: delegated writer; T8 stays open for the audit and re-critique). Per item:
+  (1) C1: markdown.js splitRow copies a closed `code` span or [[wikilink]] whole, so its | no longer splits a cell; every
+  #/guide table checked in the browser (no raw [[ ]], every row has the header's cell count).
+  (2) C5: counts that can be one go through tn() (skills calls/sessions in the catalog, graph nodes/edges/SQL tables,
+  schedule minutes/hours, archify components, lint memories, preview minutes, catalog intro); memory types (memtype.*)
+  and redaction kinds (redact.*) shown with labels through app.js enumLabel (unknown values as sent); the home feed
+  groups the digits the server writes ("11.356 mensajes"); Spanish on/off are "en uso"/"fuera de uso", option values
+  "Sí"/"No" (help texts too), "plugin fuera de uso"; kind.harness/nav.harnessPage "Resumen del harness", kind.lint
+  "Calidad de la memoria" (en "Memory quality"); tú -> usted in three Spanish texts.
+  (3) progress bars use --ok; a running pipeline step uses --c-input. (4) data tokens retuned (DESIGN.md, style.css,
+  theme.js BASES): light cache-read 0.60 0.035 250, cache-write 0.55 0.13 310; dark input 0.74 0.11 275, cache-read
+  0.60 0.03 250, cache-write 0.66 0.14 310; all >= 3:1 on bg and surface, >= 0.11 apart in OKLab (test-pinned).
+  (5) filter state: one nowrap span per part, .page-head row-gap. (6) the guide article is .prose (serif, measure
+  var(--measure) = 68ch). (7) .archify-frame and .sr-only (merged into .visually-hidden) removed; no other dead class.
+  (8) the harness health sentence counts skills + catalog groups like the Catalog; skills failing only drops them.
+  (9) siblings table: "cuts/ACTIVE (at most 35 days old)" when max_age_days is set. (10) Mermaid gets the current
+  tokens as hex (darkMode from bg), server classDef colors are mapped to tokens client-side, diagrams redraw on a theme
+  or OS scheme change; .diagram uses page tokens. (11) links in p/li/dd/td get 3px inline padding (24px hit area, no
+  layout shift); the auto-discover checkbox sits in a 24px label; browser-measured: no standalone target under 24px on
+  the main pages at 1280px. (12) sweep at 1280px and 375px (dark and light): no page overflow.
+  RED first (test/portal-visual-pass.test.js 16/16 + 1 classDef test, markdown C1 1/1), then GREEN.
+  Changed expectations: harness health counts skills (6 components; Spanish "fuera de uso"); Spanish settings values
+  "fuera de uso"; project memories show "Decision"; security shows "National ID (cédula)"; i18n DYNAMIC allows memtype/
+  redact; a11y diagram test now checks the card uses page tokens (the light pin is gone); shell test token values.
+  Not fixed (server text, out of scope): session titles "<model>, N messages" are composed in English by wikisess.label;
+  graph node kinds (graphify) and pipeline modes (user-defined) stay raw; diagrams.py _STYLE comment still says white card.
+
 ## Next step
 
-T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish. Carry-overs: progress bars on
---accent -> --ok / data color; data token chroma/lightness per the dataviz validator; filter-state wraps under the title on
-narrow content widths; .archify-frame CSS is unused; Spanish status words (activado/desactivado) are gendered elsewhere;
-the health sentence counts harness components only; siblings table shows the watch file but not its age limit; Settings
-has no theme picker (only the Display popover).
+T8 close: impeccable audit, polish, re-critique vs the 25/40 baseline; then T9. Open carry-over: Settings > Appearance has no
+theme picker (only the Display popover).

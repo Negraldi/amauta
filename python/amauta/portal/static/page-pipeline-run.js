@@ -17,7 +17,7 @@ function fmtClock(seconds) {
 // A step in the flow row: mark (never color alone), number and name, its kind, its last duration, and Only this.
 function stepItem({ name, n, id, type, seconds, enabled, onlyThis }) {
   const mark = h("span", { class: "pipe-mark", "aria-hidden": "true" }, STEP_MARK.idle);
-  const state = h("span", { class: "sr-only" }, ` (${t("pipe.s.idle")})`);
+  const state = h("span", { class: "visually-hidden" }, ` (${t("pipe.s.idle")})`);
   const time = h("span", { class: "muted" }, seconds == null ? "" : ` ${R.fmtDecimal(seconds, 1)} s`);
   const onlyLabel = t("pipe.onlyLabel", { n, step: name });
   const only = h("button", { type: "button", class: "link", disabled: !enabled, "aria-label": onlyLabel }, t("pipe.only"));

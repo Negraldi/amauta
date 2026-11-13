@@ -160,12 +160,12 @@ test('the settings page speaks Spanish: options, help and values', async () => {
     '/api/settings': { installed: true, current: { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } }, allowed: {}, undo: { available: false } } } });
   const t = view(env).textContent;
   assert.match(t, /Modo de revisión/);
-  assert.match(t, /ahora desactivado/);
+  assert.match(t, /ahora fuera de uso/); // T8: neutral status words, not the gendered activado/desactivado
   assert.match(t, /Módulos opcionales/);
   assert.match(t, /Desarrollo guiado por especificaciones \(SDD\)/);
   const sel = tree(view(env)).find((e) => e.attrs.id === 'set-review-mode');
   sel.value = 'on'; fire(sel, 'change');
-  assert.match(view(env).textContent, /◆ cambiado, era desactivado/);
+  assert.match(view(env).textContent, /◆ cambiado, era fuera de uso/);
 });
 
 test('the theme editor and its draft survive a language switch', async () => {

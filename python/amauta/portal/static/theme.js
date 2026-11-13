@@ -11,11 +11,11 @@
     light: { bg: "oklch(1 0 0)", surface: "oklch(0.975 0 0)", sidebar: "oklch(0.965 0.003 22)", ink: "oklch(0.22 0.005 22)",
       "ink-muted": "oklch(0.47 0.008 22)", line: "oklch(0.9 0.004 22)", accent: "oklch(0.50 0.155 22)", "accent-soft": "oklch(0.95 0.025 22)",
       warn: "oklch(0.535 0.13 70)", ok: "oklch(0.50 0.11 150)", "c-input": "oklch(0.45 0.13 275)", "c-output": "oklch(0.62 0.13 60)",
-      "c-cache-read": "oklch(0.70 0.02 250)", "c-cache-write": "oklch(0.58 0.10 310)" },
+      "c-cache-read": "oklch(0.60 0.035 250)", "c-cache-write": "oklch(0.55 0.13 310)" },
     dark: { bg: "oklch(0.13 0 0)", surface: "oklch(0.17 0 0)", sidebar: "oklch(0.11 0 0)", ink: "oklch(0.93 0.004 22)",
       "ink-muted": "oklch(0.74 0.008 22)", line: "oklch(0.28 0.004 22)", accent: "oklch(0.74 0.12 22)", "accent-soft": "oklch(0.27 0.05 22)",
-      warn: "oklch(0.80 0.13 75)", ok: "oklch(0.78 0.12 150)", "c-input": "oklch(0.74 0.10 275)", "c-output": "oklch(0.80 0.12 60)",
-      "c-cache-read": "oklch(0.55 0.02 250)", "c-cache-write": "oklch(0.72 0.09 310)" },
+      warn: "oklch(0.80 0.13 75)", ok: "oklch(0.78 0.12 150)", "c-input": "oklch(0.74 0.11 275)", "c-output": "oklch(0.80 0.12 60)",
+      "c-cache-read": "oklch(0.60 0.03 250)", "c-cache-write": "oklch(0.66 0.14 310)" },
   };
   const MAX_NAME = 60, MIN_CONTRAST = 4.5;
   const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;

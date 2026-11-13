@@ -86,7 +86,8 @@ function lastRunText(last) {
 // "Mondays, Thursdays at 07:30", "On day 1 of each month at 06:00", "Every 30 minutes".
 function scheduleText(s) {
   const n = s.every_minutes;
-  if (n) return n < 60 ? t("pipe.sched.minutes", { n }) : n === 60 ? t("pipe.sched.hour") : t("pipe.sched.hours", { n: n / 60 });
+  if (n && n < 60) return tn("pipe.sched.minutes", n, { n });
+  if (n) return n === 60 ? t("pipe.sched.hour") : tn("pipe.sched.hours", n / 60, { n: R.fmtDecimal(n / 60, n % 60 ? 1 : 0) });
   if (s.days) return t("pipe.sched.days", { days: s.days.map((d) => t(`pipe.day.${d}`)).join(", "), at: s.at });
   if (s.day_of_month) return t("pipe.sched.month", { day: s.day_of_month, at: s.at });
   return t("pipe.sched.daily", { at: s.at });

@@ -8,7 +8,7 @@
 const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateTheme({ name: th.name, base: th.base, tokens: th.tokens }).ok);
 const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((th) => `custom:${th.slug}` === state.themeChoice) ? "system" : state.themeChoice);
 const onAppearance = (route) => route.kind === "settings" && R.settingsTab(route) === "appearance"; // the editor previews its draft here
-function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); }
+function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); redrawDiagrams(); }
 function paintPicker() {
   const pick = $("theme-picker");
   pick.replaceChildren(...[["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")], ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])].map(([v, l]) => h("option", { value: v }, l)));

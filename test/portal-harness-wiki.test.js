@@ -44,8 +44,9 @@ async function boot(hash, over = {}, extra = {}) {
 test('the overview leads with one health sentence computed from the install and the components', async () => {
   const env = await boot('#/harness');
   const lead = tree(view(env)).find((e) => e.tagName === 'p' && cls(e) === 'lead');
-  assert.equal(lead.textContent, 'amauta 0.3.0 is installed; 4 components, 2 need attention (plugin disabled).');
-  const ok = await boot('#/harness', { '/api/harness/components': { ...COMPS, groups: [{ kind: 'hook', label: 'Hooks', items: HOOKS.slice(0, 1) }], total: 1 } });
+  assert.equal(lead.textContent, 'amauta 0.3.0 is installed; 6 components, 2 need attention (plugin disabled).'); // 4 catalog entries + 2 skills, as the Catalog counts
+  const ok = await boot('#/harness', { '/api/harness/components': { ...COMPS, groups: [{ kind: 'hook', label: 'Hooks', items: HOOKS.slice(0, 1) }], total: 1 },
+    '/api/skills': { total: 0, groups: [] } });
   assert.equal(tree(view(ok)).find((e) => cls(e) === 'lead').textContent, 'amauta 0.3.0 is installed; 1 component, nothing needs attention.');
   const bare = await boot('#/harness', { '/api/harness/components': { __status: 500, error: 'boom' } });
   assert.equal(tree(view(bare)).find((e) => cls(e) === 'lead').textContent, 'amauta 0.3.0 is installed.');
@@ -229,7 +230,7 @@ test('the browser tab title follows the page heading on every hub', async () => 
 test('in Spanish the health sentence, catalog title and explanation invitation are translated', async () => {
   const ES = { navigator: { language: 'es-ES' } };
   const h = await boot('#/harness', {}, ES);
-  assert.equal(tree(view(h)).find((e) => cls(e) === 'lead').textContent, 'amauta 0.3.0 está instalado; 4 componentes, 2 requieren atención (plugin desactivado).');
+  assert.equal(tree(view(h)).find((e) => cls(e) === 'lead').textContent, 'amauta 0.3.0 está instalado; 6 componentes, 2 requieren atención (plugin fuera de uso).');
   const c = await boot('#/component', {}, ES);
   assert.equal(tree(view(c)).find((e) => e.tagName === 'h1').textContent, 'Catálogo');
   const p = await boot('#/hook/PreToolUse%3Aaaaa1111', { '/api/wiki/page': HOOK_PAGE }, ES);

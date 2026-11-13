@@ -51,6 +51,9 @@ const fmt = (n) => R.fmtNumber(n);
 const short = (n) => (n >= 1e9 ? R.fmtDecimal(n / 1e9, 1) + "B" : n >= 1e6 ? R.fmtDecimal(n / 1e6, 1) + "M" : n >= 1e3 ? R.fmtDecimal(n / 1e3, 1) + "k" : fmt(n || 0));
 const pct = (r) => (r == null ? "-" : R.fmtPercent(r));
 const words = () => ({ na: t("common.na"), tokens: t("unit.tokens"), pp: t("unit.pp") }); // unit words for R.fmtMetric / R.fmtDelta
+// An enum value the server sends (a memory type, a redaction kind ...) shown with its label; a value without one is shown as sent.
+const enumLabel = (prefix, v) => (`${prefix}.${v}` in I.dict.en ? t(`${prefix}.${v}`) : v);
+const memType = (v) => (v ? enumLabel("memtype", v) : "-");
 const plainReason = (e) => String((e && e.message) || e);
 
 async function api(path, params = {}) {
@@ -64,25 +67,44 @@ async function api(path, params = {}) {
 
 // Mermaid is vendored (/static/mermaid.min.js, no CDN) and loaded on first use. Source text is generated server-side with every label
 // escaped, and mermaid itself runs with securityLevel "strict"; the SVG it returns is parsed into an inert document and adopted as nodes, never assigned as an HTML string.
-let mermaidReady = null;
-// Diagram colors: the sRGB of style.css's light OKLCH tokens (Mermaid's theme engine reads hex only); the font follows --sans.
-const mermaidTheme = () => ({
-  background: "#ffffff", primaryColor: "#ffffff", primaryBorderColor: "#4e5758", primaryTextColor: "#161f1f", lineColor: "#4e5758",
-  clusterBkg: "#eff5f5", clusterBorder: "#d5dcdd", edgeLabelBackground: "#ffffff", tertiaryColor: "#dcf4f5", fontSize: "13px",
-  fontFamily: (globalThis.getComputedStyle && getComputedStyle(document.documentElement).getPropertyValue("--sans").trim()) || "sans-serif",
-});
+let mermaidReady = null, mermaidKey = "";
+const MERMAID_CONFIG = { startOnLoad: false, securityLevel: "strict", theme: "base", suppressErrorRendering: true };
+// Diagram colors: the current theme's tokens as hex (Mermaid's theme engine reads hex only), so a dark page gets a dark diagram.
+const rootStyle = () => (globalThis.getComputedStyle ? getComputedStyle(document.documentElement) : null);
+const tokenHex = (css, name) => TH.toHex((css && css.getPropertyValue(`--${name}`).trim()) || "") || TH.toHex(TH.BASES.light[name]);
+function mermaidTheme() {
+  const css = rootStyle(), tok = (name) => tokenHex(css, name);
+  const [bg, surface, ink, muted, line] = ["bg", "surface", "ink", "ink-muted", "line"].map(tok);
+  return { darkMode: TH.luminance(bg) < 0.2, background: bg, primaryColor: surface, secondaryColor: surface, tertiaryColor: bg,
+    primaryBorderColor: muted, primaryTextColor: ink, textColor: ink, nodeTextColor: ink, lineColor: muted, clusterBkg: bg,
+    clusterBorder: line, edgeLabelBackground: bg, fontSize: "13px",
+    fontFamily: (css && css.getPropertyValue("--sans").trim()) || "sans-serif" };
+}
+// (Re)initializes Mermaid when the theme's colors differ from the ones it was last given; true when they changed.
+function syncMermaidTheme(mermaid) {
+  const vars = mermaidTheme(), key = JSON.stringify(vars);
+  if (key === mermaidKey) return false;
+  mermaid.initialize({ ...MERMAID_CONFIG, themeVariables: vars });
+  mermaidKey = key;
+  return true;
+}
+// The server's classDef lines carry light hex colors: each known class is redrawn as fill / stroke / text tokens of the theme.
+const CLASS_TOKENS = { root: ["surface", "ink"], group: ["surface", "line"], done: ["surface", "ok"], pending: ["surface", "warn"],
+  blocked: ["surface", "warn"], start: ["surface", "c-input"] };
+function themedSource(source) {
+  const css = rootStyle();
+  return String(source).replace(/^(\s*classDef (\w+) )(.*)$/gm, (line, head, name, props) => {
+    if (!Object.prototype.hasOwnProperty.call(CLASS_TOKENS, name)) return line;
+    const [fill, stroke] = CLASS_TOKENS[name], want = { fill, stroke, color: "ink" };
+    const prop = (p) => { const k = p.split(":")[0]; return want[k] ? `${k}:${tokenHex(css, want[k])}` : p; };
+    return head + props.split(",").map(prop).join(",");
+  });
+}
 function loadMermaid() {
   mermaidReady ||= new Promise((resolve, reject) => {
     const tag = document.createElement("script");
     tag.src = "/static/mermaid.min.js";
-    tag.onload = () => {
-      try {
-        // The diagram always sits on a white card (see .diagram), so it uses the light portal tokens in both page themes.
-        const config = { startOnLoad: false, securityLevel: "strict", theme: "base", suppressErrorRendering: true };
-        window.mermaid.initialize({ ...config, themeVariables: mermaidTheme() });
-        resolve(window.mermaid);
-      } catch (err) { reject(err); }
-    };
+    tag.onload = () => resolve(window.mermaid);
     tag.onerror = () => { mermaidReady = null; reject(new Error(t("diagram.loadFailed"))); };
     document.head.append(tag);
   });
@@ -93,7 +115,8 @@ let mermaidSeq = 0;
 async function drawMermaid(source, into, natural) {
   try {
     const mermaid = await loadMermaid();
-    const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, source);
+    syncMermaidTheme(mermaid);
+    const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, themedSource(source));
     // Parsed into an inert document (no script runs, no resource loads), then only the <svg> element is adopted. HTML parsing, not XML:
     // flowchart labels carry HTML inside <foreignObject>, which is not well-formed XML.
     const root = new DOMParser().parseFromString(svg, "text/html").body.querySelector("svg");
@@ -106,11 +129,25 @@ async function drawMermaid(source, into, natural) {
     into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: String(err.message || err).split("\n")[0] })), h("pre", { class: "text" }, source));
   }
 }
+// The diagrams drawn so far: a theme change draws them again in the new colors. A box is built before its page is shown, so
+// only a drawn box that has left the page is dropped.
+let diagrams = [];
+const gone = (d) => d.drawn && d.box.isConnected === false;
 function diagramBox(source, caption, natural) {
   const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || t("diagram.label") }, h("p", { class: "muted" }, t("common.rendering")));
-  drawMermaid(source, box, natural);
+  const entry = { box, source, natural, drawn: false };
+  diagrams = diagrams.filter((d) => !gone(d)).concat(entry);
+  drawMermaid(source, box, natural).then(() => { entry.drawn = true; });
   return box;
 }
+async function redrawDiagrams() {
+  if (!mermaidReady || !diagrams.length) return;
+  const mermaid = await mermaidReady.catch(() => null);
+  if (!mermaid || !syncMermaidTheme(mermaid)) return; // not loaded, or the same colors: nothing to draw again
+  diagrams = diagrams.filter((d) => !gone(d));
+  for (const d of diagrams) drawMermaid(d.source, d.box, d.natural);
+}
+try { globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawDiagrams); } catch (_) { /* no matchMedia */ }
 
 const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", graphRepo: null, usageCache: false, sort: {}, projectNames: [], themes: [],
   themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };

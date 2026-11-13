@@ -7,7 +7,7 @@ function filterState() {
   const days = $("days").value, project = $("project").value, runtime = $("runtime").value;
   const range = days === "3650" ? t("filters.allTime") : `filters.d${days}` in I.dict.en ? t(`filters.d${days}`) : days;
   const parts = [range, project || t("filters.anyProject"), runtime ? runtimeName(runtime) : t("filters.anyRuntime")];
-  return h("p", { class: "filter-state" }, parts.join(" · "));
+  return h("p", { class: "filter-state" }, parts.flatMap((p, i) => [i ? " · " : null, h("span", null, p)]));
 }
 
 // Usage opens with one sentence answering "what did I spend" for the filtered range (impeccable critique, plan N12f).

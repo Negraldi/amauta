@@ -83,7 +83,7 @@ function projectsSection(store) {
     root.replaceChildren(h("h2", null, t("nav.project")), h("p", { class: "muted" }, t("sp.intro")),
       data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map(remove)) : h("p", { class: "muted" }, t("sp.none")),
       h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
-      h("p", null, box, h("label", { for: "project-auto" }, " " + t("sp.auto"))),
+      h("label", { class: "check", for: "project-auto" }, box, t("sp.auto")),
       h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null));
   }
   paint();
@@ -115,9 +115,10 @@ function siblingsSection(store) {
       return b;
     };
     const text = (v) => v || "-";
+    const watched = (v, s) => (v && s.max_age_days ? tn("sib.watchMax", s.max_age_days, { file: v, n: fmt(s.max_age_days) }) : text(v));
     const columns = [{ key: "name", label: t("sib.name"), render: text },
       { key: "path", label: t("sib.path"), render: (v) => h("code", { class: "tok" }, v) },
-      { key: "mcp", label: t("sib.col.mcp"), render: text }, { key: "watch", label: t("sib.col.watch"), render: text },
+      { key: "mcp", label: t("sib.col.mcp"), render: text }, { key: "watch", label: t("sib.col.watch"), render: watched },
       { key: "remove", label: t("sib.col.actions"), render: remove }];
     root.replaceChildren(h("h2", null, t("sib.title")), h("p", { class: "muted" }, t("sib.settingsLead")),
       list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")),

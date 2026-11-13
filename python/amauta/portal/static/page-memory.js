@@ -14,7 +14,8 @@ function memTable(r, source, query) {
   if (!r.items.length) return query ? empty(t("mem.noMatch")) : h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.teach"))));
   // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
   return table("mem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id), { source }) },
-    { key: "type", label: t("col.type") }, { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") },
+    { key: "type", label: t("col.type"), render: memType },
+    { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") },
     { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items);
 }
 async function viewMemories(route) {
@@ -29,7 +30,10 @@ async function viewMemories(route) {
     state.memQuery = q.value;
     const r = await api("memories", { source, q: q.value, type: type.value });
     if (mySeq !== seq) return; // a newer search is on its way
-    if (r.available && !type.dataset.ready) { r.facets.types.forEach((v) => type.append(h("option", { value: v }, v))); type.dataset.ready = "1"; }
+    if (r.available && !type.dataset.ready) {
+      r.facets.types.forEach((v) => type.append(h("option", { value: v }, memType(v))));
+      type.dataset.ready = "1";
+    }
     mine.replaceChildren(memTable(r, source, q.value || type.value));
   }, mine);
   // Filters as you type: one request after a 200 ms pause; Enter searches at once.
@@ -65,6 +69,6 @@ async function viewLint() {
   const l = await api("wiki/lint");
   const sc = l.scanned || {};
   return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("lint.title")), h("p", { class: "lead" }, t("lint.prompts")),
-    h("p", { class: "muted" }, t("lint.intro", { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" })),
+    h("p", { class: "muted" }, tn("lint.intro", sc.memories, { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" })),
     l.categories.map(lintCategory)))];
 }

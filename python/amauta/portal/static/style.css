@@ -9,7 +9,7 @@
   --ink: oklch(0.22 0.005 22); --ink-muted: oklch(0.47 0.008 22); --line: oklch(0.9 0.004 22);
   --accent: oklch(0.50 0.155 22); --accent-soft: oklch(0.95 0.025 22);
   --warn: oklch(0.535 0.13 70); --ok: oklch(0.50 0.11 150);
-  --c-input: oklch(0.45 0.13 275); --c-output: oklch(0.62 0.13 60); --c-cache-read: oklch(0.70 0.02 250); --c-cache-write: oklch(0.58 0.10 310);
+  --c-input: oklch(0.45 0.13 275); --c-output: oklch(0.62 0.13 60); --c-cache-read: oklch(0.60 0.035 250); --c-cache-write: oklch(0.55 0.13 310);
   --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -26,7 +26,7 @@
     --ink: oklch(0.93 0.004 22); --ink-muted: oklch(0.74 0.008 22); --line: oklch(0.28 0.004 22);
     --accent: oklch(0.74 0.12 22); --accent-soft: oklch(0.27 0.05 22);
     --warn: oklch(0.80 0.13 75); --ok: oklch(0.78 0.12 150);
-    --c-input: oklch(0.74 0.10 275); --c-output: oklch(0.80 0.12 60); --c-cache-read: oklch(0.55 0.02 250); --c-cache-write: oklch(0.72 0.09 310);
+    --c-input: oklch(0.74 0.11 275); --c-output: oklch(0.80 0.12 60); --c-cache-read: oklch(0.60 0.03 250); --c-cache-write: oklch(0.66 0.14 310);
   }
 }
 :root[data-theme="dark"] {
@@ -34,7 +34,7 @@
   --ink: oklch(0.93 0.004 22); --ink-muted: oklch(0.74 0.008 22); --line: oklch(0.28 0.004 22);
   --accent: oklch(0.74 0.12 22); --accent-soft: oklch(0.27 0.05 22);
   --warn: oklch(0.80 0.13 75); --ok: oklch(0.78 0.12 150);
-  --c-input: oklch(0.74 0.10 275); --c-output: oklch(0.80 0.12 60); --c-cache-read: oklch(0.55 0.02 250); --c-cache-write: oklch(0.72 0.09 310);
+  --c-input: oklch(0.74 0.11 275); --c-output: oklch(0.80 0.12 60); --c-cache-read: oklch(0.60 0.03 250); --c-cache-write: oklch(0.66 0.14 310);
 }
 :root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
@@ -46,6 +46,9 @@ a { color: var(--accent); text-decoration: none; transition: color var(--t) var(
 a:hover, a:focus-visible { text-decoration: underline; text-underline-offset: 0.15em; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 a.external::after { content: " \2197"; font-size: 0.8em; }
+/* A link in running text or a list gets a 24px-tall hit area (WCAG 2.2 2.5.8) without moving the line: inline padding only.
+   Zero specificity, so every control that sets its own padding keeps it. */
+:where(#view p, #view li, #view dd, #view td) > a { padding-block: 0.1875rem; }
 kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 0 var(--s1); color: var(--ink-muted); background: var(--bg); }
 .skip { position: absolute; left: var(--s2); top: -4rem; background: var(--surface); padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: 6px; z-index: var(--z-tooltip); }
 .skip:focus { top: var(--s2); }
@@ -164,14 +167,14 @@ h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .chip-warning { color: var(--warn); }
 td > .chip { margin-left: 0; white-space: nowrap; }
 .bar-cell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s2); } /* a small bar and its words */
-.bar-cell progress { inline-size: 5rem; block-size: 0.5rem; accent-color: var(--accent); }
+.bar-cell progress { inline-size: 5rem; block-size: 0.5rem; accent-color: var(--ok); } /* progress is done work, not a link */
 .teach { max-width: 68ch; }
 #view p { max-width: 72ch; } /* reading width for prose (plan N12g) */
 .teach p { color: var(--ink-muted); }
 
 /* ---- revision diff (marks, not color alone) ---- */
 .progress-block { margin: 0 0 var(--s5); }
-.progress-block progress { width: 100%; max-width: 28rem; height: 0.625rem; accent-color: var(--accent); }
+.progress-block progress { width: 100%; max-width: 28rem; height: 0.625rem; accent-color: var(--ok); }
 table.compact { font-size: 0.8125rem; margin: 0 0 var(--s3); }
 table.compact th, table.compact td { padding: var(--s1) var(--s2); }
 .day:first-of-type { margin-top: 0; border-top: 0; padding-top: 0; }
@@ -183,7 +186,7 @@ table.compact th, table.compact td { padding: var(--s1) var(--s2); }
 .diff-gap { color: var(--ink-muted); font-style: italic; }
 
 /* ---- prose (memory content, SKILL.md, ODD documents) ---- */
-.prose { font: 1.0625rem/1.6 var(--serif); }
+.prose { font: 1.0625rem/1.6 var(--serif); max-inline-size: var(--measure); }
 .prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose .scroll, .prose hr { margin: 0 0 var(--s4); }
 .prose h2 { font: 600 1.25rem/1.3 var(--sans); margin: var(--s6) 0 var(--s3); }
 .prose h3 { font: 600 1rem var(--sans); margin: var(--s5) 0 var(--s2); }
@@ -229,24 +232,19 @@ svg text { fill: var(--ink-muted); font-size: 11px; }
 .chart-values { margin-top: var(--s3); }
 .chart-values summary { cursor: pointer; min-height: var(--hit); display: list-item; color: var(--accent); }
 label.check { display: inline-flex; align-items: center; gap: var(--s1); min-height: var(--hit); margin-bottom: var(--s2); }
-.page-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s4); }
+.page-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s4); row-gap: var(--s1); }
 .page-head > .lead { flex-basis: 100%; }
 .filter-state { margin: 0; color: var(--ink-muted); font-family: var(--mono); font-size: 0.8125rem; }
+.filter-state span { white-space: nowrap; } /* wraps between parts, never inside "30 days" */
 .axis { stroke: var(--line); }
 .f-input { fill: var(--c-input); } .f-output { fill: var(--c-output); } .f-cache_read { fill: var(--c-cache-read); } .f-cache_write { fill: var(--c-cache-write); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-bottom: var(--s2); font-size: 0.8125rem; }
 .sw { display: inline-block; width: 0.625rem; height: 0.625rem; border-radius: 2px; margin-right: var(--s1); }
 .sw.f-input { background: var(--c-input); } .sw.f-output { background: var(--c-output); } .sw.f-cache_read { background: var(--c-cache-read); } .sw.f-cache_write { background: var(--c-cache-write); }
 details > summary { cursor: pointer; margin: var(--s2) 0; }
-/* Mermaid always draws with its light theme, so diagrams sit on a white sheet under ANY theme: the card pins the light tokens its
-   content inherits. */
-.diagram { --bg: oklch(1 0 0); --surface: oklch(0.975 0 0); --ink: oklch(0.22 0.005 22); --ink-muted: oklch(0.47 0.008 22);
-  --line: oklch(0.9 0.004 22);
-  background: oklch(1 0 0); color: oklch(0.22 0.005 22); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2);
-    margin: 0 0 var(--s4); }
+/* Mermaid draws with the current theme tokens (app.js reads them and redraws on a theme change), so the card is the page itself. */
+.diagram { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: var(--s2); margin: 0 0 var(--s4); }
 .diagram svg { max-width: 100%; height: auto; }
-.archify-frame { display: block; width: 100%; height: 42rem; max-height: 80vh; border: 1px solid var(--line); border-radius: 6px; background: oklch(1 0 0); margin: 0 0 var(--s2); }
-.diagram .muted { color: oklch(0.47 0.008 22); }
 
 /* ---- loading: skeleton lines, not spinners ---- */
 .skeleton { max-width: 68ch; }
