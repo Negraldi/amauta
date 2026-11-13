@@ -241,7 +241,10 @@ svg text { fill: var(--ink-muted); font-size: 11px; }
   color: var(--ink-muted); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .chart-values { margin-top: var(--s3); }
 .chart-values summary { cursor: pointer; min-height: var(--hit); display: list-item; color: var(--accent); }
-label.check { display: inline-flex; align-items: center; gap: var(--s1); min-height: var(--hit); margin-bottom: var(--s2); }
+/* The words and the box are one target (>= 24px tall); the box is drawn at 18px instead of the 13px default. */
+label.check { display: inline-flex; align-items: center; gap: var(--s1); min-height: var(--hit); margin-bottom: var(--s2);
+  cursor: pointer; }
+input[type="checkbox"] { inline-size: 1.125rem; block-size: 1.125rem; margin: 0; flex: none; }
 .page-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s4); row-gap: var(--s1); }
 .page-head > .lead { flex-basis: 100%; }
 .axis { stroke: var(--line); }
