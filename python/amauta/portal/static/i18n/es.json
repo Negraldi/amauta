@@ -860,5 +860,5 @@
  "home.recent": "Actividad reciente",
  "project.originCommon": "Las filas sin nota: {origin}.",
  "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente.",
- "harness.fullSize": "Ver a tamaño completo"
+ "harness.fitWidth": "Ajustar al ancho"
 }

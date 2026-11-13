@@ -119,6 +119,9 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   Today).
 - Every interactive element has default, hover, focus-visible (2px accent ring, 2px offset), active, disabled,
   loading states. Loading uses skeleton lines, not spinners in content.
+- Wide diagrams (the harness architecture): drawn at their natural size inside a labelled, keyboard-focusable sideways
+  scroller, so labels keep their 13px; "Fit to width" is an optional overview (a pressed-state toggle, same label in both
+  states). Never shrink a diagram by default: fitting a 1962px drawing into a 703px column drew its labels under 5px.
 - Empty states teach: say what will appear and how it gets there (e.g. "Memories appear here after mem_save").
 
 ## Motion

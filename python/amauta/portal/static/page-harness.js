@@ -102,14 +102,15 @@ async function graphExplorer() {
 
 // Harness diagram (plan N12e): the session flow of the harness model in the portal's own Mermaid style. archify, when
 // installed, is only a link to its own route (/archify/<hash>.html, sandboxed by its own CSP); it is never framed here.
-// The diagram fits the column by default; "Show at full size" (a pressed-state toggle) draws it at its natural size in the
-// same keyboard-focusable sideways scroller. Both are folded behind a summary.
+// The diagram opens at its natural size in a keyboard-focusable sideways scroller, so its labels stay legible (fitting a wide
+// diagram to the column shrank 13px labels to under 5px); "Fit to width" (a pressed-state toggle) is the optional overview.
+// Both are folded behind a summary.
 function archSizeToggle(scroller) {
-  const b = h("button", { type: "button", "aria-pressed": "false" }, t("harness.fullSize"));
+  const b = h("button", { type: "button", "aria-pressed": "false" }, t("harness.fitWidth"));
   b.addEventListener("click", () => {
-    const full = b.getAttribute("aria-pressed") !== "true";
-    b.setAttribute("aria-pressed", String(full));
-    scroller.setAttribute("data-size", full ? "full" : "fit");
+    const fit = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", String(fit));
+    scroller.setAttribute("data-size", fit ? "fit" : "full");
   });
   return h("p", null, b);
 }
@@ -120,7 +121,7 @@ function archifyBlock(d) {
       tn("harness.drawn", d.components, { n: fmt(d.components) }))) : null;
   const label = t("harness.installArch");
   const scroller = d.fallback
-    ? h("div", { class: "arch-scroll", "data-size": "fit", tabindex: 0, role: "region", "aria-label": label },
+    ? h("div", { class: "arch-scroll", "data-size": "full", tabindex: 0, role: "region", "aria-label": label },
       diagramBox(d.fallback, label, true)) : null;
   return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
     scroller ? h("details", { class: "arch" }, h("summary", null, t("harness.showArch")), archSizeToggle(scroller), scroller) : null,

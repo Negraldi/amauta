@@ -860,5 +860,5 @@
  "home.recent": "Recent activity",
  "project.originCommon": "Rows without a note were {origin}.",
  "data.asOf": "Data as of {at}; Refresh imports newer activity.",
- "harness.fullSize": "Show at full size"
+ "harness.fitWidth": "Fit to width"
 }
