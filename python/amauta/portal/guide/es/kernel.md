@@ -55,11 +55,11 @@ Un archivo sin módulo, una importación que cruza capas en contra de esta tabla
 
 ## Flujo de uso y de trabajo
 
-Rara vez llamas al núcleo por su nombre; te lo encuentras a través de otros comandos:
+Rara vez llamará al núcleo por su nombre; lo encontrará a través de otros comandos:
 
 - `amauta install` y `amauta status` son el módulo `install` ([[guide:install|Instalación y runtimes]]).
 - Cada hook que ejecutan los runtimes es el despachador `hooks`.
-- Las herramientas de memoria que llama el agente (`mem_save`, `mem_search`, `mem_context` y otras) son el módulo `memory`, registrado como el servidor MCP `engram` (o `amauta-memory` cuando ya tienes otro `engram`).
+- Las herramientas de memoria que llama el agente (`mem_save`, `mem_search`, `mem_context` y otras) son el módulo `memory`, registrado como el servidor MCP `engram` (o `amauta-memory` cuando ya tiene otro `engram`).
 - Las comprobaciones después de una edición son el motor `checks` ([[guide:code-security|Seguridad de código]]).
 - La guarda de memoria y las herramientas de privacidad comparten el catálogo `detectors` ([[guide:data-security|Seguridad de datos]]).
 - El portal lee todo lo que el núcleo guarda ([[guide:portal|El portal]]).
@@ -78,7 +78,7 @@ Rara vez llamas al núcleo por su nombre; te lo encuentras a través de otros co
 | `python3 -P -m amauta.usage backfill [--runtime claude\|codex\|all]` | usage |
 | `python3 -P -m amauta.graph query neighbors <node> --repo DIR` y `query path <a> <b> --repo DIR` | graph-store |
 
-Los comandos de telemetría, uso y grafo necesitan `PYTHONPATH=python` (y `AMAUTA_STATE_DIR` para un directorio de estado distinto de `~/.amauta`) cuando los ejecutas desde un checkout.
+Los comandos de telemetría, uso y grafo necesitan `PYTHONPATH=python` (y `AMAUTA_STATE_DIR` para un directorio de estado distinto de `~/.amauta`) cuando los ejecuta desde un checkout.
 
 El servidor MCP `amauta` (`src/mcp/server.js`) es un servidor JSON-RPC hecho a mano sobre stdio con cuatro herramientas:
 
@@ -136,6 +136,6 @@ Un solo archivo SQLite en `<state dir>/memory.db` guarda todo lo local: memorias
 
 ### El registro de extensiones
 
-`python/amauta/extensions.py` lista `python/amauta/extras/`, importa cada paquete una vez y responde `call(point, ...)` y `collect(point, ...)` a partir de los `POINTS` que declara cada extra. Un extra que no se puede importar no aporta nada, así que un extra roto o borrado nunca rompe el núcleo. Consulta [[guide:extras|Módulos opcionales y extras]].
+`python/amauta/extensions.py` lista `python/amauta/extras/`, importa cada paquete una vez y responde `call(point, ...)` y `collect(point, ...)` a partir de los `POINTS` que declara cada extra. Un extra que no se puede importar no aporta nada, así que un extra roto o borrado nunca rompe el núcleo. Consulte [[guide:extras|Módulos opcionales y extras]].
 
 Volver a [[guide:overview|amauta de un vistazo]].

@@ -116,7 +116,7 @@ test('f: steps are listed in declared order with their stage, and a step outside
   const steps = tree(view(env)).find((e) => /pipe-steps/.test(cls(e)));
   const items = tree(steps).filter((e) => e.tagName === 'li');
   assert.deepEqual(items.map((e) => e.getAttribute('data-id')), ['features', 'train', 'predict', 'report']);
-  assert.match(items[3].textContent, /stage 1/);
+  assert.match(items[3].textContent, /stage\s1/);
   assert.match(items[1].textContent, /not in this mode/);
   assert.doesNotMatch(items[2].textContent, /not in this mode/);
   assert.doesNotMatch(css, /line-through/);
@@ -197,8 +197,8 @@ test('m: Home opens with one status sentence linked to the harness overview', as
   const { env } = await boot('#/', { '/api/wiki/home': { activity: [], spending: { available: false }, impact: null, health: { installed: true, version: '0.3.0' } },
     '/api/pipelines': { projects: [] }, '/api/harness': hs, '/api/harness/components': comps, '/api/skills': { groups: [] } });
   const h1 = tree(view(env)).find((e) => e.tagName === 'h1');
-  const doc = tree(view(env)).find((e) => e.tagName === 'article');
-  const status = doc.children[doc.children.indexOf(h1) + 1];
+  const head = tree(view(env)).find((e) => cls(e) === 'page-head'); // T8 final polish: the status sentence leads the page head
+  const status = head.children[head.children.indexOf(h1) + 1];
   assert.match(status.textContent, /amauta 0\.3\.0 is installed; 1 component, 1 needs attention/);
   assert.ok(tree(status).some((e) => e.tagName === 'a' && e.getAttribute('href') === '#/harness'));
 });

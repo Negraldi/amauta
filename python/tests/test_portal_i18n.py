@@ -96,5 +96,30 @@ class StaticTextInSourceTest(unittest.TestCase):
         self.assertEqual(sorted(w for w in wanted if w not in keys), [], "labels or headings without a Spanish entry")
 
 
+class DiagramLabelsTest(unittest.TestCase):
+    """The client translates the fixed labels of the server's Mermaid sources (i18n.js ts) before Mermaid draws them."""
+
+    @staticmethod
+    def labels(source):
+        decode = lambda s: re.sub(r"#(\d+);", lambda m: chr(int(m.group(1))), s)  # noqa: E731
+        return [decode(x) for x in re.findall(r'"([^"\n]*)"', source)]
+
+    def test_task_diagram_labels(self):
+        from python.amauta.portal import diagrams
+        tasks = [{"title": f"T{i} work", "done": i % 3 == 0, "blocked": i % 3 == 1} for i in range(70)]
+        keys = catalog()
+        src = diagrams.odd_progress("feat", tasks)
+        self.assertEqual([x for x in self.labels(src) if not covered(x, keys)], [])
+
+    def test_harness_diagram_labels(self):
+        from python.amauta.portal import diagrams
+        hs = {"installed": True, "skills": 3, "agents": 1, "mcp_servers": [{"name": "context7"}],
+              "hooks": [{"kind": "amauta", "event": "Stop", "handlers": ["review"]}, {"kind": "own", "event": "Stop"}]}
+        keys = catalog()
+        src = diagrams.workflow(hs, "/tmp/state")
+        missing = [x for x in self.labels(src) if not re.match(r"\d+\. ", x) and not covered(x, keys)]  # "1. Stop: review" names events
+        self.assertEqual(missing, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -41,7 +41,7 @@ flowchart LR
 
 ## Flujo de uso y de trabajo
 
-Define los pipelines en el `.amauta/pipelines.json` del proyecto. Un ejemplo sintético:
+Defina los pipelines en el `.amauta/pipelines.json` del proyecto. Un ejemplo sintético:
 
 ```json
 {
@@ -71,9 +71,9 @@ Por paso, de forma opcional: `id`, `needs`, `timeout` (segundos, por defecto 360
 - Un paso sin `needs` espera al paso anterior, así que una lista simple sigue siendo una línea; `needs: []` lo arranca de inmediato.
 - Un fallo omite solo los pasos que necesitan el que falló (motivo `needs`); las otras ramas terminan y la ejecución acaba como fallida.
 - Un paso fuera del modo de la ejecución se omite y cuenta como hecho.
-- Los pasos de bases de datos, libros de cálculo y correo son tus propios scripts: amauta no tiene drivers.
+- Los pasos de bases de datos, libros de cálculo y correo son sus propios scripts: amauta no tiene drivers.
 
-Luego, en el portal, abre **Trabajo > Pipelines** (o la pestaña Pipelines de un proyecto). Cada tarjeta muestra los pasos por niveles con su última duración y marca, el horario y su estado, la última ejecución y los archivos que escribió, las ejecuciones recientes (haz clic en una para reproducirla), **Ejecutar** (pregunta primero), **Comprobar**, **Solo este** por paso y un selector de modo. Primero hay que confiar en el proyecto con `amauta check trust`, porque una ejecución ejecuta su código.
+Luego, en el portal, abra **Trabajo > Pipelines** (o la pestaña Pipelines de un proyecto). Cada tarjeta muestra los pasos por niveles con su última duración y marca, el horario y su estado, la última ejecución y los archivos que escribió, las ejecuciones recientes (haga clic en una para reproducirla), **Ejecutar** (pregunta primero), **Comprobar**, **Solo este** por paso y un selector de modo. Primero hay que confiar en el proyecto con `amauta check trust`, porque una ejecución ejecuta su código.
 
 ## Scripts y comandos
 
@@ -93,7 +93,7 @@ Todos los comandos aceptan también `--cwd DIR` y `--state-dir DIR`. Archivos de
 
 ```mermaid
 sequenceDiagram
-  participant U as Tú
+  participant U as Usted
   participant P as portal
   participant L as lock
   participant R as runner
@@ -120,12 +120,12 @@ sequenceDiagram
 
 **Una ejecución a la vez.** Quien inicia una ejecución toma `<id>.lock` de forma atómica: el portal, la terminal o una ejecución programada. El bloqueo registra su id de proceso y su hora de inicio, así que un proceso muerto o zombi, o un proceso distinto que recibió el mismo pid, ya no lo retiene. Una ejecución cuyo runner se detuvo sin cerrarla se lee como abandonada. SIGTERM o Ctrl+C cancelan la ejecución y aun así escriben su final.
 
-**Entorno.** Los pasos heredan el entorno de quien inició la ejecución, con tu propio `PYTHONPATH` (sin la carpeta de amauta), más `AMAUTA_PIPELINE`, `AMAUTA_PIPELINE_TRIGGER`, `AMAUTA_PIPELINE_STEP` y `AMAUTA_PIPELINE_MODE`. Un script puede, por ejemplo, enviar su correo solo cuando el disparador es `schedule`.
+**Entorno.** Los pasos heredan el entorno de quien inició la ejecución, con su propio `PYTHONPATH` (sin la carpeta de amauta), más `AMAUTA_PIPELINE`, `AMAUTA_PIPELINE_TRIGGER`, `AMAUTA_PIPELINE_STEP` y `AMAUTA_PIPELINE_MODE`. Un script puede, por ejemplo, enviar su correo solo cuando el disparador es `schedule`.
 
-**Confianza por hash.** El navegador solo envía un proyecto, un id de pipeline y un número de paso o un modo, nunca un comando. El portal ejecuta un pipeline solo mientras `.amauta/pipelines.json` tenga el hash registrado por `amauta check trust`; después de cualquier cambio, tuyo o de un `git pull`, revísalo y vuelve a confiar. La CLI y el programador del sistema operativo ejecutan lo que pediste y no necesitan confianza.
+**Confianza por hash.** El navegador solo envía un proyecto, un id de pipeline y un número de paso o un modo, nunca un comando. El portal ejecuta un pipeline solo mientras `.amauta/pipelines.json` tenga el hash registrado por `amauta check trust`; después de cualquier cambio, suyo o de un `git pull`, revíselo y vuelva a confiar. La CLI y el programador del sistema operativo ejecutan lo que usted pidió y no necesitan confianza.
 
 **Horarios.** `schedule` es un objeto o una lista: `{"at": "07:30"}`, con `days`, con `day_of_month` (1 a 28), o `{"every_minutes": 30}`, cada uno opcionalmente con un `mode`. `schedule-hint` imprime una línea `schtasks /Create` en Windows, una línea de crontab en Linux y un agente de launchd en macOS, cada uno ejecutando `amauta pipeline run <id> --trigger schedule --cwd <project>` con el `PATH` de esta terminal. El portal compara las ejecuciones programadas con el horario declarado y avisa cuando todavía no ha ocurrido ninguna o se perdió una, con 30 minutos de margen.
 
-**Límites.** Los pasos se ejecutan con tus permisos y tu entorno, claves incluidas: amauta no los aísla. `max_parallel` va de 1 a 16 (por defecto 4); un tiempo límite es como mucho de 24 horas. Si el propio runner se mata de golpe, el paso en marcha sigue por su cuenta y la ejecución se lee como abandonada.
+**Límites.** Los pasos se ejecutan con sus permisos y su entorno, claves incluidas: amauta no los aísla. `max_parallel` va de 1 a 16 (por defecto 4); un tiempo límite es como mucho de 24 horas. Si el propio runner se mata de golpe, el paso en marcha sigue por su cuenta y la ejecución se lee como abandonada.
 
 Relacionado: [[guide:portal|El portal]], [[guide:code-security|Seguridad de código]] para la confianza, [[guide:extras|Módulos opcionales y extras]] para cómo se conectan los extras.

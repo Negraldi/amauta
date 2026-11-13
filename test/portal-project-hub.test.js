@@ -208,7 +208,7 @@ test('a tab that fails says so with Retry, keeps the tabs, and Retry loads it', 
 
 test('an unknown project teaches instead of failing', async () => {
   const env = await boot('#/project/nope', { '/api/wiki/page': { __status: 404, error: 'not found' } });
-  assert.match(view(env).textContent, /No project page/);
+  assert.match(view(env).textContent, /Project not found/);
 });
 
 test('a graph node page breadcrumb passes through its project hub', async () => {

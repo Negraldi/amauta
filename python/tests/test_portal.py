@@ -4,6 +4,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -96,6 +97,27 @@ class UsageViewsTest(ApiBase):
         self.assertEqual({m["model"] for m in o["models"]}, {"claude-x", "claude-y"})
         self.assertEqual(o["dropped_events"], 3)
         self.assertEqual(o["events"], 1)
+
+    def test_usage_days_are_the_machine_local_date_not_utc(self):
+        conn = sqlite3.connect(self.f["state"] / "memory.db")
+        conn.execute("INSERT INTO usage_messages (message_id, session_id, ts, project, model, input, output, cache_read, cache_write_5m, cache_write_1h, thinking) "
+                     "SELECT 'late', 's9', '2026-10-05T03:30:00.000Z', 'alpha', 'claude-x', 7, 0, 0, 0, 0, 0")
+        conn.commit()
+        conn.close()
+        old = os.environ.get("TZ")
+        os.environ["TZ"] = "America/Lima"  # UTC-5, no daylight saving: 03:30Z is 22:30 the day before
+        time.tzset()
+        try:
+            days = {d["day"]: d for d in self.get("/api/overview", days=3650)["daily"]}
+            self.assertIn("2026-10-04", days)
+            self.assertNotIn("2026-10-05", days)
+            self.assertEqual(self.get("/api/overview", **{"from": "2026-10-04", "to": "2026-10-04"})["totals"]["input"], 7)
+        finally:
+            if old is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old
+            time.tzset()
 
     def test_overview_filters_by_project_and_dates(self):
         o = self.get("/api/overview", days=3650, project="beta")

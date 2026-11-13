@@ -200,6 +200,6 @@ async function viewSettings(route) {
   const current = R.settingsTab(route);
   const link = (x) => h("a", { href: R.routeHash({ kind: "settings", id: "", query: { tab: x } }), "aria-current": x === current ? "page" : false },
     t(`set.tab.${x}`));
-  return [h("div", { class: "settings" }, pageHead(t("nav.settings")), h("nav", { class: "tabs", "aria-label": t("nav.tabs") }, R.SETTINGS_TABS.map(link)),
+  return [h("div", { class: "settings" }, pageHead(t("nav.settings"), t("set.lead")), h("nav", { class: "tabs", "aria-label": t("nav.tabs") }, R.SETTINGS_TABS.map(link)),
     tabPanel(t(`set.tab.${current}`), SETTINGS_BODIES()[current]))];
 }

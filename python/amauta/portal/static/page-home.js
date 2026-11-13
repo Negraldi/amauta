@@ -9,10 +9,25 @@ function localDays(days) {
 }
 // The server writes counts as plain digits ("session, 11300 messages"): group them like every other number on the page.
 const groupCounts = (text) => String(text).replace(/(?<![\w.,:\/-])\d{4,}(?![\w.,:\/-])/g, (m) => fmt(Number(m)));
+// The feed shows the HOME_DAYS most recent days; Show more adds as many again (client side, the server sends them all).
+const HOME_DAYS = 5;
+const dayBlock = (d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
+  h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${groupCounts(ts(i.what))}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))));
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
-  return h("div", null, localDays(days).map((d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
-    h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${groupCounts(ts(i.what))}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))))));
+  const all = localDays(days), box = h("div", null, all.slice(0, HOME_DAYS).map(dayBlock));
+  if (all.length <= HOME_DAYS) return box;
+  let shown = HOME_DAYS;
+  const more = h("button", { type: "button" }, t("home.showMore")), wrap = h("div", null, box, more);
+  more.addEventListener("click", () => {
+    const added = all.slice(shown, shown + HOME_DAYS).map(dayBlock);
+    box.append(...added);
+    shown += added.length;
+    if (shown >= all.length) wrap.replaceChildren(box); // everything shows: nothing more to ask for
+    added[0].setAttribute("tabindex", "-1"); // focus moves to the first new day, never lost with a removed button
+    if (added[0].focus) added[0].focus();
+  });
+  return wrap;
 }
 function spendingBlock(sp) {
   if (!sp.available) return h("p", { class: "muted" }, t("home.noSpending"));
@@ -48,11 +63,14 @@ function impactRankBlock(rk) {
     list(t("home.lowerError"), rk.best), list(t("home.higherError"), rk.worst),
     h("p", { class: "muted" }, t("home.rankFoot", { ranked: fmt(rk.ranked), tracked: fmt(rk.tracked), days: fmt(rk.days) }) + " " + ts(rk.note)));
 }
+// The rail comes first in the DOM: one column under 72rem shows spending before the long feed; wide screens put it on the
+// right (style.css .page.home).
 async function viewHome() {
   const [hm, pipes] = await Promise.all([api("wiki/home"), pipelinesRail()]);
   const status = await homeStatus(hm.health);
-  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("home.title")), status, activityBlock(hm.activity)),
+  return [h("header", { class: "page-head" }, h("h1", null, t("home.title")), status), h("div", { class: "page home" },
     h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.pipelines"), pipes),
-      railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact))))];
+      railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact))),
+    h("article", { class: "doc" }, activityBlock(hm.activity)))];
 }
 // Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.

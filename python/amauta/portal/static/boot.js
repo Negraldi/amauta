@@ -45,8 +45,21 @@ function pageResults(q) {
   }
   return items.length ? [{ kind: "page", count: items.length, items }] : [];
 }
+// Graph nodes: two nodes of one file with one title are one row; a node row names its file, its path cut from the left.
+const baseName = (p) => String(p).split("/").pop();
+const tailPath = (p, max = 36) => (p.length > max ? `\u2026${p.slice(1 - max)}` : p);
+function nodeRows(groups) {
+  return groups.map((g) => {
+    if (g.kind !== "node") return g;
+    const seen = new Set(), key = (it) => `${it.title}\n${it.snippet}`;
+    const named = (it) => ({ ...it, snippet: tailPath(String(it.snippet)),
+      title: baseName(it.snippet) === it.title ? it.title : `${it.title} · ${baseName(it.snippet)}` });
+    const items = (g.items || []).filter((it) => !seen.has(key(it)) && seen.add(key(it))).map((it) => (it.snippet ? named(it) : it));
+    return { ...g, items, count: g.count - ((g.items || []).length - items.length) };
+  });
+}
 function paintResults(found, q) {
-  const groups = R.rankResults(found); // graph nodes last and capped (critique C6)
+  const groups = R.rankResults(nodeRows(found)); // graph nodes last and capped (critique C6)
   const box = $("palette-results");
   palette.items = R.flattenResults(groups);
   palette.nodes = [];
@@ -57,7 +70,8 @@ function paintResults(found, q) {
     g.items.map((it) => {
       const i = flat++;
       const node = h("div", { role: "option", id: `pal-${i}`, class: "pal-item", "aria-selected": "false", onclick: () => goResult(i) },
-        h("span", { class: "pal-title" }, it.title), it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
+        h("span", { class: "pal-title" }, itemTitle(it.kind, it.title)),
+        it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
       palette.nodes.push(node);
       return node;
     }))));
@@ -97,12 +111,23 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openPalette(); }
 });
 
-// The phone menu: the Menu button toggles it; Esc and a tap on the scrim close it and give focus back to the button.
+// The phone menu: the Menu button toggles it; Esc and a tap on the scrim close it and give focus back to the button. While it
+// is open, focus starts on its first link and the page behind it (content, filters, the rest of the top bar) is inert.
+const BEHIND_MENU = ["view", "search-open", "topbar-end", "filters"];
+const firstLink = (el) => (String(el.tagName).toLowerCase() === "a" ? el
+  : Array.from(el.children || []).reduce((hit, c) => hit || firstLink(c), null));
 function setNav(open, back) {
   $("shell").setAttribute("data-nav", open ? "open" : "closed");
   $("nav-toggle").setAttribute("aria-expanded", String(open));
+  for (const id of BEHIND_MENU) if (open) $(id).setAttribute("inert", ""); else $(id).removeAttribute("inert");
+  const first = open && firstLink($("nav"));
+  if (first && first.focus) first.focus();
   if (back && $("nav-toggle").focus) $("nav-toggle").focus();
 }
+// Widening the window past the phone layout closes the menu, so nothing stays inert behind a sidebar that no longer overlays.
+try {
+  globalThis.matchMedia("(width >= 52rem)").addEventListener("change", (e) => { if (e.matches && navOpen()) setNav(false); });
+} catch (_) { /* no matchMedia */ }
 const navOpen = () => $("shell").getAttribute("data-nav") === "open";
 $("nav-toggle").addEventListener("click", () => setNav(!navOpen()));
 $("nav-scrim").addEventListener("click", () => setNav(false, true));
@@ -123,11 +148,22 @@ $("refresh").addEventListener("click", async () => {
 for (const id of ["days", "project", "runtime"]) $(id).addEventListener("change", render);
 $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
 $("lang-picker").addEventListener("change", (e) => setLanguage(e.target.value));
-// An old hash is rewritten in place (no history entry, no second hashchange) and the route it stands for renders.
+// A ?tab= that names no tab of this page is dropped, so the address always names the tab that is shown.
+function knownTab(route) {
+  const tab = route.query && route.query.tab;
+  const shown = route.kind === "settings" ? R.settingsTab(route) : route.kind === "project" && route.id ? R.projectTab(route) : null;
+  if (!tab || shown === tab) return route;
+  const { tab: _dropped, ...query } = route.query;
+  return { ...route, query };
+}
+// An old hash, or one with a query value the page does not know, is rewritten in place (no history entry, no second
+// hashchange) and the route it stands for renders.
 function readRoute() {
   const to = R.redirectOf(location.hash);
-  if (to && globalThis.history && history.replaceState) history.replaceState(null, "", to);
-  state.route = R.parseHash(to || location.hash);
+  const route = knownTab(R.parseHash(to || location.hash)), want = R.routeHash(route);
+  const fix = (to || location.hash.includes("?")) && want !== location.hash;
+  if (fix && globalThis.history && history.replaceState) history.replaceState(null, "", want);
+  state.route = route;
 }
 // A route change closes the search palette and the Display popover (its Edit themes link navigates).
 function closeDisplay() { const p = $("prefs"); if (typeof p.hidePopover === "function" && p.matches(":popover-open")) p.hidePopover(); }

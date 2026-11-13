@@ -34,7 +34,7 @@ function pipeSummary(projects) {
 async function pipelinesRail() {
   const d = await api("pipelines").catch(() => null);
   if (!d || !d.available || !d.projects.length) return null;
-  return h("div", null, h("p", null, pipeSummaryText(d.projects)), h("a", { href: "#/pipelines" }, t("pipe.open")));
+  return h("div", null, h("p", null, pipeSummaryText(d.projects)), h("a", { href: "#/pipelines", class: "rail-link" }, t("pipe.open")));
 }
 
 // Category pills with counts and a search over names, descriptions and step names (the cards stay; they are hidden).
@@ -109,7 +109,7 @@ function flowRow(p, items) {
   if (levels.some((level) => level.length > 1)) {
     levels.forEach((level, k) => level.forEach((id) => {
       const li = items[ids.indexOf(id)];
-      if (li) li.append(h("span", { class: "muted" }, ` · ${t("pipe.stage", { n: k + 1 })}`));
+      if (li) li.setStage(k + 1);
     }));
   }
   return h("ol", { class: "pipe-steps", "aria-label": t("pipe.steps") }, items);

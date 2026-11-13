@@ -19,6 +19,11 @@ RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
 
 
 # ---- session labels -----------------------------------------------------------------------------------------------
+def calls(n) -> str:
+    """A call count in words: one call is singular (the client translates both forms through the server catalog)."""
+    return "1 call" if n == 1 else f"{n} calls"
+
+
 def session_label(conn, portal, session_id):
     r = conn.execute("SELECT count(*) n, max(u.project) project, max(u.model) model, min(u.ts) first_ts FROM usage_messages u WHERE u.session_id = ?", (session_id,)).fetchone()
     return wikisess.label(portal, session_id, r["project"], r["model"], r["n"], r["first_ts"])
@@ -61,7 +66,9 @@ def parse_frontmatter(text):
     for k, v in list(meta.items())[:FRONT_KEYS]:
         if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
             v = v[1:-1]
-        clean[k] = v[:FRONT_VALUE]
+        if len(v) > FRONT_VALUE:  # cut at a word and said so with an ellipsis, never mid-word and silent
+            v = v[:FRONT_VALUE - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "\u2026"
+        clean[k] = v
     return clean, "\n".join(lines[end + 1:]).lstrip("\n")
 
 
@@ -136,7 +143,7 @@ def usage_page(kind):
             if used and kind == "mcp":
                 tools = conn.execute("SELECT c.tool name, count(*) n FROM tool_calls c WHERE c.mcp_server = ? GROUP BY c.tool ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
                 pg["links"] = [_ref("tool", r["name"]) for r in tools]
-                pg["sections"].insert(0, {"heading": "Tools of this server", "items": [_item(r["name"], f"{r['n']} calls", "tool", r["name"]) for r in tools]})
+                pg["sections"].insert(0, {"heading": "Tools of this server", "items": [_item(r["name"], calls(r["n"]), "tool", r["name"]) for r in tools]})
             if used and kind == "tool":
                 server = conn.execute("SELECT c.mcp_server FROM tool_calls c WHERE c.tool = ? AND c.mcp_server IS NOT NULL LIMIT 1", (ident,)).fetchone()
                 if server:
@@ -204,7 +211,7 @@ def session_page(portal, ident, q):
                                          ("MCP servers", "mcp", "c.mcp_server", "c.mcp_server IS NOT NULL"), ("Subagent types", None, "c.subagent_type", "c.subagent_type IS NOT NULL")):
             rows = conn.execute(f"SELECT {col} name, count(*) n FROM tool_calls c WHERE c.session_id = ? AND {cond} GROUP BY name ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
             if rows:
-                pg["sections"].append({"heading": heading, "items": [_item(r["name"], f"{r['n']} calls", kind, r["name"] if kind else None) for r in rows]})
+                pg["sections"].append({"heading": heading, "items": [_item(r["name"], calls(r["n"]), kind, r["name"] if kind else None) for r in rows]})
                 if kind in ("skill", "mcp"):
                     pg["links"] += [_ref(kind, r["name"]) for r in rows][:LINK_CAP]
         saved = session_memories(portal, ident)

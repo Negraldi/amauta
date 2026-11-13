@@ -57,6 +57,13 @@ class SkillPageTest(SkillBase):
         self.assertLessEqual(len(pg["body_md"]), 100000)
         self.assertEqual(self.labels(pg)["Truncated"], "yes")
 
+    def test_a_cut_frontmatter_value_ends_with_an_ellipsis_at_a_word(self):
+        self.skill_file("long-skill", "---\nname: long-skill\ndescription: " + "alpha beta " * 60 + "\n---\nBody\n")
+        text = self.page("skill", "long-skill")["summary"]["description"]
+        self.assertTrue(text.endswith("\u2026"), text[-20:])
+        self.assertLessEqual(len(text), 300)
+        self.assertRegex(text, r"(alpha|beta)\u2026$")
+
     def test_malformed_frontmatter_is_just_text(self):
         self.skill_file("odd-skill", "---\nno closing fence\nbody")
         pg = self.page("skill", "odd-skill")
@@ -80,7 +87,7 @@ class SkillPageTest(SkillBase):
         mcp = self.page("mcp", "engram")
         self.assertEqual(mcp["usage"]["daily"][-1], {"day": "2026-10-02", "value": 1})
         (tools,) = [s for s in mcp["sections"] if s["heading"] == "Tools of this server"]
-        self.assertEqual([(i["label"], i["value"], i["id"]) for i in tools["items"]], [("mcp__engram__mem_save", "1 calls", "mcp__engram__mem_save")])
+        self.assertEqual([(i["label"], i["value"], i["id"]) for i in tools["items"]], [("mcp__engram__mem_save", "1 call", "mcp__engram__mem_save")])
         tool = self.page("tool", "Bash")
         self.assertEqual(tool["usage"]["daily"][-1]["value"], 1)
         self.assertNotIn("Installed", self.labels(tool))

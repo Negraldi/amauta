@@ -39,21 +39,15 @@ test('Usage leads with one plain sentence about what was spent in the filtered r
   assert.match(tree(view(cost)).find((e) => e.className === 'lead').textContent, /Estimated cost: 1\.50\.$/);
 });
 
-test('the filter state is said in words next to the page title on the Activity routes only', async () => {
+// T8 final polish (3): the filter bar is the one statement of the filters; the page head no longer repeats it in words.
+test('the Activity routes show the filter bar and the page head does not repeat it', async () => {
   for (const hash of ['#/usage', '#/session', '#/tool']) {
     const env = await boot(hash);
-    const head = tree(view(env)).find((e) => e.className === 'page-head');
-    assert.match(head.textContent, /30 days · all projects · all runtimes/, hash);
+    assert.equal(env.document.getElementById('filters').hidden, false, hash);
+    assert.doesNotMatch(tree(view(env)).find((e) => e.className === 'page-head').textContent, /all projects/, hash);
   }
-  const env = await boot('#/usage');
-  env.document.getElementById('project').value = 'alpha';
-  env.document.getElementById('runtime').value = 'codex';
-  env.document.getElementById('days').value = '3650';
-  for (const fn of env.document.getElementById('days').listeners.change) fn({});
-  await tick();
-  assert.match(tree(view(env)).find((e) => e.className === 'page-head').textContent, /all time · alpha · Codex/);
   const mem = await boot('#/memory');
-  assert.doesNotMatch(view(mem).textContent, /all projects/);
+  assert.equal(mem.document.getElementById('filters').hidden, true);
 });
 
 test('the chart shows input and output by default; cache read and write sit behind a visible Include cache toggle', async () => {

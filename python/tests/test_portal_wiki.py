@@ -151,7 +151,7 @@ class SearchTest(WikiBase):
 
     def test_finds_every_kind_grouped_with_counts(self):
         self.assertEqual(self.groups("widgets")["memory"]["count"], 1)
-        self.assertEqual(self.groups("work-unit")["skill"]["items"][0], {"kind": "skill", "id": "work-unit-commits", "title": "work-unit-commits", "snippet": "1 calls"})
+        self.assertEqual(self.groups("work-unit")["skill"]["items"][0], {"kind": "skill", "id": "work-unit-commits", "title": "work-unit-commits", "snippet": "1 call"})
         self.assertEqual(self.groups("Bash")["tool"]["items"][0]["id"], "Bash")
         self.assertEqual(self.groups("engram")["mcp"]["items"][0]["id"], "engram")
         self.assertEqual(self.groups("alpha")["session"]["items"][0]["id"], "s1")

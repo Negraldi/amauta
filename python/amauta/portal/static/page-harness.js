@@ -32,10 +32,15 @@ function graphRepo(r) {
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
   return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { ...graphCounts(r.nodes, r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: tn("graph.sqlTables", r.sql_tables || 0, { n: fmt(r.sql_tables || 0) }) })),
-    h("p", { class: "muted" }, t("graph.semantic", { pending: r.semantic_pending ? t("common.yes") : t("common.no"), last: r.semantic_at ? t("graph.lastRun", { at: R.fmtDateTime(r.semantic_at), model: r.semantic_model || t("graph.unknownModel") }) : t("common.never") })),
+    h("p", { class: "muted" }, semanticLine(r)),
     h("div", { class: "controls" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph"))), list, near) };
 }
 
+// Whether a semantic pass is pending, as a sentence, and when the last one ran.
+function semanticLine(r) {
+  const last = r.semantic_at ? t("graph.lastRun", { at: R.fmtDateTime(r.semantic_at), model: r.semantic_model || t("graph.unknownModel") }) : t("common.never");
+  return t(r.semantic_pending ? "graph.semanticPending" : "graph.semanticNone", { last });
+}
 // "3 nodes", "1 edge": the two counts of a graph, each with its own plural.
 const graphCounts = (nodes, edges) => ({ nodes: tn("graph.nodeCount", nodes, { n: fmt(nodes) }),
   edges: tn("graph.edgeCount", edges, { n: fmt(edges) }) });
@@ -115,6 +120,7 @@ function installFacts(hs) {
 
 // Hook rows from the catalog entries: the id starts with the event, the title is "<event> (<matcher>) · <handler>".
 // Without the catalog, the install's own hooks list (user settings only) with amauta's handler names.
+// A dispatcher without known handler names reads "amauta hooks: " on the server: shown as "amauta hooks".
 function hookRows(hs, comps) {
   const group = comps && comps.groups.find((g) => g.kind === "hook");
   const own = (x) => ({ event: x.event, handler: (x.handlers || []).join(", ") || x.kind, source: t("harness.userSettings"),
@@ -122,14 +128,15 @@ function hookRows(hs, comps) {
   if (!group) return hs.hooks.map(own);
   return group.items.map((i) => {
     const m = /^(.*?)(?: \((.*)\))? · (.*)$/.exec(i.title) || [];
-    const handler = m[3] ? (m[2] ? `${m[3]} (${m[2]})` : m[3]) : i.title;
-    return { event: String(i.id).split(":")[0], handler, id: i.id, source: ts(i.source), status: !i.disabled };
+    const handler = m[3] ? m[3].trim().replace(/:$/, "") : i.title;
+    return { event: String(i.id).split(":")[0], handler, matcher: m[3] ? m[2] : null, id: i.id, source: ts(i.source), status: !i.disabled };
   });
 }
 function hooksTable(hs, comps) {
   const rows = hookRows(hs, comps);
   if (!rows.length) return empty(t("harness.noHooks"));
-  const handler = (v, r) => (r.id ? link("hook", r.id, v) : v);
+  const matcher = (r) => (r.matcher ? h("span", { class: "muted" }, " ", breakAfterBars(r.matcher)) : null);
+  const handler = (v, r) => [r.id ? link("hook", r.id, v) : v, matcher(r)];
   const status = (v) => stateChip(v, v ? t("harness.runs") : t("harness.pluginOff"));
   return table("hooks", [{ key: "event", label: t("col.event") }, { key: "handler", label: t("col.handler"), render: handler },
     { key: "source", label: t("col.source") }, { key: "status", label: t("col.status"), render: status }], rows);

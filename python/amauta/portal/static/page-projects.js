@@ -73,7 +73,7 @@ function hubHead(pg) {
   const f = hubFacts(pg);
   const parts = [tn("project.nFeatures", f.features, { n: fmt(f.features) }), tn("project.nSessions", f.sessions, { n: fmt(f.sessions) }),
     tn("project.nMemories", f.memories, { n: fmt(f.memories) })];
-  return h("header", { class: "page-head" }, h("p", { class: "kind" }, kindLabel("project")), h("h1", null, pg.title),
+  return h("header", { class: "page-head" }, h("h1", null, pg.title),
     h("p", { class: "lead" }, parts.join(" · ")));
 }
 // A tab's body: skeleton lines while its data loads, then the view or a short failure with Retry (the tabs stay usable).

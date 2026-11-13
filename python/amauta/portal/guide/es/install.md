@@ -1,14 +1,14 @@
 # Instalación y runtimes
 
-`amauta install` prepara el arnés para Claude Code, para Codex o para ambos. Claude Code y Codex comparten un solo arnés y ninguno es el maestro: una memoria, un almacén de skills, servidores MCP sincronizados en ambos sentidos, y los mismos bloques de instrucciones y comandos de hooks escritos en cada uno.
+`amauta install` prepara el harness para Claude Code, para Codex o para ambos. Claude Code y Codex comparten un solo harness y ninguno es el maestro: una memoria, un almacén de skills, servidores MCP sincronizados en ambos sentidos, y los mismos bloques de instrucciones y comandos de hooks escritos en cada uno.
 
 ## De qué está hecho
 
 | Pieza | Dónde va | Notas |
 | --- | --- | --- |
-| Bloques de instrucciones siempre activos | `~/.claude/CLAUDE.md` y `~/.codex/AGENTS.md` | Cuatro bloques entre marcadores `<!-- amauta:ID -->`: `codegraph-guidance`, `persona`, `engram-protocol`, `orchestrator`. Tu propio texto se conserva |
+| Bloques de instrucciones siempre activos | `~/.claude/CLAUDE.md` y `~/.codex/AGENTS.md` | Cuatro bloques entre marcadores `<!-- amauta:ID -->`: `codegraph-guidance`, `persona`, `engram-protocol`, `orchestrator`. Su propio texto se conserva |
 | Hooks | `~/.claude/settings.json` y `~/.codex/hooks.json` | Un comando despachador por evento, cada uno con un tiempo límite |
-| Servidores MCP | `~/.claude.json` y `~/.codex/config.toml` | `engram` (la memoria, o `amauta-memory`), `amauta`, `codegraph` cuando se encuentra en el `PATH`, `context7` y `rea` solo si los pides |
+| Servidores MCP | `~/.claude.json` y `~/.codex/config.toml` | `engram` (la memoria, o `amauta-memory`), `amauta`, `codegraph` cuando se encuentra en el `PATH`, `context7` y `rea` solo si usted los pide |
 | Skills | `<state dir>/skills/<name>`, enlazadas desde `~/.claude/skills/` y `~/.agents/skills/` | Se generan una vez en el almacén |
 | Agentes, estilo de salida | `~/.claude/` | Solo Claude: lentes de revisión, `chasqui`, `taripaq`, `haravec`, los agentes de judgment-day, el estilo de salida de la persona elegida |
 | Permisos | `~/.claude/settings.json` | `ask` para force pushes, hard resets y `rm -rf`; `deny` para leer y editar `.env`, claves y archivos de credenciales. Sin `defaultMode`, sin entradas allow |
@@ -64,14 +64,14 @@ Los interruptores y los módulos son persistentes: un `amauta install` posterior
 
 Cada destino se puede redirigir, que es lo que usan los tests y las instalaciones de prueba: `--claude-home` / `AMAUTA_CLAUDE_HOME`, `--claude-json` / `AMAUTA_CLAUDE_JSON`, `--state-dir` / `AMAUTA_STATE_DIR`, `--codex-home` / `AMAUTA_CODEX_HOME`, `--codex-skills-dir` / `AMAUTA_CODEX_SKILLS_DIR`. Con solo `--claude-home`, los demás toman por defecto rutas dentro de él, así que una instalación aislada nunca toca el home real.
 
-La página de Ajustes del portal cambia una lista cerrada de estas opciones ejecutando `amauta install` por ti, con una vista previa primero ([[guide:portal|El portal]]).
+La página de Configuración del portal cambia una lista cerrada de estas opciones ejecutando `amauta install` por usted, con una vista previa primero ([[guide:portal|El portal]]).
 
 ## Scripts y comandos
 
 | Comando | Qué hace |
 | --- | --- |
 | `amauta install [options]` | Instala o actualiza |
-| `amauta uninstall [--runtime ...]` | Quita todo lo que amauta instaló, conservando tu propio contenido |
+| `amauta uninstall [--runtime ...]` | Quita todo lo que amauta instaló, conservando su propio contenido |
 | `amauta status [--runtime ...] [--deep] [--json]` | Qué está instalado y qué falta; desviaciones, conflictos MCP, paridad; `--deep` también sondea el extractor SQL de graphify |
 | `amauta sync [--dry-run] [--json] [--no-mirror-mcp]` | Servidores MCP en ambos sentidos, enlaces de skills, copias de Codex |
 | `amauta restore --backup ID` | Restaura un respaldo del instalador por id (`YYYYMMDDTHHMMSSZ`), archivos de Claude o de Codex |
@@ -82,11 +82,11 @@ La página de Ajustes del portal cambia una lista cerrada de estas opciones ejec
 
 ### Escribir archivos de forma segura
 
-Antes de cualquier escritura, el plan toma un respaldo en `<state dir>/backups/<timestamp>/`. Los bloques de instrucciones se inyectan entre marcadores, así que el texto fuera de ellos sigue siendo tuyo. Los hooks y servidores MCP se fusionan con tu JSON existente; tus propios hooks, servidores y permisos se quedan. Los archivos que amauta instala se rastrean por hash: si editas uno, reinstalar y desinstalar conservan tu versión a menos que pases `--force`. `status` comprueba que los bloques siempre activos se mantengan por debajo de su presupuesto de 20.000 caracteres, porque cada sesión paga por ellos.
+Antes de cualquier escritura, el plan toma un respaldo en `<state dir>/backups/<timestamp>/`. Los bloques de instrucciones se inyectan entre marcadores, así que el texto fuera de ellos sigue siendo suyo. Los hooks y servidores MCP se fusionan con su JSON existente; sus propios hooks, servidores y permisos se quedan. Los archivos que amauta instala se rastrean por hash: si usted edita uno, reinstalar y desinstalar conservan su versión a menos que pase `--force`. `status` comprueba que los bloques siempre activos se mantengan por debajo de su presupuesto de 20.000 caracteres, porque cada sesión paga por ellos.
 
 ### El almacén de skills y los enlaces
 
-Las skills se generan una vez en `<state dir>/skills/<name>`. `~/.claude/skills/<name>` y `~/.agents/skills/<name>` son enlaces simbólicos hacia ahí (uniones de directorio en Windows, con una copia gestionada por hash como alternativa). Un directorio de skill real que hayas creado en cualquiera de las dos carpetas de skills recibe un enlace en la otra; nada se copia ni se mueve. Un directorio real con el mismo nombre en ambos lados se informa como conflicto.
+Las skills se generan una vez en `<state dir>/skills/<name>`. `~/.claude/skills/<name>` y `~/.agents/skills/<name>` son enlaces simbólicos hacia ahí (uniones de directorio en Windows, con una copia gestionada por hash como alternativa). Un directorio de skill real que haya creado en cualquiera de las dos carpetas de skills recibe un enlace en la otra; nada se copia ni se mueve. Un directorio real con el mismo nombre en ambos lados se informa como conflicto.
 
 ### Sincronización MCP
 
@@ -101,10 +101,10 @@ flowchart TD
   C --> F["registrar los hashes nuevos en mcp-sync.json"]
 ```
 
-Las claves que pertenecen a un runtime (el `type` de Claude, el `startup_timeout_sec` de Codex) se quedan en su lado. Los servidores que no son stdio y los servidores internos del runtime se listan pero no se sincronizan; puedes añadir tus propias exclusiones con `{"exclude": ["name"]}` en `mcp-sync.json`. Los servidores que escribe el propio amauta se escriben directamente en ambos lados, no mediante la fusión.
+Las claves que pertenecen a un runtime (el `type` de Claude, el `startup_timeout_sec` de Codex) se quedan en su lado. Los servidores que no son stdio y los servidores internos del runtime se listan pero no se sincronizan; puede añadir sus propias exclusiones con `{"exclude": ["name"]}` en `mcp-sync.json`. Los servidores que escribe el propio amauta se escriben directamente en ambos lados, no mediante la fusión.
 
 ### Mantenerse al día
 
 Un paso barato de `SessionStart` (`sync-check`) calcula un hash de los servidores MCP y las carpetas de skills de ambos runtimes, la versión de amauta y las elecciones de instalación, y ejecuta la sincronización solo cuando el hash cambió. No imprime nada. `amauta status` informa lo que sigue desfasado: desviaciones de Codex, conflictos MCP y una sección de paridad que lista los servidores, skills y bloques presentes en un runtime y no en el otro.
 
-Codex te pide confiar en los comandos de hooks nuevos o cambiados; amauta nunca escribe ese estado de confianza. Consulta también [[guide:kernel|El núcleo]] para el despachador al que llaman estos hooks.
+Codex le pide confiar en los comandos de hooks nuevos o cambiados; amauta nunca escribe ese estado de confianza. Consulte también [[guide:kernel|El núcleo]] para el despachador al que llaman estos hooks.

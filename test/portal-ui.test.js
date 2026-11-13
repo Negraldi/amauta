@@ -194,7 +194,7 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
   const view = env.document.getElementById('view');
   assert.match(view.textContent, /6 nodes, 4 edges/);
   assert.match(view.textContent, /2 SQL tables/);
-  assert.match(view.textContent, /Semantic pass pending: yes/);
+  assert.match(view.textContent, /A semantic pass is pending\./);
   assert.match(view.textContent, /Last semantic run: 2026-10-12 08:00 \(claude-haiku-5-5\)/);
   assert.match(view.textContent, /not mirrored|graphify update|<img/); // the unavailable repo shows its reason as text
   assert.ok(view.textContent.includes('src/a.py'), 'initial node list is loaded');

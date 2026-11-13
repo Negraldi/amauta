@@ -41,7 +41,7 @@ test('both languages carry the same {placeholders} for every key, and no value i
 
 test('Spanish is neutral and professional: no voseo, no slang, no emoji', () => {
   const voseo = /\b(vos|tenés|podés|querés|sabés|hacé|elegí|mirá|andá|fijate|acordate|dale|che|boludo|chévere|guay)\b/i;
-  const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+  const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{2712}\u{2714}-\u{27BF}]/u; // U+2713 ✓ is the done mark the server writes in diagram labels
   for (const [k, v] of [...Object.entries(ES), ...Object.entries(SRV)]) {
     assert.doesNotMatch(v, voseo, k);
     assert.doesNotMatch(v, emoji, k);
@@ -63,7 +63,7 @@ test('the server-text catalog has a Spanish text with the same placeholders for 
 });
 
 // ---- the keys app.js uses exist, and none is dead ---------------------------------------------------------------------
-const DYNAMIC = /^(kind|catalog\.kind|set\.tab|hint|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|meta|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
+const DYNAMIC = /^(kind|catalog\.kind|set\.tab|hint|notfound|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|meta|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
 test('every key that app.js uses exists in en; every en key is used', () => {
   const literals = [...(app + route).matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
   const used = new Set(literals);
@@ -311,7 +311,7 @@ test('copy pass (plan N12g): no "(s)" plurals, no jargon, counts through tn()', 
 test('the top bar holds menu, search, Refresh and the Display popover (theme and language); filters sit in a page bar (T2)', () => {
   const topbar = /<header class="topbar">([\s\S]*?)<\/header>/.exec(html)[1];
   assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]),
-    ['nav-toggle', 'search-open', 'search-text', 'status', 'refresh', 'display-open', 'prefs', 'theme-label', 'theme-picker', 'theme-edit', 'lang-label', 'lang-picker']);
+    ['nav-toggle', 'search-open', 'search-text', 'topbar-end', 'status', 'refresh', 'display-open', 'prefs', 'theme-label', 'theme-picker', 'theme-edit', 'lang-label', 'lang-picker']);
   const sidebar = /<nav class="sidebar"[\s\S]*?<\/nav>/.exec(html)[0];
   for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.doesNotMatch(sidebar, new RegExp(`id="${id}"`), id);
   assert.match(html, /<\/header>\s*<div class="page-bar" id="filters"/);

@@ -42,14 +42,14 @@ async function viewMemories(route) {
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); load(); } });
   type.addEventListener("change", load);
   await load();
-  return [memSourceSwitch(source), h("div", { class: "controls" }, q, type), mine];
+  return [pageHead(t("nav.memory"), t("mem.lead")), memSourceSwitch(source), h("div", { class: "controls" }, q, type), mine];
 }
 
 // Memory files tab: Claude's file memories (MEMORY.md and its notes), one table.
 async function viewMemoryFiles() {
   const files = await api("memory-files");
-  if (!files.items.length) return [h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.filesTeach"))))];
-  return [h("p", { class: "muted" }, tn("mem.filesN", files.items.length, { n: fmt(files.items.length) })),
+  if (!files.items.length) return [pageHead(t("nav.memfile")), h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.filesTeach"))))];
+  return [pageHead(t("nav.memfile"), tn("mem.filesN", files.items.length, { n: fmt(files.items.length) })),
     table("mfiles", [{ key: "name", label: t("col.file"), href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: t("kind.project") },
       { key: "size", label: t("col.bytes"), num: true, render: bytes }, { key: "mtime", label: t("col.modified") }], files.items)];
 }
@@ -69,7 +69,7 @@ function lintCategory(c) {
 async function viewLint() {
   const l = await api("wiki/lint");
   const sc = l.scanned || {};
-  return [pageHead(t("lint.title"), t("lint.prompts")), h("div", { class: "page" }, h("article", { class: "doc" },
-    h("p", { class: "muted" }, tn("lint.intro", sc.memories, { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" })),
+  const scope = tn("lint.intro", sc.memories, { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" });
+  return [pageHead(t("lint.title"), `${t("lint.prompts")} ${scope}`), h("div", { class: "page" }, h("article", { class: "doc" },
     l.categories.map(lintCategory)))];
 }

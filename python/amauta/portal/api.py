@@ -20,6 +20,7 @@ from . import archify, diagrams, guide, security, siblings, wikifeature
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
+LOCAL_DAY = "coalesce(date(u.ts, 'localtime'), substr(u.ts, 1, 10))"  # usage day keys: this machine's local date (a local-only tool)
 
 
 class BadRequest(Exception):
@@ -127,14 +128,13 @@ class Portal:
         With `conn`, a database that predates the runtime column counts every row as Claude."""
         frm, to = _day(q, "from"), _day(q, "to")
         if frm is None and to is None:
-            days = _int(q, "days", 30, 1, 3650)
-            frm = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+            frm = (datetime.now() - timedelta(days=_int(q, "days", 30, 1, 3650))).strftime("%Y-%m-%d")  # a local day, like LOCAL_DAY
         where, args = [], []
         if frm:
-            where.append("substr(u.ts, 1, 10) >= ?")
+            where.append(f"{LOCAL_DAY} >= ?")
             args.append(frm)
         if to:
-            where.append("substr(u.ts, 1, 10) <= ?")
+            where.append(f"{LOCAL_DAY} <= ?")
             args.append(to)
         project = _str(q, "project")
         if project:
@@ -174,7 +174,7 @@ class Portal:
             denom = t["input"] + t["cache_read"] + t["cache_write"]
             out["cache_hit_ratio"] = t["cache_read"] / denom if denom else None
             out["daily"] = [dict(r) for r in conn.execute(
-                f"SELECT substr(u.ts,1,10) day, count(*) messages, count(DISTINCT u.session_id) sessions, sum(u.input) input, sum(u.output) output, "
+                f"SELECT {LOCAL_DAY} day, count(*) messages, count(DISTINCT u.session_id) sessions, sum(u.input) input, sum(u.output) output, "
                 f"sum(u.cache_read) cache_read, sum({cw}) cache_write FROM usage_messages u WHERE {where} AND u.ts IS NOT NULL GROUP BY day ORDER BY day", args)]
             out["models"] = [dict(r) for r in conn.execute(
                 f"SELECT coalesce(u.model,'unknown') model, count(*) messages, sum(u.input) input, sum(u.output) output, sum(u.cache_read) cache_read, "

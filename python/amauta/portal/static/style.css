@@ -147,12 +147,15 @@ td a, .refs a, .items a { padding-block: 0.25rem; }
 /* ---- wiki page: reading column + rail ---- */
 .page { display: grid; grid-template-columns: minmax(0, var(--measure)) var(--rail-w); gap: var(--s7); justify-content: start; align-items: start; }
 .doc { min-width: 0; }
-.kind { margin: 0 0 var(--s1); color: var(--ink-muted); font-size: 0.8125rem; }
 h1 { font: 600 1.5rem/1.25 var(--mono); letter-spacing: -0.02em; margin: 0 0 var(--s5); text-wrap: balance; }
 .page-section { margin-top: var(--s6); border-top: 1px solid var(--line); padding-top: var(--s4); }
 .page-section h2, .panel h2 { font: 600 1.25rem/1.3 var(--sans); margin: 0 0 var(--s3); }
 h3 { font: 600 1rem var(--sans); margin: var(--s4) 0 var(--s2); }
 .rail { font-size: 0.875rem; color: var(--ink-muted); min-width: 0; }
+/* Home: the rail comes first in the DOM (spending before the long feed in one column) and sits on the right when wide. */
+.page.home > .rail { grid-column: 2; grid-row: 1; }
+.page.home > .doc { grid-column: 1; grid-row: 1; }
+.rail-link { display: inline-flex; align-items: center; min-block-size: var(--hit); }
 .rail-block { margin-bottom: var(--s5); }
 .rail-block h2 { font: 600 1rem var(--sans); color: var(--ink); margin: 0 0 var(--s2); }
 .meta { display: grid; grid-template-columns: minmax(5rem, 8rem) minmax(0, 1fr); gap: var(--s1) var(--s3); margin: 0; }
@@ -238,8 +241,6 @@ svg text { fill: var(--ink-muted); font-size: 11px; }
 label.check { display: inline-flex; align-items: center; gap: var(--s1); min-height: var(--hit); margin-bottom: var(--s2); }
 .page-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s4); row-gap: var(--s1); }
 .page-head > .lead { flex-basis: 100%; }
-.filter-state { margin: 0; color: var(--ink-muted); font-family: var(--mono); font-size: 0.8125rem; }
-.filter-state span { white-space: nowrap; } /* wraps between parts, never inside "30 days" */
 .axis { stroke: var(--line); }
 .f-input { fill: var(--c-input); } .f-output { fill: var(--c-output); } .f-cache_read { fill: var(--c-cache-read); } .f-cache_write { fill: var(--c-cache-write); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-bottom: var(--s2); font-size: 0.8125rem; }
@@ -261,6 +262,11 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 .palette { z-index: var(--z-dialog); width: min(42rem, calc(100vw - 2rem)); max-height: 70vh; margin: 12vh auto 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); overflow: hidden; }
 .palette[open] { display: flex; flex-direction: column; animation: pal-in var(--t) var(--ease); }
 .palette::backdrop { background: oklch(0.13 0 0 / 0.45); }
+/* On a near-black page a near-black scrim is invisible: dark schemes dim with a deeper black. */
+:root[data-theme="dark"] .palette::backdrop, :root[data-theme="dark"] .nav-scrim { background: oklch(0 0 0 / 0.55); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .palette::backdrop, :root:not([data-theme="light"]) .nav-scrim { background: oklch(0 0 0 / 0.55); }
+}
 .palette input { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: var(--s3) var(--s4); font-size: 1.0625rem; width: 100%; }
 .palette input:focus-visible { outline-offset: -2px; }
 #palette-results { overflow-y: auto; padding: var(--s2); }
@@ -278,6 +284,8 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 @media (width < 72rem) {
   .page { grid-template-columns: minmax(0, var(--measure)); gap: var(--s5); }
   .rail { border-top: 1px solid var(--line); padding-top: var(--s4); }
+  .page.home > .rail, .page.home > .doc { grid-column: auto; grid-row: auto; }
+  .page.home > .rail { border-top: 0; padding-top: 0; border-bottom: 1px solid var(--line); padding-bottom: var(--s4); }
 }
 @media (width < 52rem) {
   .shell { grid-template-columns: minmax(0, 1fr); }
@@ -297,7 +305,6 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* still announced, not shown */
   .search-trigger kbd { display: none; } /* no keyboard shortcut to show on a phone */
   .tabs { flex-wrap: nowrap; overflow-x: auto; } .tabs a { white-space: nowrap; } /* one row of tabs, scrolled sideways */
-  #prefs { inset: auto var(--s4) var(--s4); width: auto; } /* the top bar wraps on a phone: Display opens as a bottom sheet */
   .page-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end; }
   .page-bar label { display: grid; gap: var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }
   .page-bar select { width: 100%; }

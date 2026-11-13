@@ -138,7 +138,7 @@ test('sections render as lists with links, and task status uses a label plus a s
 test('an unknown page shows a teaching not-found state, not an error panel', async () => {
   const { env } = await boot('#/skill/ghost', { '/api/wiki/page': undefined });
   const v = view(env);
-  assert.match(v.textContent, /No skill page/);
+  assert.match(v.textContent, /Skill not found/);
   assert.match(v.textContent, /ghost/);
   assert.ok(hrefs(v).includes('#/home'));
   assert.ok(!/^Error/.test(v.textContent));
@@ -232,8 +232,8 @@ test('typing searches (debounced), shows grouped results with text kind labels a
   assert.equal(searches[0].url, '/api/wiki/search?q=wid');
   const results = env.document.getElementById('palette-results');
   const text = results.textContent;
-  assert.match(text, /skill \(1\)/);
-  assert.match(text, /memory \(2\)/);
+  assert.match(text, /Skills \(1\)/);
+  assert.match(text, /Memories \(2\)/);
   assert.ok(text.includes(XSS));
   const options = tree(results).filter((e) => e.attrs.role === 'option');
   assert.equal(options.length, 3);

@@ -254,7 +254,7 @@ test('a DAG lists its steps in declared order with their stage, with a mode pick
   const card = cards(view)[0];
   const steps = tree(card).filter((e) => e.tagName === 'li' && e.attrs['data-id']); // T8 f: declared order, the level as words
   assert.deepEqual(steps.map((e) => e.attrs['data-id']), ['features', 'train', 'predict', 'report']);
-  assert.deepEqual(steps.map((e) => /stage (\d)/.exec(e.textContent)[1]), ['1', '2', '3', '1']);
+  assert.deepEqual(steps.map((e) => /stage\s(\d)/.exec(e.textContent)[1]), ['1', '2', '3', '1']);
   const picker = tree(card).find((e) => e.tagName === 'select' && e.attrs['aria-label'] === 'Mode');
   assert.deepEqual(picker.options.map((o) => o.textContent), ['train', 'train-predict', 'predict']);
   assert.equal(picker.value, 'predict');

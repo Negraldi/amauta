@@ -33,6 +33,8 @@ function stepItem({ name, n, id, type, seconds, enabled, onlyThis }) {
   const off = h("span", { class: "muted" }, "");
   li.append(off);
   li.setOff = (yes) => { li.setAttribute("data-off", String(yes)); off.textContent = yes ? ` (${t("pipe.offMode")})` : ""; };
+  // The stage joins the name with no-break spaces, so on a phone it never wraps onto a line of its own.
+  li.setStage = (k) => label.append(h("span", { class: "muted" }, `\u00a0·\u00a0${t("pipe.stage", { n: k }).replace(/ /g, "\u00a0")}`));
   li.setSeconds = (s) => { time.textContent = s == null ? "" : ` ${R.fmtDecimal(s, 1)} s`; };
   return li;
 }

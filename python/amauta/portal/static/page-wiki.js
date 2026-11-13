@@ -141,7 +141,8 @@ async function fetchWikiPage(kind, id, source) {
   }
 }
 function noPage(kind, id) {
-  return [teach(t("page.none", { kind: kindLabel(kind).toLowerCase() }), t("page.nothingStored", { id }), HINTS.includes(kind) ? t(`hint.${kind}`) : "")];
+  const title = `notfound.${kind}` in I.dict.en ? t(`notfound.${kind}`) : t("page.none", { kind: kindLabel(kind).toLowerCase() });
+  return [teach(title, t("page.nothingStored", { id }), HINTS.includes(kind) ? t(`hint.${kind}`) : "")];
 }
 // "a|b|c" may break after each bar (an argument hint), never one character per line.
 const breakAfterBars = (v) => String(v).split(/(?<=\|)/).flatMap((part, i) => (i ? [h("wbr"), part] : [part]));
@@ -177,7 +178,7 @@ async function viewWikiPage(kind, id, source) {
   const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
-      h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
+      h("h1", null, itemTitle(pg.kind, pg.title)), progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
       commandBlock(pg),
       pg.refresh ? refreshControl(pg.refresh.server) : null, pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),

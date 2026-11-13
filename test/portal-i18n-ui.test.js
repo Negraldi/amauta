@@ -142,7 +142,7 @@ test('hostile text stays text in both languages', async () => {
 
 test('errors and refusals are explained in the chosen language', async () => {
   const { env } = await boot({ language: 'es-ES', hash: '#/memory/99', routes: { '/api/wiki/page': { __status: 404, error: 'not found' } } });
-  assert.match(view(env).textContent, /No hay página de tipo memoria/);
+  assert.match(view(env).textContent, /Memoria no encontrada/);
   assert.match(view(env).textContent, /Las memorias aparecen aquí/);
   const s = await boot({ language: 'es-ES', hash: '#/settings', routes: {
     '/api/settings': { installed: true, current: { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } }, allowed: {}, undo: { available: false } },

@@ -105,6 +105,15 @@ function themedSource(source) {
     return head + props.split(",").map(prop).join(",");
   });
 }
+// The server writes its diagram labels in English: a quoted label the server catalog knows (ts) is swapped for its translation,
+// decoded from and encoded back to the entity codes diagrams.py writes, so a translation never adds Mermaid syntax. Any other
+// label (user text, a Markdown diagram) is left byte for byte.
+function localizedSource(source) {
+  if (I.lang() === "en") return source;
+  const decode = (s) => s.replace(/#(\d+);/g, (m, n) => String.fromCharCode(Number(n)));
+  const encode = (s) => s.replace(/[#"<>`[\](){}|;\\&%]/g, (c) => `#${c.charCodeAt(0)};`);
+  return String(source).replace(/"([^"\n]*)"/g, (m, text) => { const out = ts(decode(text)); return out === decode(text) ? m : `"${encode(out)}"`; });
+}
 function loadMermaid() {
   mermaidReady ||= new Promise((resolve, reject) => {
     const tag = document.createElement("script");
@@ -121,7 +130,7 @@ async function drawMermaid(source, into, natural) {
   try {
     const mermaid = await loadMermaid();
     syncMermaidTheme(mermaid);
-    const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, themedSource(source));
+    const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, localizedSource(themedSource(source)));
     // Parsed into an inert document (no script runs, no resource loads), then only the <svg> element is adopted. HTML parsing, not XML:
     // flowchart labels carry HTML inside <foreignObject>, which is not well-formed XML.
     const root = new DOMParser().parseFromString(svg, "text/html").body.querySelector("svg");
@@ -156,7 +165,14 @@ try { globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener("ch
 
 const state = { route: { kind: "home", id: "" }, shown: null, memSource: "own", graphRepo: null, usageCache: false, sort: {}, projectNames: [], themes: [],
   themeChoice: TH.loadChoice(TH.storage()), themeDraft: null, preview: null };
-const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, label);
+// A session title the server composes ("repo · <model>, N messages · date"): the count part in the UI language, digits grouped.
+const sessionTitle = (title) => String(title).split(" · ").map((part) => {
+  const m = /^(.*), (\d+) messages?$/.exec(part);
+  if (!m) return part;
+  return `${m[1] === "unknown model" ? t("graph.unknownModel") : m[1]}, ${tn("usage.messagesN", Number(m[2]), { n: fmt(Number(m[2])) })}`;
+}).join(" · ");
+const itemTitle = (kind, title) => (kind === "session" && typeof title === "string" ? sessionTitle(title) : title);
+const link = (kind, id, label, attrs, source) => h("a", { href: R.formatHash(kind, id, { source }), ...attrs }, itemTitle(kind, label));
 const filters = () => ({ days: $("days").value, project: $("project").value, runtime: $("runtime").value });
 const runtimeName = (v) => (v === "codex" ? t("filters.codex") : t("filters.claude")); // anything that is not Codex was written by Claude Code
 const runtimeBadge = (v) => h("span", { class: `badge rt-${v === "codex" ? "codex" : "claude"}` }, runtimeName(v));
@@ -208,7 +224,7 @@ async function renderRoute(route) {
   if (id && WIKI_KINDS.includes(kind)) return viewWikiPage(kind, id, route.source);
   const out = await VIEWS()[kind](route); // a view that needs the item (the guide's page) or its ?seg= reads it from the route
   const tabs = tabBar(route);
-  const head = pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`), null, R.showsFilters(route) ? filterState() : null); // Activity: filters in words
+  const head = pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`)); // the Activity filter bar itself says the range, project and runtime
   const page = out.some(hasTitle) ? out : [head, ...out];
   if (!tabs) return page;
   // One page-head pattern: title (with its lead), then the tabs, then the content.
@@ -229,8 +245,8 @@ function firstH1(nodes) {
   }
   return null;
 }
-function pageHead(title, intro, aside) {
-  return h("header", { class: "page-head" }, h("h1", null, title), aside, intro ? h("p", { class: "lead" }, intro) : null);
+function pageHead(title, intro) {
+  return h("header", { class: "page-head" }, h("h1", null, title), intro ? h("p", { class: "lead" }, intro) : null);
 }
 
 // The sidebar: one block per job group (R.NAV) with its label; the foot group (Guide, Settings) sits apart at the bottom.
@@ -281,8 +297,7 @@ async function render() {
   renderNav(route);
   if (!onAppearance(route)) { state.preview = null; state.themeDraft = null; applyTheme(); } // leaving the editor ends its preview
   $("filters").hidden = !R.showsFilters(route);
-  $("shell").setAttribute("data-nav", "closed");
-  $("nav-toggle").setAttribute("aria-expanded", "false");
+  setNav(false); // navigating closes the phone menu (boot.js)
   document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;
   if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }
   state.pageTitle = null;

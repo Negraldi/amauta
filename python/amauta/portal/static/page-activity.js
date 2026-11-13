@@ -2,14 +2,6 @@
 // Activity pages: what was spent (#/usage), sessions (#/session), and tools and skills (#/tool).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
-// The Range, Project and Runtime filters in words, next to the page title ("30 days · all projects · all runtimes").
-function filterState() {
-  const days = $("days").value, project = $("project").value, runtime = $("runtime").value;
-  const range = days === "3650" ? t("filters.allTime") : `filters.d${days}` in I.dict.en ? t(`filters.d${days}`) : days;
-  const parts = [range, project || t("filters.anyProject"), runtime ? runtimeName(runtime) : t("filters.anyRuntime")];
-  return h("p", { class: "filter-state" }, parts.flatMap((p, i) => [i ? " · " : null, h("span", null, p)]));
-}
-
 // Usage opens with one sentence answering "what did I spend" for the filtered range (impeccable critique, plan N12f).
 function usageSentence(tot, hit, c) {
   const p = { messages: tn("usage.messagesN", tot.messages, { n: fmt(tot.messages) }),

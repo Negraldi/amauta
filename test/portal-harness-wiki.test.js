@@ -88,7 +88,7 @@ test('the hooks table names event, handler, source and status, so look-alike row
   assert.deepEqual(heads, ['Event', 'Handler', 'Source', 'Status']);
   const rows = tree(table).filter((e) => e.tagName === 'tr').slice(1).map((r) => r.children.map((c) => c.textContent).join(' | '));
   assert.equal(new Set(rows).size, 3, 'every row is distinct');
-  assert.ok(rows.some((r) => /PreToolUse \| amauta \(Bash\) \| Your Claude home \| ● runs/.test(r)), rows.join('\n'));
+  assert.ok(rows.some((r) => /PreToolUse \| amauta Bash \| Your Claude home \| ● runs/.test(r)), rows.join('\n'));
   assert.ok(rows.some((r) => /Stop \| review\.sh \| Plugin plug \| ○ plugin disabled/.test(r)), rows.join('\n'));
   assert.ok(hrefs(table).includes('#/hook/Stop%3Acccc3333'), 'the handler links to the hook page');
 });

@@ -391,7 +391,7 @@ def _search_usage(kind):
             return []
         try:
             rows = conn.execute(f"SELECT {col} name, count(*) n FROM tool_calls c WHERE {col} LIKE ? ESCAPE '\\' GROUP BY name ORDER BY n DESC, name LIMIT {FETCH_CAP}", (_like(text),)).fetchall()
-            return [_hit(kind, r["name"], r["name"], f"{r['n']} calls") for r in rows]
+            return [_hit(kind, r["name"], r["name"], wikiusage.calls(r["n"])) for r in rows]
         finally:
             conn.close()
     return run

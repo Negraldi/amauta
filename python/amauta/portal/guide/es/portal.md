@@ -1,6 +1,6 @@
 # El portal
 
-El portal es una wiki local sobre todo lo que el arnés sabe: memorias, skills, herramientas, servidores MCP, sesiones, uso, features de ODD, el grafo de código, pipelines, el estado de seguridad y esta guía. Cada elemento es una página enlazada con retroenlaces. Es un servidor Python de la biblioteca estándar más una interfaz de una sola página en JavaScript simple, sin CDN y sin red; se enlaza solo a `127.0.0.1` y se ejecuta bajo demanda, nunca como servicio en segundo plano (ADR 0005).
+El portal es una wiki local sobre todo lo que el harness sabe: memorias, skills, herramientas, servidores MCP, sesiones, uso, features de ODD, el grafo de código, pipelines, el estado de seguridad y esta guía. Cada elemento es una página enlazada con retroenlaces. Es un servidor Python de la biblioteca estándar más una interfaz de una sola página en JavaScript simple, sin CDN y sin red; se enlaza solo a `127.0.0.1` y se ejecuta bajo demanda, nunca como servicio en segundo plano (ADR 0005).
 
 ## De qué está hecho
 
@@ -9,9 +9,9 @@ El portal es una wiki local sobre todo lo que el arnés sabe: memorias, skills, 
 | Lanzador y CLI | `src/portal/` (`cli.js`, `launch.js`, `launcher.js`, `windows.js`) | `amauta portal`, `portal launch`, `portal install-launcher` |
 | Servidor | `python/amauta/portal/server.py` | HTTP en loopback, cabeceras estrictas, comprobaciones de token y de origen en las escrituras |
 | API | `python/amauta/portal/api.py` | Las rutas `GET /api/...` de solo lectura |
-| Wiki | `wiki*.py` | Páginas, búsqueda, retroenlaces, lint, la wiki del arnés, la página de inicio |
+| Wiki | `wiki*.py` | Páginas, búsqueda, retroenlaces, lint, la wiki del harness, la página de inicio |
 | Proyectos, hermanos | `projects.py`, `siblings.py`, `config.py` | Proyectos conocidos desde `portal.json`, `--repo` y las raíces git de las sesiones; salud de los hermanos |
-| Ajustes | `settings.py` | El editor de ajustes protegido, que ejecuta el instalador |
+| Configuración | `settings.py` | El editor de configuración protegido, que ejecuta el instalador |
 | Seguridad | `security.py` | La página de Seguridad: protecciones, checkers, proyectos de confianza, perfiles |
 | Diagramas | `diagrams.py`, `archify.py`, `static/mermaid.min.js` | Código Mermaid generado en el servidor; la versión vendorizada de Mermaid; archify cuando está instalado |
 | Guía | `guide.py`, `guide/en/`, `guide/es/` | Estas páginas |
@@ -60,11 +60,11 @@ amauta portal launch                # una ventana de aplicación; el servidor se
 amauta portal install-launcher      # una entrada de escritorio o un acceso directo en el menú Inicio
 ```
 
-- Busca con `Ctrl+K` o `/`: una sola consulta sobre memorias (texto completo), skills, herramientas, servidores MCP, sesiones, features, tareas y nodos del grafo.
-- Usa los filtros de Rango, Proyecto y Runtime en las páginas de Actividad (Uso, Sesiones, Herramientas y skills); son las únicas que los tienen (Todos, Claude Code, Codex).
-- Cambia el tema (Sistema, Claro, Oscuro, tus propios temas) y el idioma (inglés, español) desde Vista en la barra superior; Editar temas abre Configuración > Apariencia. Tu propio texto se queda como lo escribiste; las fechas son siempre `YYYY-MM-DD`.
-- Añade proyectos en Configuración > Proyectos y hermanos, o con `--repo DIR` (repetible).
-- Lee esta guía desde Guía, al pie de la barra lateral; cada página sigue el idioma del portal y recurre al inglés si falta.
+- Busque con `Ctrl+K` o `/`: una sola consulta sobre memorias (texto completo), skills, herramientas, servidores MCP, sesiones, features, tareas y nodos del grafo.
+- Use los filtros de Rango, Proyecto y Runtime en las páginas de Actividad (Uso, Sesiones, Herramientas y skills); son las únicas que los tienen (Todos, Claude Code, Codex).
+- Cambie el tema (Sistema, Claro, Oscuro, sus propios temas) y el idioma (inglés, español) desde Vista en la barra superior; Editar temas abre Configuración > Apariencia. Su propio texto se queda como lo escribió; las fechas son siempre `YYYY-MM-DD`.
+- Añada proyectos en Configuración > Proyectos y hermanos, o con `--repo DIR` (repetible).
+- Lea esta guía desde Guía, al pie de la barra lateral; cada página sigue el idioma del portal y recurre al inglés si falta.
 
 ## Scripts y comandos
 
@@ -81,21 +81,21 @@ Archivos del directorio de estado que lee el portal: `portal.json` (`repos`, `au
 
 ### Lectura
 
-Cada base de datos se abre con `mode=ro`: nunca se crea ni se migra. Los proyectos vienen de `--repo`, de `portal.json` y de las raíces git de tus sesiones; el descubrimiento automático solo busca dentro de tu directorio home y omite los worktrees de git enlazados. Los datos del arnés (hooks, servidores MCP, agentes, comandos, plugins, estilos de salida) se reconstruyen desde los archivos reales en cada petición y se guardan en caché un par de segundos; cada página de componente nombra la fuente de cada dato. Las configuraciones MCP muestran la forma del comando y de los argumentos con los secretos enmascarados, y solo los nombres de las variables de entorno.
+Cada base de datos se abre con `mode=ro`: nunca se crea ni se migra. Los proyectos vienen de `--repo`, de `portal.json` y de las raíces git de sus sesiones; el descubrimiento automático solo busca dentro de su directorio home y omite los worktrees de git enlazados. Los datos del harness (hooks, servidores MCP, agentes, comandos, plugins, estilos de salida) se reconstruyen desde los archivos reales en cada petición y se guardan en caché un par de segundos; cada página de componente nombra la fuente de cada dato. Las configuraciones MCP muestran la forma del comando y de los argumentos con los secretos enmascarados, y solo los nombres de las variables de entorno.
 
 Los enlaces de las memorias se derivan, ya que el almacén no tiene tabla de relaciones: `[[wikilinks]]`, la jerarquía de `topic_key`, menciones de palabras completas y etiquetas del grafo. Todo el texto de memorias, repositorios y grafos pasa por el subconjunto seguro de Markdown como nodos de texto, bajo una Content-Security-Policy estricta; no hay HTML crudo.
 
 ### Escritura
 
-Las escrituras pasan solo por endpoints POST protegidos: solo JSON, con tamaño limitado, un token por proceso, comprobaciones de `Host` y `Origin` y esquemas cerrados. Cubren Refrescar uso, el heartbeat, el editor de ajustes, la configuración de proyectos y hermanos, la sincronización y conexión del grafo, el refresco de descripciones de herramientas, las peticiones de explicación, los temas, y la ejecución y cancelación de pipelines.
+Las escrituras pasan solo por endpoints POST protegidos: solo JSON, con tamaño limitado, un token por proceso, comprobaciones de `Host` y `Origin` y esquemas cerrados. Cubren Refrescar uso, el heartbeat, el editor de configuración, la configuración de proyectos y hermanos, la sincronización y conexión del grafo, el refresco de descripciones de herramientas, las peticiones de explicación, los temas, y la ejecución y cancelación de pipelines.
 
 ```mermaid
 sequenceDiagram
-  participant U as Tú
-  participant P as Página de Ajustes
+  participant U as Usted
+  participant P as Página de Configuración
   participant S as servidor del portal
   participant I as amauta install
-  U->>P: eliges opciones
+  U->>P: elige opciones
   P->>S: vista previa con token
   S->>I: install --dry-run --json
   I-->>S: archivos a escribir, quitar, conservar
@@ -107,11 +107,11 @@ sequenceDiagram
   S-->>P: hecho, deshacer disponible
 ```
 
-El editor de ajustes cambia una lista cerrada: persona, modo de revisión, telemetría, los módulos opcionales y reinstalar o reparar. El portal nunca edita por sí mismo un archivo del arnés. El token de aplicación es válido cinco minutos y está ligado a las opciones elegidas y al hash de `state.json`. **Deshacer** vuelve a ejecutar la instalación con los ajustes anteriores al cambio más reciente hecho desde el portal; nunca restaura instantáneas de archivos.
+El editor de configuración cambia una lista cerrada: persona, modo de revisión, telemetría, los módulos opcionales y reinstalar o reparar. El portal nunca edita por sí mismo un archivo del harness. El token de aplicación es válido cinco minutos y está ligado a las opciones elegidas y al hash de `state.json`. **Deshacer** vuelve a ejecutar la instalación con la configuración anterior al cambio más reciente hecho desde el portal; nunca restaura instantáneas de archivos.
 
 ### Diagramas
 
-El portal incluye una versión sin modificar de Mermaid, que se carga solo cuando se dibuja el primer diagrama, con `securityLevel: 'strict'`. El código Mermaid del progreso de tareas, de los vecindarios del grafo y de la arquitectura del arnés se genera en el servidor con ids generados y etiquetas escapadas y acotadas. Las memorias y las páginas de la guía dibujan sus propios bloques Mermaid. Con archify instalado, la página del Arnés dibuja la arquitectura con él dentro de un marco aislado.
+El portal incluye una versión sin modificar de Mermaid, que se carga solo cuando se dibuja el primer diagrama, con `securityLevel: 'strict'`. El código Mermaid del progreso de tareas, de los vecindarios del grafo y de la arquitectura del harness se genera en el servidor con ids generados y etiquetas escapadas y acotadas. Las memorias y las páginas de la guía dibujan sus propios bloques Mermaid. Con archify instalado, la página del harness dibuja la arquitectura con él dentro de un marco aislado.
 
 ### Extras en el portal
 
@@ -121,4 +121,4 @@ Algunas pestañas vienen de extras a través del registro de extensiones: la pá
 
 `portal launch` inicia el servidor desacoplado y abre una ventana del navegador. La página envía un heartbeat cada 10 segundos; un servidor lanzado termina cuando dejan de llegar heartbeats (`--idle-exit`, 30 segundos por defecto). Un segundo lanzamiento reutiliza el servidor en marcha.
 
-Consulta también [[guide:siblings|Proyectos hermanos]] para las tarjetas de hermanos y [[guide:data-security|Seguridad de datos]] para lo que informa la página de Seguridad.
+Consulte también [[guide:siblings|Proyectos hermanos]] para las tarjetas de hermanos y [[guide:data-security|Seguridad de datos]] para lo que informa la página de Seguridad.

@@ -99,13 +99,8 @@ test('the siblings table shows the watched file with its age limit when the conf
   assert.ok(cells.includes('x.txt'));
 });
 
-test('Activity filter state is one nowrap span per part, so it wraps between parts and never inside one', async () => {
-  const { env } = await boot('#/session');
-  const p = tree(view(env)).find((e) => cls(e) === 'filter-state');
-  const parts = p.children.filter((c) => c.tagName === 'span');
-  assert.equal(parts.length, 3);
-  assert.match(css, /\.filter-state span \{[^}]*white-space: nowrap/);
-  assert.match(css, /\.page-head \{[^}]*row-gap: /);
+test('the page head wraps its parts with a row gap', () => {
+  assert.match(css, /\.page-head \{[^}]*row-gap: /); // T8 final polish: the filter-state line left the head (the filter bar says it)
 });
 
 // ---- color: accent is links, selection, focus only; data colors read on their chart ---------------------------------
