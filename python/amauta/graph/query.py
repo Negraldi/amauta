@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from . import vendored as vendored_rules
+
 MAX_DEPTH = 5
 PATH_MAX_DEPTH = 8
 NODE_LIMIT = 200
@@ -147,17 +149,8 @@ def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
     return {"repo": repo, "found": True, "depth": found, "max_depth": cap, "truncated": cut, "nodes": [by_id[i] for i in chain], "edges": edges}
 
 
-# Dependency, vendored and minified sources: hidden from the portal's default node list, never from search or walks.
-VENDORED_DIRS = frozenset({"node_modules", "bower_components", "vendor", "vendored", "third_party", "site-packages", ".venv", "venv"})
-MINIFIED = (".min.js", ".min.mjs", ".min.cjs", ".min.css")
-
-
-def is_vendored(path):
-    """True for a file under a dependency or vendored directory, or a minified bundle."""
-    if not path:
-        return False
-    parts = str(path).replace("\\", "/").lower().split("/")
-    return parts[-1].endswith(MINIFIED) or any(p in VENDORED_DIRS for p in parts[:-1])
+# Dependency, vendored and minified sources (vendored.py): hidden from the portal's default node list, never from search or walks.
+is_vendored = vendored_rules.is_vendored
 
 
 _LINKS = ("(SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.src = n.id)"
@@ -172,7 +165,7 @@ def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None):
     _check_repo(conn, repo)
     limit = max(1, min(int(limit), 200))
     pat = _like(text or "")
-    conn.create_function("amauta_vendored", 1, is_vendored, deterministic=True)
+    conn.create_function("amauta_vendored", 1, vendored_rules.rule_for(repo), deterministic=True)
     rows = conn.execute(
         f"SELECT n.id, n.label, n.kind, n.file, {_LINKS if order else '0'} AS links FROM graph_nodes n WHERE n.repo = ? "
         "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\') AND (? OR NOT amauta_vendored(n.file)) "

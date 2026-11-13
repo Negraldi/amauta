@@ -281,6 +281,41 @@ class QueryTest(Base):
             self.assertFalse(query.is_vendored(path), path)
 
 
+class RepoVendoredTest(Base):
+    """A repository says what it vendors: .gitattributes linguist-vendored patterns and the folders its NOTICE names
+    (third-party attributions), on top of the generic dependency folders and minified names."""
+
+    def nodes(self, *files):
+        write_graph(self.repo, {"nodes": [node(f"n{i}", f"n{i}", source_file=f) for i, f in enumerate(files)], "links": []})
+        sync.sync_repo(self.conn, self.repo)
+        return [n["file"] for n in query.search_nodes(self.conn, self.key, "", limit=200, order="links", vendored=False)]
+
+    def test_generic_names_cover_more_dependency_folders_and_minified_files(self):
+        for path in ("third-party/a.c", "lib/thirdparty/b.c", "ios/Pods/c.m", "Carthage/Checkouts/d.swift", "web/jspm_packages/e.js",
+                     "static/app-min.js", "dist/lib.min.js.map", "static/bundle.min.mjs"):
+            self.assertTrue(query.is_vendored(path), path)
+        for path in ("src/minify.py", "src/admin.js", "docs/third-party.md"):
+            self.assertFalse(query.is_vendored(path), path)
+
+    def test_notice_folders_are_vendored_only_when_they_exist(self):
+        (self.repo / "assets" / "skills").mkdir(parents=True)
+        (self.repo / "NOTICE").write_text("Files under assets/ are derived from upstream (https://example.com/x/).\nSee nowhere/ too.\n")
+        shown = self.nodes("assets/skills/x/scripts/a.mjs", "src/own.py", "nowhere/b.py", "assetsx/c.py")
+        self.assertEqual(sorted(shown), ["assetsx/c.py", "nowhere/b.py", "src/own.py"])
+
+    def test_gitattributes_linguist_vendored_patterns(self):
+        (self.repo / ".gitattributes").write_text("* text=auto\nlib/ext/** linguist-vendored\n*.gen.js linguist-vendored=true\n"
+                                                    "lib/ext/own.py -linguist-vendored\nkeep/** linguist-vendored=false\n")
+        shown = self.nodes("lib/ext/a/b.py", "web/x.gen.js", "lib/ext/own.py", "keep/k.py", "lib/mine.py")
+        self.assertEqual(sorted(shown), ["keep/k.py", "lib/ext/own.py", "lib/mine.py"])
+
+    def test_absolute_source_paths_inside_the_repo_are_matched_relative_to_it(self):
+        (self.repo / "assets").mkdir()
+        (self.repo / "NOTICE").write_text("assets/ is vendored\n")
+        shown = self.nodes(str(self.repo / "assets" / "a.py"), str(self.repo / "src" / "b.py"))
+        self.assertEqual(shown, [str(self.repo / "src" / "b.py")])
+
+
 class WalkBoundsTest(Base):
     def test_walk_rows_are_bounded_before_grouping(self):
         data = {"nodes": [node("hub")] + [node(f"l{i}") for i in range(100)], "links": [edge("hub", f"l{i}") for i in range(100)]}
