@@ -246,6 +246,7 @@
  "page.links": "Enlaces",
  "page.none": "No se encontró la página ({kind})",
  "page.nothingStored": "No hay nada guardado con el identificador {id}.",
+ "palette.searching": "Buscando.",
  "palette.failed": "La búsqueda falló: {reason}",
  "palette.group.feature": "Funcionalidades ODD",
  "palette.group.mcp": "Servidores MCP",

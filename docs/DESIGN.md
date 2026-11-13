@@ -115,6 +115,7 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
 - Links: accent color, underline on hover and focus; wikilinks to missing pages in `--ink-muted` with a dotted
   underline. External links get a small arrow glyph.
 - Search palette: native `<dialog>`, results grouped by kind under a plural label ("Memories (4)"), arrow-key navigation;
+  a pending search says "Searching." (`aria-busy` on the results) from the keystroke until its answer lands;
   graph node rows name their file and show its path cut from the left.
 - Tables: hairline rules, right-aligned tabular numbers, sortable headers with a visible sort indicator; a table opens on a meaningful order (names A to Z, counts largest first, activity newest first), never Z to A.
 - Status chips: text label plus a shape (filled dot = done, ring = pending, triangle = warning); color reinforces only.

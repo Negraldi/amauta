@@ -77,22 +77,29 @@ function paintResults(found, q) {
     }))));
   selectResult(0);
 }
+const paletteNote = (cls, text) => {
+  palette.items = []; palette.nodes = [];
+  $("palette-results").replaceChildren(h("p", { class: cls }, text));
+};
+// A pending search says so (T13): "Searching." with aria-busy from the keystroke until its answer, or a newer one, lands.
+const searchBusy = (on) => (on ? $("palette-results").setAttribute("aria-busy", "true")
+  : $("palette-results").removeAttribute("aria-busy"));
 async function runSearch() {
   const q = $("palette-input").value.trim();
   const seq = ++palette.seq;
-  const note = (cls, text) => { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: cls }, text)); };
-  if (!q) { note("muted", t("palette.hint")); return; }
+  if (!q) { searchBusy(false); paletteNote("muted", t("palette.hint")); return; }
   try {
     const r = await api("wiki/search", { q });
-    if (seq === palette.seq) paintResults([...pageResults(q), ...r.groups], q);
+    if (seq === palette.seq) { searchBusy(false); paintResults([...pageResults(q), ...r.groups], q); }
   } catch (err) {
-    if (seq === palette.seq) note("warn", t("palette.failed", { reason: plainReason(err) }));
+    if (seq === palette.seq) { searchBusy(false); paletteNote("warn", t("palette.failed", { reason: plainReason(err) })); }
   }
 }
 
 let searchTimer = null;
 $("palette-input").addEventListener("input", () => {
   if (searchTimer) clearTimeout(searchTimer);
+  if ($("palette-input").value.trim()) { searchBusy(true); paletteNote("muted", t("palette.searching")); }
   searchTimer = setTimeout(runSearch, 120);
 });
 $("palette-input").addEventListener("keydown", (e) => {

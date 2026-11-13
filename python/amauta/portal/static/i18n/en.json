@@ -246,6 +246,7 @@
  "page.links": "Links",
  "page.none": "No {kind} page",
  "page.nothingStored": "Nothing is stored under {id}.",
+ "palette.searching": "Searching.",
  "palette.failed": "Search failed: {reason}",
  "palette.group.feature": "Features",
  "palette.group.mcp": "MCP servers",
