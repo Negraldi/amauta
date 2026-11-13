@@ -1,7 +1,8 @@
 "use strict";
 // Sibling projects (plan S1d, ADR 0001): projects beside amauta that the portal only links and health-checks, never
 // runs. A card on the Projects page per sibling (last commit, uncommitted changes, its MCP server in Claude and Codex,
-// the age of a watched file) and a form under Settings that edits portal.json `siblings`. Text only, never markup.
+// the age of a watched file) and a table and form under Settings > Projects and siblings that edit portal.json `siblings`.
+// Text only, never markup.
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 const SIB_MARK = { ok: "✓", attention: "▲", missing: "✗" };
@@ -40,24 +41,63 @@ async function siblingsBlock() {
     h("div", { class: "pipe-cards sib-cards" }, d.siblings.map(siblingCard)));
 }
 
-// Settings: the list with Remove, and a form that adds one. Saved through the projects config (a closed schema).
-async function siblingsSection() {
-  let data;
-  try { data = await api("projects"); } catch (_) { return null; }
+// ---- Settings > Projects and siblings: saved project paths, auto-discover and the sibling table -----------------------
+// Both sections share one `store` (the /api/projects answer) so a change in one is never overwritten by the other.
+// One guarded POST to the projects config (a closed schema, validated by the server); the answer replaces the store.
+async function saveConfig(store, body, out, repaint) {
+  out.replaceChildren(h("p", { role: "status", class: "muted" }, t("common.saving")));
+  let res;
+  try { res = await postJson("/api/projects/config", body); } catch (err) {
+    res = { ok: false, status: 0, data: { error: String(err.message || err) } };
+  }
+  if (!res.ok) {
+    const reason = res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status });
+    const advice = h("p", null, t(R.settingsAdvice(res.status).key));
+    out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, `▲ ${reason}`, advice));
+    return;
+  }
+  store.data = res.data;
+  repaint();
+  out.replaceChildren(h("p", { role: "status" }, "✓ " + t("common.saved")));
+}
+
+// The paths saved in portal.json and the auto-discover switch.
+function projectsSection(store) {
   const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
-  const send = async (list) => {
-    out.replaceChildren(h("p", { role: "status", class: "muted" }, t("common.saving")));
-    const failed = (e) => ({ ok: false, data: { error: e.message } });
-    const res = await postJson("/api/projects/config", { siblings: list }).catch(failed);
-    if (!res.ok) { out.replaceChildren(h("p", { class: "warn", role: "alert" }, `▲ ${ts((res.data && res.data.error) || "")}`)); return; }
-    data = res.data;
-    paint();
-    out.replaceChildren(h("p", { role: "status" }, "✓ " + t("common.saved")));
-  };
+  const send = (body) => saveConfig(store, body, out, paint);
+  function paint() {
+    const data = store.data;
+    const input = h("input", { type: "text", id: "project-path", placeholder: "/home/you/code/my-project",
+      autocomplete: "off", spellcheck: "false" });
+    const add = h("button", { type: "button" }, t("sp.add"));
+    add.addEventListener("click", () => { const v = String(input.value || "").trim(); if (v) send({ repos: [...data.config_repos, v] }); });
+    const box = h("input", { type: "checkbox", id: "project-auto", checked: data.auto_discover });
+    box.addEventListener("change", (e) => send({ auto_discover: !!e.target.checked }));
+    const only = (p) => p.origin.includes("discovered") && !p.origin.includes("config") && !p.origin.includes("flag");
+    const found = data.projects.filter(only);
+    const remove = (p) => {
+      const b = h("button", { type: "button", "aria-label": t("sp.remove", { path: p }) }, t("common.remove"));
+      b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== p) }));
+      return h("li", null, h("code", { class: "tok" }, p), " ", b);
+    };
+    root.replaceChildren(h("h2", null, t("nav.project")), h("p", { class: "muted" }, t("sp.intro")),
+      data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map(remove)) : h("p", { class: "muted" }, t("sp.none")),
+      h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
+      h("p", null, box, h("label", { for: "project-auto" }, " " + t("sp.auto"))),
+      h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null));
+  }
+  paint();
+  return h("div", null, root, out);
+}
+
+// The siblings: a table with Remove, a teaching empty state, and the form that adds one.
+function siblingsSection(store) {
+  const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
+  const send = (list) => saveConfig(store, { siblings: list }, out, paint);
   const field = (id, label, placeholder) => [h("label", { for: id }, label),
     h("input", { type: "text", id, placeholder, autocomplete: "off", spellcheck: "false" })];
-  const paint = () => {
-    const list = data.siblings || [];
+  function paint() {
+    const list = store.data.siblings || [];
     const fields = [field("sibling-name", t("sib.name"), ""), field("sibling-path", t("sib.path"), "/home/you/code/catalog"),
       field("sibling-mcp", t("sib.mcpLabel"), "oga-catalog"), field("sibling-watch", t("sib.watchLabel"), "cuts/ACTIVE"),
       field("sibling-age", t("sib.ageLabel"), "35")];
@@ -69,15 +109,26 @@ async function siblingsSection() {
         ...(value(4) ? { max_age_days: Number(value(4)) } : {}) };
       send([...list, entry]);
     });
-    const remove = (s) => {
+    const remove = (_v, s) => {
       const b = h("button", { type: "button", "aria-label": t("sib.remove", { name: s.name }) }, t("common.remove"));
       b.addEventListener("click", () => send(list.filter((x) => x !== s)));
-      return h("li", null, h("strong", null, s.name), " ", h("code", { class: "tok" }, s.path), " ", b);
+      return b;
     };
+    const text = (v) => v || "-";
+    const columns = [{ key: "name", label: t("sib.name"), render: text },
+      { key: "path", label: t("sib.path"), render: (v) => h("code", { class: "tok" }, v) },
+      { key: "mcp", label: t("sib.col.mcp"), render: text }, { key: "watch", label: t("sib.col.watch"), render: text },
+      { key: "remove", label: t("sib.col.actions"), render: remove }];
     root.replaceChildren(h("h2", null, t("sib.title")), h("p", { class: "muted" }, t("sib.settingsLead")),
-      list.length ? h("ul", { class: "plain-list" }, list.map(remove)) : h("p", { class: "muted" }, t("sib.none")),
+      list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")),
       h("div", { class: "sibling-form" }, fields.flat(), add));
-  };
+  }
   paint();
   return h("div", null, root, out);
+}
+
+// The tab body: one fetch feeds both sections; a failure reaches the tab's error panel (with Retry).
+async function projectsTab() {
+  const store = { data: await api("projects") };
+  return [projectsSection(store), siblingsSection(store)];
 }

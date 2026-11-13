@@ -1,6 +1,6 @@
 "use strict";
-// Settings editor: a closed list of options, preview -> confirm -> apply, with undo (#/settings).
-// Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
+// Settings (#/settings): three tabs in ?tab= (Preferences, Projects and siblings, Appearance). This file holds the page shell and the
+// Preferences editor: a closed list of options, preview -> confirm -> apply, with undo. Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 // ---- Settings editor: a closed list of options, always preview -> confirm -> apply, with undo ----------------------------------------
 // Labels and help are i18n keys (resolved with t() when the page is built).
@@ -18,6 +18,7 @@ const SETTING_MODULES = [
   ["impeccable", "set.mod.impeccable", "set.mod.impeccable.help"],
   ["archify", "set.mod.archify", "set.mod.archify.help"],
 ];
+const SETTING_GROUPS = [["set.group.behavior", ["persona", "review_mode"]], ["set.group.hooks", ["telemetry", "privacy", "checks"]]];
 const PERSONA_LABELS = Object.fromEntries(SETTING_OPTIONS[0][2]); // "now Gentleman" matches the select (plan N12h)
 const valueLabel = (v) => (v === "on" ? t("common.on") : v === "off" ? t("common.off") : PERSONA_LABELS[v] ? t(PERSONA_LABELS[v]) : v);
 const setDisabled = (el, on) => { if (on) el.setAttribute("disabled", ""); else el.removeAttribute("disabled"); };
@@ -46,39 +47,7 @@ function settingLabel(key) {
   return labels[key] ? t(labels[key]) : key;
 }
 
-// Settings > Projects: the paths saved in portal.json and the auto-discover switch. Every change is one guarded POST; the server validates the paths.
-async function projectsSection() {
-  let data;
-  try { data = await api("projects"); } catch (_) { return null; }
-  const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
-  const send = async (body) => {
-    out.replaceChildren(h("p", { role: "status", class: "muted" }, t("common.saving")));
-    let res;
-    try { res = await postJson("/api/projects/config", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
-    if (!res.ok) { out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, `▲ ${res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status })}`, h("p", null, t(R.settingsAdvice(res.status).key)))); return; }
-    data = res.data;
-    paint();
-    out.replaceChildren(h("p", { role: "status" }, "✓ " + t("common.saved")));
-  };
-  const paint = () => {
-    const input = h("input", { type: "text", id: "project-path", placeholder: "/home/you/code/my-project", "aria-label": t("sp.pathLabel"), autocomplete: "off", spellcheck: "false" });
-    const add = h("button", { type: "button" }, t("sp.add"));
-    add.addEventListener("click", () => { const v = String(input.value || "").trim(); if (v) send({ repos: [...data.config_repos, v] }); });
-    const box = h("input", { type: "checkbox", id: "project-auto", checked: data.auto_discover });
-    box.addEventListener("change", (e) => send({ auto_discover: !!e.target.checked }));
-    const found = data.projects.filter((p) => p.origin.includes("discovered") && !p.origin.includes("config") && !p.origin.includes("flag"));
-    root.replaceChildren(h("h2", null, t("nav.project")),
-      h("p", { class: "muted" }, t("sp.intro")),
-      data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map((p) => { const b = h("button", { type: "button" }, t("common.remove")); b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== p) })); return h("li", null, h("code", { class: "tok" }, p), " ", b); })) : h("p", { class: "muted" }, t("sp.none")),
-      h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
-      h("p", null, box, h("label", { for: "project-auto" }, " " + t("sp.auto"))),
-      h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null)); // replaceChildren(null) would write the text "null" in a browser
-  };
-  paint();
-  return h("div", null, root, out);
-}
-
-async function viewSettings() {
+async function preferencesTab() {
   let info = await api("settings");
   let draft = null;
   const root = h("div", { class: "settings" });
@@ -104,6 +73,11 @@ async function viewSettings() {
     });
     return h("div", { class: "option" }, h("label", { for: id }, t(label)), select, h("span", { class: "current" }, t("set.now", { value: valueLabel(value) })), mark, h("p", { id: `${id}-help`, class: "option-help muted" }, t(help)));
   };
+  const optionGroup = (title, items) => h("section", { class: "option-group" }, h("h2", null, t(title)), ...items);
+  const prefOption = (key) => {
+    const [, label, choices, help] = SETTING_OPTIONS.find((o) => o[0] === key);
+    return option(key, `set-${key.replace("_", "-")}`, label, choices, info.current[key], help);
+  };
   const buildForm = () => {
     draft = copy(info.current);
     marks.clear();
@@ -113,10 +87,9 @@ async function viewSettings() {
     repairBtn.addEventListener("click", () => runPreview(true));
     formBox.replaceChildren(...[
       info.installed ? null : h("p", { class: "notice" }, t("set.notInstalled")),
-      h("div", { class: "options" },
-        ...SETTING_OPTIONS.map(([key, label, choices, help]) => option(key, `set-${key.replace("_", "-")}`, label, choices, info.current[key], help)),
-        h("h2", null, t("set.modules")),
-        ...SETTING_MODULES.map(([name, label, help]) => option(`module:${name}`, `set-module-${name}`, label, [["off", "set.off"], ["on", "set.on"]], info.current.modules[name], help))),
+      h("div", { class: "options" }, ...SETTING_GROUPS.map(([title, keys]) => optionGroup(title, keys.map(prefOption))),
+        optionGroup("set.modules", SETTING_MODULES.map(([name, label, help]) =>
+          option(`module:${name}`, `set-module-${name}`, label, [["off", "set.off"], ["on", "set.on"]], info.current.modules[name], help)))),
       h("div", { class: "actions" }, previewBtn),
       h("section", { class: "repair" }, h("h2", null, t("set.repairTitle")),
         h("p", { class: "muted" }, t("set.repairHelp")), h("div", { class: "actions" }, repairBtn))].filter(Boolean));
@@ -205,9 +178,26 @@ async function viewSettings() {
   }
 
   buildForm();
-  const [projectsBox, siblingsBox] = await Promise.all([projectsSection(), siblingsSection()]);
-  root.append(h("h1", null, t("nav.settings")),
-    h("p", { class: "muted" }, t("set.intro")),
-    formBox, out, ...[projectsBox, siblingsBox].filter(Boolean));
-  return [root];
+  return [h("p", { class: "muted" }, t("set.intro")), formBox, out];
+}
+
+// The language choice: the same setting as the Display popover; changing it builds the page again in the new language.
+const LANGUAGES = [["en", "lang.en"], ["es", "lang.es"]]; // each language is named in itself in both dictionaries
+function languageSection() {
+  const pick = h("select", { id: "set-lang", "aria-describedby": "set-lang-help" }, LANGUAGES.map(([v, l]) => h("option", { value: v }, t(l))));
+  pick.value = I.lang();
+  pick.addEventListener("change", (e) => setLanguage(e.target.value));
+  return h("section", { class: "option-group" }, h("h2", null, t("chrome.language")),
+    h("div", { class: "option" }, h("label", { for: "set-lang" }, t("chrome.language")), pick, h("p", { id: "set-lang-help", class: "option-help muted" }, t("set.lang.help"))));
+}
+async function appearanceTab() { return [h("p", { class: "muted" }, t("theme.intro")), ...(await viewThemes()), languageSection()]; }
+
+// The page: one title, the tabs (links that keep the tab in the URL) and the active tab's body, loaded inside its own panel.
+const SETTINGS_BODIES = () => ({ preferences: preferencesTab, projects: projectsTab, appearance: appearanceTab });
+async function viewSettings(route) {
+  const current = R.settingsTab(route);
+  const link = (x) => h("a", { href: R.routeHash({ kind: "settings", id: "", query: { tab: x } }), "aria-current": x === current ? "page" : false },
+    t(`set.tab.${x}`));
+  return [h("div", { class: "settings" }, pageHead(t("nav.settings")), h("nav", { class: "tabs", "aria-label": t("nav.tabs") }, R.SETTINGS_TABS.map(link)),
+    tabPanel(t(`set.tab.${current}`), SETTINGS_BODIES()[current]))];
 }

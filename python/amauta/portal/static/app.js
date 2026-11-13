@@ -156,7 +156,7 @@ function sessionColumns() {
 const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewCatalog, tool: viewTools, mcp: viewTools,
   component: viewCatalog, session: viewSessions,
   memory: viewMemories, memfile: viewMemoryFiles, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings,
-  lint: viewLint, themes: viewThemes, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide });
+  lint: viewLint, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide });
 async function renderRoute(route) {
   const { kind, id } = route;
   if (kind === "unknown") return [teach(t("route.notPage"), t("route.noMatch", { id }))];
@@ -231,7 +231,7 @@ async function render() {
   const key = `${route.kind}/${route.id}/${route.source || ""}`;
   const changed = state.shown !== key;
   renderNav(route);
-  if (route.kind !== "themes") { state.preview = null; state.themeDraft = null; applyTheme(); } // leaving the editor ends its preview
+  if (!onAppearance(route)) { state.preview = null; state.themeDraft = null; applyTheme(); } // leaving the editor ends its preview
   $("filters").hidden = !R.showsFilters(route);
   $("shell").setAttribute("data-nav", "closed");
   $("nav-toggle").setAttribute("aria-expanded", "false");

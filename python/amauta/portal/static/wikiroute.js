@@ -4,7 +4,7 @@
   // kind -> label shown in the sidebar and as the page's kind label
   const KINDS = {
     home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
-    node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint", themes: "Themes",
+    node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint",
     security: "Security", pipelines: "Pipelines", guide: "Guide",
     hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
   };
@@ -26,15 +26,14 @@
       { hub: "component", kind: "component", hash: "#/component", key: "nav.catalog" },
       { hub: "security", kind: "security", hash: "#/security", key: "nav.security" }] },
     { id: "foot", key: "nav.group.foot", foot: true, items: [{ hub: "guide", kind: "guide", hash: "#/guide", key: "nav.guide" },
-      { hub: "settings", kind: "settings", hash: "#/settings", key: "nav.settings",
-        tabs: [tab("settings", "nav.settings"), tab("themes", "nav.themes")] }] },
+      { hub: "settings", kind: "settings", hash: "#/settings", key: "nav.settings" }] }, // its tabs ride in ?tab= (SETTINGS_TABS)
   ];
   // An item kind -> the list route that shows it (a hub's own kind or one of its tabs), with the query that list needs.
   const CATALOG = ["hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"];
   // Every kind the Catalog (#/component) lists, in its order; ?kind= picks one. Their item pages crumb through Catalog / <kind>.
   const CATALOG_KINDS = ["skill", "hook", "mcp", "mcptool", "connector", "tool", "agent", "command", "plugin", "outputstyle"];
   const catalogItem = (r) => Boolean(r && typeof r === "object" && r.id && CATALOG_KINDS.includes(r.kind));
-  const LIST_OF = { feature: { kind: "project" }, mcp: { kind: "tool", query: { seg: "mcp" } },
+  const LIST_OF = { feature: { kind: "project" }, mcp: { kind: "tool", query: { seg: "mcp" } }, themes: { kind: "settings" },
     skill: { kind: "component", query: { kind: "skill" } },
     ...Object.fromEntries(CATALOG.map((k) => [k, { kind: "component" }])) };
   const listOf = (kind) => LIST_OF[kind] || { kind };
@@ -71,6 +70,9 @@
     const feature = r.kind === "feature";
     return { project: id.slice(0, cut), rest: id.slice(cut + (feature ? 1 : 2)), tab: feature ? "features" : "graph" };
   }
+  // Settings: preferences (default, never written), projects and siblings, appearance; carried as ?tab= like the project hub.
+  const SETTINGS_TABS = ["preferences", "projects", "appearance"];
+  function settingsTab(route) { const v = route && route.query && route.query.tab; return SETTINGS_TABS.includes(v) ? v : "preferences"; }
   const PROJECT_BASE = [{ key: "nav.group.work" }, { key: "nav.project", hash: "#/project" }];
   function projectCrumbs(r) {
     const owner = ownerOf(r);
@@ -86,6 +88,7 @@
   function crumbs(route) {
     const r = route || {}, item = itemOf(r.kind);
     if (!item || r.kind === "unknown") return [];
+    if (r.kind === "settings") return [{ key: "nav.settings", hash: "#/settings" }, { key: `set.tab.${settingsTab(r)}` }];
     if (r.id && (r.kind === "project" || ownerOf(r))) return projectCrumbs(r);
     if (catalogItem(r)) return [{ key: "nav.group.harnessWiki" }, { key: "nav.catalog", hash: "#/component" },
       { key: `catalog.kind.${r.kind}`, hash: routeHash({ kind: "component", id: "", query: { kind: r.kind } }) }, { text: r.id }];
@@ -100,13 +103,14 @@
   // Old hashes keep working: they parse to their new route and redirectOf() names the hash to rewrite them to.
   const LEGACY = { overview: "home", usage: "usage", sessions: "session", memories: "memory", harness: "harness", diagrams: "harness" };
   const ACTIVITY_TABS = { usage: { kind: "usage" }, sessions: { kind: "session" }, tools: { kind: "tool" }, mcp: LIST_OF.mcp };
-  const MOVED_LISTS = { diagrams: { kind: "harness" }, mcp: LIST_OF.mcp, skill: LIST_OF.skill }; // list routes folded into another page
+  const MOVED_LISTS = { diagrams: { kind: "harness" }, mcp: LIST_OF.mcp, skill: LIST_OF.skill,
+    themes: { kind: "settings", query: { tab: "appearance" } } }; // list routes folded into another page
   // The Tools and skills segments: hash value -> /api/tools field.
   const SEGMENTS = { skills: "skills", tools: "tools", mcp: "mcp_servers", mcptools: "mcp_tools", subagents: "subagents" };
   const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   const QUERY = { seg: (v) => own(SEGMENTS, v), kind: (v) => CATALOG_KINDS.includes(v), source: (v) => SOURCES.includes(v),
-    tab: (v) => v !== "overview" && PROJECT_TABS.includes(v) };
+    tab: (v) => (v !== "overview" && PROJECT_TABS.includes(v)) || (v !== "preferences" && SETTINGS_TABS.includes(v)) };
 
   function decode(part) {
     try { return decodeURIComponent(part); } catch (_) { return part; }
@@ -384,7 +388,7 @@
 
   globalThis.AmautaRoute = {
     NAV, SEGMENTS, CATALOG_KINDS,
-    PROJECT_TABS, TAB_KEYS, projectTab, hubOf, tabOf, crumbs, redirectOf, routeHash, usageSegment, segmentHash,
+    PROJECT_TABS, TAB_KEYS, projectTab, SETTINGS_TABS, settingsTab, hubOf, tabOf, crumbs, redirectOf, routeHash, usageSegment, segmentHash,
     filterSkills, filterComponents, setLocale, fmtNumber, fmtDecimal, fmtPercent, fmtDate, fmtDateTime, fmtIso,
     fmtMeta, isLongToken, splitDates, isPathLike, pathSegments, showsFilters, settingsChanges, settingsBody, settingsAdvice,
     KINDS, parseHash, formatHash, flattenResults, moveIndex, diffRow, progress, dailyBars, deltaMark, fmtMetric, fmtDelta,

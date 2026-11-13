@@ -54,7 +54,7 @@ I.load(fetch).catch(() => {}).then(() => {
   applyLanguage(I.loadLang(I.storage()) || I.detect(I.browserLanguage())); // a stored choice wins over the browser language
   applyTheme();
   paintPicker();
-  if (state.route.kind !== "themes") loadThemes(); // the editor page loads them itself
+  if (!onAppearance(state.route)) loadThemes(); // the editor page loads them itself
   loadProjects().then(render);
 });
 // Liveness signal: lets a launcher-started server exit once the window is gone. Failures are silent on purpose.

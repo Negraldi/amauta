@@ -26,7 +26,7 @@ test('NAV lists the job groups in order, each item with its hub, hash, label key
   const tabs = (hub) => plain(R.NAV.flatMap((g) => g.items).find((i) => i.hub === hub).tabs.map((t) => t.kind));
   assert.deepEqual(tabs('memory'), ['memory', 'memfile', 'lint']);
   assert.deepEqual(tabs('usage'), ['usage', 'session', 'tool']);
-  assert.deepEqual(tabs('settings'), ['settings', 'themes']);
+  assert.equal(R.NAV.flatMap((g) => g.items).find((i) => i.hub === 'settings').tabs, undefined, 'Settings tabs ride in ?tab=, not in the nav model');
   assert.ok(R.NAV.every((g) => typeof g.key === 'string' && g.items.every((i) => /^nav\./.test(i.key))));
   assert.equal(R.NAV.find((g) => g.id === 'foot').foot, true);
 });
@@ -83,7 +83,7 @@ test('crumbs: group, hub (or tab) and the item; list pages stop at the hub', () 
     { key: 'catalog.kind.skill', hash: '#/component?kind=skill' }, { text: 's' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/session'))), [{ key: 'nav.activity' }, { key: 'nav.usage', hash: '#/usage' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/lint'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.memory', hash: '#/memory' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/themes'))), [{ key: 'nav.settings', hash: '#/settings' }], 'foot pages have no group');
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/themes'))), [{ key: 'nav.settings', hash: '#/settings' }, { key: 'set.tab.appearance' }], 'foot pages have no group');
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/nope'))), []);
 });
 

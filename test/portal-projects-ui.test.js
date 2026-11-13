@@ -118,7 +118,7 @@ const SETTINGS = { installed: true, current: { persona: 'gentleman', review_mode
 const byText = (el, tag, text) => tree(el).find((e) => e.tagName === tag && e.textContent === text);
 
 test('Settings lists configured project paths and the auto-discover switch', async () => {
-  const { env } = await boot('#/settings', { '/api/settings': SETTINGS });
+  const { env } = await boot('#/settings?tab=projects', { '/api/settings': SETTINGS });
   const v = view(env);
   assert.match(v.textContent, /Projects/);
   assert.match(v.textContent, /\/home\/u\/beta/);
@@ -128,7 +128,7 @@ test('Settings lists configured project paths and the auto-discover switch', asy
 });
 
 test('adding a path posts the whole list with the token and JSON, then shows the answer', async () => {
-  const { env, posts } = await boot('#/settings', { '/api/settings': SETTINGS });
+  const { env, posts } = await boot('#/settings?tab=projects', { '/api/settings': SETTINGS });
   const input = tree(view(env)).find((e) => e.tagName === 'input' && e.attrs.type === 'text');
   input.value = '/home/u/new';
   byText(view(env), 'button', 'Add project').click();
@@ -141,7 +141,7 @@ test('adding a path posts the whole list with the token and JSON, then shows the
 });
 
 test('removing a path and toggling auto-discover post only what changed', async () => {
-  const { env, posts } = await boot('#/settings', { '/api/settings': SETTINGS });
+  const { env, posts } = await boot('#/settings?tab=projects', { '/api/settings': SETTINGS });
   byText(view(env), 'button', 'Remove').click();
   await tick();
   assert.deepEqual(posts[0].body, { repos: [] });
@@ -152,7 +152,7 @@ test('removing a path and toggling auto-discover post only what changed', async 
 });
 
 test('a rejected path shows the server message inline and nothing else changes', async () => {
-  const { env } = await boot('#/settings', { '/api/settings': SETTINGS, '/api/projects/config': { __status: 400, error: `not an existing directory: ${XSS}` } });
+  const { env } = await boot('#/settings?tab=projects', { '/api/settings': SETTINGS, '/api/projects/config': { __status: 400, error: `not an existing directory: ${XSS}` } });
   const input = tree(view(env)).find((e) => e.tagName === 'input' && e.attrs.type === 'text');
   input.value = '/nope';
   byText(view(env), 'button', 'Add project').click();

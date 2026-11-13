@@ -1,5 +1,5 @@
 "use strict";
-// Themes: the sidebar picker and the theme editor (#/themes).
+// Themes: the display picker and the theme editor (Settings > Appearance, #/settings?tab=appearance).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 // ---- Themes: picker in the sidebar, and the editor page (list, live preview, save, import, export) ----------------------------------
@@ -7,6 +7,7 @@
 // browser storage through TH.storage() (try/catch: the page works without it); the theme files themselves are stored by the server through guarded writes.
 const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateTheme({ name: th.name, base: th.base, tokens: th.tokens }).ok);
 const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((th) => `custom:${th.slug}` === state.themeChoice) ? "system" : state.themeChoice);
+const onAppearance = (route) => route.kind === "settings" && R.settingsTab(route) === "appearance"; // the editor previews its draft here
 function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); }
 function paintPicker() {
   const pick = $("theme-picker");
@@ -182,7 +183,7 @@ async function viewThemes() {
   }
   paintList();
   paintForm();
-  root.append(h("h1", null, t("nav.themes")), h("p", { class: "muted" }, t("theme.intro")), listBox, formBox, out);
+  root.append(h("h2", null, t("nav.themes")), listBox, formBox, out);
   return [root];
 }
 

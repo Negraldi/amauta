@@ -19,7 +19,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
 - [x] T5 Activity: usage, sessions, one tools-and-skills table
 - [x] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
-- [ ] T7 Settings: preferences, projects and siblings, appearance (themes, language)
+- [x] T7 Settings: preferences, projects and siblings, appearance (themes, language)
 - [ ] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
 - [ ] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
 
@@ -141,10 +141,23 @@ Target after redesign: >= 32/40, no P1.
   Browser (temp fixture server on :8797, the :8790 dev server was not answering): harness, catalog, ?kind=skill, skill
   and hook items, security in light/dark and 375px: no page overflow, no console errors.
 
+- 2026-11-13 T7 (route: delegated writer; commit "feat(portal): settings with preferences, projects and appearance tabs"). #/settings is one page with three tabs in ?tab= (R.SETTINGS_TABS,
+  R.settingsTab; preferences is the default and never written): Preferences (options grouped under Behavior, Hooks and
+  privacy, Optional modules; the "changed, was X" mark is ink-muted, not accent; preview/apply/undo unchanged with inline
+  status/alert), Projects and siblings (saved paths + auto-discover and a siblings table with Remove, one shared
+  /api/projects fetch, a teaching empty state, a failure shows the tab error panel with Retry), Appearance (theme editor
+  as an h2 section plus a language select #set-lang). Tab bodies load inside tabPanel (skeleton, error + Retry).
+  #/themes redirects to #/settings?tab=appearance (MOVED_LISTS); there never was a #/siblings route. Breadcrumb Settings /
+  <tab>. The Display popover's Edit themes link points to ?tab=appearance. The settings nav tabs and the themes kind left
+  wikiroute.js (397 lines). RED first (test/portal-settings-tabs.test.js 13/13 failing), then GREEN: portal node 407/407,
+  simplicity green (page-settings long lines 28 -> 25). Changed expectations: NAV settings has no tabs; #/themes crumbs end
+  in set.tab.appearance; projects and siblings settings tests boot ?tab=projects; the theme tabs test checks the redirect
+  and the Appearance tab link; i18n DYNAMIC allows set.tab.*; dead keys sib.none, sp.pathLabel, kind.themes removed.
+
 ## Next step
 
-T7 Settings: preferences, projects and siblings, appearance (themes, language). Carry-overs: restart the dev server on
-:8790 (it was down during T6); the health sentence counts harness components only (the catalog total also has skills);
-T8: progress bars on --accent, data token chroma/lightness per the dataviz validator, filter-state wraps under the title
-on narrow content widths, .archify-frame CSS is now unused, the Spanish status words (activado/desactivado) are
-gendered in other places.
+T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish. Carry-overs: progress bars on
+--accent -> --ok / data color; data token chroma/lightness per the dataviz validator; filter-state wraps under the title on
+narrow content widths; .archify-frame CSS is unused; Spanish status words (activado/desactivado) are gendered elsewhere;
+the health sentence counts harness components only; siblings table shows the watch file but not its age limit; Settings
+has no theme picker (only the Display popover).

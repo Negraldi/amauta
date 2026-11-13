@@ -50,7 +50,7 @@ test('the Projects page shows each sibling\'s health and what needs attention', 
 });
 
 test('Settings adds and removes a sibling through the projects config', async () => {
-  const { view, posts } = await boot('#/settings');
+  const { view, posts } = await boot('#/settings?tab=projects');
   const field = (id) => tree(view).find((e) => e.attrs?.id === id);
   field('sibling-name').value = 'ETL';
   field('sibling-path').value = '/home/u/etl';
