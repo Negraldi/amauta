@@ -27,6 +27,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
 - [x] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
 - [x] T14 Cross-page data agreement (2026-11-13, third independent critique scored 26/40; its P1s are data contradictions, not UI): session start time, model and project agree on every page; memory list says how many of N and pages; active folders that are not listed as projects are explained; session page in the UI language with formatted numbers; P2/P3 items
+- [ ] T15 Full-coverage critique (user, 2026-11-13: "learn from each critique; every view must be right; cover as much as possible"; lower-tier reviewers): docs/audits/portal-critique-checklist.md holds the coverage matrix and the learned classes; area reviewers fill the matrix; findings fixed and each new class added to the checklist with a guard test
 
 ## Acceptance criteria
 
