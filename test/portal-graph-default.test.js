@@ -56,7 +56,7 @@ test('the toggle and the order select reload the list with their choice', async 
 test('node kinds are shown as words; an unknown kind stays as sent', async () => {
   const { view } = await boot('#/node');
   const cells = tree(view).filter((e) => e.tagName === 'td').map((e) => e.textContent);
-  assert.ok(cells.includes('Code symbol'));
+  assert.ok(cells.includes('Code'));
   assert.ok(cells.includes('Document'));
   assert.ok(cells.includes('weird'));
   assert.ok(!cells.includes('code'));
@@ -69,5 +69,5 @@ test('a node page names its kind in words', async () => {
   await runPortal(env, { DOMParser: class {}, queueMicrotask });
   await tick();
   const dds = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'dd').map((e) => e.textContent);
-  assert.ok(dds.includes('Code symbol'), dds.join(' | '));
+  assert.ok(dds.includes('Code'), dds.join(' | '));
 });
