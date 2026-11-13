@@ -84,5 +84,11 @@ def label(portal, session_id, project, model, messages, first_ts):
 
 
 def what(n):
-    """The recent-changes line of a session; one message is singular (the client translates both forms)."""
-    return "session, 1 message" if n == 1 else f"session, {n} messages"
+    """The recent-changes line of a session; one message is singular (the client translates both forms). The row's kind
+    label already says it is a session."""
+    return "1 message" if n == 1 else f"{n} messages"
+
+
+def feed_what(n, title):
+    """what(n), or nothing when the title already carries the count (a session without a first prompt)."""
+    return "" if what(n) in title else what(n)

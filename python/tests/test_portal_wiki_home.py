@@ -38,6 +38,15 @@ class HomeTest(WikiBase):
                 self.assertTrue(i["ts"].startswith(d["day"]))
         self.assertIn("memory revised (revision 2)", [i["what"] for i in items])
 
+    def test_a_session_row_says_each_fact_once(self):
+        items = [i for d in self.home()["activity"] for i in d["items"] if i["kind"] == "session"]
+        self.assertTrue(items)
+        for i in items:
+            self.assertFalse(i["what"].startswith("session"), i)
+            line = f"{i['title']} {i['what']}"
+            for n in set(__import__("re").findall(r"\d+ messages?", line)):
+                self.assertEqual(line.count(n), 1, line)
+
     def test_activity_is_capped_per_day_and_in_days(self):
         st = mstore.Store(self.f["state"] / "memory.db")
         for n in range(40):
@@ -78,5 +87,5 @@ class HomeTest(WikiBase):
 class SessionWhatTest(unittest.TestCase):
     def test_one_message_is_singular(self):
         from python.amauta.portal import wikisess
-        self.assertEqual(wikisess.what(1), "session, 1 message")
-        self.assertEqual(wikisess.what(2), "session, 2 messages")
+        self.assertEqual(wikisess.what(1), "1 message")  # the row's kind label already says "Session" (T11 f)
+        self.assertEqual(wikisess.what(2), "2 messages")
