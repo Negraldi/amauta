@@ -151,7 +151,8 @@ function metaList(pg, keep) {
   const rows = keep ? pg.meta.filter(keep) : pg.meta;
   if (!rows.length) return null;
   return h("dl", { class: "meta" }, rows.flatMap((m) => {
-    const raw = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m));
+    const raw = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ")
+      : m.label === "Kind" && pg.kind === "node" ? nodeKind(m.value) : ts(R.fmtMeta(m));
     const v = raw === "true" ? t("common.yes") : raw === "false" ? t("common.no") : raw; // front-matter booleans
     const dt = h("dt", null, `meta.${m.label}` in I.dict.en ? t(`meta.${m.label}`) : ts(m.label)); // SKILL.md keys get labels
     if (R.isPathLike(v)) return [dt, h("dd", null, pathNode(v))];

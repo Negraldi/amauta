@@ -451,9 +451,9 @@ class Portal:
             conn.close()
 
     def graph_nodes(self, q):
-        repo = self._graph_repo(q)
-        limit = _int(q, "limit", 50, 1, 200)
-        return self._graph_call(lambda conn: {"items": graph_query.search_nodes(conn, repo, _str(q, "q", 200) or "", limit)})
+        repo, limit, text = self._graph_repo(q), _int(q, "limit", 50, 1, 200), _str(q, "q", 200) or ""
+        order, vendored = "name" if q.get("order") == "name" else "links", q.get("vendored") == "1"  # default: most connected, no vendored
+        return self._graph_call(lambda conn: {"items": graph_query.search_nodes(conn, repo, text, limit, vendored, order)})
 
     def graph_neighbors(self, q):
         repo = self._graph_repo(q)

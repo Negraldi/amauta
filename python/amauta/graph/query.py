@@ -147,13 +147,37 @@ def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
     return {"repo": repo, "found": True, "depth": found, "max_depth": cap, "truncated": cut, "nodes": [by_id[i] for i in chain], "edges": edges}
 
 
-def search_nodes(conn, repo, text="", limit=50):
-    """Nodes whose label or id contains `text` (LIKE wildcards in `text` are literal)."""
+# Dependency, vendored and minified sources: hidden from the portal's default node list, never from search or walks.
+VENDORED_DIRS = frozenset({"node_modules", "bower_components", "vendor", "vendored", "third_party", "site-packages", ".venv", "venv"})
+MINIFIED = (".min.js", ".min.mjs", ".min.cjs", ".min.css")
+
+
+def is_vendored(path):
+    """True for a file under a dependency or vendored directory, or a minified bundle."""
+    if not path:
+        return False
+    parts = str(path).replace("\\", "/").lower().split("/")
+    return parts[-1].endswith(MINIFIED) or any(p in VENDORED_DIRS for p in parts[:-1])
+
+
+_LINKS = ("(SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.src = n.id)"
+          " + (SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.dst = n.id)")
+
+
+def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None):
+    """Nodes whose label or id contains `text` (LIKE wildcards in `text` are literal), by label.
+
+    order "links" (most connected first) or "name" adds each node's edge count as `links`; vendored=False leaves out
+    is_vendored files. The defaults keep the original shape and order."""
     _check_repo(conn, repo)
     limit = max(1, min(int(limit), 200))
     pat = _like(text or "")
-    return [_node(r) for r in conn.execute(
-        "SELECT id, label, kind, file FROM graph_nodes WHERE repo = ? AND (label LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\') ORDER BY label COLLATE NOCASE, id LIMIT ?", (repo, pat, pat, limit))]
+    conn.create_function("amauta_vendored", 1, is_vendored, deterministic=True)
+    rows = conn.execute(
+        f"SELECT n.id, n.label, n.kind, n.file, {_LINKS if order else '0'} AS links FROM graph_nodes n WHERE n.repo = ? "
+        "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\') AND (? OR NOT amauta_vendored(n.file)) "
+        f"ORDER BY {'links DESC, ' if order == 'links' else ''}n.label COLLATE NOCASE, n.id LIMIT ?", (repo, pat, pat, 1 if vendored else 0, limit))
+    return [{**_node(r), "links": r["links"]} if order else _node(r) for r in rows]
 
 
 def stats(conn, repo):

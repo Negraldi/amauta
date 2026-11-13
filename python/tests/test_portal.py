@@ -283,6 +283,10 @@ class MemoryViewsTest(ApiBase):
         self.assertEqual(len(everything), 6)
         self.assertEqual([n["id"] for n in self.get("/api/graph/nodes", repo=key, q="alp")["items"]], ["a"])
         self.assertIn(fx.XSS, [n["label"] for n in everything])  # raw text; the UI renders it with textContent
+        self.assertEqual(everything[0]["id"], "a", "most connected first by default")
+        self.assertIn("links", everything[0])
+        by_name = self.get("/api/graph/nodes", repo=key, order="name")["items"]
+        self.assertEqual([n["label"] for n in by_name], sorted((n["label"] for n in by_name), key=str.lower))
         near = self.get("/api/graph/neighbors", repo=key, node="a", depth=2)
         self.assertEqual({n["id"] for n in near["nodes"]}, {"a", "b", "e", "c"})
 

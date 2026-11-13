@@ -256,6 +256,30 @@ class QueryTest(Base):
         self.assertEqual(query.search_nodes(self.conn, self.key, "%"), [])
         self.assertEqual(len(query.search_nodes(self.conn, self.key, "")), 6)
 
+    def test_ranked_search_puts_connected_nodes_first_and_hides_vendored_files(self):
+        data = {"nodes": [node("hub", "zeta hub"), node("leaf1"), node("leaf2"), node("lone", "aaa lone"),
+                          node("min", "$d", source_file="static/mermaid.min.js"), node("dep", "dep", source_file="web/node_modules/x/i.js"),
+                          node("ven", "ven", source_file="vendor/lib.py"), node("vendorish", "vendorish", source_file="src/vendoring.py")],
+                "links": [edge("hub", "leaf1"), edge("hub", "leaf2"), edge("leaf1", "leaf2"), edge("min", "hub"), edge("dep", "hub")]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+        ranked = query.search_nodes(self.conn, self.key, "", order="links", vendored=False)
+        self.assertEqual([n["id"] for n in ranked], ["hub", "leaf1", "leaf2", "lone", "vendorish"])
+        self.assertEqual([n["links"] for n in ranked], [4, 2, 2, 0, 0])
+        everything = query.search_nodes(self.conn, self.key, "", order="links", vendored=True)
+        self.assertEqual(len(everything), 8)
+        self.assertNotIn("links", query.search_nodes(self.conn, self.key, "")[0], "the default shape is unchanged")
+        by_name = query.search_nodes(self.conn, self.key, "", order="name", vendored=False)
+        self.assertEqual(by_name[0]["label"], "aaa lone")
+        self.assertIn("links", by_name[0])
+
+    def test_vendored_paths(self):
+        for path in ("static/mermaid.min.js", "a/node_modules/b.js", "vendor/x.py", "third_party/y.c", "lib/site-packages/z.py",
+                     ".venv/lib/q.py", "web/bower_components/k.js", "css/app.min.css", "C:\\proj\\node_modules\\a.js"):
+            self.assertTrue(query.is_vendored(path), path)
+        for path in ("src/vendoring.py", "src/minimal.js", "docs/vendor.md", "", None, "app.js"):
+            self.assertFalse(query.is_vendored(path), path)
+
 
 class WalkBoundsTest(Base):
     def test_walk_rows_are_bounded_before_grouping(self):

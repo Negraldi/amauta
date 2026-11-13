@@ -12,6 +12,26 @@ function graphDiagram(repo, node, depth) {
 }
 
 // One block per --repo: stats, searchable node list, neighbors of the selected node. Data only ever becomes text.
+// A node kind (graphify's file_type) as a word; an unknown kind is shown as sent.
+function nodeKind(k) {
+  const key = `graph.kind.${k}`;
+  return k && key in I.dict.en ? t(key) : k || "-";
+}
+// The node list opens on meaningful nodes (T11 b): most connected first, vendored, minified and dependency files hidden
+// behind a labelled toggle. Both choices go to the server, which ranks and filters before the 50-row cap.
+function graphFilters(onChange) {
+  const vendored = h("input", { type: "checkbox", id: "graph-vendored" });
+  const order = h("select", { "aria-label": t("graph.order") },
+    h("option", { value: "links" }, t("graph.orderLinks")), h("option", { value: "name" }, t("graph.orderName")));
+  vendored.addEventListener("change", onChange);
+  order.addEventListener("change", onChange);
+  const query = () => ({ vendored: vendored.checked ? "1" : "", order: order.value === "name" ? "name" : "" });
+  return { query, el: [order, h("label", { class: "check", for: "graph-vendored" }, vendored, t("graph.vendored"))] };
+}
+const KIND_COLUMN = () => ({ key: "kind", label: t("col.kind"), render: nodeKind });
+const NODE_COLUMNS = () => [{ key: "label", label: t("col.node"), link: true, attr: "data-graph" }, KIND_COLUMN(),
+  { key: "links", label: t("col.links"), num: true }, { key: "file", label: t("col.file") }];
+
 function graphRepo(r) {
   if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason ? codeSpans(ts(r.reason)) : t("graph.notAvailable"))) };
   const q = h("input", { type: "search", placeholder: t("graph.searchNodes"), "aria-label": t("graph.searchNodesLabel") });
@@ -21,19 +41,23 @@ function graphRepo(r) {
   const show = guarded(async (node) => {
     const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
     near.replaceChildren(h("h3", null, t("graph.neighborsOf", { name: node.label || node.id })), h("p", null, link("node", `${r.name}::${node.id}`, t("graph.openPage"))),
-      table("gn-" + r.path, [{ key: "depth", label: t("graph.depth"), num: true }, { key: "label", label: t("col.label") }, { key: "kind", label: t("col.kind") }, { key: "file", label: t("col.file") }], g.nodes),
+      table("gn-" + r.path, [{ key: "depth", label: t("graph.depth"), num: true }, { key: "label", label: t("col.label") }, KIND_COLUMN(), { key: "file", label: t("col.file") }], g.nodes),
       h("h3", null, t("graph.diagramTitle")), graphDiagram(r.path, node.id, depth.value),
       g.edges.length ? table("ge-" + r.path, [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation") }, { key: "dst", label: t("col.to") }], g.edges) : empty(t("graph.noEdges")));
   }, near);
   const load = guarded(async () => {
-    const g = await api("graph/nodes", { repo: r.path, q: q.value });
-    list.replaceChildren(g.items.length ? table("gnodes-" + r.path, [{ key: "label", label: t("col.node"), link: true, attr: "data-graph" }, { key: "kind", label: t("col.kind") }, { key: "file", label: t("col.file") }], g.items, show) : empty(t("graph.noMatch")));
+    const g = await api("graph/nodes", { repo: r.path, q: q.value, ...filters.query() });
+    list.replaceChildren(g.items.length ? table("gnodes-" + r.path, NODE_COLUMNS(), g.items, show) : empty(t("graph.noMatch")));
   }, list);
+  const filters = graphFilters(() => { // a server order by name must not be re-sorted by links in the table
+    if (filters.query().order) state.sort["gnodes-" + r.path] = { key: "label", dir: 1 }; else delete state.sort["gnodes-" + r.path];
+    load();
+  });
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
   return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { ...graphCounts(r.nodes, r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: tn("graph.sqlTables", r.sql_tables || 0, { n: fmt(r.sql_tables || 0) }) })),
     h("p", { class: "muted" }, semanticLine(r)),
-    h("div", { class: "controls" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph"))), list, near) };
+    h("div", { class: "controls" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph")), ...filters.el), list, near) };
 }
 
 // Whether a semantic pass is pending, as a sentence, and when the last one ran.

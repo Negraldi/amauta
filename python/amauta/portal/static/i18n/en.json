@@ -844,5 +844,16 @@
  "sib.removed": "Removed {name}.",
  "sp.removeConfirm": "Stop listing {path} as a project? Only the saved path leaves portal.json; the folder is not touched, and it can still appear if it is found automatically.",
  "sp.removeYes": "Remove path",
- "sp.removed": "Removed {path}."
+ "sp.removed": "Removed {path}.",
+ "col.links": "Links",
+ "graph.order": "Order",
+ "graph.orderLinks": "Most connected first",
+ "graph.orderName": "Name",
+ "graph.vendored": "Include vendored, minified and dependency files",
+ "graph.kind.code": "Code symbol",
+ "graph.kind.document": "Document",
+ "graph.kind.paper": "Paper",
+ "graph.kind.image": "Image",
+ "graph.kind.video": "Video",
+ "graph.kind.rationale": "Design rationale"
 }
