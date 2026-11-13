@@ -119,3 +119,14 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 .guide-nav a[aria-current="page"] { font-weight: 600; }
 .guide-page { min-width: 0; }
 @media (max-width: 860px) { .guide { grid-template-columns: minmax(0, 1fr); } .guide-nav { position: static; } }
+
+/* Harness wiki (T6): install facts, status chips, the diagram at natural size in a sideways scroller, wrapped commands. */
+.facts { max-width: 40rem; margin: 0 0 var(--s4); }
+.facts .chip, .chips .chip { margin-left: 0; }
+.chip-off { color: var(--ink-muted); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s3); }
+.arch summary { cursor: pointer; min-block-size: var(--hit); color: var(--accent); }
+.arch-scroll { overflow-x: auto; margin: var(--s3) 0 0; }
+.arch-scroll .diagram { width: max-content; min-width: 100%; margin: 0; overflow: visible; max-height: none; }
+.arch-scroll .diagram svg { max-width: none; }
+.doc pre.code { white-space: pre-wrap; overflow-wrap: break-word; }

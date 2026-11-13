@@ -89,7 +89,8 @@ function loadMermaid() {
   return mermaidReady;
 }
 let mermaidSeq = 0;
-async function drawMermaid(source, into) {
+// natural: keep the drawing at its own width (the caller wraps it in a sideways scroller) instead of shrinking it to fit.
+async function drawMermaid(source, into, natural) {
   try {
     const mermaid = await loadMermaid();
     const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, source);
@@ -97,14 +98,17 @@ async function drawMermaid(source, into) {
     // flowchart labels carry HTML inside <foreignObject>, which is not well-formed XML.
     const root = new DOMParser().parseFromString(svg, "text/html").body.querySelector("svg");
     if (!root) throw new Error(t("diagram.notSvg"));
-    into.replaceChildren(document.importNode(root, true));
+    const drawn = document.importNode(root, true);
+    const w = natural && drawn.viewBox && drawn.viewBox.baseVal ? drawn.viewBox.baseVal.width : 0;
+    if (w) { drawn.style.maxWidth = "none"; drawn.style.width = `${Math.ceil(w)}px`; }
+    into.replaceChildren(drawn);
   } catch (err) {
     into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: String(err.message || err).split("\n")[0] })), h("pre", { class: "text" }, source));
   }
 }
-function diagramBox(source, caption) {
+function diagramBox(source, caption, natural) {
   const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || t("diagram.label") }, h("p", { class: "muted" }, t("common.rendering")));
-  drawMermaid(source, box);
+  drawMermaid(source, box, natural);
   return box;
 }
 
@@ -149,8 +153,8 @@ function sessionColumns() {
     { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums];
 }
 
-const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewSkillCatalog, tool: viewTools, mcp: viewTools,
-  component: (r) => (r.query && r.query.kind === "skill" ? viewSkillCatalog(r) : viewComponents(r)), session: viewSessions,
+const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewCatalog, tool: viewTools, mcp: viewTools,
+  component: viewCatalog, session: viewSessions,
   memory: viewMemories, memfile: viewMemoryFiles, feature: viewFeatures, node: viewGraph, harness: viewHarness, settings: viewSettings,
   lint: viewLint, themes: viewThemes, security: viewSecurity, pipelines: viewPipelines, guide: viewGuide });
 async function renderRoute(route) {
@@ -165,9 +169,18 @@ async function renderRoute(route) {
   return tabs ? [tabs, ...page] : page;
 }
 // Every page opens with exactly one title (impeccable critique, plan N12b); views that build their own h1 keep it.
-const PAGE_TITLES = { harness: "nav.harnessPage", tool: "nav.toolsSkills", mcp: "nav.toolsSkills" };
+const PAGE_TITLES = { harness: "nav.harnessPage", tool: "nav.toolsSkills", mcp: "nav.toolsSkills", component: "nav.catalog" };
 const isH1 = (n) => String(n.tagName).toLowerCase() === "h1";
 const hasTitle = (n) => Boolean(n && n.tagName) && (isH1(n) || Array.from(n.children || []).some(hasTitle));
+// The first h1 of the rendered page: the browser tab title follows it.
+function firstH1(nodes) {
+  for (const n of nodes) {
+    if (!n || !n.tagName) continue;
+    const hit = isH1(n) ? n : firstH1(Array.from(n.children || []));
+    if (hit) return hit;
+  }
+  return null;
+}
 function pageHead(title, intro, aside) {
   return h("header", { class: "page-head" }, h("h1", null, title), aside, intro ? h("p", { class: "lead" }, intro) : null);
 }
@@ -196,7 +209,7 @@ function crumbBar(route) {
   if (!trail.length) return null;
   const last = trail.length - 1;
   const crumb = (c, i) => {
-    const label = c.key ? t(c.key) : c.text;
+    const label = c.key ? t(c.key) : i === last && state.pageTitle ? state.pageTitle : c.text; // an item crumb says the page's own title
     const here = i === last ? "page" : false;
     return h("li", null, c.hash && !here ? h("a", { href: c.hash }, label) : h("span", { "aria-current": here }, label));
   };
@@ -224,10 +237,13 @@ async function render() {
   $("nav-toggle").setAttribute("aria-expanded", "false");
   document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;
   if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }
+  state.pageTitle = null;
   try {
     const nodes = await renderRoute(route);
     if (seq !== renderSeq) return;
     $("view").replaceChildren(...[crumbBar(route), ...nodes].filter(Boolean));
+    const title = firstH1(nodes);
+    if (title) document.title = `${title.textContent} - amauta`;
     state.shown = key;
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {

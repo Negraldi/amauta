@@ -591,7 +591,7 @@ test('the Security page shows protections, checkers, trusted projects, profiles 
   const { env } = await boot('#/security', { '/api/security': report });
   const text = view(env).textContent;
   assert.match(text, /Security/);
-  assert.match(text, /privacy hook is off/i);
+  assert.match(text, /○ Privacy hook: off/); // T6: the protection chips (shape plus words) replace the lead sentence
   for (const needle of ['tsc', 'gitleaks', '/work/app', 'acme', 'cedula']) assert.ok(text.includes(needle), needle);
   assert.match(text, /1 draft/);
   const nav = tree(env.document.getElementById('nav')).find((e) => e.attrs.href === '#/security');

@@ -60,23 +60,27 @@ test('hubOf maps every kind (or route) to its sidebar hub; tabOf names the tab o
     outputstyle: 'component', security: 'security', guide: 'guide', settings: 'settings', themes: 'settings' };
   for (const [kind, hub] of Object.entries(want)) {
     assert.equal(R.hubOf(kind), hub, kind);
-    assert.equal(R.hubOf({ kind, id: 'x' }), hub, `${kind} item`);
+    // An MCP server or built-in tool page is a Catalog item (T6), although the old #/mcp list folds into Tools and skills.
+    assert.equal(R.hubOf({ kind, id: 'x' }), ['mcp', 'tool'].includes(kind) ? 'component' : hub, `${kind} item`);
   }
   for (const k of Object.keys(R.KINDS)) assert.ok(R.NAV.some((g) => g.items.some((i) => i.hub === R.hubOf(k))), `${k} has a hub`);
   assert.equal(R.tabOf({ kind: 'session', id: 'abc' }), 'session');
-  assert.equal(R.tabOf({ kind: 'mcp', id: 'engram' }), 'tool');
+  assert.equal(R.tabOf({ kind: 'mcp', id: 'engram' }), null, 'a Catalog item, not an Activity tab');
   assert.equal(R.tabOf({ kind: 'memfile', id: 'f' }), 'memfile');
   assert.equal(R.tabOf({ kind: 'hook', id: 'x' }), null);
 });
 
 test('crumbs: group, hub (or tab) and the item; list pages stop at the hub', () => {
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/hook/X'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' }, { text: 'X' }]);
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/hook/X'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' },
+    { key: 'catalog.kind.hook', hash: '#/component?kind=hook' }, { text: 'X' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/feature/proj/name'))),
     [{ key: 'nav.group.work' }, { key: 'nav.project', hash: '#/project' }, { text: 'proj', hash: '#/project/proj?tab=features' }, { text: 'name' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/memory/k'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.memory', hash: '#/memory' }, { text: 'k' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/session/id'))), [{ key: 'nav.activity' }, { key: 'nav.session', hash: '#/session' }, { text: 'id' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/mcp/engram'))), [{ key: 'nav.activity' }, { key: 'nav.toolsSkills', hash: '#/tool?seg=mcp' }, { text: 'engram' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/skill/s'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component?kind=skill' }, { text: 's' }]);
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/mcp/engram'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' },
+    { key: 'catalog.kind.mcp', hash: '#/component?kind=mcp' }, { text: 'engram' }]);
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/skill/s'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' },
+    { key: 'catalog.kind.skill', hash: '#/component?kind=skill' }, { text: 's' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/session'))), [{ key: 'nav.activity' }, { key: 'nav.usage', hash: '#/usage' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/lint'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.memory', hash: '#/memory' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/themes'))), [{ key: 'nav.settings', hash: '#/settings' }], 'foot pages have no group');
@@ -130,9 +134,9 @@ test('an item page opens with a breadcrumb (text only, last item current) above 
   assert.equal(view(env).children[0], crumbs, 'first in the view');
   const ol = crumbs.children[0];
   assert.equal(ol.tagName, 'ol');
-  assert.deepEqual(ol.children.map((li) => li.textContent), ['Harness wiki', 'Catalog', 'X']);
-  assert.deepEqual(hrefs(crumbs), ['#/component']);
-  const last = tree(ol.children[2]).find((e) => e.getAttribute && e.getAttribute('aria-current') === 'page');
+  assert.deepEqual(ol.children.map((li) => li.textContent), ['Harness wiki', 'Catalog', 'Hooks', 'X']);
+  assert.deepEqual(hrefs(crumbs), ['#/component', '#/component?kind=hook']);
+  const last = tree(ol.children[3]).find((e) => e.getAttribute && e.getAttribute('aria-current') === 'page');
   assert.ok(last, 'the last crumb is the current page');
 });
 

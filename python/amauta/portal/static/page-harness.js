@@ -69,25 +69,73 @@ async function graphExplorer() {
 
 // Harness diagram (plan N12e): the session flow of the harness model in the portal's own Mermaid style. archify, when
 // installed, is only a link to its own route (/archify/<hash>.html, sandboxed by its own CSP); it is never framed here.
+// The diagram keeps its natural size inside a keyboard-focusable sideways scroller, folded behind a summary.
 function archifyBlock(d) {
   if (!d.installed) return null;
   const full = d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)
     ? h("p", null, h("a", { href: d.url, target: "_blank", rel: "noopener" }, t("harness.drawn", { n: fmt(d.components) }))) : null;
-  return panel(t("harness.architecture"), d.fallback ? diagramBox(d.fallback, t("harness.installArch")) : null, full);
+  const label = t("harness.installArch");
+  const scroller = d.fallback
+    ? h("div", { class: "arch-scroll", tabindex: 0, role: "region", "aria-label": label }, diagramBox(d.fallback, label, true)) : null;
+  return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
+    scroller ? h("details", { class: "arch" }, h("summary", null, t("harness.showArch")), scroller) : null, full);
+}
+
+// One status vocabulary for the Harness wiki: a filled dot for on/runs, a ring for off/disabled, always with the word.
+const stateChip = (on, word) => h("span", { class: `chip ${on ? "chip-done" : "chip-off"}` }, `${on ? "●" : "○"} ${word}`);
+const disabledCount = (comps) => (comps ? comps.groups.reduce((n, g) => n + g.items.filter((i) => i.disabled).length, 0) : 0);
+
+// "amauta 0.3.0 is installed; 42 components, 1 needs attention (plugin disabled)." from /api/harness and /api/harness/components.
+function healthSentence(hs, comps) {
+  const head = t("harness.health.installed", { version: hs.version || "-" });
+  if (!comps) return `${head}.`;
+  const parts = tn("harness.health.components", comps.total, { n: fmt(comps.total) });
+  const off = disabledCount(comps);
+  const attention = off ? tn("harness.health.attention", off, { n: fmt(off) }) : t("harness.health.fine");
+  return `${head}; ${parts}, ${attention}.`;
+}
+
+function installFacts(hs) {
+  const row = (term, value) => [h("dt", null, term), h("dd", null, value)];
+  const known = hs.rdd_mode === "on" || hs.rdd_mode === "off";
+  const mode = known ? stateChip(hs.rdd_mode === "on", t(`common.${hs.rdd_mode}`)) : "-";
+  return h("dl", { class: "meta facts" }, ...row(t("harness.version"), hs.version || "-"), ...row(t("harness.review"), mode),
+    ...row(t("harness.telemetry"), stateChip(hs.telemetry, hs.telemetry ? t("common.on") : t("common.off"))),
+    ...row(t("harness.persona"), hs.persona || "-"),
+    ...row(t("harness.modules"), (hs.components || []).join(", ") || t("common.none")),
+    ...row(t("harness.managed"), fmt(hs.managed_files)));
+}
+
+// Hook rows from the catalog entries: the id starts with the event, the title is "<event> (<matcher>) · <handler>".
+// Without the catalog, the install's own hooks list (user settings only) with amauta's handler names.
+function hookRows(hs, comps) {
+  const group = comps && comps.groups.find((g) => g.kind === "hook");
+  const own = (x) => ({ event: x.event, handler: (x.handlers || []).join(", ") || x.kind, source: t("harness.userSettings"),
+    status: true });
+  if (!group) return hs.hooks.map(own);
+  return group.items.map((i) => {
+    const m = /^(.*?)(?: \((.*)\))? · (.*)$/.exec(i.title) || [];
+    const handler = m[3] ? (m[2] ? `${m[3]} (${m[2]})` : m[3]) : i.title;
+    return { event: String(i.id).split(":")[0], handler, id: i.id, source: ts(i.source), status: !i.disabled };
+  });
+}
+function hooksTable(hs, comps) {
+  const rows = hookRows(hs, comps);
+  if (!rows.length) return empty(t("harness.noHooks"));
+  const handler = (v, r) => (r.id ? link("hook", r.id, v) : v);
+  const status = (v) => stateChip(v, v ? t("harness.runs") : t("harness.pluginOff"));
+  return table("hooks", [{ key: "event", label: t("col.event") }, { key: "handler", label: t("col.handler"), render: handler },
+    { key: "source", label: t("col.source") }, { key: "status", label: t("col.status"), render: status }], rows);
 }
 
 async function viewHarness() {
-  const [hs, arch, comps] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })), api("harness/components").catch(() => null)]);
-  const out = [];
-  if (!hs.installed) out.push(panel(t("nav.harnessPage"), empty(t("harness.notInstalled"))));
-  else {
-    out.push(h("div", { class: "grid" }, card(t("harness.version"), hs.version || "-"), card(t("harness.review"), hs.rdd_mode === "on" ? t("common.on") : hs.rdd_mode === "off" ? t("common.off") : "-"), card(t("harness.telemetry"), hs.telemetry ? t("common.on") : t("common.off")), card(t("harness.managed"), fmt(hs.managed_files)), card(t("harness.persona"), hs.persona || "-")),
-      archifyBlock(arch),
-      ...(comps ? [panel(t("harness.wiki"), h("p", null, t("harness.wikiIntro", { n: fmt(comps.total) }) + " ", link("component", "", t("harness.openComponents")), "."),
-        comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null)] : []),
-      panel(t("harness.components"), empty((hs.components || []).join(", ") || t("common.none"))),
-      panel(t("harness.hooks"), hs.hooks.length ? table("hooks", [{ key: "event", label: t("col.event") }, { key: "kind", label: t("col.kind") }], hs.hooks) : empty(t("harness.noHooks"))),
-      panel(t("nav.mcp"), hs.mcp_servers.length ? table("mcp", [{ key: "name", label: t("col.name") }, { key: "type", label: t("col.type") }, { key: "command", label: t("col.command") }], hs.mcp_servers) : empty(t("common.noneDot"))));
-  }
-  return out.filter(Boolean); // archifyBlock is null when the install state is missing
+  const [hs, arch, comps] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })),
+    api("harness/components").catch(() => null)]);
+  const title = pageHead(t("nav.harnessPage"), hs.installed ? healthSentence(hs, comps) : null);
+  const how = h("div", { class: "teach" }, h("p", null, t("harness.notInstalled")), h("p", null, codeSpans(t("harness.howInstall"))));
+  if (!hs.installed) return [title, how];
+  const pending = comps && comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null;
+  const hooks = h("section", { class: "page-section" }, h("h2", null, t("harness.hooks")), hooksTable(hs, comps));
+  return [title, installFacts(hs), h("p", null, link("component", "", t("harness.openComponents"))), pending, archifyBlock(arch), hooks]
+    .filter(Boolean); // archifyBlock is null without archify
 }

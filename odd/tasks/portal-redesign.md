@@ -18,7 +18,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T3 Project hub: project page tabs (overview, features, graph, pipelines, sessions, memories)
 - [x] T4 Knowledge: memory tabs (memories, files, quality), single graph page, segment state in the hash
 - [x] T5 Activity: usage, sessions, one tools-and-skills table
-- [ ] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
+- [x] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
 - [ ] T7 Settings: preferences, projects and siblings, appearance (themes, language)
 - [ ] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
 - [ ] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
@@ -118,9 +118,33 @@ Target after redesign: >= 32/40, no P1.
   is 2.66:1 on white (relieved by the per-day table), and the dark steps sit outside the validator's lightness band
   (L 0.72-0.80): retune in T8 if wanted (DESIGN.md table and theme.js BASES change together).
 
+- 2026-11-12 T6 (route: delegated writer). #/harness leads with one health sentence ("amauta 0.9.1 is installed; 38
+  components, 2 need attention (plugin disabled).", tn plurals, from /api/harness + /api/harness/components; without the
+  catalog just "amauta X is installed."), install facts as a dl (version, review mode, telemetry as chips, persona,
+  modules, managed files; no cards), the Mermaid session flow behind "Show architecture diagram" in a focusable
+  role=region sideways scroller drawn at its viewBox width (diagramBox(..., natural)); archify stays one link. Hooks
+  table: Event, Handler (catalog title "<event> (<matcher>) · <name>" -> "name (matcher)", links to the hook page),
+  Source, Status (● runs / ○ plugin disabled); fallback to /api/harness hooks. The MCP table and the install
+  component list left the overview (the catalog has them). #/component is the one Catalog (skills from /api/skills as a
+  "Skills" group, kind links with counts in ?kind=<any catalog kind> via R.CATALOG_KINDS, text filter, All view caps a
+  kind at 8 with "Show all <kind> (n)", Refresh descriptions after the filter box; only one list failing shows the
+  other plus the error panel). viewSkillCatalog/viewComponents removed. Catalog item pages (incl. mcp and tool items)
+  crumb Harness wiki / Catalog / <kind> (#/component?kind=) / <page title>. Item pages: the "Source of these facts"
+  section and the rail Source row are dropped when What it does names the source; Command moves to a wrapped code
+  block in the main column; explain.none invites a request. #/security: one sentence (on/total protections, found/total
+  checkers), protection chips, yes/no chips in the checker table. document.title follows the first h1 on every page.
+  RED first (test/portal-harness-wiki.test.js 16/16 failing), then GREEN: portal node 394/394, Python portal 492 OK,
+  simplicity green (baseline shrank), npm test node 948/948 (Python: only the known test_pipelines failure).
+  Changed expectations: mcp/tool item pages hub to Catalog (tabOf null); item crumbs have the kind crumb; Security
+  "privacy hook is off" sentence -> chip; hook page no longer repeats "Source of these facts"; skills-ui tests read the
+  unified catalog (one "Skills (n)" group, "No component matches"); i18n DYNAMIC allows catalog.kind.*; dead keys removed.
+  Browser (temp fixture server on :8797, the :8790 dev server was not answering): harness, catalog, ?kind=skill, skill
+  and hook items, security in light/dark and 375px: no page overflow, no console errors.
+
 ## Next step
 
-T6 Harness wiki: overview (one-line health, readable diagram, hooks table with handler and status), unified catalog,
-security, group label "Harness wiki". Carry-overs: the running dev server must be restarted to serve style-pages.css
-(new allowlist entry); document.title on #/tool still says the kind label ("Tool"); T8: progress bars on --accent, data
-token chroma/lightness per the dataviz validator, filter-state wraps under the title on narrow content widths.
+T7 Settings: preferences, projects and siblings, appearance (themes, language). Carry-overs: restart the dev server on
+:8790 (it was down during T6); the health sentence counts harness components only (the catalog total also has skills);
+T8: progress bars on --accent, data token chroma/lightness per the dataviz validator, filter-state wraps under the title
+on narrow content widths, .archify-frame CSS is now unused, the Spanish status words (activado/desactivado) are
+gendered in other places.

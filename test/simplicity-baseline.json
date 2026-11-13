@@ -98,7 +98,7 @@
    "long": 8
   },
   "python/amauta/portal/static/page-harness.js": {
-   "long": 16
+   "long": 11
   },
   "python/amauta/portal/static/page-home.js": {
    "long": 11
@@ -115,7 +115,7 @@
    "fn": 150
   },
   "python/amauta/portal/static/page-wiki.js": {
-   "long": 51
+   "long": 47
   },
   "python/amauta/portal/static/style.css": {
    "long": 24

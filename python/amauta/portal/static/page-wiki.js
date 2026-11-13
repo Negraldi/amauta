@@ -153,40 +153,31 @@ function metaList(pg, keep) {
   }));
 }
 
+// What it does already names the source (and its file), so the rail Source row and the server's origin section would
+// say it twice.
+// A long mono command reads as a code block in the main column, never squeezed into the rail.
+const isOrigin = (s) => s.heading === "Source of these facts";
+const isCommand = (m) => m.label === "Command";
+function commandBlock(pg) {
+  const cmd = pg.meta.find((m) => isCommand(m) && m.value);
+  if (!cmd) return null;
+  return h("section", { class: "page-section" }, h("h2", null, ts(cmd.label)), h("pre", { class: "code" }, h("code", null, String(cmd.value))));
+}
 async function viewWikiPage(kind, id, source) {
   const pg = await fetchWikiPage(kind, id, source);
   if (!pg) return noPage(kind, id);
-  document.title = `${pg.title} - amauta`;
+  if (R.CATALOG_KINDS.includes(pg.kind)) state.pageTitle = pg.title; // the breadcrumb ends with the title, not the raw id
   const refs = (list) => (list.length ? refList(list) : null);
+  const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
+  const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");
   return [h("div", { class: "page" },
     h("article", { class: "doc" },
       h("p", { class: "kind" }, kindLabel(pg.kind)), h("h1", null, pg.title), progressBlock(pg), summaryBlock(pg.summary),
+      commandBlock(pg),
       pg.refresh ? refreshControl(pg.refresh.server) : null, pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
-      ...pg.sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),
-    h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), metaList(pg)),
+      ...sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),
+    h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), metaList(pg, keep)),
       railBlock(t("page.links"), refs(pg.links)), railBlock(t("page.linkedFrom"), refs(pg.backlinks))))];
-}
-
-// Skill catalog: every skill the portal can describe, grouped by source; the filter works on what is already loaded.
-async function viewSkillCatalog() {
-  const cat = await api("skills");
-  const list = h("div", null);
-  const box = h("input", { type: "search", placeholder: t("skills.filter"), "aria-label": t("skills.filter"), value: state.skillQuery || "" });
-  const paint = () => {
-    state.skillQuery = box.value;
-    const groups = R.filterSkills(cat.groups, box.value);
-    list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
-      g.source === "builtin" ? h("p", { class: "muted" }, t("skills.builtinNote")) : null,
-      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link("skill", i.id, i.id), i.disabled ? h("span", { class: "muted" }, ` ${t("components.disabled")}`) : null,
-        i.description ? h("div", null, i.description) : null,
-        i.trigger ? h("div", { class: "muted" }, t("skills.triggers", { trigger: i.trigger })) : null,
-        h("div", { class: "muted" }, i.uses ? t("skills.usage", { calls: fmt(i.uses), sessions: fmt(i.sessions), last: R.fmtDate(i.last_used) }) : t("skills.notUsed")))))))
-      : [h("p", { class: "muted" }, cat.total ? t("skills.noMatch") : t("skills.none"))]));
-  };
-  box.addEventListener("input", paint);
-  paint();
-  return [h("h1", null, t("nav.skill")), h("p", { class: "muted" }, t("skills.intro", { n: fmt(cat.total) })),
-    h("div", { class: "controls" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("skills.where"))])];
 }
 
 // A curated component carries its own Spanish text in `i18n.es`; every other text is the server's English (or the user's own words) run through ts().
@@ -247,23 +238,61 @@ function explainBlock(pg) {
   return h("section", { class: "page-section explain" }, h("h2", null, t("explain.title")), ...parts, out);
 }
 const clip = (text) => (text.length > 220 ? `${text.slice(0, 217)}...` : text);
-// Component catalog: every harness component grouped by kind; the filter works on what is already loaded.
-async function viewComponents() {
-  const cat = await api("harness/components");
+const CATALOG_CAP = 8; // items per kind in the All view; the kind link shows the rest
+const catalogHash = (kind) => R.routeHash({ kind: "component", id: "", query: kind ? { kind } : {} });
+// Skills join the component groups as one "Skills" group; each row keeps the label of where it comes from.
+function skillGroup(sk) {
+  const row = (g) => (i) => ({ kind: "skill", id: i.id, title: i.id, description: i.description, source: g.label, uses: i.uses,
+    sessions: i.sessions, last_used: i.last_used, disabled: i.disabled });
+  const items = ((sk && sk.groups) || []).flatMap((g) => g.items.map(row(g)));
+  return items.length ? [{ kind: "skill", label: t("catalog.kind.skill"), items }] : [];
+}
+function catalogRow(i) {
+  const used = i.kind === "skill" && i.uses;
+  const usage = used ? h("div", { class: "muted" }, t("skills.usage", { calls: fmt(i.uses), sessions: fmt(i.sessions), last: R.fmtDate(i.last_used) })) : null;
+  return h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`),
+    i.disabled ? h("span", { class: "chip chip-off" }, `\u25cb ${t("components.disabled")}`) : null,
+    i.description ? h("div", null, clip(localized(i, "description"))) : null, usage);
+}
+function catalogGroup(g, capped) {
+  const shown = capped ? g.items.slice(0, CATALOG_CAP) : g.items;
+  const label = ts(g.label);
+  const more = shown.length < g.items.length
+    ? h("p", null, h("a", { href: catalogHash(g.kind) }, t("catalog.showAll", { n: fmt(g.items.length), label }))) : null;
+  return h("section", { class: "page-section", "aria-label": label }, h("h2", null, `${label} (${fmt(g.items.length)})`),
+    h("ul", { class: "items" }, shown.map(catalogRow)), more);
+}
+// The kind links: All plus one per kind present, each with its count; the current one is marked, the choice lives in ?kind=.
+function kindLinks(groups, current) {
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  const one = (kind, label, n) => h("a", { href: catalogHash(kind), "aria-current": kind === current ? "true" : false }, `${label} (${fmt(n)})`);
+  return h("nav", { class: "segmented", "aria-label": t("catalog.kinds") }, one("", t("catalog.all"), total),
+    ...groups.map((g) => one(g.kind, ts(g.label), g.items.length)));
+}
+// Catalog (#/component): every harness component and skill, grouped by kind; ?kind= keeps one kind, the box filters what is loaded.
+// When only one of the two lists loads, the page shows it with the error panel for the other.
+async function viewCatalog(route) {
+  const [res, sk] = await Promise.all([api("harness/components").catch((err) => ({ err })), api("skills").catch(() => null)]);
+  if (res.err && !sk) throw res.err; // nothing to show: the page error panel
+  const cat = res.err ? { groups: [] } : res;
+  const groups = [...skillGroup(sk), ...cat.groups];
+  const asked = route.query && route.query.kind;
+  const kind = asked && groups.some((g) => g.kind === asked) ? asked : "";
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
   const list = h("div", null);
   const box = h("input", { type: "search", placeholder: t("components.filter"), "aria-label": t("components.filter"), value: state.componentQuery || "" });
   const paint = () => {
     state.componentQuery = box.value;
-    const groups = R.filterComponents(cat.groups, box.value);
-    list.replaceChildren(...(groups.length ? groups.map((g) => h("section", { class: "page-section" }, h("h2", null, `${ts(g.label)} (${fmt(g.items.length)})`),
-      h("ul", { class: "items" }, g.items.map((i) => h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`), i.disabled ? h("span", { class: "muted" }, ` \u00b7 ${t("components.disabled")}`) : null,
-        i.description ? h("div", null, clip(localized(i, "description"))) : null)))))
-      : [h("p", { class: "muted" }, cat.total ? t("components.noMatch") : t("components.none"))]));
+    const found = R.filterComponents(kind ? groups.filter((g) => g.kind === kind) : groups, box.value);
+    const none = empty(total ? t("components.noMatch") : t("components.none"));
+    list.replaceChildren(...(found.length ? found.map((g) => catalogGroup(g, !kind && !box.value.trim())) : [none]));
   };
   box.addEventListener("input", paint);
   paint();
-  return [h("h1", null, t("nav.component")), h("p", { class: "muted" }, t("components.intro", { n: fmt(cat.total) })),
-    ...(cat.refresh && cat.refresh.servers ? [refreshControl(null)] : []), h("div", { class: "controls" }, box), list, ...(cat.total ? [] : [h("p", { class: "muted" }, t("components.where"))])];
+  const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
+  const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
+  return [pageHead(t("nav.catalog"), t("catalog.intro", { n: fmt(total) })), res.err ? errorPanel(route, res.err) : null,
+    kindLinks(groups, kind), h("div", { class: "controls" }, box), refresh, list, teachWhere];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.

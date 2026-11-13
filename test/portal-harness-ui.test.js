@@ -94,7 +94,8 @@ test('a hook page opens with What it does and When it runs, then the source', as
   const sm = { description: 'Imports usage', trigger: null, when: 'When Claude finishes answering.', source: 'Your Claude home', path: '/home/u/.claude/settings.json', builtin: false, note: null };
   const env = await boot('#/hook/x', { '/api/wiki/page': PAGE('hook', sm) });
   const text = view(env).textContent;
-  assert.ok(text.indexOf('What it does') >= 0 && text.indexOf('What it does') < text.indexOf('Source of these facts'), text);
+  assert.ok(text.indexOf('What it does') >= 0, text);
+  assert.doesNotMatch(text, /Source of these facts/, 'T6: What it does names the source once; the origin section is not repeated');
   assert.match(text, /Imports usage/);
   assert.match(text, /When it runs/);
   assert.match(text, /When Claude finishes answering/);
