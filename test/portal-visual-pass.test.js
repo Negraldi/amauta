@@ -75,7 +75,7 @@ test('a recent-changes line formats the count the server wrote in it', async () 
   const home = { activity: [{ day: '2026-11-09', items: [{ kind: 'session', id: 's1', title: 'x', what: 'session, 11300 messages', ts: '2026-11-09T21:10:00Z' }] }],
     spending: { available: false }, impact: null, health: { installed: false } };
   const { env } = await boot('#/', { '/api/wiki/home': home, '/api/pipelines': { projects: [] } });
-  assert.match(view(env).textContent, /session, 11,300 messages, 21:10/);
+  assert.match(view(env).textContent, /session, 11,300 messages, last active 21:10/);
 });
 
 // ---- carry-overs ----------------------------------------------------------------------------------------------------
