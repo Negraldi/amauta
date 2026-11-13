@@ -679,6 +679,7 @@
  "project.nMemories.other": "{n} memorias",
  "project.colOdd": "Progreso ODD",
  "project.colGraph": "Grafo",
+ "project.colOrigin": "Encontrado por",
  "project.tabError": "Esta vista no se pudo cargar. Inténtelo de nuevo; si sigue fallando, use Actualizar en la barra superior.",
  "project.featuresEmpty": "Aún no hay funcionalidades ODD. Una funcionalidad aparece aquí cuando este repositorio tiene un archivo de tareas en odd/tasks/ con una lista de comprobación.",
  "project.graphAll": "Para buscar en todos los repositorios, abra",
@@ -870,7 +871,6 @@
  "graph.kind.rationale": "Justificación",
  "graph.kind.concept": "Concepto",
  "home.recent": "Actividad reciente",
- "project.originCommon": "Origen de los proyectos, salvo que la fila indique otro: {origin}.",
  "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente.",
  "harness.fitWidth": "Ajustar al ancho"
 }

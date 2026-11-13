@@ -1,5 +1,5 @@
-// Critique P3 (T11 h): provenance said once. The Projects table names the usual origin once in the lead and only rows
-// that differ carry their own; "mirrored" ("Sin reflejar") is said in plain words: the graph is (not) loaded into memory.
+// Critique P3 (T11 h, revised in T14 j): provenance in one place. Every Projects row names its origin in a Found by
+// column; "mirrored" ("Sin reflejar") is said in plain words: the graph is (not) loaded into memory.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeEnv } from './helpers/fakedom.js';
@@ -19,12 +19,16 @@ async function boot(projects) {
   return env.document.getElementById('view');
 }
 
-test('the usual origin is said once; only rows that differ name theirs', async () => {
+// T14 j: one rule for origin. The T11/T13 lead ("Where projects come from, unless a row says otherwise: ...") read as a
+// puzzle next to rows that named theirs; every row now states its origin in a "Found by" column and the lead says none.
+const heads = (v) => tree(v).filter((e) => e.tagName === 'th').map((e) => e.textContent.replace(/ [▲▼]$/, ''));
+test('every row states its origin in a Found by column; the lead names none', async () => {
   const v = await boot([project('a', ['flag']), project('b', ['flag']), project('c', ['discovered'], true)]);
-  assert.equal(v.textContent.match(/added with --repo/g).length, 1, v.textContent);
-  assert.match(tree(v).find((e) => e.tagName === 'p' && /--repo/.test(e.textContent)).textContent, /Where projects come from, unless a row says otherwise: added with --repo\./);
-  const rows = tree(v).filter((e) => e.tagName === 'tr').map((e) => e.textContent);
+  assert.ok(heads(v).includes('Found by'), heads(v).join(' | '));
+  const rows = tree(v).filter((e) => e.tagName === 'tr').slice(1).map((e) => e.textContent);
+  assert.equal(rows.filter((r) => /added with --repo/.test(r)).length, 2);
   assert.ok(rows.some((r) => /^c/.test(r) && /found in your sessions/.test(r)));
+  assert.doesNotMatch(tree(v).find((e) => e.tagName === 'p').textContent, /--repo|unless a row says otherwise/);
 });
 
 test('one project says its origin in its row and nothing in the lead', async () => {
@@ -42,18 +46,10 @@ test('graph status is said in plain words in both languages', async () => {
   assert.match(v.textContent, /Not loaded yet/);
 });
 
-// Re-critique T13 item 7: the lead named an origin shared by only some rows ("Rows without a note: ..."), while most rows
-// carried a note. The lead now names an origin only when most projects share it, and every other row says its own.
-test('an origin shared by a minority is not factored into the lead; each row says its own', async () => {
-  const v = await boot([project('a', ['flag', 'config']), project('b', ['flag', 'config']), project('c', ['discovered']),
-    project('d', ['discovered']), project('e', ['config'])]);
-  assert.doesNotMatch(v.textContent, /unless a row says otherwise/);
+test('a project found two ways names both in its row, and the old lead key is gone', async () => {
+  const v = await boot([project('a', ['flag', 'config']), project('c', ['discovered']), project('e', ['config'])]);
   const rows = tree(v).filter((e) => e.tagName === 'tr').slice(1).map((e) => e.textContent);
-  assert.equal(rows.length, 5);
-  for (const r of rows) assert.match(r, /added with --repo|saved in Settings|found in your sessions/, r);
-});
-
-test('the Spanish lead reads as a sentence about origin', async () => {
-  const { es } = await readDicts();
-  assert.equal(es['project.originCommon'], 'Origen de los proyectos, salvo que la fila indique otro: {origin}.');
+  assert.ok(rows.some((r) => /added with --repo, saved in Settings/.test(r)), rows.join(' | '));
+  const { en, es } = await readDicts();
+  assert.ok(!('project.originCommon' in en) && !('project.originCommon' in es));
 });

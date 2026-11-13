@@ -679,6 +679,7 @@
  "project.nMemories.other": "{n} memories",
  "project.colOdd": "ODD progress",
  "project.colGraph": "Graph",
+ "project.colOrigin": "Found by",
  "project.tabError": "This view could not load. Try again; if it keeps failing, use Refresh in the top bar.",
  "project.featuresEmpty": "No ODD features yet. A feature appears here when this repository has a task file in odd/tasks/ with a checklist.",
  "project.graphAll": "To search across every repository, open",
@@ -870,7 +871,6 @@
  "graph.kind.rationale": "Rationale",
  "graph.kind.concept": "Concept",
  "home.recent": "Recent activity",
- "project.originCommon": "Where projects come from, unless a row says otherwise: {origin}.",
  "data.asOf": "Data as of {at}; Refresh imports newer activity.",
  "harness.fitWidth": "Fit to width"
 }

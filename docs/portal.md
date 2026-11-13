@@ -37,7 +37,7 @@ A session's project is named by one rule on every page (Today, Usage > Sessions,
 | Group | Page | Hash | Tabs and query | What it shows |
 |---|---|---|---|---|
 | Today | Today | `#/` | | One harness health sentence, recent activity by day (five days, then Show more); rail with pipelines, spending and skill impact (above the feed under 72rem) |
-| Work | Projects | `#/project` | | Table of projects (ODD progress, graph status, last activity) and the sibling cards; the lead names where projects come from only when most share it ("unless a row says otherwise"), every other row says its own origin |
+| Work | Projects | `#/project` | | Table of projects (Found by: how each was found, ODD progress, graph status, last activity), active folders that are not projects, and the sibling cards |
 | Work | Project hub | `#/project/<name>` | `?tab=` `overview` (default, not written), `features`, `graph`, `pipelines`, `sessions`, `memories` | One project in one place; graph sync and connect; features (`#/feature/<project>/<name>`) and graph nodes crumb through the hub |
 | Work | Pipelines | `#/pipelines` | | Every project's pipelines, runs and schedules |
 | Knowledge | Memory | `#/memory[/id-or-topic_key]` | `?source=engram` for the Engram store; tabs Memory `#/memory`, Memory files `#/memfile[/id]`, Quality `#/lint` | Memory text, derived links, backlinks, same-topic rows, related graph nodes; Claude file memories (read-only); review candidates |

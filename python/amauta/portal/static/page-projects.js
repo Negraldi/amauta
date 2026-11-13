@@ -19,15 +19,6 @@ function graphChip(g) {
 }
 const sortOnce = (id, key, dir = -1) => { state.sort[id] ||= { key, dir }; }; // a table's first order, until a header is clicked
 
-// How most projects were found, said once in the lead (T11 h); null unless more than half of the rows (and at least two)
-// share it, so "unless a row says otherwise" stays true of most rows (T13 item 7).
-function usualOrigin(origins) {
-  const n = new Map();
-  for (const o of origins) n.set(o, (n.get(o) || 0) + 1);
-  const [top, count] = [...n.entries()].sort((a, b) => b[1] - a[1])[0] || [null, 0];
-  return count >= 2 && count * 2 > origins.length ? top : null;
-}
-
 // Folders that sessions ran in but that are not projects (no git repository, or past the discovery caps): Today and Usage
 // name them, so the list says where they are and how one becomes a project (T14 e).
 function foldersBlock(folders) {
@@ -48,21 +39,22 @@ async function viewProjects() {
     return [teach(t("nav.project"), t("project.noneKnown"), settings), foldersBlock(d.folders)].filter(Boolean);
   }
   const profile = (p) => (p.profile && p.profile !== "default" ? t("project.profile", { name: p.profile }) : null);
-  const originOf = (p) => p.origin.map(originLabel).join(", "), usual = usualOrigin(d.projects.map(originOf));
-  const sub = (p) => [originOf(p) === usual ? "" : originOf(p), profile(p)].filter(Boolean).join(" · ");
-  const rows = d.projects.map((p) => ({ ...p, percent: p.odd.total ? p.odd.done / p.odd.total : -1, synced: p.graph.synced_at || "",
+  const originOf = (p) => p.origin.map(originLabel).join(", ");
+  const sub = (p) => (profile(p) ? h("div", { class: "muted" }, profile(p)) : null); // the origin has its own column
+  const rows = d.projects.map((p) => ({ ...p, found: originOf(p), percent: p.odd.total ? p.odd.done / p.odd.total : -1,
+    synced: p.graph.synced_at || "",
     last: p.last || "" }));
   const odd = (p) => (p.odd.features ? barCell(p.odd.done, p.odd.total, projectOdd(p.odd))
     : h("span", { class: "muted" }, projectOdd(p.odd)));
   sortOnce("projects", "last");
   const cols = [
-    { key: "name", label: t("col.name"), render: (v, p) => [link("project", v, v), h("div", { class: "muted" }, sub(p))] },
+    { key: "name", label: t("col.name"), render: (v, p) => [link("project", v, v), sub(p)] },
+    { key: "found", label: t("project.colOrigin") },
     { key: "percent", label: t("project.colOdd"), render: (v, p) => odd(p) },
     { key: "synced", label: t("project.colGraph"), render: (v, p) => graphChip(p.graph) },
     { key: "last", label: t("col.lastActivity"), render: (v) => R.fmtDate(v || null) }];
   const count = tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) });
-  const said = usual ? ` ${t("project.originCommon", { origin: usual })}` : "";
-  const lead = h("p", { class: "muted" }, `${count}${said} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), ".");
+  const lead = h("p", { class: "muted" }, `${count} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), ".");
   return [h("h1", null, t("nav.project")), lead, table("projects", cols, rows), foldersBlock(d.folders), sibs].filter(Boolean);
 }
 
