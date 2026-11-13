@@ -236,11 +236,11 @@ test('#/project is one table row per project: name, ODD progress with a bar, gra
   assert.ok(hrefs(repo).includes('#/project/repo'));
   assert.ok(tree(repo).some((e) => e.tagName === 'progress'));
   assert.match(repo.textContent, /2 of 3 tasks \(67%\)/);
-  assert.match(repo.textContent, /● Mirrored 2026-10-14/);
+  assert.match(repo.textContent, /● Loaded 2026-10-14/);
   assert.match(repo.textContent, /2026-11-01/);
   assert.doesNotMatch(repo.textContent, /22:10/, 'a date, not a date-time');
   const beta = rows.find((r) => /beta/.test(r.textContent));
-  assert.match(beta.textContent, /○ Not mirrored/);
+  assert.match(beta.textContent, /○ Not loaded yet/);
   assert.match(beta.textContent, /No ODD features/);
   assert.equal(tree(v).filter((e) => e.tagName === 'article').length, 0, 'no cards for projects');
 });
@@ -249,7 +249,7 @@ test('siblings sit below the project table as a secondary section', async () => 
   const sib = { name: 'Data catalog', path: '/home/u/catalog', exists: true, state: 'ok' };
   const env = await boot('#/project', { '/api/projects': LIST, '/api/siblings': { siblings: [sib] } });
   const kids = view(env).children.map((e) => e.textContent);
-  const table = kids.findIndex((t) => /Not mirrored/.test(t));
+  const table = kids.findIndex((t) => /Not loaded yet/.test(t));
   const sibs = kids.findIndex((t) => /Sibling projects/.test(t));
   assert.ok(table >= 0 && sibs > table, 'siblings after the table');
 });

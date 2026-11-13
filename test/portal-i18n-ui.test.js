@@ -94,12 +94,12 @@ test('the stored choice wins over the browser language, and a throwing or missin
 test('numbers follow the language and region; dates stay YYYY-MM-DD in both languages', async () => {
   const es = await boot({ language: 'es-ES', hash: '#/project' });
   assert.match(view(es.env).textContent, /1\.234\.567 de 2\.000\.000 tareas \(62\s%\) en 2 funcionalidades/);
-  assert.match(view(es.env).textContent, /Reflejado 2026-10-05/);
+  assert.match(view(es.env).textContent, /Cargado 2026-10-05/);
   const mx = await boot({ language: 'es-MX', hash: '#/project' });
   assert.match(view(mx.env).textContent, /1,234,567 de 2,000,000 tareas/);
   const en = await boot({ language: 'en-US', hash: '#/project' });
   assert.match(view(en.env).textContent, /1,234,567 of 2,000,000 tasks/);
-  assert.match(view(en.env).textContent, /Mirrored 2026-10-05/);
+  assert.match(view(en.env).textContent, /Loaded 2026-10-05/);
   await switchTo(en.env, 'es');
   assert.match(view(en.env).textContent, /1\.234\.567 de 2\.000\.000 tareas/, 'the chosen language brings its own separators when the browser region is not Spanish');
   assert.doesNotMatch(view(en.env).textContent, /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{1,2} de \w+ de \d{4}/);

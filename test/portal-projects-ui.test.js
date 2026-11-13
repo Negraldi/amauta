@@ -45,8 +45,8 @@ test('#/project lists every known project with progress, graph status and a link
   assert.ok(links.includes('#/project/repo'));
   assert.ok(links.includes(`#/project/${encodeURIComponent(XSS)}`));
   assert.match(v.textContent, /2 of 3 tasks \(67%\)/);
-  assert.match(v.textContent, /Mirrored 2026-10-14/);
-  assert.match(v.textContent, /Not mirrored/);
+  assert.match(v.textContent, /Loaded 2026-10-14/);
+  assert.match(v.textContent, /Not loaded yet/);
   assert.match(v.textContent, /found in your sessions/);
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
@@ -82,7 +82,7 @@ test('a project page shows progress and the graph how-to on Overview; features a
 
 test('a mirrored project page reports the sync instead of the how-to and links its Graph tab', async () => {
   const { env } = await boot('#/project/repo', { '/api/wiki/page': { ...PAGE, graph: { mirrored: true, nodes: 6, edges: 4, synced_at: '2026-10-14T00:00:00Z' } } });
-  assert.match(view(env).textContent, /Mirrored 2026-10-14 00:00/);
+  assert.match(view(env).textContent, /Loaded 2026-10-14 00:00/);
   assert.ok(hrefs(view(env)).includes('#/project/repo?tab=graph'));
   assert.doesNotMatch(view(env).textContent, /hook install/);
 });
@@ -110,7 +110,7 @@ test('the Graph page explains how graph memory is populated and lists projects t
 test('with no mirrored graph the Graph page says so', async () => {
   const off = { ...PROJECTS, projects: PROJECTS.projects.map((p) => ({ ...p, graph: GRAPH_OFF })) };
   const { env } = await boot('#/node', { '/api/projects': off });
-  assert.match(view(env).textContent, /No project has a mirrored graph yet/);
+  assert.match(view(env).textContent, /No project has a loaded graph yet/);
 });
 
 // ---- Settings: Projects ------------------------------------------------------------------------------------

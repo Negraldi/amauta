@@ -28,13 +28,22 @@ async function lastActivity() {
 }
 const sortOnce = (id, key, dir = -1) => { state.sort[id] ||= { key, dir }; }; // a table's first order, until a header is clicked
 
+// How most projects were found, said once in the lead (T11 h); null unless at least two rows share it.
+function usualOrigin(origins) {
+  const n = new Map();
+  for (const o of origins) n.set(o, (n.get(o) || 0) + 1);
+  const [top, count] = [...n.entries()].sort((a, b) => b[1] - a[1])[0] || [null, 0];
+  return count >= 2 ? top : null;
+}
+
 async function viewProjects() {
   const [d, sibs, last] = await Promise.all([api("projects"), siblingsBlock(), lastActivity()]);
   if (!d.projects.length) {
     return [teach(t("nav.project"), t("project.noneKnown"), h("span", null, link("settings", "", t("project.openSettings"))))];
   }
   const profile = (p) => (p.profile && p.profile !== "default" ? t("project.profile", { name: p.profile }) : null);
-  const sub = (p) => [p.origin.map(originLabel).join(", "), profile(p)].filter(Boolean).join(" · ");
+  const originOf = (p) => p.origin.map(originLabel).join(", "), usual = usualOrigin(d.projects.map(originOf));
+  const sub = (p) => [originOf(p) === usual ? "" : originOf(p), profile(p)].filter(Boolean).join(" · ");
   const rows = d.projects.map((p) => ({ ...p, percent: p.odd.total ? p.odd.done / p.odd.total : -1, synced: p.graph.synced_at || "",
     last: last[p.name] || "" }));
   const odd = (p) => (p.odd.features ? barCell(p.odd.done, p.odd.total, projectOdd(p.odd))
@@ -46,7 +55,8 @@ async function viewProjects() {
     { key: "synced", label: t("project.colGraph"), render: (v, p) => graphChip(p.graph) },
     { key: "last", label: t("col.lastActivity"), render: (v) => R.fmtDate(v || null) }];
   const count = tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) });
-  const lead = h("p", { class: "muted" }, count + " ", t("project.manage"), " ", link("settings", "", t("nav.settings")), ".");
+  const said = usual ? ` ${t("project.originCommon", { origin: usual })}` : "";
+  const lead = h("p", { class: "muted" }, `${count}${said} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), ".");
   return [h("h1", null, t("nav.project")), lead, table("projects", cols, rows), sibs].filter(Boolean);
 }
 
