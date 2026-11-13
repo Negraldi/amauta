@@ -116,7 +116,8 @@ async function viewTools(route) {
   const cols = [{ key: "name", label: t("col.name"), render: linkKind ? (v) => link(linkKind, v, v) : undefined },
     { key: "count", label: t("col.calls"), num: true }, { key: "sessions", label: t("nav.session"), num: true }, { key: "last_used", label: t("col.lastUsed") }];
   const count = (s) => fmt(tl[R.SEGMENTS[s]].length);
-  const item = ([s, l]) => h("a", { href: R.segmentHash(s), "aria-current": s === seg ? "true" : false }, `${l} (${count(s)})`);
+  const item = ([s, l]) => h("a", { href: R.segmentHash(s), "aria-current": s === seg ? "true" : false },
+    t("usage.segUsed", { label: l, n: count(s) })); // used in the range: not the Catalog's or the Overview's skill count
   return [
     h("nav", { class: "segmented", "aria-label": t("usage.segments") }, kinds.map(item)),
     panel(null, tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(t("usage.nothingRange"))),

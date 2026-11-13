@@ -101,7 +101,7 @@ test('Tools and skills: the title matches the tab and the segments are links wit
   const seg = tree(view(env)).find((e) => e.tagName === 'nav' && e.className === 'segmented');
   const links = tree(seg).filter((e) => e.tagName === 'a');
   assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/tool?seg=skills', '#/tool?seg=tools', '#/tool?seg=mcp', '#/tool?seg=mcptools', '#/tool?seg=subagents']);
-  assert.deepEqual(links.filter((a) => a.getAttribute('aria-current') === 'true').map((a) => a.textContent), ['Skills (1)']);
+  assert.deepEqual(links.filter((a) => a.getAttribute('aria-current') === 'true').map((a) => a.textContent), ['Skills (1 used)']);
   const es = JSON.parse(await read('i18n/es.json'));
   assert.equal(es['nav.toolsSkills'], 'Herramientas y skills');
 });

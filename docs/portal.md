@@ -102,7 +102,7 @@ Codex is the second runtime of the same inventory (read-only, `wikicodex.py`): `
 masked facts), `<codex home>/hooks.json`, the amauta blocks of `AGENTS.md` and the Codex skills dir. A component found in both runtimes is one
 entry (an amauta hook matches its Claude twin once `--runtime codex` is ignored); every catalog row and item page says "Runtime: Claude Code",
 "Codex" or "Claude Code, Codex", and agents, commands, plugins and output styles say "Claude Code (Codex has no equivalent)". The Overview has one
-row per runtime (home, amauta installed, instruction blocks, hooks, MCP servers, skills) and Security shows the Codex privacy and checks
+row per runtime (home, amauta installed, instruction blocks, hooks, MCP servers, "Skills in its folder": the skill folders of that runtime's skills directory, which is not the Catalog's count of every known skill nor Tools and skills' "N used" in the range) and Security shows the Codex privacy and checks
 switches. The Codex home is the one the portal was given or the installer's rule; without one, a sentence says only Claude Code is listed.
 Refresh descriptions probes only servers configured for Claude Code.
 
