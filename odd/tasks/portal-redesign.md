@@ -20,7 +20,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T5 Activity: usage, sessions, one tools-and-skills table
 - [x] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
 - [x] T7 Settings: preferences, projects and siblings, appearance (themes, language)
-- [ ] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
+- [x] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
 - [x] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
 - [x] T10 Runtime-agnostic harness wiki (user, 2026-11-13: "the harness must be agnostic, Claude or Codex"): neutral copy where a claim holds for both runtimes; Overview and Catalog also inventory the Codex target (instruction blocks, hooks, MCP servers, skill links) with a runtime marker per entry
 
@@ -260,7 +260,24 @@ Target after redesign: >= 32/40, no P1.
   instruction blocks are on the Overview, not catalog entries (a new kind would grow wikiroute.js past 400); no runtime
   filter; Codex-only MCP servers are not probed by Refresh descriptions; Windows behavior unverified on a Windows machine.
 
+### T8 close and T10 verification (coordinator, 2026-11-13)
+
+- Final independent impeccable re-critique: 30/40, no P0 or P1 (baseline 25/40; rounds 29, 30, 30). The 32/40 target
+  set by the coordinator was not reached. Measured: 0 contrast failures in light and dark, 0 overflow at 375px, no
+  absolute ban present.
+- Coordinator re-ran after T10 (d063754): Node full suite 1018/1018 with LANG=C, portal suites 469/469, structure
+  10/10, Python test_p*.py 654 with the one known pre-existing failure (test_pipelines DeclaredScheduleTest).
+- Live check against real data: Overview lists Claude Code and Codex (both installed), Catalog marks 5 hooks and 5 MCP
+  servers as shared and 1 MCP server as Codex only; no page overflow at 1024, 800 or 375px.
+- Not a portal defect: memory bodies shown without spaces are stored that way (151 of the latest 200, one project,
+  one Codex session); the memory guard keeps spaces.
+
 ## Next step
 
-T8 close: impeccable audit, polish, re-critique vs the 25/40 baseline. Open carry-over: Settings > Appearance has no
-theme picker (only the Display popover).
+All tasks checked. Push and PR are the owner's decision. Open follow-ups, none started:
+- Critique P2: one-click "Remove" in Settings > Projects and siblings has no confirm or undo; the graph table opens on
+  vendored minified symbols; three names for the home page (Today / Home / Recent activity); three tab styles.
+- Settings > Appearance has no theme picker (only the Display popover).
+- T10 leftovers: personal-skill links have no copy fallback where symlinks fail; `os.killpg` in settings.py is
+  POSIX-only and ENV_KEEP drops USERPROFILE and SYSTEMROOT; nothing was run on a real Windows machine.
+- Memory: flag or refuse bodies saved without spaces (Memory > Quality lint, mem_save warning).
