@@ -37,6 +37,7 @@ async function viewSecurity() {
   const redacted = Object.entries(r.redacted).map(([kind, n]) => ({ kind, n }));
   const pr = r.profiles;
   const drafts = pr.drafts ? ` ${tn("sec.drafts", pr.drafts, { n: fmt(pr.drafts) })}` : null;
+  for (const [id, key] of [["sec-checkers", "name"], ["sec-trusted", "name"], ["sec-profiles", "project"]]) sortOnce(id, key, 1); // A to Z
   const trusted = r.trusted.length ? table("sec-trusted", SEC_COLUMNS.trusted(), r.trusted) : empty(codeSpans(t("sec.noTrusted")));
   return [
     pageHead(t("nav.security"), securitySummary(r)), protectionChips(p), h("p", { class: "muted" }, t("sec.lead")),

@@ -116,7 +116,7 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   underline. External links get a small arrow glyph.
 - Search palette: native `<dialog>`, results grouped by kind under a plural label ("Memories (4)"), arrow-key navigation;
   graph node rows name their file and show its path cut from the left.
-- Tables: hairline rules, right-aligned tabular numbers, sortable headers with a visible sort indicator.
+- Tables: hairline rules, right-aligned tabular numbers, sortable headers with a visible sort indicator; a table opens on a meaningful order (names A to Z, counts largest first, activity newest first), never Z to A.
 - Status chips: text label plus a shape (filled dot = done, ring = pending, triangle = warning); color reinforces only.
 - Buttons (and links styled as `a.button`): one shape for the whole surface (6px radius, 1px line border); hover
   darkens the border, active fills with the line color; primary action in accent fill only for a confirm step.
