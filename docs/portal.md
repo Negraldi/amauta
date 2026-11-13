@@ -18,7 +18,8 @@ amauta portal install-launcher [--remove]  # desktop entry (Linux) or Start menu
 The sidebar is grouped by job (ADR 0005): **Today**, **Work**, **Knowledge**, **Activity**, **Harness wiki**, and a foot group
 (Guide, Settings) pinned under a hairline. A page with several views shows them as tabs under its title; the tab lives in the hash
 (`?tab=`, `?seg=`, `?kind=`) so a reload or a shared link keeps it. Item pages open with a breadcrumb to their hub
-(for example Work / Projects / name / Features). The top bar holds the Menu button (narrow screens), the search trigger (`Ctrl+K` or `/`),
+(for example Work / Projects / name / Features). On the Activity routes the filter bar sticks under the top bar from 52rem up and ends
+with "Data as of <time>", the newest message, session or tool use the page's API returned (no polling). The top bar holds the Menu button (narrow screens), the search trigger (`Ctrl+K` or `/`),
 Refresh and **Display**, a popover with the theme (System, Light, Dark, your custom themes), Edit themes (Settings > Appearance) and the
 English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). Below 52rem the sidebar is
 an off-canvas phone menu behind the Menu button: focus moves into it and the page behind is inert until Esc, a tap on the scrim or
@@ -38,11 +39,11 @@ Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto
 | Work | Project hub | `#/project/<name>` | `?tab=` `overview` (default, not written), `features`, `graph`, `pipelines`, `sessions`, `memories` | One project in one place; graph sync and connect; features (`#/feature/<project>/<name>`) and graph nodes crumb through the hub |
 | Work | Pipelines | `#/pipelines` | | Every project's pipelines, runs and schedules |
 | Knowledge | Memory | `#/memory[/id-or-topic_key]` | `?source=engram` for the Engram store; tabs Memory `#/memory`, Memory files `#/memfile[/id]`, Quality `#/lint` | Memory text, derived links, backlinks, same-topic rows, related graph nodes; Claude file memories (read-only); review candidates |
-| Knowledge | Graph | `#/node[/repo::id]` | | One cross-repo explorer: repo picker, search, neighbours and diagram |
+| Knowledge | Graph | `#/node[/repo::id]` | | One cross-repo explorer: repo picker, search, neighbours and diagram. The node list opens most connected first (Links column) with dependency, vendored and minified files hidden behind a labelled toggle (`GET /api/graph/nodes?order=links|name&vendored=1`); kinds read as words (Code symbol, Document) |
 | Activity | Usage | `#/usage` | filters | One summary sentence, token chart (cache behind a checkbox), model split, cost estimate |
 | Activity | Sessions | `#/session[/id]` | filters | Sessions; one session's skills, tools, subagents, tokens and memories |
 | Activity | Tools and skills | `#/tool` | `?seg=` `tools` (default), `skills`, `mcp`, `mcptools`, `subagents`; filters | One table per segment; items open `#/tool\|skill\|mcp/<name>` pages (usage over time, sessions, tokens, impact; skills render `SKILL.md`) |
-| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand |
+| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand (fitted to the column, Show at full size scrolls sideways) |
 | Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle` | Every component, with a text filter; item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|skill/<id>` crumb through Catalog / kind |
 | Harness wiki | Security | `#/security` | | Protections, checkers, trusted projects, profiles, memory guard redaction counts (counts and names only) |
 | Foot | Guide | `#/guide[/page]` | | The guide pages |
@@ -182,6 +183,10 @@ The Projects page shows a card for each, below the table, (`GET /api/siblings`):
 MCP server (`mcp`) is registered for Claude (`.claude.json`) and Codex (`config.toml`), and the age of a watched file
 (`watch`, stale after `max_age_days`). A mark says what needs attention: ✓ fine, ▲ attention, ✗ the folder is
 missing. The portal reads the folder and those two files only; it never runs a sibling's code (ADR 0001).
+
+Remove (a saved project path or a sibling) asks first with the usual confirm group, naming what the portal forgets (a
+sibling's MCP server, watched file and age limit) and saying the folder is not touched; the status line after it offers Undo,
+which puts the same entry back in its place.
 
 ### Security
 

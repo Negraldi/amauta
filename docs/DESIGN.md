@@ -94,7 +94,8 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
 - Text pages: reading column (max 68ch) plus a right rail (18rem) for metadata, links, backlinks and revisions on
   wide screens; the rail moves below the content under 72rem.
 - Data pages: full content width, dense tables, sticky header row.
-- Home: the harness health sentence leads, recent activity is the main column (the five most recent days, then Show more),
+- Today (the home page, one name in the nav group, nav item and title): the harness health sentence leads as plain text
+  with a link on the component count (warning tone only when something needs attention), recent activity is the main column (the five most recent days, then Show more),
   pipelines, spending and skill impact sit in the rail; under 72rem the rail comes before the feed (it is first in the DOM).
   No hero-metric tiles.
 - Spacing scale (rem): 0.25, 0.5, 0.75, 1, 1.5, 2, 3. Vary it for rhythm; sections separated by space and a hairline,
@@ -112,7 +113,8 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
 - Buttons (and links styled as `a.button`): one shape for the whole surface (6px radius, 1px line border); hover
   darkens the border, active fills with the line color; primary action in accent fill only for a confirm step.
 - Target size (WCAG 2.2 2.5.8): nav items, tabs, breadcrumb links, buttons, selects and palette rows have a
-  `min-block-size` of 24px (`--hit`); links in table cells and lists add 4px block padding; prose lines are >= 24px.
+  `min-block-size` of 24px (`--hit`); links in table cells and lists add 4px block padding; prose lines are >= 24px. A
+  checkbox sits inside its label (`label.check`, one 24px pointer target) and is drawn at 18px.
 - Error panel: a bordered panel with an amber triangle and the words, a plain reason, and two ways on (Retry, Go to
   Today).
 - Every interactive element has default, hover, focus-visible (2px accent ring, 2px offset), active, disabled,

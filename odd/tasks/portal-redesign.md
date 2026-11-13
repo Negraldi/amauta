@@ -23,7 +23,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
 - [x] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
 - [x] T10 Runtime-agnostic harness wiki (user, 2026-11-13: "the harness must be agnostic, Claude or Codex"): neutral copy where a claim holds for both runtimes; Overview and Catalog also inventory the Codex target (instruction blocks, hooks, MCP servers, skill links) with a runtime marker per entry
-- [ ] T11 Critique follow-ups (user, 2026-11-13: "complete the impeccable critique"): confirm on Remove, graph default view, one name per page, one tab vocabulary, P3 items; then a re-critique
+- [x] T11 Critique follow-ups (user, 2026-11-13: "complete the impeccable critique"): confirm on Remove, graph default view, one name per page, one tab vocabulary, P3 items; then a re-critique
 - [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
 
 ## Acceptance criteria
@@ -268,7 +268,22 @@ Target after redesign: >= 32/40, no P1.
   spaces; send it again as normal prose with spaces between words"); one sentence in the mem_save description, no
   instruction-block text. Lint category "unspaced" (en + srv-es). settings.py: oscompat.kill_tree and child_env (platform
   injected). RED: spacing 1 error (missing module), server 2 failures, lint 2 failures + 2 errors, i18n 1, oscompat 5
-  errors. GREEN: test_mem* 34 OK, test_portal* OK, oscompat OK, node 1018/1018, ratchet 10/10.
+  errors. GREEN: test_mem* 34 OK, test_portal* OK, oscompat OK, node 1018/1018, ratchet 10/10. Commit a683423.
+- 2026-11-13 T11 (route: delegated writer; strict TDD, node --test + python3 -P -m unittest; one commit per item). a 0d39184:
+  Remove (paths, siblings) asks with the app's confirm group, names the sibling fields lost, Undo puts the entry back in
+  place (RED 4/4 new + 2 old one-click tests). b 2770b1d: /api/graph/nodes order=links (default)|name, vendored=1;
+  graph/query.is_vendored; Links column, order select, labelled toggle, kind words incl. node page (RED py 1+1, node 3+1).
+  c 36a737f: Today/Hoy everywhere, feed h2 Recent activity (days h3), one-item group shows the name once; Harness
+  overview (RED 4). d d886069: rule in DESIGN.md; in code only two styles existed (.tabs, .segmented); link and button
+  segments share every state; segmented scrolls (nowrap) instead of wrapping (RED 3). e f2b3577: plain sentence, link on
+  the component count, warn + mark only when needed (RED 2). f 253cfdc: session what "N messages", empty when the title
+  has the count, no stray comma (RED py 2, node 1). g 62a8fc9: label.check pointer 24px, box 18px (RED 1). h c2a63bc:
+  usual origin once in the lead; Loaded / Not loaded yet, no "reflej" left in es/srv-es (RED 2). i d97a474: "Data as of"
+  in the filter bar from overview totals.latest (same SELECT, api.py not grown), sessions last_ts, tools last_used (RED
+  py 1, node 2). j b98451e: fit by default, Show at full size (aria-pressed), --natural-width (RED 2). k 5b9b568: sticky
+  filter bar >= 52rem only, ResizeObserver --topbar-h (RED 2). GREEN: node 1048/1048 (LANG=C), ratchet 10/10, Python
+  portal 513 OK, mem 34 OK, full Python 991 with the one known failure (test_pipelines DeclaredScheduleTest). Not run:
+  browser check (no server allowed in this run) and the re-critique.
 
 ### T8 close and T10 verification (coordinator, 2026-11-13)
 
@@ -284,10 +299,11 @@ Target after redesign: >= 32/40, no P1.
 
 ## Next step
 
-All tasks checked. Push and PR are the owner's decision. Open follow-ups, none started:
-- Critique P2: one-click "Remove" in Settings > Projects and siblings has no confirm or undo; the graph table opens on
-  vendored minified symbols; three names for the home page (Today / Home / Recent activity); three tab styles.
+All tasks checked. Push and PR are the owner's decision. Open, none started:
+- T11 re-critique (impeccable) and a browser pass at 1024, 1280 and 375px in light and dark: restart the portal server
+  first (Python changes: graph ranking, session rows, overview latest, lint category, settings); check the fitted
+  diagram, the sticky filter bar and the segmented controls at 1024px.
+- Restart the amauta memory MCP server so mem_save refuses unspaced bodies; Memory > Quality then lists the stored ones.
 - Settings > Appearance has no theme picker (only the Display popover).
-- T10 leftovers: personal-skill links have no copy fallback where symlinks fail; `os.killpg` in settings.py is
-  POSIX-only and ENV_KEEP drops USERPROFILE and SYSTEMROOT; nothing was run on a real Windows machine.
-- Memory: flag or refuse bodies saved without spaces (Memory > Quality lint, mem_save warning).
+- T10 leftovers: personal-skill links have no copy fallback where symlinks fail; nothing was run on a real Windows
+  machine (settings.py kill and environment are fixed and unit-tested with an injected platform).

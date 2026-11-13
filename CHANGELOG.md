@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Portal critique follow-ups: Remove in Settings > Projects and siblings asks first and offers Undo; the Graph node
+  list opens most connected first with vendored, minified and dependency files behind a toggle, and node kinds read as
+  words; Activity pages say "Data as of <time>" under Refresh and keep the filter bar under the top bar on wide screens;
+  the architecture diagram fits the column with a Show at full size toggle.
 - Memory refuses text saved without spaces between words: amauta's memory MCP server (`mem_save`, `mem_update`,
   `mem_save_prompt`, `mem_session_summary`, `mem_session_end`) replies with an error asking the agent to resend the body
   as prose, and Memory > Quality lists notes already stored that way. The external engram server is not covered.
@@ -35,6 +39,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Portal names and wording: the home page is Today / Hoy everywhere (nav group, item, title, error action) and the
+  harness overview is titled Harness overview; a graph copied into memory is Loaded / Not loaded yet (Cargado / Aún sin
+  cargar) instead of Mirrored / Sin reflejar; the Projects lead names the usual origin once; Today's session rows say
+  each fact once; the health sentence is plain text with a link on the component count, warning tone only when needed.
+- Portal controls: one segmented-control look for links and buttons that scrolls instead of wrapping (DESIGN.md states
+  when to use tabs and when a segmented control); checkboxes are 24px targets with an 18px box.
 - Portal copy is runtime-agnostic: where a statement holds for Claude Code and Codex it says "the agent" (persona,
   privacy, checks, module help, explanation requests, hook and MCP texts), and Claude Code-only parts say so (output
   style, the data-file ask, the per-edit check, agents, commands, plugins). Spanish catalog lead uses "usted" throughout.
