@@ -859,7 +859,7 @@
  "graph.kind.rationale": "Rationale",
  "graph.kind.concept": "Concept",
  "home.recent": "Recent activity",
- "project.originCommon": "Rows without a note were {origin}.",
+ "project.originCommon": "Where projects come from, unless a row says otherwise: {origin}.",
  "data.asOf": "Data as of {at}; Refresh imports newer activity.",
  "harness.fitWidth": "Fit to width"
 }

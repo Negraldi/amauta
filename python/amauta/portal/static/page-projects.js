@@ -28,12 +28,13 @@ async function lastActivity() {
 }
 const sortOnce = (id, key, dir = -1) => { state.sort[id] ||= { key, dir }; }; // a table's first order, until a header is clicked
 
-// How most projects were found, said once in the lead (T11 h); null unless at least two rows share it.
+// How most projects were found, said once in the lead (T11 h); null unless more than half of the rows (and at least two)
+// share it, so "unless a row says otherwise" stays true of most rows (T13 item 7).
 function usualOrigin(origins) {
   const n = new Map();
   for (const o of origins) n.set(o, (n.get(o) || 0) + 1);
   const [top, count] = [...n.entries()].sort((a, b) => b[1] - a[1])[0] || [null, 0];
-  return count >= 2 ? top : null;
+  return count >= 2 && count * 2 > origins.length ? top : null;
 }
 
 async function viewProjects() {

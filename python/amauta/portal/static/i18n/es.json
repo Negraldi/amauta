@@ -859,7 +859,7 @@
  "graph.kind.rationale": "Justificación",
  "graph.kind.concept": "Concepto",
  "home.recent": "Actividad reciente",
- "project.originCommon": "Las filas sin nota: {origin}.",
+ "project.originCommon": "Origen de los proyectos, salvo que la fila indique otro: {origin}.",
  "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente.",
  "harness.fitWidth": "Ajustar al ancho"
 }

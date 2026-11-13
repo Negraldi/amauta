@@ -22,7 +22,7 @@ async function boot(projects) {
 test('the usual origin is said once; only rows that differ name theirs', async () => {
   const v = await boot([project('a', ['flag']), project('b', ['flag']), project('c', ['discovered'], true)]);
   assert.equal(v.textContent.match(/added with --repo/g).length, 1, v.textContent);
-  assert.match(tree(v).find((e) => e.tagName === 'p' && /--repo/.test(e.textContent)).textContent, /Rows without a note were added with --repo/);
+  assert.match(tree(v).find((e) => e.tagName === 'p' && /--repo/.test(e.textContent)).textContent, /Where projects come from, unless a row says otherwise: added with --repo\./);
   const rows = tree(v).filter((e) => e.tagName === 'tr').map((e) => e.textContent);
   assert.ok(rows.some((r) => /^c/.test(r) && /found in your sessions/.test(r)));
 });
@@ -30,7 +30,7 @@ test('the usual origin is said once; only rows that differ name theirs', async (
 test('one project says its origin in its row and nothing in the lead', async () => {
   const v = await boot([project('solo', ['config'])]);
   assert.equal(v.textContent.match(/saved in Settings/g).length, 1);
-  assert.doesNotMatch(v.textContent, /Rows without a note/);
+  assert.doesNotMatch(v.textContent, /unless a row says otherwise/);
 });
 
 test('graph status is said in plain words in both languages', async () => {
@@ -40,4 +40,20 @@ test('graph status is said in plain words in both languages', async () => {
   for (const [k, v] of [...Object.entries(es), ...Object.entries(srv)]) assert.doesNotMatch(v, /reflej/i, k);
   const v = await boot([project('a', ['flag'])]);
   assert.match(v.textContent, /Not loaded yet/);
+});
+
+// Re-critique T13 item 7: the lead named an origin shared by only some rows ("Rows without a note: ..."), while most rows
+// carried a note. The lead now names an origin only when most projects share it, and every other row says its own.
+test('an origin shared by a minority is not factored into the lead; each row says its own', async () => {
+  const v = await boot([project('a', ['flag', 'config']), project('b', ['flag', 'config']), project('c', ['discovered']),
+    project('d', ['discovered']), project('e', ['config'])]);
+  assert.doesNotMatch(v.textContent, /unless a row says otherwise/);
+  const rows = tree(v).filter((e) => e.tagName === 'tr').slice(1).map((e) => e.textContent);
+  assert.equal(rows.length, 5);
+  for (const r of rows) assert.match(r, /added with --repo|saved in Settings|found in your sessions/, r);
+});
+
+test('the Spanish lead reads as a sentence about origin', async () => {
+  const { es } = await readDicts();
+  assert.equal(es['project.originCommon'], 'Origen de los proyectos, salvo que la fila indique otro: {origin}.');
 });
