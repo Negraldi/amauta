@@ -116,6 +116,41 @@ class ServerTest(unittest.TestCase):
             self.assertIn(Path(d).name, self.text(cur))
 
 
+class UnspacedBodyTest(unittest.TestCase):
+    """Bodies saved without spaces are refused with a reply that says how to resend; nothing is written."""
+    GLUED = ("AvoidableRootROpreflight requestedper-parentworldreadsagainstLIVEglobalowner_fold/folded_cells.sqlite. "
+             "Globalcells_parentindexiscreatedONLYatENDparallel_assembly")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store = mstore.Store(Path(self.tmp.name) / "memory.db")
+        self.addCleanup(self.store.close)
+
+    def test_every_free_text_tool_refuses_an_unspaced_body(self):
+        mserver.handle(self.store, call(0, "mem_save", {"title": "Seed", "content": "A normal note.", "project": "demo"}))
+        mserver.handle(self.store, call(0, "mem_session_start", {"id": "s1", "project": "demo"}))
+        before = self.store.conn.execute("SELECT count(*) FROM observations").fetchone()[0]
+        for i, (name, args) in enumerate([
+            ("mem_save", {"title": "Preflight", "content": self.GLUED, "project": "demo"}),
+            ("mem_update", {"id": 1, "content": self.GLUED}),
+            ("mem_save_prompt", {"content": self.GLUED, "project": "demo"}),
+            ("mem_session_summary", {"content": self.GLUED, "project": "demo"}),
+            ("mem_session_end", {"id": "s1", "summary": self.GLUED}),
+        ], 1):
+            r = mserver.handle(self.store, call(i, name, args))["result"]
+            self.assertTrue(r.get("isError"), name)
+            self.assertIn("almost no spaces", r["content"][0]["text"], name)
+            self.assertIn("send it again as normal prose with spaces between words", r["content"][0]["text"], name)
+        self.assertEqual(self.store.conn.execute("SELECT count(*) FROM observations").fetchone()[0], before)
+        self.assertEqual(self.store.get(1)["content"], "A normal note.")
+        self.assertIsNone(self.store.conn.execute("SELECT summary FROM sessions WHERE id = 's1'").fetchone()[0])
+
+    def test_mem_save_description_asks_for_spaces(self):
+        tools = {t["name"]: t for t in mserver.TOOLS}
+        self.assertIn("spaces between words", tools["mem_save"]["description"])
+
+
 class StdioTest(unittest.TestCase):
     def test_python_dash_m_serve_over_stdio(self):
         with tempfile.TemporaryDirectory() as state:

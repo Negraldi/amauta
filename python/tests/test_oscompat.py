@@ -53,3 +53,46 @@ class StartTokenTest(unittest.TestCase):
     def test_start_token_is_stable_for_a_live_process_and_empty_for_none(self):
         self.assertEqual(oscompat.start_token(os.getpid()), oscompat.start_token(os.getpid()))
         self.assertEqual(oscompat.start_token(-1), "")
+
+
+class FakeProc:
+    pid = 4321
+
+    def __init__(self):
+        self.killed = 0
+
+    def kill(self):
+        self.killed += 1
+
+
+class KillTreeTest(unittest.TestCase):
+    def test_windows_kills_the_child_without_process_groups(self):
+        proc, groups = FakeProc(), []
+        oscompat.kill_tree(proc, platform="win32", killpg=lambda pid, sig: groups.append(pid))
+        self.assertEqual((proc.killed, groups), (1, []))
+
+    def test_posix_kills_the_whole_group(self):
+        proc, groups = FakeProc(), []
+        oscompat.kill_tree(proc, platform="linux", killpg=lambda pid, sig: groups.append((pid, sig)))
+        self.assertEqual(groups, [(4321, signal.SIGKILL)])
+        self.assertEqual(proc.killed, 0)
+
+    def test_posix_falls_back_to_the_child_when_the_group_is_gone(self):
+        proc = FakeProc()
+
+        def gone(pid, sig):
+            raise ProcessLookupError
+
+        oscompat.kill_tree(proc, platform="linux", killpg=gone)
+        self.assertEqual(proc.killed, 1)
+
+
+class ChildEnvTest(unittest.TestCase):
+    ENV = {"PATH": "/bin", "USERPROFILE": "C:\\Users\\dev", "SYSTEMROOT": "C:\\Windows", "APPDATA": "C:\\AppData", "SECRET": "x"}
+
+    def test_windows_keeps_the_variables_node_and_npm_need(self):
+        env = oscompat.child_env(self.ENV, ("PATH", "HOME"), platform="win32")
+        self.assertEqual(env, {"PATH": "/bin", "USERPROFILE": "C:\\Users\\dev", "SYSTEMROOT": "C:\\Windows", "APPDATA": "C:\\AppData"})
+
+    def test_posix_keeps_only_the_listed_names(self):
+        self.assertEqual(oscompat.child_env(self.ENV, ("PATH", "HOME"), platform="linux"), {"PATH": "/bin"})

@@ -73,7 +73,7 @@ All text from memories, repos and graphs is rendered through text nodes by a sma
 
 ### Quality (`#/lint`, Memory > Quality, `GET /api/wiki/lint?days=30`)
 
-Counts and links for seven checks, all capped and read-only. They are prompts to review, never verdicts.
+Counts and links for eight checks, all capped and read-only. They are prompts to review, never verdicts.
 
 | Check | Meaning |
 |---|---|
@@ -83,6 +83,7 @@ Counts and links for seven checks, all capped and read-only. They are prompts to
 | Installed skills never used | No load in the window (needs usage data) |
 | ODD tasks checked without a commit | No commit hash on the task line or in a progress line naming its id |
 | Wikilinks to missing pages | Target is not a memory, skill, tool, MCP server, session, feature or node |
+| Notes saved without spaces | The body was stored with almost no spaces between words (`memory/spacing.py`); shown as stored, never repaired automatically |
 | Stale explanations | A harness component changed after its explanation note was written, or no longer exists |
 
 ### Harness wiki (`#/harness`, `#/component`, `#/security`)

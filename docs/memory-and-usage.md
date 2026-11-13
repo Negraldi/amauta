@@ -15,6 +15,12 @@ Memory guard (always on, ADR 0007): every title, content, prompt and session sum
 is refused with the fixed reply `rejected: secret-like content` and nothing is written. Personal identifiers (cedula,
 RUC, cards, IBAN, phones, e-mail) are replaced by `[REDACTED_<KIND>]`; the tool reply says how many of each kind, never
 which. Memories imported from an existing engram database keep their text as it was.
+Text saved without spaces between words (`python/amauta/memory/spacing.py`): `mem_save`, `mem_update`, `mem_save_prompt`,
+`mem_session_summary` and `mem_session_end` refuse a body of at least 80 Latin letters that has almost no spaces and
+long glued lowercase runs, with a reply asking the agent to resend it as prose; code, URLs, paths and scripts written
+without spaces (CJK, Thai) are not judged, and nothing is ever re-spaced automatically. Portal Memory > Quality lists
+notes already stored that way. This applies only to amauta's own memory server: the external engram program is not
+part of this repository and does not run the check.
 With the engram plugin enabled nothing is registered.
 
 Tools: `mem_save` (same project+scope+`topic_key` updates and bumps the revision), `mem_update`,

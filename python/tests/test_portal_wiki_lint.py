@@ -5,7 +5,7 @@ from python.amauta.portal import api, wikilint
 from python.amauta.portal.config import Config
 from python.tests.test_portal_wiki import WikiBase
 
-IDS = ["orphans", "duplicates", "superseded", "unused_skills", "features_no_commits", "missing_links", "stale_notes"]
+IDS = ["orphans", "duplicates", "superseded", "unused_skills", "features_no_commits", "missing_links", "unspaced", "stale_notes"]
 
 
 class LintBase(WikiBase):
@@ -51,7 +51,23 @@ class ShapeTest(LintBase):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
         status, body = empty.get("/api/wiki/lint", {})
         self.assertEqual(status, 200)
-        self.assertEqual([c["count"] for c in body["categories"]], [0] * 7)
+        self.assertEqual([c["count"] for c in body["categories"]], [0] * 8)
+
+
+class UnspacedTest(LintBase):
+    GLUED = ("AvoidableRootROpreflight requestedper-parentworldreadsagainstLIVEglobalowner_fold/folded_cells.sqlite. "
+             "Globalcells_parentindexiscreatedONLYatENDparallel_assembly")
+
+    def test_memories_stored_without_spaces_are_listed_and_explained(self):
+        glued = self.save("Preflight reads", self.GLUED)
+        self.save("Readable", "A normal note with spaces between its words, long enough to be judged by the detector.")
+        c = self.cat("unspaced")
+        self.assertEqual([i["id"] for i in c["items"]], [str(glued["id"])])
+        self.assertIn("cannot be repaired automatically", c["note"])
+        self.assertIn("saved", c["note"])
+
+    def test_no_unspaced_memories_gives_zero(self):
+        self.assertEqual(self.cat("unspaced")["count"], 0)
 
 
 class OrphanTest(LintBase):

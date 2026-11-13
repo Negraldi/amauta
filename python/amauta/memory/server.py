@@ -8,7 +8,7 @@ import json
 import sys
 
 from .. import __version__
-from . import guard
+from . import guard, spacing
 from . import store as mstore
 
 SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"]
@@ -26,7 +26,8 @@ def _tool(name, description, properties, required=()):
 
 
 TOOLS = [
-    _tool("mem_save", "Save an observation (decision, bugfix, discovery, convention). Same project+scope+topic_key updates the existing one.",
+    _tool("mem_save", "Save an observation (decision, bugfix, discovery, convention). Same project+scope+topic_key updates the existing one. "
+          "Write content as normal prose with spaces between words; a body with almost no spaces is refused.",
           {"title": _S, "content": _S, "type": _S, "topic_key": _S, "scope": _S, "project": _S, "session_id": _S}, ["title", "content"]),
     _tool("mem_update", "Update fields of an observation by id.",
           {"id": _I, "title": _S, "content": _S, "type": _S, "topic_key": _S}, ["id"]),
@@ -75,7 +76,14 @@ def _note(r):
     return f" ({guard.describe(r['redacted'])})" if r.get("redacted") else ""
 
 
+FREE_TEXT = {"mem_save": "content", "mem_update": "content", "mem_save_prompt": "content",
+             "mem_session_summary": "content", "mem_session_end": "summary"}
+UNSPACED = "rejected: the text has almost no spaces; send it again as normal prose with spaces between words. Nothing was saved."
+
+
 def _run(store, name, a):
+    if spacing.looks_unspaced(a.get(FREE_TEXT.get(name, ""))):
+        raise ToolError(UNSPACED)
     if name == "mem_save":
         r = store.save(a["title"], a["content"], a.get("type") or "note", a.get("topic_key"),
                        a.get("scope") or "project", a.get("project"), a.get("session_id"))

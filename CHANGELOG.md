@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Memory refuses text saved without spaces between words: amauta's memory MCP server (`mem_save`, `mem_update`,
+  `mem_save_prompt`, `mem_session_summary`, `mem_session_end`) replies with an error asking the agent to resend the body
+  as prose, and Memory > Quality lists notes already stored that way. The external engram server is not covered.
 - Harness wiki inventories Codex too: MCP servers from `config.toml`, hooks from `hooks.json`, the `AGENTS.md` blocks and
   the Codex skills dir. One entry per component with its runtimes ("Runtime: Claude Code, Codex") in the Catalog and on
   item pages; the Overview has one row per runtime; Security shows the Codex privacy and checks switches.
@@ -49,6 +52,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Portal Settings on Windows: a timed-out install called `os.killpg` (POSIX only) and the installer's environment
+  dropped `USERPROFILE`, `SYSTEMROOT` and the other variables node and npm need there.
 - Portal Settings reached only Claude Code: an explicit Claude home made the installer look for Codex inside it. Preview,
   apply and undo now pass the Codex home and skills dir whenever a Codex home exists (kept inside a sandboxed Claude home),
   list the Codex changes and backup, and undo re-runs the previous values for both runtimes.

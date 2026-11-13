@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from .api import _int, has_table
 from .. import extensions
+from ..memory import spacing
 from . import wiki, wikifeature, wikiharness, wikimem, wikiusage
 from .wikibase import _live, _ref
 
@@ -309,6 +310,13 @@ def _missing_links(portal, rows, resolver):
                      "A [[link]] whose target is not a memory, skill, tool, MCP server, session, ODD feature or graph node. The renderer shows these as plain muted text.", items)
 
 
+def _unspaced(rows):
+    items = [_mem_item(r, "Body stored with almost no spaces between words.") for r in rows if spacing.looks_unspaced(r["content"])]
+    return _category("unspaced", "Notes saved without spaces",
+                     "The body was saved this way by the agent that wrote it; the portal shows it as stored. It cannot be repaired "
+                     "automatically because guessing where words start would change the text. Rewrite the note or delete it.", items)
+
+
 # ---- entry point -------------------------------------------------------------------------------------------------
 def lint(portal, q):
     days = _int(q, "days", 30, 1, 3650)
@@ -319,5 +327,6 @@ def lint(portal, q):
         if conn is not None:
             conn.close()
     resolver = _Resolver(portal, rows, capped)
-    cats = [_orphans(rows, resolver), _duplicates(rows), _superseded(rows), _unused_skills(portal, days), _features(portal), _missing_links(portal, rows, resolver), *_extra_categories(portal)]
+    cats = [_orphans(rows, resolver), _duplicates(rows), _superseded(rows), _unused_skills(portal, days), _features(portal), _missing_links(portal, rows, resolver),
+            _unspaced(rows), *_extra_categories(portal)]
     return {"window_days": days, "scanned": {"memories": len(rows), "capped": capped}, "categories": cats}

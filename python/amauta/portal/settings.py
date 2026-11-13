@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import re
-import signal
 import secrets
 import shutil
 import subprocess
@@ -21,6 +20,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .. import oscompat
 from .settingstargets import backup_id_of as _backup_id, plan_view as _plan_view, target_args
 
 PERSONAS = ("gentleman", "neutral")
@@ -166,7 +166,7 @@ class Settings:
             return set()
 
     def _run(self, argv: list, timeout: int) -> dict:
-        env = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
+        env = oscompat.child_env(os.environ, ENV_KEEP)
         try:
             # Own session = own process group, so a timeout can take down npm and anything else the installer started.
             proc = subprocess.Popen(argv, shell=False, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
@@ -175,10 +175,7 @@ class Settings:
         try:
             stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                proc.kill()
+            oscompat.kill_tree(proc)
             proc.communicate()
             raise SettingsError(504, f"the installer did not finish within {timeout} seconds") from None
         out = (stdout or "")[:OUTPUT_CAP]

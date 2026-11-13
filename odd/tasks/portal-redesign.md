@@ -23,6 +23,8 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
 - [x] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
 - [x] T10 Runtime-agnostic harness wiki (user, 2026-11-13: "the harness must be agnostic, Claude or Codex"): neutral copy where a claim holds for both runtimes; Overview and Catalog also inventory the Codex target (instruction blocks, hooks, MCP servers, skill links) with a runtime marker per entry
+- [ ] T11 Critique follow-ups (user, 2026-11-13: "complete the impeccable critique"): confirm on Remove, graph default view, one name per page, one tab vocabulary, P3 items; then a re-critique
+- [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
 
 ## Acceptance criteria
 
@@ -259,6 +261,14 @@ Target after redesign: >= 32/40, no P1.
   checks 5/5 (LANG=C), install/codex/paths/hooks suites 189/189, Python portal 510 OK, paths/usage/memory OK. Not covered:
   instruction blocks are on the Overview, not catalog entries (a new kind would grow wikiroute.js past 400); no runtime
   filter; Codex-only MCP servers are not probed by Refresh descriptions; Windows behavior unverified on a Windows machine.
+- 2026-11-13 T12 (route: delegated writer; strict TDD, python3 -P -m unittest). Detector memory/spacing.py (pure): judged
+  only with >= 80 Latin letters after removing fenced/inline code and URLs, exempt when >= 20% of letters are CJK/Thai/
+  kana/Hangul; flagged when letters per space-separated word >= 12 AND >= 15% of letters sit in lowercase runs >= 16.
+  Server refuses mem_save, mem_update, mem_save_prompt, mem_session_summary, mem_session_end ("the text has almost no
+  spaces; send it again as normal prose with spaces between words"); one sentence in the mem_save description, no
+  instruction-block text. Lint category "unspaced" (en + srv-es). settings.py: oscompat.kill_tree and child_env (platform
+  injected). RED: spacing 1 error (missing module), server 2 failures, lint 2 failures + 2 errors, i18n 1, oscompat 5
+  errors. GREEN: test_mem* 34 OK, test_portal* OK, oscompat OK, node 1018/1018, ratchet 10/10.
 
 ### T8 close and T10 verification (coordinator, 2026-11-13)
 
