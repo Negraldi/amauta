@@ -832,5 +832,17 @@
  "notfound.agent": "Agent not found",
  "notfound.command": "Command not found",
  "notfound.plugin": "Plugin not found",
- "notfound.outputstyle": "Output style not found"
+ "notfound.outputstyle": "Output style not found",
+ "common.undo": "Undo",
+ "sib.removeConfirm": "Remove {name} from the sibling list? The portal forgets what was entered for it ({lost}). The folder {path} itself is not touched.",
+ "sib.removeConfirmBare": "Remove {name} from the sibling list? The folder {path} itself is not touched.",
+ "sib.lost.mcp": "MCP server {mcp}",
+ "sib.lost.watch": "watched file {file}",
+ "sib.lost.age.one": "stale after {n} day",
+ "sib.lost.age.other": "stale after {n} days",
+ "sib.removeYes": "Remove sibling",
+ "sib.removed": "Removed {name}.",
+ "sp.removeConfirm": "Stop listing {path} as a project? Only the saved path leaves portal.json; the folder is not touched, and it can still appear if it is found automatically.",
+ "sp.removeYes": "Remove path",
+ "sp.removed": "Removed {path}."
 }

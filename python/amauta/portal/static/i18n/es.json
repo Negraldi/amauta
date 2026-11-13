@@ -832,5 +832,17 @@
  "notfound.agent": "Agente no encontrado",
  "notfound.command": "Comando no encontrado",
  "notfound.plugin": "Plugin no encontrado",
- "notfound.outputstyle": "Estilo de salida no encontrado"
+ "notfound.outputstyle": "Estilo de salida no encontrado",
+ "common.undo": "Deshacer",
+ "sib.removeConfirm": "¿Quitar {name} de la lista de proyectos hermanos? El portal olvida lo que se indicó para él ({lost}). La carpeta {path} no se modifica.",
+ "sib.removeConfirmBare": "¿Quitar {name} de la lista de proyectos hermanos? La carpeta {path} no se modifica.",
+ "sib.lost.mcp": "servidor MCP {mcp}",
+ "sib.lost.watch": "archivo vigilado {file}",
+ "sib.lost.age.one": "desactualizado tras {n} día",
+ "sib.lost.age.other": "desactualizado tras {n} días",
+ "sib.removeYes": "Quitar proyecto hermano",
+ "sib.removed": "Se quitó {name}.",
+ "sp.removeConfirm": "¿Dejar de mostrar {path} como proyecto? Solo se quita la ruta guardada en portal.json; la carpeta no se modifica y puede seguir apareciendo si se encuentra automáticamente.",
+ "sp.removeYes": "Quitar ruta",
+ "sp.removed": "Se quitó {path}."
 }

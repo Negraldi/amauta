@@ -120,8 +120,10 @@ test('Projects and siblings lists siblings in a table, with a Remove button that
   assert.deepEqual(labelled(v), []);
   tree(v).find((e) => e.tagName === 'button' && e.attrs['aria-label'] === 'Remove Data catalog').click();
   await tick();
+  tree(v).find((e) => e.tagName === 'button' && e.textContent === 'Remove sibling').click(); // T11 a: Remove asks first
+  await tick();
   assert.deepEqual(posts.at(-1), { siblings: [] });
-  assert.ok(tree(view(env)).some((e) => e.attrs.role === 'status' && /Saved/.test(e.textContent)));
+  assert.ok(tree(view(env)).some((e) => e.attrs.role === 'status' && /Removed Data catalog/.test(e.textContent)));
 });
 
 test('with no siblings the tab teaches what a sibling is and how to add one', async () => {

@@ -44,7 +44,8 @@ async function siblingsBlock() {
 // ---- Settings > Projects and siblings: saved project paths, auto-discover and the sibling table -----------------------
 // Both sections share one `store` (the /api/projects answer) so a change in one is never overwritten by the other.
 // One guarded POST to the projects config (a closed schema, validated by the server); the answer replaces the store.
-async function saveConfig(store, body, out, repaint) {
+// `done` (optional) replaces the plain "Saved." with its own status line, such as "Removed X." plus Undo.
+async function saveConfig(store, body, out, repaint, done) {
   out.replaceChildren(h("p", { role: "status", class: "muted" }, t("common.saving")));
   let res;
   try { res = await postJson("/api/projects/config", body); } catch (err) {
@@ -58,13 +59,42 @@ async function saveConfig(store, body, out, repaint) {
   }
   store.data = res.data;
   repaint();
-  out.replaceChildren(h("p", { role: "status" }, "✓ " + t("common.saved")));
+  out.replaceChildren(done ? done() : h("p", { role: "status" }, "✓ " + t("common.saved")));
+}
+
+// Remove asks first, the way every other change in the app does (a confirm group with the accent button and Go back),
+// and the status line after a removal offers Undo, which puts the same entry back where it was.
+function askRemove(box, question, yes, onYes) {
+  const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
+  ok.addEventListener("click", () => { box.replaceChildren(); onYes(); });
+  no.addEventListener("click", () => box.replaceChildren());
+  box.replaceChildren(h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, question),
+    h("div", { class: "actions" }, ok, no)));
+  no.focus();
+}
+function removedLine(text, undo) {
+  const b = h("button", { type: "button" }, t("common.undo"));
+  b.addEventListener("click", undo);
+  return h("p", { role: "status" }, `✓ ${text} `, b);
+}
+const putBack = (list, item, at) => [...list.slice(0, at), item, ...list.slice(at)];
+function siblingLoss(s) {
+  const lost = [s.mcp ? t("sib.lost.mcp", { mcp: s.mcp }) : null, s.watch ? t("sib.lost.watch", { file: s.watch }) : null,
+    s.max_age_days ? tn("sib.lost.age", s.max_age_days, { n: fmt(s.max_age_days) }) : null].filter(Boolean);
+  return lost.length ? t("sib.removeConfirm", { name: s.name, path: s.path, lost: lost.join(", ") })
+    : t("sib.removeConfirmBare", { name: s.name, path: s.path });
 }
 
 // The paths saved in portal.json and the auto-discover switch.
 function projectsSection(store) {
   const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
-  const send = (body) => saveConfig(store, body, out, paint);
+  const send = (body, done) => saveConfig(store, body, out, paint, done);
+  const ask = h("div", null);
+  function drop(path) {
+    const at = store.data.config_repos.indexOf(path);
+    const undo = () => send({ repos: putBack(store.data.config_repos, path, at) });
+    send({ repos: store.data.config_repos.filter((x) => x !== path) }, () => removedLine(t("sp.removed", { path }), undo));
+  }
   function paint() {
     const data = store.data;
     const input = h("input", { type: "text", id: "project-path", placeholder: t("sp.placeholder"),
@@ -77,14 +107,14 @@ function projectsSection(store) {
     const found = data.projects.filter(only);
     const remove = (_v, row) => {
       const b = h("button", { type: "button", "aria-label": t("sp.remove", { path: row.path }) }, t("common.remove"));
-      b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== row.path) }));
+      b.addEventListener("click", () => askRemove(ask, t("sp.removeConfirm", { path: row.path }), t("sp.removeYes"), () => drop(row.path)));
       return b;
     };
     // Path and action in two columns, so every Remove lines up whatever the path's length.
     const paths = () => table("saved-paths", [{ key: "path", label: t("sib.path"), render: (v) => h("code", { class: "tok" }, v) },
       { key: "remove", label: t("sib.col.actions"), render: remove }], data.config_repos.map((path) => ({ path })));
     root.replaceChildren(h("h2", null, t("nav.project")), h("p", { class: "muted" }, t("sp.intro")),
-      data.config_repos.length ? paths() : h("p", { class: "muted" }, t("sp.none")),
+      data.config_repos.length ? paths() : h("p", { class: "muted" }, t("sp.none")), ask,
       h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
       h("label", { class: "check", for: "project-auto" }, box, t("sp.auto")),
       h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null));
@@ -96,7 +126,13 @@ function projectsSection(store) {
 // The siblings: a table with Remove, a teaching empty state, and the form that adds one.
 function siblingsSection(store) {
   const root = h("section", { class: "projects" }), out = h("div", { class: "settings-out", "aria-live": "polite" });
-  const send = (list) => saveConfig(store, { siblings: list }, out, paint);
+  const send = (list, done) => saveConfig(store, { siblings: list }, out, paint, done);
+  const ask = h("div", null);
+  function drop(s) {
+    const list = store.data.siblings || [], at = list.indexOf(s);
+    const undo = () => send(putBack(store.data.siblings || [], s, at));
+    send(list.filter((x) => x !== s), () => removedLine(t("sib.removed", { name: s.name }), undo));
+  }
   const field = (id, label, placeholder) => [h("label", { for: id }, label),
     h("input", { type: "text", id, placeholder, autocomplete: "off", spellcheck: "false" })];
   function paint() {
@@ -114,7 +150,7 @@ function siblingsSection(store) {
     });
     const remove = (_v, s) => {
       const b = h("button", { type: "button", "aria-label": t("sib.remove", { name: s.name }) }, t("common.remove"));
-      b.addEventListener("click", () => send(list.filter((x) => x !== s)));
+      b.addEventListener("click", () => askRemove(ask, siblingLoss(s), t("sib.removeYes"), () => drop(s)));
       return b;
     };
     const text = (v) => v || "-";
@@ -124,7 +160,7 @@ function siblingsSection(store) {
       { key: "mcp", label: t("sib.col.mcp"), render: text }, { key: "watch", label: t("sib.col.watch"), render: watched },
       { key: "remove", label: t("sib.col.actions"), render: remove }];
     root.replaceChildren(h("h2", null, t("sib.title")), h("p", { class: "muted" }, t("sib.settingsLead")),
-      list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")),
+      list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")), ask,
       h("div", { class: "sibling-form" }, fields.flat(), add));
   }
   paint();
