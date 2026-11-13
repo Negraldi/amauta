@@ -33,17 +33,24 @@ flowchart LR
   EXR --> EXT["extras such as pipelines and themes"]
 ```
 
-The sidebar has seven pages; their other routes show as tabs:
+The sidebar is grouped by job. A page with several views shows them as tabs, and the tab is kept in the address (`?tab=`, `?seg=`, `?kind=`):
 
-| Page | Tabs and routes |
-| --- | --- |
-| Home | `#/` recent activity by day; a rail with spending, skill impact and harness health |
-| Projects | `#/project`, ODD features `#/feature`, Graph `#/node`, Pipelines `#/pipelines`; sibling cards |
-| Memory | `#/memory`, Lint `#/lint` |
-| Activity | Usage `#/usage`, Sessions `#/session`, Tools `#/tool`, MCP servers `#/mcp` |
-| Harness | `#/harness`, Skills `#/skill`, Components `#/component`, Guide `#/guide` |
-| Security | `#/security` |
-| Settings | `#/settings`, Themes `#/themes` |
+| Group | Page | Tabs and routes |
+| --- | --- | --- |
+| Today | Home | `#/` the harness health sentence, recent activity by day; a rail with pipelines, spending and skill impact |
+| Work | Projects | `#/project` a table of projects and the sibling cards; one project is `#/project/<name>` with tabs Overview, Features, Graph, Pipelines, Sessions, Memories (`?tab=`) |
+| Work | Pipelines | `#/pipelines` |
+| Knowledge | Memory | `#/memory`, Memory files `#/memfile`, Quality `#/lint` |
+| Knowledge | Graph | `#/node` |
+| Activity | Usage | `#/usage` |
+| Activity | Sessions | `#/session` |
+| Activity | Tools and skills | `#/tool` with a segment: Tools, Skills, MCP servers, MCP tools, Subagents (`?seg=`) |
+| Harness wiki | Overview | `#/harness` |
+| Harness wiki | Catalog | `#/component`, filtered by kind with `?kind=` |
+| Harness wiki | Security | `#/security` |
+| Foot | Guide, Settings | `#/guide`; `#/settings` with tabs Preferences, Projects and siblings, Appearance (`?tab=`) |
+
+Item pages open with a breadcrumb back to their page, and old links (`#/themes`, `#/mcp`, `#/activity`, `#/skill`, `#sessions` and the like) redirect to where the content now lives.
 
 ## How you use it
 
@@ -54,10 +61,10 @@ amauta portal install-launcher      # a desktop entry or Start menu shortcut
 ```
 
 - Search with `Ctrl+K` or `/`: one query across memories (full-text), skills, tools, MCP servers, sessions, features, tasks and graph nodes.
-- Use the Range, Project and Runtime filters above the pages that have them (All, Claude Code, Codex).
-- Switch the theme (System, Light, Dark, your own themes) and the language (English, Spanish) at the foot of the sidebar. Your own text stays as written; dates are always `YYYY-MM-DD`.
-- Add projects in Settings > Projects, or with `--repo DIR` (repeatable).
-- Read this guide under Harness > Guide; each page follows the portal's language and falls back to English.
+- Use the Range, Project and Runtime filters on the Activity pages (Usage, Sessions, Tools and skills); they are the only pages that have them (All, Claude Code, Codex).
+- Switch the theme (System, Light, Dark, your own themes) and the language (English, Spanish) from Display in the top bar; Edit themes opens Settings > Appearance. Your own text stays as written; dates are always `YYYY-MM-DD`.
+- Add projects in Settings > Projects and siblings, or with `--repo DIR` (repeatable).
+- Read this guide from Guide at the foot of the sidebar; each page follows the portal's language and falls back to English.
 
 ## Scripts and commands
 
@@ -104,11 +111,11 @@ The settings editor changes a closed list: persona, review mode, telemetry, the 
 
 ### Diagrams
 
-The portal ships an unmodified Mermaid build, loaded only when a diagram is first drawn, with `securityLevel: 'strict'`. Mermaid source for task progress, graph neighbourhoods and the harness architecture is generated server-side with generated ids and escaped, capped labels. Memories and guide pages draw their own Mermaid fences. With archify installed, the Harness page draws the architecture with it in a sandboxed frame.
+The portal ships an unmodified Mermaid build, loaded only when a diagram is first drawn, with `securityLevel: 'strict'`. Mermaid source for task progress, graph neighbourhoods and the harness architecture is generated server-side with generated ids and escaped, capped labels. Memories and guide pages draw their own Mermaid fences. With archify installed, the Harness overview draws the architecture with it in a sandboxed frame.
 
 ### Extras in the portal
 
-Some tabs come from extras through the extension registry: the Pipelines tab ([[guide:pipelines|The pipelines orchestrator]]), the theme editor, skill impact and wiki explanations ([[guide:extras|Optional modules and extras]]). Deleting an extra's folder removes its tab or block and nothing else.
+Some tabs come from extras through the extension registry: the Pipelines page ([[guide:pipelines|The pipelines orchestrator]]), the theme editor (Settings > Appearance), skill impact and wiki explanations ([[guide:extras|Optional modules and extras]]). Deleting an extra's folder removes its tab or block and nothing else.
 
 ### Launcher
 

@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Portal redesign. The sidebar is grouped by job (Today, Work, Knowledge, Activity, Harness wiki, then Guide and Settings)
+  with a breadcrumb on item pages and tabs kept in the address. Each project is one hub (`#/project/<name>`: overview,
+  features, graph, pipelines, sessions, memories); memory has Memory, Memory files and Quality tabs and one cross-repo
+  Graph page; Activity holds Usage, Sessions and one Tools and skills table, and the Range, Project and Runtime filters
+  live only there; the harness wiki has an overview, one Catalog of every component (`?kind=`) and Security; Settings has
+  Preferences, Projects and siblings, and Appearance tabs. Display in the top bar sets theme and language; Ctrl+K also
+  jumps to pages. New identity: cochineal-red accent for links, selection and focus, neutral surfaces, monospace titles
+  and figures, reworked data colors and dark-aware diagrams. Accessibility: AA contrast checked in tests, 24px targets,
+  visible control borders, a phone menu closed by Esc or a tap outside, one date and number format. Old links
+  (`#/activity`, `#/mcp`, `#/themes`, `#sessions` and the like) redirect to the new pages. No API, data or dependency changes.
 - PBIR tools: `refs REPORT MODEL` lists the fields, filters and sorts of a report that its model lacks (report only,
   never repaired); `theme --name N (--colors | --brand FILE | --profile) --out FILE.json` writes a report theme from a
   palette, warns on low text contrast and never replaces a file without `--force`.

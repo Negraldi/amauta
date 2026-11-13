@@ -8,8 +8,8 @@ Un proyecto hermano es un proyecto que vive junto a amauta, en su propio reposit
 | --- | --- | --- |
 | Entradas de hermanos | `<state dir>/portal.json`, clave `siblings` | Una lista cerrada de como mucho 20 entradas |
 | Validación y salud | `python/amauta/portal/siblings.py` | Comprueba cada entrada; lee git, los registros MCP y un archivo vigilado |
-| Formulario de ajustes | Ajustes > Proyectos hermanos en el portal | Edita la lista mediante un POST protegido |
-| Tarjetas de salud | la página de Proyectos, `GET /api/siblings` | Una tarjeta por hermano con una marca |
+| Formulario de ajustes | Configuración > Proyectos y hermanos en el portal | Edita la lista mediante un POST protegido |
+| Tarjetas de salud | la página de Proyectos (bajo la tabla), `GET /api/siblings` | Una tarjeta por hermano con una marca |
 | El propio hermano | en cualquier lugar de tu disco | Su propio código, tests, dependencias y, a menudo, su propio servidor MCP |
 
 Una entrada tiene estas claves, y ninguna otra:
@@ -42,7 +42,7 @@ Los runtimes hablan directamente con el hermano, a través de su propio servidor
 
 1. Mantén el hermano en su propia carpeta y repositorio, con su propia configuración.
 2. Registra su servidor MCP en Claude Code o Codex si tiene uno; `amauta sync` copia una entrada stdio al otro runtime.
-3. Añádelo en Ajustes > Proyectos hermanos, o edita `portal.json`:
+3. Añádelo en Configuración > Proyectos y hermanos, o edita `portal.json`:
 
 ```json
 {
@@ -74,7 +74,7 @@ amauta no tiene un comando propio para los hermanos; usas el portal y los comand
 | Comando o archivo | Uso |
 | --- | --- |
 | `amauta portal`, página de Proyectos | Las tarjetas de salud |
-| Ajustes > Proyectos hermanos | Editar la lista |
+| Configuración > Proyectos y hermanos | Editar la lista |
 | `<state dir>/portal.json` | La misma lista como archivo: `{"repos": [...], "auto_discover": true, "siblings": [...]}` |
 | `GET /api/siblings` | Los datos de salud como JSON (solo lectura) |
 | `amauta sync` | Copia la entrada MCP stdio del hermano entre Claude Code y Codex |

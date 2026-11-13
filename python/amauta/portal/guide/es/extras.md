@@ -20,7 +20,7 @@ Los cinco están desactivados por defecto y son persistentes hasta que los desac
 
 | Extra | Carpeta | Puntos de extensión | Qué hace |
 | --- | --- | --- | --- |
-| Pipelines | `extras/pipelines/` | `GET /api/pipelines`, `GET /api/pipelines/events`, `GET /api/pipelines/check`, `pipelines.run`, `pipelines.cancel` | Ejecuta los procesos de un proyecto; la pestaña Pipelines ([[guide:pipelines|El orquestador de pipelines]]) |
+| Pipelines | `extras/pipelines/` | `GET /api/pipelines`, `GET /api/pipelines/events`, `GET /api/pipelines/check`, `pipelines.run`, `pipelines.cancel` | Ejecuta los procesos de un proyecto; la página Pipelines ([[guide:pipelines|El orquestador de pipelines]]) |
 | Impacto de skills | `extras/skill_impact/` | `home.impact`, `skill.impact` | Compara las sesiones que cargaron una skill con las que no; comparativo, no causal |
 | Explicaciones de la wiki | `extras/wiki_explain/` | `harness.explain`, `harness.pending`, `lint.categories`, `portal.explain_request` | Peticiones en cola de una explicación escrita de un componente del arnés, y las notas que Claude escribe de vuelta |
 | Editor de temas | `extras/theme_editor/` | `themes.list`, `themes.write`, `themes.delete` | Temas claros y oscuros personalizados en `<state dir>/themes/*.json` |
@@ -64,10 +64,10 @@ SDD se usa solo cuando lo pides o aceptas una propuesta; el tamaño o el riesgo 
 
 ### Usar los extras
 
-- **Pipelines**: `amauta pipeline ...` y la pestaña Proyectos > Pipelines.
+- **Pipelines**: `amauta pipeline ...` y la página Trabajo > Pipelines y la pestaña Pipelines de cada proyecto.
 - **Impacto de skills**: el panel lateral de Inicio y cada página de skill; un lado con menos de 5 sesiones muestra "no hay datos suficientes".
 - **Explicaciones de la wiki**: pulsa Pedir explicación en la página de un componente y luego pide a Claude Code que procese las peticiones de explicación de la wiki (skill `amauta-wiki-explain`).
-- **Editor de temas**: Ajustes > Temas, con vista previa en vivo, avisos de contraste, importación y exportación.
+- **Editor de temas**: Configuración > Apariencia, con vista previa en vivo, avisos de contraste, importación y exportación.
 - **Graphify semántico**: pide una pasada semántica; la skill planifica fragmentos y despacha un subagente extractor de solo lectura por fragmento.
 - **Herramientas PBIR**: la skill `powerbi-report` las llama sobre un proyecto PBIP.
 

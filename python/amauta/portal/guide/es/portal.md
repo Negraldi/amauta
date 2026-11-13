@@ -33,17 +33,24 @@ flowchart LR
   EXR --> EXT["extras como pipelines y temas"]
 ```
 
-La barra lateral tiene siete páginas; sus otras rutas aparecen como pestañas:
+La barra lateral se agrupa por tarea. Una página con varias vistas las muestra como pestañas, y la pestaña se conserva en la dirección (`?tab=`, `?seg=`, `?kind=`):
 
-| Página | Pestañas y rutas |
-| --- | --- |
-| Inicio | `#/` actividad reciente por día; un panel lateral con gasto, impacto de skills y salud del arnés |
-| Proyectos | `#/project`, features de ODD `#/feature`, Grafo `#/node`, Pipelines `#/pipelines`; tarjetas de hermanos |
-| Memoria | `#/memory`, Lint `#/lint` |
-| Actividad | Uso `#/usage`, Sesiones `#/session`, Herramientas `#/tool`, Servidores MCP `#/mcp` |
-| Arnés | `#/harness`, Skills `#/skill`, Componentes `#/component`, Guía `#/guide` |
-| Seguridad | `#/security` |
-| Ajustes | `#/settings`, Temas `#/themes` |
+| Grupo | Página | Pestañas y rutas |
+| --- | --- | --- |
+| Hoy | Inicio | `#/` la frase de salud del harness, actividad reciente por día; un panel lateral con pipelines, gasto e impacto de skills |
+| Trabajo | Proyectos | `#/project` una tabla de proyectos y las tarjetas de hermanos; un proyecto es `#/project/<nombre>` con pestañas Resumen, Funcionalidades, Grafo, Pipelines, Sesiones, Memorias (`?tab=`) |
+| Trabajo | Pipelines | `#/pipelines` |
+| Conocimiento | Memoria | `#/memory`, Archivos de memoria `#/memfile`, Calidad `#/lint` |
+| Conocimiento | Grafo | `#/node` |
+| Actividad | Uso | `#/usage` |
+| Actividad | Sesiones | `#/session` |
+| Actividad | Herramientas y skills | `#/tool` con un segmento: herramientas, skills, servidores MCP, herramientas MCP, subagentes (`?seg=`) |
+| Wiki del harness | Resumen | `#/harness` |
+| Wiki del harness | Catálogo | `#/component`, filtrado por tipo con `?kind=` |
+| Wiki del harness | Seguridad | `#/security` |
+| Pie | Guía, Configuración | `#/guide`; `#/settings` con pestañas Preferencias, Proyectos y hermanos, Apariencia (`?tab=`) |
+
+Las páginas de elemento abren con una ruta de migas hasta su página, y los enlaces antiguos (`#/themes`, `#/mcp`, `#/activity`, `#/skill`, `#sessions` y similares) redirigen a donde ahora vive el contenido.
 
 ## Flujo de uso y de trabajo
 
@@ -54,10 +61,10 @@ amauta portal install-launcher      # una entrada de escritorio o un acceso dire
 ```
 
 - Busca con `Ctrl+K` o `/`: una sola consulta sobre memorias (texto completo), skills, herramientas, servidores MCP, sesiones, features, tareas y nodos del grafo.
-- Usa los filtros de Rango, Proyecto y Runtime sobre las páginas que los tienen (Todos, Claude Code, Codex).
-- Cambia el tema (Sistema, Claro, Oscuro, tus propios temas) y el idioma (inglés, español) al pie de la barra lateral. Tu propio texto se queda como lo escribiste; las fechas son siempre `YYYY-MM-DD`.
-- Añade proyectos en Ajustes > Proyectos, o con `--repo DIR` (repetible).
-- Lee esta guía en Arnés > Guía; cada página sigue el idioma del portal y recurre al inglés si falta.
+- Usa los filtros de Rango, Proyecto y Runtime en las páginas de Actividad (Uso, Sesiones, Herramientas y skills); son las únicas que los tienen (Todos, Claude Code, Codex).
+- Cambia el tema (Sistema, Claro, Oscuro, tus propios temas) y el idioma (inglés, español) desde Vista en la barra superior; Editar temas abre Configuración > Apariencia. Tu propio texto se queda como lo escribiste; las fechas son siempre `YYYY-MM-DD`.
+- Añade proyectos en Configuración > Proyectos y hermanos, o con `--repo DIR` (repetible).
+- Lee esta guía desde Guía, al pie de la barra lateral; cada página sigue el idioma del portal y recurre al inglés si falta.
 
 ## Scripts y comandos
 
@@ -108,7 +115,7 @@ El portal incluye una versión sin modificar de Mermaid, que se carga solo cuand
 
 ### Extras en el portal
 
-Algunas pestañas vienen de extras a través del registro de extensiones: la pestaña Pipelines ([[guide:pipelines|El orquestador de pipelines]]), el editor de temas, el impacto de skills y las explicaciones de la wiki ([[guide:extras|Módulos opcionales y extras]]). Borrar la carpeta de un extra quita su pestaña o bloque y nada más.
+Algunas pestañas vienen de extras a través del registro de extensiones: la página Pipelines ([[guide:pipelines|El orquestador de pipelines]]), el editor de temas (Configuración > Apariencia), el impacto de skills y las explicaciones de la wiki ([[guide:extras|Módulos opcionales y extras]]). Borrar la carpeta de un extra quita su pestaña o bloque y nada más.
 
 ### Lanzador
 

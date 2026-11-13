@@ -33,7 +33,7 @@ selection tint (`--accent-soft`) carries ink, muted ink or the accent, never a s
 | `--accent` | 0.50 0.155 22 | 0.74 0.12 22 | Cochineal: links, selection, focus ring |
 | `--accent-soft` | 0.95 0.025 22 | 0.27 0.05 22 | Selected row, current nav item background |
 | `--warn` | 0.535 0.13 70 | 0.80 0.13 75 | Warnings and errors (with icon + text) |
-| `--ok` | 0.50 0.11 150 | 0.78 0.12 150 | Done/success (with label) |
+| `--ok` | 0.50 0.11 150 | 0.78 0.12 150 | Done/success and progress bars (with label) |
 | `--c-input` | 0.45 0.13 275 | 0.74 0.11 275 | Data: input tokens (indigo) |
 | `--c-output` | 0.62 0.13 60 | 0.80 0.12 60 | Data: output tokens (ochre) |
 | `--c-cache-read` | 0.60 0.035 250 | 0.60 0.03 250 | Data: cache read (neutral slate) |
@@ -77,15 +77,16 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
 
 - Shell: left sidebar (15rem) with the brand, the job groups (a small sentence-case muted label each, never an
   uppercase eyebrow) and a foot group (Guide, Settings) pinned to the bottom under a hairline; below 52rem it becomes
-  an off-canvas panel behind the Menu toggle. Top bar: Menu (narrow screens), the search trigger (Ctrl K), and on the
+  an off-canvas panel behind the Menu toggle, with a scrim; Esc, a tap on the scrim or navigating closes it and focus returns to Menu. Top bar: Menu (narrow screens), the search trigger (Ctrl K), and on the
   right the Refresh button and a Display button that opens a native popover with theme, Edit themes and language.
   The Range / Project / Runtime filter bar shows on the Activity list routes only. No horizontal page scroll at 375px.
+- Page head pattern on every page: the title (h1) with its one-sentence lead, then the tabs, then the content.
 - Item pages open with a breadcrumb (CSS-drawn separators, muted ancestors, the current page in ink); hub pages with
   several views show tabs underlined under the current one (`aria-current`), never pills.
 - Text pages: reading column (max 68ch) plus a right rail (18rem) for metadata, links, backlinks and revisions on
   wide screens; the rail moves below the content under 72rem.
 - Data pages: full content width, dense tables, sticky header row.
-- Home: recent activity as the main column; spending summary and harness health in the rail. No hero-metric tiles.
+- Home: the harness health sentence leads, recent activity is the main column, pipelines, spending and skill impact sit in the rail. No hero-metric tiles.
 - Spacing scale (rem): 0.25, 0.5, 0.75, 1, 1.5, 2, 3. Vary it for rhythm; sections separated by space and a hairline,
   not by boxes. Cards only where an item is a real object (a search result group, a settings option).
 - Z-index scale: dropdown 10, sticky 20, overlay 30, dialog 40, toast 50, tooltip 60.

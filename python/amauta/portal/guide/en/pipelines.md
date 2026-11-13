@@ -24,7 +24,7 @@ Pipelines run a project's recurring processes (queries, workbook refreshes, scri
 ```mermaid
 flowchart LR
   CLI["amauta pipeline run"] --> CFG["config and graph"]
-  PORTAL["portal Pipelines tab"] --> PP["portal_points"]
+  PORTAL["portal Pipelines page"] --> PP["portal_points"]
   PP --> LK["lock"]
   PP --> RUN["runner"]
   CLI --> LK
@@ -73,7 +73,7 @@ Per step, optionally: `id`, `needs`, `timeout` (seconds, default 3600), `cwd`, `
 - A step outside the run's mode is skipped and counts as done.
 - Database, workbook and mail steps are your own scripts: amauta has no drivers.
 
-Then, in the portal, open **Projects > Pipelines**. Each card shows the steps by levels with their last duration and mark, the schedule and its state, the last run and the files it wrote, recent runs (click one to replay it), **Run** (asks first), **Check**, **Only this** per step and a mode picker. A project must be trusted first with `amauta check trust`, because a run executes its code.
+Then, in the portal, open **Work > Pipelines** (or the Pipelines tab of a project). Each card shows the steps by levels with their last duration and mark, the schedule and its state, the last run and the files it wrote, recent runs (click one to replay it), **Run** (asks first), **Check**, **Only this** per step and a mode picker. A project must be trusted first with `amauta check trust`, because a run executes its code.
 
 ## Scripts and commands
 

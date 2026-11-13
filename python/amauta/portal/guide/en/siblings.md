@@ -8,8 +8,8 @@ A sibling project is a project that lives beside amauta, in its own repository, 
 | --- | --- | --- |
 | Sibling entries | `<state dir>/portal.json`, key `siblings` | A closed list of at most 20 entries |
 | Validation and health | `python/amauta/portal/siblings.py` | Checks each entry; reads git, the MCP registrations and one watched file |
-| Settings form | Settings > Sibling projects in the portal | Edit the list through a guarded POST |
-| Health cards | the Projects page, `GET /api/siblings` | One card per sibling with a mark |
+| Settings form | Settings > Projects and siblings in the portal | Edit the list through a guarded POST |
+| Health cards | the Projects page (below the table), `GET /api/siblings` | One card per sibling with a mark |
 | The sibling itself | anywhere on your disk | Its own code, tests, dependencies and, often, its own MCP server |
 
 An entry has these keys, and no others:
@@ -42,7 +42,7 @@ The runtimes talk to the sibling directly, through its own MCP server that you r
 
 1. Keep the sibling in its own folder and repository, with its own setup.
 2. Register its MCP server in Claude Code or Codex if it has one; `amauta sync` copies a stdio entry to the other runtime.
-3. Add it in Settings > Sibling projects, or edit `portal.json`:
+3. Add it in Settings > Projects and siblings, or edit `portal.json`:
 
 ```json
 {
@@ -74,7 +74,7 @@ amauta has no sibling command of its own; you use the portal and the commands yo
 | Command or file | Use |
 | --- | --- |
 | `amauta portal`, Projects page | The health cards |
-| Settings > Sibling projects | Edit the list |
+| Settings > Projects and siblings | Edit the list |
 | `<state dir>/portal.json` | The same list as a file: `{"repos": [...], "auto_discover": true, "siblings": [...]}` |
 | `GET /api/siblings` | The health data as JSON (read-only) |
 | `amauta sync` | Copy the sibling's stdio MCP entry between Claude Code and Codex |

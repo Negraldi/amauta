@@ -21,7 +21,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T6 Harness wiki: overview, unified catalog, security (group label "Harness wiki", informative, not Knowledge)
 - [x] T7 Settings: preferences, projects and siblings, appearance (themes, language)
 - [ ] T8 Visual pass: tokens, type, states, dark-aware diagrams; impeccable audit and polish
-- [ ] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
+- [x] T9 Docs: docs/portal.md routes table, DESIGN.md, CHANGELOG
 
 ## Acceptance criteria
 
@@ -207,8 +207,14 @@ Target after redesign: >= 32/40, no P1.
   table by content (saved paths are a table too); "found in your sessions"; Spanish percent "62 %" via Intl; i18n DYNAMIC
   allows meta.*; dead keys home.agents, home.harnessDetails, home.health removed. Browser: 375px and 1280px, dark and
   light, no page overflow (incl. #/skill/impeccable), no nested vertical scrollers, menu closes by Esc and scrim.
+- 2026-11-13 T9 (route: delegated writer). docs/portal.md: shell section (grouped sidebar, breadcrumb, Ctrl+K Pages group, Display
+  popover, phone menu), routes table (group, page, hash, tabs and query, content) and legacy-hash redirect table checked against
+  wikiroute.js (R.NAV, LEGACY, ACTIVITY_TABS, MOVED_LISTS, PROJECT_TABS, SETTINGS_TABS, SEGMENTS, CATALOG_KINDS); stale
+  sections renamed (Quality, Settings tabs, siblings in Settings > Projects and siblings). DESIGN.md: phone scrim, page-head
+  pattern, Home rail, --ok for progress. CHANGELOG entry under Unreleased. Guide pages (en and es: portal, extras, pipelines,
+  siblings) updated for the new navigation and labels.
 
 ## Next step
 
-T8 close: impeccable audit, polish, re-critique vs the 25/40 baseline; then T9. Open carry-over: Settings > Appearance has no
+T8 close: impeccable audit, polish, re-critique vs the 25/40 baseline. Open carry-over: Settings > Appearance has no
 theme picker (only the Display popover).

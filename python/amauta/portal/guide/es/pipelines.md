@@ -24,7 +24,7 @@ Los pipelines ejecutan los procesos recurrentes de un proyecto (consultas, refre
 ```mermaid
 flowchart LR
   CLI["amauta pipeline run"] --> CFG["config y graph"]
-  PORTAL["pestaña Pipelines del portal"] --> PP["portal_points"]
+  PORTAL["página Pipelines del portal"] --> PP["portal_points"]
   PP --> LK["lock"]
   PP --> RUN["runner"]
   CLI --> LK
@@ -73,7 +73,7 @@ Por paso, de forma opcional: `id`, `needs`, `timeout` (segundos, por defecto 360
 - Un paso fuera del modo de la ejecución se omite y cuenta como hecho.
 - Los pasos de bases de datos, libros de cálculo y correo son tus propios scripts: amauta no tiene drivers.
 
-Luego, en el portal, abre **Proyectos > Pipelines**. Cada tarjeta muestra los pasos por niveles con su última duración y marca, el horario y su estado, la última ejecución y los archivos que escribió, las ejecuciones recientes (haz clic en una para reproducirla), **Ejecutar** (pregunta primero), **Comprobar**, **Solo este** por paso y un selector de modo. Primero hay que confiar en el proyecto con `amauta check trust`, porque una ejecución ejecuta su código.
+Luego, en el portal, abre **Trabajo > Pipelines** (o la pestaña Pipelines de un proyecto). Cada tarjeta muestra los pasos por niveles con su última duración y marca, el horario y su estado, la última ejecución y los archivos que escribió, las ejecuciones recientes (haz clic en una para reproducirla), **Ejecutar** (pregunta primero), **Comprobar**, **Solo este** por paso y un selector de modo. Primero hay que confiar en el proyecto con `amauta check trust`, porque una ejecución ejecuta su código.
 
 ## Scripts y comandos
 
