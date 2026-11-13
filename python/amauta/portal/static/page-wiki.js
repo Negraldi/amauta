@@ -272,10 +272,11 @@ function catalogGroup(g, capped) {
     h("ul", { class: "items" }, shown.map(catalogRow)), more);
 }
 // The kind links: All plus one per kind present, each with its count; the current one is marked, the choice lives in ?kind=.
+// Up to a dozen kinds: the group wraps onto rows (segmented-wrap) instead of hiding kinds behind a sideways scroll.
 function kindLinks(groups, current) {
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   const one = (kind, label, n) => h("a", { href: catalogHash(kind), "aria-current": kind === current ? "true" : false }, `${label} (${fmt(n)})`);
-  return h("nav", { class: "segmented", "aria-label": t("catalog.kinds") }, one("", t("catalog.all"), total),
+  return h("nav", { class: "segmented segmented-wrap", "aria-label": t("catalog.kinds") }, one("", t("catalog.all"), total),
     ...groups.map((g) => one(g.kind, ts(g.label), g.items.length)));
 }
 // Catalog (#/component): every harness component and skill, grouped by kind; ?kind= keeps one kind, the box filters what is loaded.

@@ -32,3 +32,17 @@ test('link and button segments share one look in every state', () => {
   assert.ok(together('.segmented button:hover:not(:disabled)', '.segmented a:hover'), 'hover');
   assert.ok(together('.segmented button:active:not(:disabled)', '.segmented a:active'), 'active');
 });
+
+// Re-critique T13 item 8: the Catalog's kind filter had 11 segments (1512px) in a 719px column at 1024px, six behind a thin
+// scrollbar. A filter with more segments than one row holds wraps inside its group (segmented-wrap) with one gap size, so
+// every kind is reachable without sideways scrolling; the choice stays in ?kind=.
+test('a long segmented filter wraps inside its group, with one gap size, and DESIGN.md names the exception', async () => {
+  const wrap = together('.segmented.segmented-wrap');
+  assert.ok(wrap, '.segmented.segmented-wrap rule');
+  assert.match(wrap.body, /flex-wrap:\s*wrap/);
+  assert.match(wrap.body, /overflow-x:\s*visible/);
+  assert.match(wrap.body, /gap:\s*var\(--s1\)/);
+  assert.match(design, /segmented-wrap/);
+  const wiki = await readFile(path.join(STATIC, 'page-wiki.js'), 'utf8');
+  assert.match(wiki, /class: "segmented segmented-wrap", "aria-label": t\("catalog\.kinds"\)/);
+});

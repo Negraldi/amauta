@@ -143,6 +143,9 @@ input[type="search"] { min-width: 14rem; }
 .segmented button:hover:not(:disabled), .segmented a:hover { color: var(--ink); text-decoration: none; }
 .segmented button:active:not(:disabled), .segmented a:active { background: var(--line); }
 .segmented [aria-pressed="true"], .segmented [aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+/* The exception (DESIGN.md): a filter with more segments than one row holds (the Catalog's kinds) wraps inside its group with
+   one gap size, so every segment is reachable without sideways scrolling at 1024px or 375px. */
+.segmented.segmented-wrap { display: flex; flex-wrap: wrap; overflow-x: visible; gap: var(--s1); inline-size: fit-content; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
 .row-link { cursor: pointer; color: var(--accent); background: none; border: 0; padding: 0; text-align: left; }
 .row-link:hover { text-decoration: underline; border: 0; }

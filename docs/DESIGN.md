@@ -90,7 +90,9 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   page, right under the lead. A segmented control is a filter of the same list (memory source, tool kind, catalog kind,
   pipeline category): one bordered group with the selected segment tinted, the same look whether its segments are links
   kept in the URL (`aria-current="true"`) or buttons (`aria-pressed`). It never wraps a lone segment onto its own row; it
-  scrolls sideways instead.
+  scrolls sideways instead. Exception: a filter with more segments than one row holds (the Catalog's kinds, up to a dozen)
+  wraps onto rows inside its bordered group (`segmented-wrap`, one gap size), so no choice hides behind a sideways scroll at
+  1024px or 375px.
 - Text pages: reading column (max 68ch) plus a right rail (18rem) for metadata, links, backlinks and revisions on
   wide screens; the rail moves below the content under 72rem.
 - Data pages: full content width, dense tables, sticky header row.
