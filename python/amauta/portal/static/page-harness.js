@@ -28,6 +28,12 @@ function graphFilters(onChange) {
   const query = () => ({ vendored: vendored.checked ? "1" : "", order: order.value === "name" ? "name" : "" });
   return { query, el: [order, h("label", { class: "check", for: "graph-vendored" }, vendored, t("graph.vendored"))] };
 }
+// "Showing 50 of 1,234 nodes; 312 vendored ... hidden.": the toggle changes a number the reader can see, not only the rows.
+function nodeCount(g, query) {
+  if (g.matched == null || !g.items.length) return null;
+  const n = { shown: fmt(g.items.length), total: fmt(g.matched - g.hidden), hidden: fmt(g.hidden) };
+  return h("p", { class: "muted" }, t(query.vendored ? "graph.showingAll" : g.hidden ? "graph.showing" : "graph.showingPlain", n));
+}
 const KIND_COLUMN = () => ({ key: "kind", label: t("col.kind"), render: nodeKind });
 const NODE_COLUMNS = () => [{ key: "label", label: t("col.node"), link: true, attr: "data-graph" }, KIND_COLUMN(),
   { key: "links", label: t("col.links"), num: true }, { key: "file", label: t("col.file") }];
@@ -47,7 +53,8 @@ function graphRepo(r) {
   }, near);
   const load = guarded(async () => {
     const g = await api("graph/nodes", { repo: r.path, q: q.value, ...filters.query() });
-    list.replaceChildren(g.items.length ? table("gnodes-" + r.path, NODE_COLUMNS(), g.items, show) : empty(t("graph.noMatch")));
+    const rows = g.items.length ? table("gnodes-" + r.path, NODE_COLUMNS(), g.items, show) : empty(t("graph.noMatch"));
+    list.replaceChildren(...[rows, nodeCount(g, filters.query())].filter(Boolean));
   }, list);
   const filters = graphFilters(() => { // a server order by name must not be re-sorted by links in the table
     if (filters.query().order) state.sort["gnodes-" + r.path] = { key: "label", dir: 1 }; else delete state.sort["gnodes-" + r.path];
@@ -104,7 +111,11 @@ async function graphExplorer() {
 // installed, is only a link to its own route (/archify/<hash>.html, sandboxed by its own CSP); it is never framed here.
 // The diagram opens at its natural size in a keyboard-focusable sideways scroller, so its labels stay legible (fitting a wide
 // diagram to the column shrank 13px labels to under 5px); "Fit to width" (a pressed-state toggle) is the optional overview.
-// Both are folded behind a summary.
+// It is shown, not folded (T14 k), and once drawn it opens centred on its middle: the top-down flow starts at a centred root,
+// so the left edge of a wide drawing is mostly empty.
+function centerScroll(el) {
+  el.scrollLeft = Math.max(0, ((el.scrollWidth || 0) - (el.clientWidth || 0)) / 2);
+}
 function archSizeToggle(scroller) {
   const b = h("button", { type: "button", "aria-pressed": "false" }, t("harness.fitWidth"));
   b.addEventListener("click", () => {
@@ -122,10 +133,9 @@ function archifyBlock(d) {
   const label = t("harness.installArch");
   const scroller = d.fallback
     ? h("div", { class: "arch-scroll", "data-size": "full", tabindex: 0, role: "region", "aria-label": label },
-      diagramBox(d.fallback, label, true)) : null;
+      diagramBox(d.fallback, label, true, () => centerScroll(scroller))) : null;
   return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
-    scroller ? h("details", { class: "arch" }, h("summary", null, t("harness.showArch")), archSizeToggle(scroller), scroller) : null,
-    full);
+    scroller ? archSizeToggle(scroller) : null, scroller, full);
 }
 
 // One status vocabulary for the Harness wiki: a filled dot for on/runs, a ring for off/disabled, always with the word.

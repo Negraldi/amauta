@@ -162,3 +162,27 @@ class SessionPageTest(MixedModelBase):
         m = self.meta(self.page("session", "s1"))
         self.assertIn("Last activity", m)
         self.assertNotIn("Ended", m)
+
+
+class OrphanNoteTest(SessionBase):
+    def test_orphans_say_why_once_in_the_category_note_not_per_row(self):
+        orphans = next(c for c in self.get("/api/wiki/lint")["categories"] if c["id"] == "orphans")
+        self.assertTrue(orphans["items"])
+        self.assertTrue(all(not i.get("detail") for i in orphans["items"]), orphans["items"][0])
+        self.assertIn("No wikilinks", orphans["note"])
+
+
+class GraphCountTest(SessionBase):
+    """The node list says how many nodes match and how many vendored ones the default view hides."""
+
+    def test_the_node_list_counts_matches_and_hidden_vendored_nodes(self):
+        import sqlite3
+        key = str(self.f["repo"].resolve())
+        c = sqlite3.connect(self.f["state"] / "memory.db")
+        c.execute("INSERT INTO graph_nodes (repo, id, label, kind, file) VALUES (?, 'v1', 'vendored thing', 'code', 'web/lib.min.js')", (key,))
+        c.commit()
+        c.close()
+        default = self.get("/api/graph/nodes", repo=key)
+        self.assertEqual((len(default["items"]), default["matched"], default["hidden"]), (6, 7, 1))
+        shown = self.get("/api/graph/nodes", repo=key, vendored="1")
+        self.assertEqual((len(shown["items"]), shown["matched"], shown["hidden"]), (7, 7, 0))

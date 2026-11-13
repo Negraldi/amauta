@@ -149,7 +149,7 @@ def _mention_links(rows, join):
 
 def _orphans(rows, resolver):
     linked = _connections(rows, resolver)
-    items = [_mem_item(r, "No links to or from other pages") for r in rows if r["id"] not in linked]
+    items = [_mem_item(r, None) for r in rows if r["id"] not in linked]  # the note says why, once for all rows
     return _category("orphans", "Orphan memories",
                      "No wikilinks, topic neighbours or mentions connect these to another page (links to sessions or graph nodes are not counted). Not a fault: link them or leave them.", items)
 

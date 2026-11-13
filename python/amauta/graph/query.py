@@ -173,6 +173,21 @@ def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None):
     return [{**_node(r), "links": r["links"]} if order else _node(r) for r in rows]
 
 
+def node_counts(conn, repo, text="", vendored=True):
+    """{"matched": nodes whose label or id contains `text`, "hidden": how many of them the list leaves out as vendored}."""
+    _check_repo(conn, repo)
+    pat = _like(text or "")
+    conn.create_function("amauta_vendored", 1, vendored_rules.rule_for(repo), deterministic=True)
+    row = conn.execute("SELECT count(*) matched, coalesce(sum(amauta_vendored(n.file)), 0) vendored FROM graph_nodes n WHERE n.repo = ? "
+                       "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\')", (repo, pat, pat)).fetchone()
+    return {"matched": row["matched"], "hidden": 0 if vendored else row["vendored"]}
+
+
+def node_list(conn, repo, text="", limit=50, vendored=True, order=None):
+    """The portal's node list: search_nodes() rows plus node_counts(), so the page can say how many it shows and hides."""
+    return {"items": search_nodes(conn, repo, text, limit, vendored, order), **node_counts(conn, repo, text, vendored)}
+
+
 def stats(conn, repo):
     row = conn.execute("SELECT * FROM graph_sync WHERE repo = ?", (repo,)).fetchone()
     return dict(row) if row else None

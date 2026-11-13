@@ -35,7 +35,7 @@ async function boot(hash, over = {}, extra = {}) {
     '/api/wiki/recent': { items: [] }, '/api/sessions': { available: false }, '/api/tools': { available: true, tools: [], skills: [], subagents: [], mcp_servers: [], mcp_tools: [] },
     '/api/overview': { available: false }, '/api/costs': { enabled: false, models: [] }, ...over });
   env.location.hash = hash;
-  await runPortal(env, { DOMParser: class {}, queueMicrotask, ...extra });
+  env.ctx = await runPortal(env, { DOMParser: class {}, queueMicrotask, ...extra }); // the page's globals, for pure helpers
   await tick();
   return env;
 }
@@ -64,13 +64,15 @@ test('install facts are a compact definition list with status chips, never metri
   assert.deepEqual(chips, ['● on', '○ off'], 'review on, telemetry off: shape plus text');
 });
 
-test('the architecture diagram sits behind Show architecture diagram in a focusable horizontal scroll region', async () => {
-  const env = await boot('#/harness');
-  const details = tree(view(env)).find((e) => e.tagName === 'details' && /arch/.test(cls(e)));
-  assert.ok(details, 'a details block');
-  assert.equal(details.children[0].tagName, 'summary');
-  assert.equal(details.children[0].textContent, 'Show architecture diagram');
-  const region = tree(details).find((e) => e.getAttribute('role') === 'region');
+// T14 k: the diagram is shown, not folded behind a summary; it opens centred on its middle (the root and the main flow),
+// not on its empty left edge.
+test('the architecture diagram is shown in a focusable horizontal scroll region, centred once drawn', async () => {
+  const env = await boot('#/harness'), ctx = env.ctx;
+  assert.ok(!tree(view(env)).some((e) => e.tagName === 'details' && /arch/.test(cls(e))), 'not folded behind a summary');
+  const region = tree(view(env)).find((e) => e.getAttribute('role') === 'region' && /arch-scroll/.test(cls(e)));
+  const box = { scrollWidth: 2000, clientWidth: 800, scrollLeft: 0 };
+  ctx.centerScroll(box);
+  assert.equal(box.scrollLeft, 600);
   assert.ok(region, 'a scroll region');
   assert.equal(region.getAttribute('tabindex'), '0');
   assert.ok(region.getAttribute('aria-label'));

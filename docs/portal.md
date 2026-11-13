@@ -41,11 +41,11 @@ A session's project is named by one rule on every page (Today, Usage > Sessions,
 | Work | Project hub | `#/project/<name>` | `?tab=` `overview` (default, not written), `features`, `graph`, `pipelines`, `sessions`, `memories` | One project in one place; graph sync and connect; features (`#/feature/<project>/<name>`) and graph nodes crumb through the hub |
 | Work | Pipelines | `#/pipelines` | | Every project's pipelines, runs and schedules |
 | Knowledge | Memory | `#/memory[/id-or-topic_key]` | `?source=engram` for the Engram store; tabs Memory `#/memory`, Memory files `#/memfile[/id]`, Quality `#/lint` | Memory text, derived links, backlinks, same-topic rows, related graph nodes; Claude file memories (read-only); review candidates |
-| Knowledge | Graph | `#/node[/repo::id]` | | One cross-repo explorer: repo picker, search, neighbours and diagram. The node list opens most connected first (Links column) with dependency, vendored and minified files hidden behind a labelled toggle (generic folder names such as node_modules, vendor, third-party, Pods; `*.min.js`/`*-min.css` names; plus what the repository declares: `.gitattributes` linguist-vendored lines, last match wins, and existing folders its NOTICE names) (`GET /api/graph/nodes?order=links|name&vendored=1`); kinds read as words (Code, Document, Concept; an unknown kind shows as sent) |
+| Knowledge | Graph | `#/node[/repo::id]` | | One cross-repo explorer: repo picker, search, neighbours and diagram. The node list opens most connected first (Links column) with dependency, vendored and minified files hidden behind a labelled toggle (generic folder names such as node_modules, vendor, third-party, Pods; `*.min.js`/`*-min.css` names; plus what the repository declares: `.gitattributes` linguist-vendored lines, last match wins, and existing folders its NOTICE names) (`GET /api/graph/nodes?order=links|name&vendored=1`, which also returns `matched` and `hidden` so a line under the list says "Showing 50 of 1,234 nodes; 312 vendored, minified or dependency nodes hidden."); kinds read as words (Code, Document, Concept; an unknown kind shows as sent) |
 | Activity | Usage | `#/usage` | filters | One summary sentence, token chart (cache behind a checkbox), model split, cost estimate |
 | Activity | Sessions | `#/session[/id]` | filters | Sessions; one session's skills, tools, subagents, tokens and memories |
 | Activity | Tools and skills | `#/tool` | `?seg=` `tools` (default), `skills`, `mcp`, `mcptools`, `subagents`; filters | One table per segment; items open `#/tool\|skill\|mcp/<name>` pages (usage over time, sessions, tokens, impact; skills render `SKILL.md`) |
-| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand (natural size in a sideways scroller so labels stay legible; Fit to width is the optional overview) |
+| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram shown at natural size in a sideways scroller that opens centred on its middle (labels stay legible; Fit to width is the optional overview) |
 | Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle` | Every component, with a text filter; item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|skill/<id>` crumb through Catalog / kind |
 | Harness wiki | Security | `#/security` | | Protections, checkers, trusted projects, profiles, memory guard redaction counts (counts and names only) |
 | Foot | Guide | `#/guide[/page]` | | The guide pages |
@@ -81,7 +81,7 @@ Counts and links for eight checks, all capped and read-only. They are prompts to
 
 | Check | Meaning |
 |---|---|
-| Orphan memories | No wikilink, topic neighbour or mention connects them to another page |
+| Orphan memories | No wikilink, topic neighbour or mention connects them to another page (said once in the category note; rows list titles only) |
 | Possible duplicates | Same or near-identical title under different `topic_key`s (same project) |
 | Possibly superseded | Same type and topic prefix, similar title, a newer save |
 | Installed skills never used | No load in the window (needs usage data) |

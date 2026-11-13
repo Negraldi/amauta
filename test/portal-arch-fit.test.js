@@ -18,7 +18,7 @@ test('natural size by default, fit to width on demand, same scroll region', asyn
   env.location.hash = '#/harness';
   await runPortal(env, { DOMParser: class {}, queueMicrotask });
   await tick();
-  const details = tree(env.document.getElementById('view')).find((e) => e.tagName === 'details');
+  const details = env.document.getElementById('view'); // T14 k: shown in the page, no longer inside a <details>
   const region = tree(details).find((e) => e.getAttribute('role') === 'region');
   assert.equal(region.getAttribute('data-size'), 'full');
   assert.equal(region.getAttribute('tabindex'), '0');
