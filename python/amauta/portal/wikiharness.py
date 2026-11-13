@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from .. import extensions
-from . import wikisecret
+from . import wikicodex, wikisecret
 from .wikihooks import HOOK_SUMMARIES, known_hook  # noqa: F401 (HOOK_SUMMARIES re-exported for the i18n tests)
 from .api import NotFound
 from .wikibase import _blank, _item, _meta, _ref
@@ -384,6 +384,7 @@ def index(portal):
     base = []
     base += _collect_hooks(portal, repos, plugs)
     base += _collect_servers(portal, repos, plugs)
+    base = wikicodex.merge(portal, base)  # Codex hooks and MCP servers: their Claude twin, or entries of their own
     base += _collect_md(portal, repos, plugs, "agents", "agent")
     base += _collect_md(portal, repos, plugs, "commands", "command")
     base += _collect_md(portal, repos, plugs, "output-styles", "outputstyle")
@@ -426,9 +427,6 @@ def _links(e, entries):
             out.append(("mcptool", t[5:].replace("__", "/", 1)) if t.startswith("mcp__") and "__" in t[5:] else ("tool", t))
     if e["kind"] in ("mcp", "connector"):
         out += [("mcptool", f"{e['id']}/{t}") for t in e.get("tool_names", [])]
-    plugin = e.get("plugin")
-    if plugin and e["kind"] != "plugin":
-        pass  # the plugin links to its parts; the part reaches the plugin as a backlink
     seen, res = set(), []
     for key in out:
         if key not in seen and (key in entries or key[0] == "skill") and key != (e["kind"], e["id"]):
@@ -464,7 +462,7 @@ def source_section(e):
 def stdio_config(e):
     """True when the first configuration of a server entry is a local command (the only kind the refresh asks)."""
     first = (e.get("configs") or [{}])[0].get("facts") or {}
-    return first.get("type") == "stdio" and bool(first.get("command"))
+    return not e.get("codex_only") and first.get("type") == "stdio" and bool(first.get("command"))
 
 
 def page_from(portal, kind, ident):
@@ -480,7 +478,7 @@ def build_page(portal, e):
     pg["summary"] = summary_of(e)
     if e["kind"] == "mcp" and stdio_config(e):
         pg["refresh"] = {"server": e["id"]}
-    pg["meta"] = e["meta"]
+    pg["meta"] = e["meta"] + wikicodex.runtime_meta(e, entries)
     pg["sections"] = [source_section(e)] + e.get("sections", [])
     pg["links"] = [r for r in (_ref_of(entries, k) for k in e["links"]) if r]
     pg["backlinks"] = [r for r in (_ref_of(entries, k) for k in e["backlinks"]) if r]
@@ -527,14 +525,14 @@ def groups(portal, q=None):
     out, total = [], 0
     servers = sum(1 for e in entries.values() if e["kind"] == "mcp" and stdio_config(e))
     for kind, label in KINDS:
-        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), **({"i18n": e["i18n"]} if e.get("i18n") else {}), **({"disabled": True} if e.get("disabled") else {})}
+        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), "runtimes": wikicodex.runtimes_of(e, entries), **({"i18n": e["i18n"]} if e.get("i18n") else {}), **({"disabled": True} if e.get("disabled") else {})}
                  for e in entries.values() if e["kind"] == kind]
         if items:
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
             out.append({"kind": kind, "label": label, "items": items})
             total += len(items)
     pending = extensions.call("harness.pending", portal, default=0)
-    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending}
+    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending, "runtimes": wikicodex.overview(portal)}
 
 
 def search(kind):

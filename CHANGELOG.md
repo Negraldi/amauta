@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Harness wiki inventories Codex too: MCP servers from `config.toml`, hooks from `hooks.json`, the `AGENTS.md` blocks and
+  the Codex skills dir. One entry per component with its runtimes ("Runtime: Claude Code, Codex") in the Catalog and on
+  item pages; the Overview has one row per runtime; Security shows the Codex privacy and checks switches.
 - Portal redesign. The sidebar is grouped by job (Today, Work, Knowledge, Activity, Harness wiki, then Guide and Settings)
   with a breadcrumb on item pages and tabs kept in the address. Each project is one hub (`#/project/<name>`: overview,
   features, graph, pipelines, sessions, memories); memory has Memory, Memory files and Quality tabs and one cross-repo

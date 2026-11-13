@@ -249,7 +249,7 @@ const catalogHash = (kind) => R.routeHash({ kind: "component", id: "", query: ki
 // Skills join the component groups as one "Skills" group; each row keeps the label of where it comes from.
 function skillGroup(sk) {
   const row = (g) => (i) => ({ kind: "skill", id: i.id, title: i.id, description: i.description, source: g.label, uses: i.uses,
-    sessions: i.sessions, last_used: i.last_used, disabled: i.disabled });
+    sessions: i.sessions, last_used: i.last_used, disabled: i.disabled, runtimes: i.runtimes });
   const items = ((sk && sk.groups) || []).flatMap((g) => g.items.map(row(g)));
   return items.length ? [{ kind: "skill", label: t("catalog.kind.skill"), items }] : [];
 }
@@ -259,7 +259,8 @@ function catalogRow(i) {
     last: R.fmtDate(i.last_used) })) : null;
   return h("li", null, link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${ts(i.source)}`),
     i.disabled ? h("span", { class: "chip chip-off" }, `\u25cb ${t("components.disabled")}`) : null,
-    i.description ? h("div", null, clip(localized(i, "description"))) : null, usage);
+    i.description ? h("div", null, clip(localized(i, "description"))) : null, usage,
+    i.runtimes ? h("div", { class: "muted" }, t("catalog.runtime", { names: runtimeNames(i.runtimes) })) : null);
 }
 function catalogGroup(g, capped) {
   const shown = capped ? g.items.slice(0, CATALOG_CAP) : g.items;
@@ -299,7 +300,7 @@ async function viewCatalog(route) {
   const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
   const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
   return [pageHead(t("nav.catalog"), tn("catalog.intro", total, { n: fmt(total) })), res.err ? errorPanel(route, res.err) : null,
-    kindLinks(groups, kind), h("div", { class: "controls" }, box), refresh, list, teachWhere];
+    noCodexNote(cat.runtimes), kindLinks(groups, kind), h("div", { class: "controls" }, box), refresh, list, teachWhere];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.

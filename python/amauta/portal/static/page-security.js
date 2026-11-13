@@ -23,6 +23,14 @@ function securitySummary(r) {
 const protectionChip = (p) => ([k, key]) => stateChip(p[k] === "on", t(p[k] === "on" ? "sec.chipOn" : "sec.chipOff", { name: t(key) }));
 const protectionChips = (p) => h("p", { class: "chips" }, PROTECTIONS.map(protectionChip(p)));
 
+// The Codex side (T10): the same two switches from its own install, and what they do differently there.
+function codexPanel(c) {
+  if (!c || !c.found) return h("p", { class: "muted" }, t("sec.noCodex"));
+  const word = (v) => t(v === "on" ? "common.on" : "common.off");
+  return panel(t("sec.codex"), c.installed ? h("p", null, t("sec.codexLine", { privacy: word(c.privacy), checks: word(c.checks) }))
+    : h("p", null, t("sec.codexNotInstalled")), h("p", { class: "muted" }, t("sec.codexNote")));
+}
+
 async function viewSecurity() {
   const r = await api("security");
   const p = r.protections;
@@ -33,6 +41,7 @@ async function viewSecurity() {
   return [
     pageHead(t("nav.security"), securitySummary(r)), protectionChips(p), h("p", { class: "muted" }, t("sec.lead")),
     p.installed ? null : h("p", { class: "notice" }, t("set.notInstalled")),
+    codexPanel(r.codex),
     panel(t("sec.checkers"), h("p", { class: "muted" }, t("sec.checkersHelp")), table("sec-checkers", SEC_COLUMNS.checkers(), r.checkers)),
     panel(t("sec.trusted"), trusted),
     panel(t("sec.profiles"), h("p", null, `${pr.names.join(", ")}.`, drafts),

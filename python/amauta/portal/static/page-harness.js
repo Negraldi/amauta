@@ -142,6 +142,24 @@ function hooksTable(hs, comps) {
     { key: "source", label: t("col.source") }, { key: "status", label: t("col.status"), render: status }], rows);
 }
 
+// Runtimes (T10): names are plain text, never a color. One row per runtime found; no Codex home is one sentence.
+const RUNTIME_KEYS = { claude: "runtime.claude", codex: "runtime.codex" };
+const runtimeNames = (list) => (list || []).map((r) => (RUNTIME_KEYS[r] ? t(RUNTIME_KEYS[r]) : r)).join(", ");
+const noCodexNote = (rt) => (rt && rt.codex && rt.codex.found === false ? h("p", { class: "muted" }, t("runtime.noCodex")) : null);
+function runtimesSection(rt) {
+  if (!rt || !rt.claude || !rt.codex) return null;
+  const row = (key, r) => ({ runtime: runtimeNames([key]), home: r.home, installed: r.installed,
+    blocks: (r.blocks || []).join(", ") || t("common.none"), hooks: r.hooks, mcp: r.mcp_servers, skills: r.skills });
+  const rows = [row("claude", rt.claude), ...(rt.codex.found ? [row("codex", rt.codex)] : [])];
+  const yes = (v) => stateChip(v, v ? t("common.yes") : t("common.no"));
+  const cols = [{ key: "runtime", label: t("col.runtime") }, { key: "home", label: t("harness.rt.home") },
+    { key: "installed", label: t("harness.rt.installed"), render: yes }, { key: "blocks", label: t("harness.rt.blocks") },
+    { key: "hooks", label: t("harness.rt.hooks"), num: true }, { key: "mcp", label: t("harness.rt.mcp"), num: true },
+    { key: "skills", label: t("harness.rt.skills"), num: true }];
+  return h("section", { class: "page-section" }, h("h2", null, t("harness.runtimes")), h("p", { class: "muted" }, t("harness.rt.lead")),
+    table("runtimes", cols, rows), noCodexNote(rt));
+}
+
 async function viewHarness() {
   const [hs, arch, comps, skills] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })),
     api("harness/components").catch(() => null), api("skills").catch(() => null)]);
@@ -150,6 +168,7 @@ async function viewHarness() {
   if (!hs.installed) return [title, how];
   const pending = comps && comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null;
   const hooks = h("section", { class: "page-section" }, h("h2", null, t("harness.hooks")), hooksTable(hs, comps));
-  return [title, installFacts(hs), h("p", null, link("component", "", t("harness.openComponents"))), pending, archifyBlock(arch), hooks]
-    .filter(Boolean); // archifyBlock is null without archify
+  const open = h("p", null, link("component", "", t("harness.openComponents")));
+  return [title, installFacts(hs), runtimesSection(comps && comps.runtimes), open, pending, archifyBlock(arch), hooks]
+    .filter(Boolean); // archifyBlock is null without archify, runtimesSection without the catalog
 }

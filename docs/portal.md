@@ -93,6 +93,14 @@ project and plugin settings, MCP servers from `.claude.json`, `.mcp.json` and pl
 plugins from their manifests, built-in tools from a curated English and Spanish catalog, connectors from the server names your sessions called that no local
 config explains. Components of a plugin that `settings.json` disables (`enabledPlugins: false`) stay listed and are labelled "Plugin disabled: does not run". MCP configs show type, command and arguments with secrets masked, and the NAMES of env variables and headers, never their values.
 
+Codex is the second runtime of the same inventory (read-only, `wikicodex.py`): `[mcp_servers.*]` tables of `<codex home>/config.toml` (same
+masked facts), `<codex home>/hooks.json`, the amauta blocks of `AGENTS.md` and the Codex skills dir. A component found in both runtimes is one
+entry (an amauta hook matches its Claude twin once `--runtime codex` is ignored); every catalog row and item page says "Runtime: Claude Code",
+"Codex" or "Claude Code, Codex", and agents, commands, plugins and output styles say "Claude Code (Codex has no equivalent)". The Overview has one
+row per runtime (home, amauta installed, instruction blocks, hooks, MCP servers, skills) and Security shows the Codex privacy and checks
+switches. The Codex home is the one the portal was given or the installer's rule; without one, a sentence says only Claude Code is listed.
+Refresh descriptions probes only servers configured for Claude Code.
+
 - **Graph sync** (project hub, `#/project/<name>`): shows when the graph was last mirrored and, for git projects, whether it is older than the last commit. **Sync graph now** (`POST /api/projects/graph-sync`, `{"project": name}`) starts one background refresh for that project, git or not, and answers 202 at once: `python3 -P -m amauta.graph.refresh --repo DIR` takes the repo's graphify lock (the hooks' lock in a git repo, `graphify-out/.amauta-graphify.lock` otherwise), runs `graphify update .` and `graphify check-update .`, and mirrors the graph into `memory.db`. It answers 409 when `graphify` is not on the portal's `PATH`. **Connect** (`POST /api/projects/graph-connect`, same body) appears for a git project without amauta's hooks and runs `amauta graphify hook install --cwd DIR --state-dir STATE`. Both use the same guard as the other writes, accept only a project name the portal already lists (never a path) and a closed one-key body.
 - **Refresh descriptions** (`POST /api/harness/refresh`, optional `{"server": name}`): same guard as the other writes. It starts each configured command-based
   MCP server (never http, sse or connectors), asks `tools/list` over JSON-RPC (10 s per server, process group killed afterwards, no shell) and caches names,

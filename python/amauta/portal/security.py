@@ -2,7 +2,8 @@
 
 Protections (the memory guard is always on; the privacy hook and the checks follow state.json), the projects trusted
 for code-executing checkers, which checkers are installed, the organization profiles and their selections, and how
-many values the memory guard replaced, per kind. Never a value, a key or a row. Read-only.
+many values the memory guard replaced, per kind. Never a value, a key or a row. Read-only. The Codex side (`codex`) has
+the same privacy and checks switches, from codex-state.json, when a Codex home exists (settingstargets.codex_targets).
 """
 
 import json
@@ -11,6 +12,8 @@ import re
 import shutil
 import sqlite3
 from pathlib import Path
+
+from .settingstargets import codex_targets
 
 CHECKERS = ("node", "bash", "tsc", "eslint", "mypy", "cargo", "gitleaks", "bandit", "semgrep")
 TRUST = {"tsc", "eslint", "mypy", "cargo"}  # these execute project code: trusted projects only
@@ -44,6 +47,15 @@ def _redactions(db):
     return counts
 
 
+def _codex(cfg):
+    if codex_targets(cfg) is None:
+        return {"found": False}
+    state_file = Path(cfg.state_dir) / "codex-state.json"
+    state = read_json(state_file, {})
+    onoff = lambda key: "off" if state.get(key) is False else "on"  # noqa: E731
+    return {"found": True, "installed": state_file.is_file(), "privacy": onoff("privacy"), "checks": onoff("checks")}
+
+
 def report(cfg, search_path=None):
     state_dir = Path(cfg.state_dir)
     state_file = state_dir / "state.json"
@@ -63,4 +75,5 @@ def report(cfg, search_path=None):
         "profiles": {"names": ["default", *[e for e in entries if "." not in e]], "drafts": sum(e.endswith(".draft") for e in entries),
                      "selected": selected},
         "redacted": _redactions(state_dir / "memory.db"),
+        "codex": _codex(cfg),
     }

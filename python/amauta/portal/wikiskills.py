@@ -18,7 +18,8 @@ MAX_PLUGIN_SKILLS = 500
 MAX_PLUGIN_DIRS = 20000
 MAX_PLUGIN_DEPTH = 9
 HEAD_BYTES = 8192
-SOURCES = (("installed", "Installed by amauta"), ("user", "Your skills"), ("plugin", "Plugins"), ("project", "Project"), ("builtin", "Built into Claude Code"))
+SOURCES = (("installed", "Installed by amauta"), ("user", "Your skills"), ("codex", "Your Codex skills"), ("plugin", "Plugins"), ("project", "Project"),
+           ("builtin", "Built into Claude Code"))
 _TRIGGER = re.compile(r"\bTrigger:\s*", re.I)
 _VERSION = re.compile(r"^v?\d[\w.+-]*$")
 
@@ -115,6 +116,7 @@ def discover(portal):
     found, managed = [], _managed(portal)
     for name, path in _skill_dirs(portal.cfg.claude_home / "skills", portal.cfg.state_dir / "skills"):
         found.append(_entry("installed" if name in managed else "user", name, name, path))
+    found += _codex_only(portal, {e["id"] for e in found if e})
     taken, off = set(), None
     for plugin, name, path in _plugin_files(portal.cfg.claude_home / "plugins"):  # cache comes before marketplaces: the first copy wins
         ident = f"{plugin}:{name}"
@@ -128,6 +130,26 @@ def discover(portal):
     return [e for e in found if e]
 
 
+def _codex_dir(portal):
+    from . import wikicodex
+    found = wikicodex.targets(portal)
+    return found[1] if found else None
+
+
+def _codex_only(portal, claude_names):
+    """Skills that live only in the Codex skills dir (a link to a Claude skill is the same skill, not a second one)."""
+    folder = _codex_dir(portal)
+    if folder is None:
+        return []
+    return [_entry("codex", n, n, p) for n, p in _skill_dirs(folder, portal.cfg.state_dir / "skills") if n not in claude_names]
+
+
+def _runtimes(entry, codex_names):
+    if entry["source"] == "codex":
+        return ["codex"]
+    return ["claude", "codex"] if entry["source"] in ("installed", "user") and entry["id"] in codex_names else ["claude"]
+
+
 def find(portal, ident):
     """The discovered entry for an id, or None. The id only selects among discovered files."""
     if not isinstance(ident, str) or not ident or ".." in ident or "\\" in ident:
@@ -137,7 +159,7 @@ def find(portal, ident):
 
 def label(entry):
     kind = entry["source"]
-    return {"installed": "Installed by amauta", "user": "Your skills", "plugin": f"Plugin {entry.get('plugin')}", "project": f"Project {entry.get('project')}"}.get(kind, "Built into Claude Code")
+    return {"installed": "Installed by amauta", "user": "Your skills", "codex": "Your Codex skills", "plugin": f"Plugin {entry.get('plugin')}", "project": f"Project {entry.get('project')}"}.get(kind, "Built into Claude Code")
 
 
 def read(portal, ident):
@@ -169,12 +191,15 @@ def catalog(portal, q=None):
     usage, entries = usage_by_name(portal), discover(portal)
     known = {e["id"] for e in entries}
     entries += [{"id": n, "name": n, "source": "builtin", "description": None, "trigger": None, "path": None} for n in sorted(usage) if n not in known]
+    from . import wikicodex
+    codex = _codex_dir(portal)
+    codex_names = wikicodex.skill_names(codex) if codex else set()
     groups = []
     for key, text in SOURCES:
         items = []
         for e in (x for x in entries if x["source"] == key):
             u = usage.get(e["id"]) or {}
-            items.append({**e, "label": label(e), "uses": u.get("uses", 0), "sessions": u.get("sessions", 0), "last_used": u.get("last_used")})
+            items.append({**e, "label": label(e), "runtimes": _runtimes(e, codex_names), "uses": u.get("uses", 0), "sessions": u.get("sessions", 0), "last_used": u.get("last_used")})
         if items:
             items.sort(key=lambda i: (-i["uses"], i["id"]))
             groups.append({"source": key, "label": text, "items": items})
