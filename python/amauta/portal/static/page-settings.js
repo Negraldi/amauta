@@ -4,12 +4,13 @@
 
 // ---- Settings editor: a closed list of options, always preview -> confirm -> apply, with undo ----------------------------------------
 // Labels and help are i18n keys (resolved with t() when the page is built).
+const ON_OFF = [["on", "set.on"], ["off", "set.off"]]; // one order for every switch (T14 l)
 const SETTING_OPTIONS = [
   ["persona", "set.persona", [["gentleman", "set.gentleman"], ["neutral", "set.neutral"]], "set.persona.help"],
-  ["review_mode", "set.review", [["off", "set.off"], ["on", "set.on"]], "set.review.help"],
-  ["telemetry", "set.telemetry", [["on", "set.on"], ["off", "set.off"]], "set.telemetry.help"],
-  ["privacy", "set.privacy", [["on", "set.on"], ["off", "set.off"]], "set.privacy.help"],
-  ["checks", "set.checks", [["on", "set.on"], ["off", "set.off"]], "set.checks.help"],
+  ["review_mode", "set.review", ON_OFF, "set.review.help"],
+  ["telemetry", "set.telemetry", ON_OFF, "set.telemetry.help"],
+  ["privacy", "set.privacy", ON_OFF, "set.privacy.help"],
+  ["checks", "set.checks", ON_OFF, "set.checks.help"],
 ];
 const SETTING_MODULES = [
   ["sdd", "set.mod.sdd", "set.mod.sdd.help"],
@@ -103,7 +104,7 @@ async function preferencesTab() {
       info.installed ? null : h("p", { class: "notice" }, t("set.notInstalled")),
       h("div", { class: "options" }, ...SETTING_GROUPS.map(([title, keys]) => optionGroup(title, keys.map(prefOption))),
         optionGroup("set.modules", SETTING_MODULES.map(([name, label, help]) =>
-          option(`module:${name}`, `set-module-${name}`, label, [["off", "set.off"], ["on", "set.on"]], info.current.modules[name], help)))),
+          option(`module:${name}`, `set-module-${name}`, label, ON_OFF, info.current.modules[name], help)))),
       h("div", { class: "actions" }, previewBtn),
       h("section", { class: "repair" }, h("h2", null, t("set.repairTitle")),
         h("p", { class: "muted" }, t("set.repairHelp")), h("div", { class: "actions" }, repairBtn))].filter(Boolean));

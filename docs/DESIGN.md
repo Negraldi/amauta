@@ -84,7 +84,8 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   The Range / Project / Runtime filter bar shows on the Activity list routes only. Under 35rem the three filters fold into a
   native `<details>` whose summary names the choice ("30 days · All projects · All runtimes"), sharing a row with "Data as
   of"; from 35rem up it stays open and the summary is hidden. No horizontal page scroll at 375px.
-- Page head pattern on every page: breadcrumb, the title (h1), its one-sentence lead, then the tabs, then the content. No
+- Page head pattern on every page: breadcrumb, the title (h1), its one-sentence lead (one `--s2` step under the title,
+  `--s5` before what follows), then the tabs, then the content. No
   kind label above the title (the breadcrumb names the kind); the Activity filter bar is not repeated in words.
 - Item pages open with a breadcrumb (CSS-drawn separators, muted ancestors, the current page in ink); hub pages with
   several views show tabs underlined under the current one (`aria-current`), never pills.
@@ -92,8 +93,8 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   item's own page title (never its id: a memory reads by its title, not "709"). A crumb never names the open tab of the
   page you are on (Settings, Memory, Activity and a project's tabs alike): the tab bar under the lead does. A group named
   like its only page is said once ("Today").
-- Tabs or a segmented control: Tabs are views of one page, kept in the URL (`?tab=`), underlined, at most one row per
-  page, right under the lead. A segmented control is a filter of the same list (memory source, tool kind, catalog kind,
+- Tabs or a segmented control: Tabs are views of one page, kept in the URL (`?tab=`), underlined, one tab bar per page,
+  right under the lead; at phone width the bar wraps onto a second row rather than hiding tabs behind a sideways scroll. A segmented control is a filter of the same list (memory source, tool kind, catalog kind,
   pipeline category): one bordered group with the selected segment tinted, the same look whether its segments are links
   kept in the URL (`aria-current="true"`) or buttons (`aria-pressed`). It never wraps a lone segment onto its own row; it
   scrolls sideways instead. Exception: a filter with more segments than one row holds (the Catalog's kinds, up to a dozen)

@@ -54,8 +54,8 @@ async function viewProjects() {
     { key: "synced", label: t("project.colGraph"), render: (v, p) => graphChip(p.graph) },
     { key: "last", label: t("col.lastActivity"), render: (v) => R.fmtDate(v || null) }];
   const count = tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) });
-  const lead = h("p", { class: "muted" }, `${count} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), ".");
-  return [h("h1", null, t("nav.project")), lead, table("projects", cols, rows), foldersBlock(d.folders), sibs].filter(Boolean);
+  const lead = [`${count} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), "."];
+  return [pageHead(t("nav.project"), lead), table("projects", cols, rows), foldersBlock(d.folders), sibs].filter(Boolean);
 }
 
 // ---- the hub ---------------------------------------------------------------------------------------------------
