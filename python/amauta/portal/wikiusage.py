@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from .. import extensions
-from . import sessname, wikisess
+from . import sessname, sesswhere, wikisess
 from .sessfacts import MAIN_MODEL
 from .api import NotFound, columns, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref, strip_title_h1
@@ -201,11 +201,11 @@ def session_page(portal, ident, q):
             f"sum(u.cache_read) cache_read, sum({cw}) cache_write FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()
         if not t["messages"]:
             raise NotFound()
-        info = wikisess.session_info(portal, ident)
+        cwd = sesswhere.cwd(portal, ident)
         runtime = conn.execute(f"SELECT max({'u.runtime' if 'runtime' in columns(conn, 'usage_messages') else repr('claude')}) FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()[0]
         pg = _blank("session", ident, wikisess.label(portal, ident, t["project"], t["model"], t["messages"], t["first_ts"]))
         models = conn.execute("SELECT coalesce(u.model, 'unknown') model, count(*) n FROM usage_messages u WHERE u.session_id = ? GROUP BY model ORDER BY n DESC, model LIMIT 10", (ident,)).fetchall()
-        pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", sessname.project_of(portal, info.get("cwd"), t["project"])), ("Repository", getattr(sessname.repo_root(portal, info.get("cwd")), "name", None)), ("Working directory", info.get("cwd")),
+        pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", sessname.project_of(portal, cwd, t["project"])), ("Repository", getattr(sessname.repo_root(portal, cwd), "name", None)), ("Working directory", cwd),
                            ("Started", t["first_ts"]), ("Ended", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
                            ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
         for heading, kind, col, cond in (("Skills", "skill", "c.skill", "c.skill IS NOT NULL"), ("Tools", "tool", "c.tool", "1=1"),

@@ -225,9 +225,9 @@ const LIST = { auto_discover: false, projects: [
     graph: { mirrored: false, nodes: 0, edges: 0, synced_at: null } }] };
 
 test('#/project is one table row per project: name, ODD progress with a bar, graph chip with a shape, last activity date', async () => {
-  const sessions = { available: true, projects: [], sessions: [{ ...SESSIONS.sessions[0], last_ts: '2026-11-01T22:10:00Z' },
-    { ...SESSIONS.sessions[0], session_id: 'b', last_ts: '2026-10-20T08:00:00Z' }] };
-  const env = await boot('#/project', { '/api/projects': LIST, '/api/sessions': sessions });
+  // T14: the server sends each project's last activity with its row (the same membership as the project page).
+  const list = { ...LIST, projects: LIST.projects.map((p) => (p.name === 'repo' ? { ...p, last: '2026-11-01T22:10:00Z' } : p)) };
+  const env = await boot('#/project', { '/api/projects': list });
   const v = view(env);
   const rows = tree(v).filter((e) => e.tagName === 'tbody').flatMap((b) => b.children);
   assert.equal(rows.length, 2);

@@ -17,15 +17,6 @@ function graphChip(g) {
   return g.mirrored ? h("span", { class: "chip chip-done" }, "● " + t("project.graphMirrored", { at: R.fmtDate(g.synced_at) }))
     : h("span", { class: "chip chip-pending" }, "○ " + t("project.graphNot"));
 }
-// Last activity per usage project name: the newest session's last message (one optional call; "-" when unknown).
-async function lastActivity() {
-  const s = await api("sessions", { days: 3650, limit: 1000 }).catch(() => null);
-  const out = {};
-  for (const row of (s && s.sessions) || []) {
-    if (row.project && (!out[row.project] || row.last_ts > out[row.project])) out[row.project] = row.last_ts;
-  }
-  return out;
-}
 const sortOnce = (id, key, dir = -1) => { state.sort[id] ||= { key, dir }; }; // a table's first order, until a header is clicked
 
 // How most projects were found, said once in the lead (T11 h); null unless more than half of the rows (and at least two)
@@ -38,7 +29,7 @@ function usualOrigin(origins) {
 }
 
 async function viewProjects() {
-  const [d, sibs, last] = await Promise.all([api("projects"), siblingsBlock(), lastActivity()]);
+  const [d, sibs] = await Promise.all([api("projects"), siblingsBlock()]); // last activity comes with each row (sessname rule)
   if (!d.projects.length) {
     return [teach(t("nav.project"), t("project.noneKnown"), h("span", null, link("settings", "", t("project.openSettings"))))];
   }
@@ -46,7 +37,7 @@ async function viewProjects() {
   const originOf = (p) => p.origin.map(originLabel).join(", "), usual = usualOrigin(d.projects.map(originOf));
   const sub = (p) => [originOf(p) === usual ? "" : originOf(p), profile(p)].filter(Boolean).join(" · ");
   const rows = d.projects.map((p) => ({ ...p, percent: p.odd.total ? p.odd.done / p.odd.total : -1, synced: p.graph.synced_at || "",
-    last: last[p.name] || "" }));
+    last: p.last || "" }));
   const odd = (p) => (p.odd.features ? barCell(p.odd.done, p.odd.total, projectOdd(p.odd))
     : h("span", { class: "muted" }, projectOdd(p.odd)));
   sortOnce("projects", "last");
@@ -156,7 +147,8 @@ async function sessionsTab(pg) {
   if (!s.available) return empty(t("usage.nodata"));
   if (!s.sessions.length) return empty(t("project.sessionsEmpty", { name: pg.id }));
   sortOnce("psessions", "last_ts");
-  return [h("p", { class: "muted" }, t("project.sessionsScope", { name: pg.id })), table("psessions", sessionColumns(), s.sessions)];
+  const scope = h("p", { class: "muted" }, t("project.sessionsScope", { name: pg.id }));
+  return [scope, table("psessions", sessionColumns({ project: false }), s.sessions)];
 }
 async function memoriesTab(pg) {
   const r = await api("memories", { project: pg.id, limit: 200 });

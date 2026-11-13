@@ -13,7 +13,7 @@ import tempfile
 import time
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-from . import wikifeature, wikisess
+from . import sessname, sesswhere, wikifeature
 from . import graphsync, security, siblings
 from .api import has_table
 
@@ -214,7 +214,7 @@ def session_roots(portal, home):
         conn.close()
     out = {}
     for sid in ids:
-        root = git_root(wikisess.session_info(portal, sid).get("cwd"), home)
+        root = git_root(sesswhere.cwd(portal, sid), home)
         if root is not None:
             out[sid] = root
     return out
@@ -289,17 +289,10 @@ def odd_summary(repo):
     return {"features": features, "done": done, "total": total, "percent": round(100 * done / total) if total else 0}
 
 
-def session_ids(portal, repo):
-    """Session ids of a repository: transcripts whose cwd is inside it, plus sessions whose usage project name equals its name."""
-    key = Path(os.path.realpath(repo))
-    ids = [sid for sid, root in collect(portal)["session_roots"].items() if root == key]
-    conn = portal._usage_conn()
-    if conn is not None:
-        try:
-            ids += [r[0] for r in conn.execute("SELECT DISTINCT u.session_id FROM usage_messages u WHERE u.project = ?", (Path(repo).name,))]
-        finally:
-            conn.close()
-    return list(dict.fromkeys(ids))
+def session_ids(portal, repo, by=None):
+    """Session ids of a project, newest first: the sessions sessname's rule names after it (one membership for every page)."""
+    by = sessname.sessions_by_project(portal) if by is None else by
+    return list(by.get(Path(repo).name, {}).get("ids", []))
 
 
 def memory_count(portal, name):
@@ -336,9 +329,10 @@ def summary(portal, q=None):
     info = collect(portal)
     out = []
     selected = security.read_json(Path(portal.cfg.state_dir) / "profiles" / "selection.json", {})  # plan D14
+    by = sessname.sessions_by_project(portal)
     for repo in info["repos"]:
         out.append({"name": repo.name, "path": str(repo.resolve()), "origin": info["origin"][str(Path(os.path.realpath(repo)))], "odd": odd_summary(repo),
-                    "sessions": len(session_ids(portal, repo)), "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo),
-                    "profile": selected.get(os.path.realpath(repo), "default")})
+                    "sessions": len(session_ids(portal, repo, by)), "last": by.get(repo.name, {}).get("last"),
+                    "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo), "profile": selected.get(os.path.realpath(repo), "default")})
     return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"],
             "siblings": info["config"]["siblings"], "projects": out}

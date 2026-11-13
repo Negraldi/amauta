@@ -403,7 +403,7 @@ def _search_sessions(portal, text):
         return []
     try:
         rows = conn.execute(f"SELECT u.session_id, max(u.project) project, {sessfacts.MAIN_MODEL} model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u GROUP BY u.session_id "
-                            "HAVING u.session_id LIKE ? ESCAPE '\\' OR max(u.project) LIKE ? ESCAPE '\\' ORDER BY last_ts DESC LIMIT ?", (_like(text), _like(text), FETCH_CAP)).fetchall()
+                            "HAVING u.session_id LIKE ? ESCAPE '\\' OR session_project(u.session_id, max(u.project)) LIKE ? ESCAPE '\\' ORDER BY last_ts DESC LIMIT ?", (_like(text), _like(text), FETCH_CAP)).fetchall()
         return [_hit("session", r["session_id"], wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"]), r["last_ts"]) for r in rows]
     finally:
         conn.close()
