@@ -110,6 +110,8 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 .page-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); padding: var(--s2) var(--s5);
   border-bottom: 1px solid var(--line); background: var(--sidebar); }
 .page-bar[hidden] { display: none; }
+/* "Data as of": under Refresh, right-aligned; its own row on phones. */
+.data-at { margin: 0 0 0 auto; font-size: 0.8125rem; }
 #view { overflow-wrap: break-word; padding: var(--s5) var(--s5) var(--s7); outline: none; }
 
 /* ---- controls: one shape everywhere (6px radius, 1px line border); accent fill only for a confirm step ---- */
@@ -314,6 +316,7 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   .page-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end; }
   .page-bar label { display: grid; gap: var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }
   .page-bar select { width: 100%; }
+  .page-bar .data-at { grid-column: 1 / -1; margin: 0; }
   h1 { font-size: 1.25rem; }
   .pal-snip { display: none; }
   .meta { grid-template-columns: minmax(5rem, 40%) minmax(0, 1fr); }

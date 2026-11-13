@@ -88,6 +88,7 @@ function costPanel(c) {
 async function viewOverview() {
   const [o, c] = await Promise.all([api("overview", filters()), api("costs", filters())]);
   if (!o.available) return [panel(t("nav.usage"), empty(t("usage.nodata.refresh")))];
+  dataAsOf([o.totals.latest]);
   const runtimeCols = [{ key: "runtime", label: t("col.runtime"), render: runtimeBadge }, { key: "sessions", label: t("nav.session"), num: true },
     { key: "messages", label: t("col.messages"), num: true }, ...KINDS.map(([k, l]) => ({ key: k, label: t(l), num: true }))];
   return [
@@ -107,6 +108,7 @@ async function viewOverview() {
 async function viewTools(route) {
   const tl = await api("tools", filters());
   if (!tl.available) return [empty(t("usage.nodata"))];
+  dataAsOf(Object.values(tl).flatMap((v) => (Array.isArray(v) ? v.map((r) => r.last_used) : [])));
   const kinds = [["skills", t("nav.skill")], ["tools", t("nav.tool")], ["mcp", t("nav.mcp")], ["mcptools", t("usage.mcpTools")],
     ["subagents", t("usage.subagents")]];
   const field = R.usageSegment(route), seg = kinds.find(([s]) => R.SEGMENTS[s] === field)[0];
@@ -125,6 +127,7 @@ async function viewTools(route) {
 async function viewSessions() {
   const s = await api("sessions", filters());
   if (!s.available) return [empty(t("usage.nodata"))];
+  dataAsOf(s.sessions.map((x) => x.last_ts));
   return [s.sessions.length ? table("sessions", sessionColumns(), s.sessions) : empty(t("usage.noSessionsRange"))];
 }
 

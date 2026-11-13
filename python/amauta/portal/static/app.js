@@ -289,6 +289,12 @@ function errorPanel(route, err) {
     h("div", { class: "controls" }, retry, h("a", { href: "#/", class: "button" }, t("error.home"))));
 }
 
+// "Data as of": how fresh the imported usage on an Activity page is (T11 i), from the newest timestamp its API returned.
+function dataAsOf(stamps) {
+  const at = stamps.filter(Boolean).sort().at(-1);
+  $("data-at").textContent = at ? t("data.asOf", { at: R.fmtDateTime(at) }) : "";
+}
+
 let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
@@ -298,6 +304,7 @@ async function render() {
   renderNav(route);
   if (!onAppearance(route)) { state.preview = null; state.themeDraft = null; applyTheme(); } // leaving the editor ends its preview
   $("filters").hidden = !R.showsFilters(route);
+  $("data-at").textContent = "";
   setNav(false); // navigating closes the phone menu (boot.js)
   document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;
   if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }

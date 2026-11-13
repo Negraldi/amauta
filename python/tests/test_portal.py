@@ -89,6 +89,7 @@ class UsageViewsTest(ApiBase):
         o = self.get("/api/overview", days=3650)
         self.assertEqual(o["totals"]["messages"], 3)
         self.assertEqual(o["totals"]["sessions"], 2)
+        self.assertEqual(o["totals"]["latest"][:10], "2026-10-02")  # the newest message: "Data as of" (T11 i)
         self.assertEqual((o["totals"]["input"], o["totals"]["output"], o["totals"]["cache_read"], o["totals"]["cache_write"]), (160, 85, 900, 150))
         self.assertAlmostEqual(o["cache_hit_ratio"], 900 / (160 + 900 + 150))
         days = {d["day"]: d for d in o["daily"]}

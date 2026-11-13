@@ -168,7 +168,7 @@ class Portal:
             cw = "u.cache_write_5m + u.cache_write_1h"
             t = conn.execute(
                 f"SELECT count(*) messages, count(DISTINCT u.session_id) sessions, coalesce(sum(u.input),0) input, coalesce(sum(u.output),0) output, "
-                f"coalesce(sum(u.cache_read),0) cache_read, coalesce(sum({cw}),0) cache_write, coalesce(sum(u.thinking),0) thinking FROM usage_messages u WHERE {where}", args,
+                f"coalesce(sum(u.cache_read),0) cache_read, coalesce(sum({cw}),0) cache_write, coalesce(sum(u.thinking),0) thinking, max(u.ts) latest FROM usage_messages u WHERE {where}", args,
             ).fetchone()
             out["totals"] = dict(t)
             denom = t["input"] + t["cache_read"] + t["cache_write"]
