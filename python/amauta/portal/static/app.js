@@ -137,7 +137,7 @@ async function drawMermaid(source, into, natural) {
     if (!root) throw new Error(t("diagram.notSvg"));
     const drawn = document.importNode(root, true);
     const w = natural && drawn.viewBox && drawn.viewBox.baseVal ? drawn.viewBox.baseVal.width : 0;
-    if (w) { drawn.style.maxWidth = "none"; drawn.style.width = `${Math.ceil(w)}px`; }
+    if (w) { drawn.style.maxWidth = "none"; drawn.style.setProperty("--natural-width", `${Math.ceil(w)}px`); } // CSS picks fit or natural
     into.replaceChildren(drawn);
   } catch (err) {
     into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: plainReason(err).split("\n")[0] })), h("pre", { class: "text" }, source));

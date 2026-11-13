@@ -858,5 +858,6 @@
  "graph.kind.rationale": "Design rationale",
  "home.recent": "Recent activity",
  "project.originCommon": "Rows without a note were {origin}.",
- "data.asOf": "Data as of {at}; Refresh imports newer activity."
+ "data.asOf": "Data as of {at}; Refresh imports newer activity.",
+ "harness.fullSize": "Show at full size"
 }

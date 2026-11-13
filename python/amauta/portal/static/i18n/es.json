@@ -858,5 +858,6 @@
  "graph.kind.rationale": "Justificación de diseño",
  "home.recent": "Actividad reciente",
  "project.originCommon": "Las filas sin nota: {origin}.",
- "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente."
+ "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente.",
+ "harness.fullSize": "Ver a tamaño completo"
 }

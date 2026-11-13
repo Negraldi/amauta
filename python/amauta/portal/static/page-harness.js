@@ -102,7 +102,17 @@ async function graphExplorer() {
 
 // Harness diagram (plan N12e): the session flow of the harness model in the portal's own Mermaid style. archify, when
 // installed, is only a link to its own route (/archify/<hash>.html, sandboxed by its own CSP); it is never framed here.
-// The diagram keeps its natural size inside a keyboard-focusable sideways scroller, folded behind a summary.
+// The diagram fits the column by default; "Show at full size" (a pressed-state toggle) draws it at its natural size in the
+// same keyboard-focusable sideways scroller. Both are folded behind a summary.
+function archSizeToggle(scroller) {
+  const b = h("button", { type: "button", "aria-pressed": "false" }, t("harness.fullSize"));
+  b.addEventListener("click", () => {
+    const full = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", String(full));
+    scroller.setAttribute("data-size", full ? "full" : "fit");
+  });
+  return h("p", null, b);
+}
 function archifyBlock(d) {
   if (!d.installed) return null;
   const full = d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)
@@ -110,9 +120,11 @@ function archifyBlock(d) {
       tn("harness.drawn", d.components, { n: fmt(d.components) }))) : null;
   const label = t("harness.installArch");
   const scroller = d.fallback
-    ? h("div", { class: "arch-scroll", tabindex: 0, role: "region", "aria-label": label }, diagramBox(d.fallback, label, true)) : null;
+    ? h("div", { class: "arch-scroll", "data-size": "fit", tabindex: 0, role: "region", "aria-label": label },
+      diagramBox(d.fallback, label, true)) : null;
   return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
-    scroller ? h("details", { class: "arch" }, h("summary", null, t("harness.showArch")), scroller) : null, full);
+    scroller ? h("details", { class: "arch" }, h("summary", null, t("harness.showArch")), archSizeToggle(scroller), scroller) : null,
+    full);
 }
 
 // One status vocabulary for the Harness wiki: a filled dot for on/runs, a ring for off/disabled, always with the word.
