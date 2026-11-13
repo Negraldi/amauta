@@ -171,8 +171,10 @@ function siblingsSection(store) {
       { key: "path", label: t("sib.path"), render: (v) => h("code", { class: "tok" }, v) },
       { key: "mcp", label: t("sib.col.mcp"), render: text }, { key: "watch", label: t("sib.col.watch"), render: watched },
       { key: "remove", label: t("sib.col.actions"), render: remove }];
-    root.replaceChildren(h("h2", null, t("sib.title")), h("p", { class: "muted" }, t("sib.settingsLead")),
-      list.length ? table("siblings", columns, list) : h("p", { class: "teach" }, t("sib.empty")),
+    // What a sibling is, said once: the lead above the table, or the teaching empty state when there is none (T13).
+    root.replaceChildren(h("h2", null, t("sib.title")),
+      ...(list.length ? [h("p", { class: "muted" }, t("sib.settingsLead")), table("siblings", columns, list)]
+        : [h("p", { class: "teach" }, t("sib.empty"))]),
       h("div", { class: "sibling-form" }, fields.flat(), add));
     focus.done();
   }

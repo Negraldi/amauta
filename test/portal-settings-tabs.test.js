@@ -134,6 +134,14 @@ test('with no siblings the tab teaches what a sibling is and how to add one', as
   assert.ok(tree(v).some((e) => e.tagName === 'button' && e.textContent === 'Add sibling'));
 });
 
+// T13 item 14: the intro said what a sibling is, then the empty state said it again. Each case says it once.
+test('the siblings section explains what a sibling is once, with or without siblings', async () => {
+  for (const sibs of [[], [{ name: 'Data catalog', path: '/home/u/catalog' }]]) {
+    const { env } = await boot('#/settings?tab=projects', { '/api/projects': PROJECTS(sibs) });
+    assert.equal(view(env).textContent.match(/beside amauta/g).length, 1, `${sibs.length} siblings`);
+  }
+});
+
 test('a failing projects tab shows an error with Retry instead of an empty page', async () => {
   const { env } = await boot('#/settings?tab=projects', { '/api/projects': { __status: 500, error: 'boom' } });
   assert.ok(tree(view(env)).some((e) => e.tagName === 'button' && e.textContent === 'Retry'));
