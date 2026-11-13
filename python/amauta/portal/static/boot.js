@@ -150,7 +150,19 @@ $("refresh").addEventListener("click", async () => {
   } catch (err) { $("status").textContent = t("refresh.failed", { reason: netError(err) }); }
   finally { $("refresh").removeAttribute("disabled"); }
 });
-for (const id of ["days", "project", "runtime"]) $(id).addEventListener("change", render);
+// Usage filters on a phone (T13): a native <details> folds Range, Project and Runtime under one summary line that names the
+// choice ("30 days · All projects · All runtimes"); closed under 35rem, open (summary hidden, style.css) from there up.
+function syncFilterFold() {
+  const f = filters();
+  $("filters-summary").textContent = [t(`filters.d${f.days}`), f.project || t("filters.allProjects"),
+    f.runtime ? runtimeName(f.runtime) : t("filters.everyRuntime")].join(" · ");
+}
+try {
+  const wide = globalThis.matchMedia("(width > 35rem)"), fold = () => { $("filters-fold").open = wide.matches; };
+  fold();
+  wide.addEventListener("change", fold);
+} catch (_) { $("filters-fold").open = true; } // no matchMedia: the bar as it always was
+for (const id of ["days", "project", "runtime"]) $(id).addEventListener("change", () => { syncFilterFold(); render(); });
 $("theme-picker").addEventListener("change", (e) => chooseTheme(e.target.value));
 $("lang-picker").addEventListener("change", (e) => setLanguage(e.target.value));
 // A ?tab= that names no tab of this page is dropped, so the address always names the tab that is shown.

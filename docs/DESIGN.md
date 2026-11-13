@@ -81,7 +81,9 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   and makes the page behind it inert; Esc, a tap on the scrim or navigating closes it and focus returns to Menu. Top bar: Menu
   (narrow screens), the search trigger (Ctrl K), and on the right the Refresh button and a Display button that opens a native
   popover with theme, Edit themes and language, anchored under the button on every width.
-  The Range / Project / Runtime filter bar shows on the Activity list routes only. No horizontal page scroll at 375px.
+  The Range / Project / Runtime filter bar shows on the Activity list routes only. Under 35rem the three filters fold into a
+  native `<details>` whose summary names the choice ("30 days · All projects · All runtimes"), sharing a row with "Data as
+  of"; from 35rem up it stays open and the summary is hidden. No horizontal page scroll at 375px.
 - Page head pattern on every page: breadcrumb, the title (h1), its one-sentence lead, then the tabs, then the content. No
   kind label above the title (the breadcrumb names the kind); the Activity filter bar is not repeated in words.
 - Item pages open with a breadcrumb (CSS-drawn separators, muted ancestors, the current page in ink); hub pages with

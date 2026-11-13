@@ -38,7 +38,7 @@ test('pages without imported data show no line', async () => {
 
 test('the line sits in the filter bar, under the Refresh control, and is not a live region', async () => {
   const html = await readFile(path.join(STATIC, 'index.html'), 'utf8');
-  const bar = html.slice(html.indexOf('id="filters"'), html.indexOf('</div>', html.indexOf('id="filters"')));
+  const bar = html.slice(html.indexOf('id="filters"'), html.indexOf('<div id="toasts"')); // the bar holds the folded filters too (T13)
   assert.match(bar, /<p id="data-at" class="data-at muted"><\/p>/);
   assert.doesNotMatch(bar, /data-at[^>]*aria-live/);
 });

@@ -84,6 +84,7 @@
  "filters.range": "Intervalo",
  "filters.runtime": "Entorno",
  "filters.allRuntimes": "Todos",
+ "filters.everyRuntime": "Todos los entornos",
  "filters.claude": "Claude Code",
  "filters.codex": "Codex",
  "col.runtime": "Entorno",

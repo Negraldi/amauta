@@ -307,6 +307,7 @@ async function render() {
   renderNav(route);
   if (!onAppearance(route)) { state.preview = null; state.themeDraft = null; applyTheme(); } // leaving the editor ends its preview
   $("filters").hidden = !R.showsFilters(route);
+  if (typeof syncFilterFold === "function") syncFilterFold(); // boot.js; also re-says the summary after a language change
   $("data-at").textContent = "";
   setNav(false); // navigating closes the phone menu (boot.js)
   document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;

@@ -110,6 +110,9 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 .page-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); padding: var(--s2) var(--s5);
   border-bottom: 1px solid var(--line); background: var(--sidebar); }
 .page-bar[hidden] { display: none; }
+/* The filters sit in a native <details> (boot.js keeps it open from 35rem up): its summary only shows on a phone. */
+.filters-fold > summary { display: none; }
+.filters-fields { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); }
 /* Sticky under the top bar on wide screens only: on a phone the bar is three rows tall and would cover the page. boot.js
    keeps --topbar-h equal to the top bar's height. */
 @media (width >= 52rem) {
@@ -321,10 +324,14 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* still announced, not shown */
   .search-trigger kbd { display: none; } /* no keyboard shortcut to show on a phone */
   .tabs { flex-wrap: nowrap; overflow-x: auto; } .tabs a { white-space: nowrap; } /* one row of tabs, scrolled sideways */
-  .page-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end; }
+  .page-bar { gap: 0 var(--s3); align-items: baseline; padding-block: var(--s1); }
+  .filters-fold[open] { flex-basis: 100%; } /* closed: the summary and "data as of" share one row */
+  .filters-fold > summary { display: list-item; min-block-size: var(--hit); padding-block: var(--s1); cursor: pointer; }
+  .filters-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end;
+    padding-block: var(--s1) var(--s2); }
   .page-bar label { display: grid; gap: var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }
   .page-bar select { width: 100%; }
-  .page-bar .data-at { grid-column: 1 / -1; margin: 0; }
+  .page-bar .data-at { margin: 0; }
   h1 { font-size: 1.25rem; }
   .pal-snip { display: none; }
   .meta { grid-template-columns: minmax(5rem, 40%) minmax(0, 1fr); }

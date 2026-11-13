@@ -84,6 +84,7 @@
  "filters.range": "Range",
  "filters.runtime": "Runtime",
  "filters.allRuntimes": "All",
+ "filters.everyRuntime": "All runtimes",
  "filters.claude": "Claude Code",
  "filters.codex": "Codex",
  "col.runtime": "Runtime",
