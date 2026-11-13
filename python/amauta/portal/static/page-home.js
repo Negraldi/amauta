@@ -45,12 +45,12 @@ function spendingBlock(sp) {
     sp.top_models.length ? h("div", null, h("h3", null, t("home.topModels")), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, " " + t("home.tokensN", { n: short(m.tokens) })))))) : null,
     h("p", null, link("usage", "", t("home.usageDetails"))));
 }
-// "Is anything broken today?": the harness health sentence (same count as the Catalog), linked to the harness overview.
+// "Is anything broken today?": the harness health sentence (same count as the Catalog); its component count links to the overview.
 async function homeStatus(health) {
-  if (!health || !health.installed) return h("p", { class: "lead" }, link("harness", "", t("harness.notInstalled")));
+  if (!health || !health.installed) return h("p", { class: "lead warn" }, "▲ ", link("harness", "", t("harness.notInstalled")));
   const [hs, comps, skills] = await Promise.all(["harness", "harness/components", "skills"].map((p) => api(p).catch(() => null)));
   if (!hs || !hs.installed) return null; // the overview itself says how to install
-  return h("p", { class: "lead" }, link("harness", "", healthSentence(hs, comps, skills)));
+  return healthLine(hs, comps, skills);
 }
 function impactRankBlock(rk) {
   if (!rk || !rk.available) return null;

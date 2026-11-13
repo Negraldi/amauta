@@ -121,14 +121,25 @@ const disabledCount = (comps) => (comps ? comps.groups.reduce((n, g) => n + g.it
 
 // "amauta 0.3.0 is installed; 42 components, 1 needs attention (plugin disabled)." from /api/harness, /api/harness/components and
 // /api/skills: the same total the Catalog shows. Skills that fail to load only drop out of the count.
-function healthSentence(hs, comps, skills) {
+// The sentence in parts, so Home can link the component count; null parts when the catalog could not load.
+function healthParts(hs, comps, skills) {
   const head = t("harness.health.installed", { version: hs.version || "-" });
-  if (!comps || !Array.isArray(comps.groups)) return `${head}.`;
+  if (!comps || !Array.isArray(comps.groups)) return { head, parts: null, attention: null, off: 0 };
   const total = [...skillGroup(skills), ...comps.groups].reduce((n, g) => n + g.items.length, 0);
-  const parts = tn("harness.health.components", total, { n: fmt(total) });
   const off = disabledCount(comps);
-  const attention = off ? tn("harness.health.attention", off, { n: fmt(off) }) : t("harness.health.fine");
-  return `${head}; ${parts}, ${attention}.`;
+  return { head, parts: tn("harness.health.components", total, { n: fmt(total) }), off,
+    attention: off ? tn("harness.health.attention", off, { n: fmt(off) }) : t("harness.health.fine") };
+}
+function healthSentence(hs, comps, skills) {
+  const p = healthParts(hs, comps, skills);
+  return p.parts ? `${p.head}; ${p.parts}, ${p.attention}.` : `${p.head}.`;
+}
+// Home: plain text with an ordinary link on the component count; the warning tone and mark only when something needs it.
+function healthLine(hs, comps, skills) {
+  const p = healthParts(hs, comps, skills);
+  if (!p.parts) return h("p", { class: "lead" }, `${p.head}.`);
+  const mark = p.off ? "▲ " : "";
+  return h("p", { class: p.off ? "lead warn" : "lead" }, `${mark}${p.head}; `, link("harness", "", p.parts), `, ${p.attention}.`);
 }
 
 function installFacts(hs) {
