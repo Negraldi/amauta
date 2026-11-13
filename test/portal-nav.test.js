@@ -83,7 +83,7 @@ test('crumbs: group, hub (or tab) and the item; list pages stop at the hub', () 
     { key: 'catalog.kind.skill', hash: '#/component?kind=skill' }, { text: 's' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/session'))), [{ key: 'nav.activity' }, { key: 'nav.usage', hash: '#/usage' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/lint'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.memory', hash: '#/memory' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/themes'))), [{ key: 'nav.settings', hash: '#/settings' }, { key: 'set.tab.appearance' }], 'foot pages have no group');
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/themes'))), [{ key: 'nav.settings', hash: '#/settings' }], 'foot pages have no group; no tab crumb');
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/nope'))), []);
 });
 

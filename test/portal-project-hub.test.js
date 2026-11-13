@@ -33,11 +33,10 @@ test('?tab= is a validated query param of the project hub; overview is the defau
   assert.equal(R.projectTab({ kind: 'project', id: 'x', query: { tab: 'nope' } }), 'overview');
 });
 
-test('crumbs: the hub ends at the project (or its tab); features and graph nodes pass through their project', () => {
+test('crumbs: the hub ends at the project, whatever its tab; features and graph nodes pass through their project', () => {
   const base = [{ key: 'nav.group.work' }, { key: 'nav.project', hash: '#/project' }];
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/project/amauta'))), [...base, { text: 'amauta' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/project/amauta?tab=sessions'))),
-    [...base, { text: 'amauta', hash: '#/project/amauta' }, { key: 'project.tab.sessions' }]);
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/project/amauta?tab=sessions'))), [...base, { text: 'amauta' }], 'the tab bar names the tab');
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/feature/proj/name'))), [...base, { text: 'proj', hash: '#/project/proj?tab=features' }, { text: 'name' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/node/repo%3A%3Asrc%2Fa.js'))), [...base, { text: 'repo', hash: '#/project/repo?tab=graph' }, { text: 'src/a.js' }]);
   assert.equal(R.hubOf(R.parseHash('#/node/repo::x')), 'project', 'a node page lights Projects in the sidebar');
@@ -108,10 +107,10 @@ test('each fact appears once: no Links list repeating features, no feature, sess
   assert.doesNotMatch(v.textContent, /Tasks done|Graph memory6|ODD features/);
 });
 
-test('a tab shows in the breadcrumb (Work / Projects / repo / Sessions) and as the current tab', async () => {
+test('a tab shows as the current tab; the breadcrumb ends at the project (Work / Projects / repo), T13 crumb rule', async () => {
   const env = await boot('#/project/repo?tab=sessions');
-  assert.deepEqual(hrefs(crumbNav(env)), ['#/project', '#/project/repo']);
-  assert.match(crumbNav(env).textContent, /Work.*Projects.*repo.*Sessions/);
+  assert.deepEqual(hrefs(crumbNav(env)), ['#/project']);
+  assert.match(crumbNav(env).textContent, /Work.*Projects.*repo$/);
   assert.deepEqual(tree(tabNav(env)).filter((e) => e.getAttribute && e.getAttribute('aria-current') === 'page').map((e) => e.textContent), ['Sessions']);
 });
 

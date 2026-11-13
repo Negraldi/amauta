@@ -88,6 +88,10 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   kind label above the title (the breadcrumb names the kind); the Activity filter bar is not repeated in words.
 - Item pages open with a breadcrumb (CSS-drawn separators, muted ancestors, the current page in ink); hub pages with
   several views show tabs underlined under the current one (`aria-current`), never pills.
+- One crumb rule: group (none for the foot pages Guide and Settings), hub, then for an item the list that shows it and the
+  item's own page title (never its id: a memory reads by its title, not "709"). A crumb never names the open tab of the
+  page you are on (Settings, Memory, Activity and a project's tabs alike): the tab bar under the lead does. A group named
+  like its only page is said once ("Today").
 - Tabs or a segmented control: Tabs are views of one page, kept in the URL (`?tab=`), underlined, at most one row per
   page, right under the lead. A segmented control is a filter of the same list (memory source, tool kind, catalog kind,
   pipeline category): one bordered group with the selected segment tinted, the same look whether its segments are links

@@ -173,7 +173,7 @@ function commandBlock(pg) {
 async function viewWikiPage(kind, id, source) {
   const pg = await fetchWikiPage(kind, id, source);
   if (!pg) return noPage(kind, id);
-  if (R.CATALOG_KINDS.includes(pg.kind)) state.pageTitle = pg.title; // the breadcrumb ends with the title, not the raw id
+  state.pageTitle = pg.title || null; // every item's crumb is its title, never its raw id (a memory's "709")
   const refs = (list) => (list.length ? refList(list) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
   const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");

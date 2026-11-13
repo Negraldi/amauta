@@ -64,11 +64,11 @@ test('the old themes hash redirects to the Appearance tab; current hashes do not
   assert.equal(R.hubOf(R.parseHash('#/settings?tab=appearance')), 'settings');
 });
 
-test('the Settings breadcrumb names the tab', () => {
+// T13 item 11, one crumb rule: a breadcrumb never names the open tab (the tab bar under the lead does), so every tab of
+// Settings shares one trail, like Memory's and Activity's tabs.
+test('the Settings breadcrumb ends at Settings; the tab bar names the tab', () => {
   const crumbs = (h) => plain(R.crumbs(R.parseHash(h)));
-  assert.deepEqual(crumbs('#/settings'), [{ key: 'nav.settings', hash: '#/settings' }, { key: 'set.tab.preferences' }]);
-  assert.deepEqual(crumbs('#/settings?tab=projects'), [{ key: 'nav.settings', hash: '#/settings' }, { key: 'set.tab.projects' }]);
-  assert.deepEqual(crumbs('#/themes'), [{ key: 'nav.settings', hash: '#/settings' }, { key: 'set.tab.appearance' }]);
+  for (const hash of ['#/settings', '#/settings?tab=projects', '#/themes']) assert.deepEqual(crumbs(hash), [{ key: 'nav.settings', hash: '#/settings' }], hash);
 });
 
 // ---- the page ----------------------------------------------------------------------------------------------
@@ -81,8 +81,7 @@ test('Settings shows one title and three tab links that keep the tab in the URL'
   assert.equal(tabLinks(env)[0].getAttribute('aria-current'), 'page');
   assert.ok(!tabLinks(env)[1].getAttribute('aria-current'));
   const crumbs = tree(v).find((e) => e.tagName === 'nav' && /crumbs/.test(e.className));
-  assert.match(crumbs.textContent, /Settings/);
-  assert.match(crumbs.textContent, /Preferences/);
+  assert.equal(crumbs.textContent, 'Settings', 'the tab bar, not the breadcrumb, names the tab (T13)');
 });
 
 test('Preferences groups the options under plain headings and keeps the changed mark off the accent color', async () => {

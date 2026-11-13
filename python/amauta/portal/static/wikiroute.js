@@ -77,18 +77,16 @@
   function projectCrumbs(r) {
     const owner = ownerOf(r);
     if (owner) return [...PROJECT_BASE, { text: owner.project, hash: projectHash(owner.project, owner.tab) }, { text: owner.rest }];
-    const tab = projectTab(r);
-    if (tab === "overview") return [...PROJECT_BASE, { text: r.id }];
-    return [...PROJECT_BASE, { text: r.id, hash: projectHash(r.id) }, { key: TAB_KEYS[tab] }];
+    return [...PROJECT_BASE, { text: r.id }]; // whatever its tab: the tab bar names the tab
   }
 
-  // The trail from the group to the page: [{key | text, hash?}]. List pages stop at their hub; item pages go through the
-  // list that shows them (a tab when the hub has one), then the item itself. Project pages and items of a project go
-  // through the project hub (Work / Projects / <project> / <tab or item>).
+  // The trail from the group to the page: [{key | text, hash?}]. List pages stop at their hub, never naming the open tab
+  // (the tab bar does); item pages go through the list that shows them (a tab), then the item. Project pages and items
+  // of a project go through the project hub (Work / Projects / <project> / <item>).
   function crumbs(route) {
     const r = route || {}, item = itemOf(r.kind);
     if (!item || r.kind === "unknown") return [];
-    if (r.kind === "settings") return [{ key: "nav.settings", hash: "#/settings" }, { key: `set.tab.${settingsTab(r)}` }];
+    if (r.kind === "settings") return [{ key: "nav.settings", hash: "#/settings" }]; // a crumb never names the open tab
     if (r.id && (r.kind === "project" || ownerOf(r))) return projectCrumbs(r);
     if (catalogItem(r)) return [{ key: "nav.group.harnessWiki" }, { key: "nav.catalog", hash: "#/component" },
       { key: `catalog.kind.${r.kind}`, hash: routeHash({ kind: "component", id: "", query: { kind: r.kind } }) }, { text: r.id }];
