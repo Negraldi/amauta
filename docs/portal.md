@@ -21,9 +21,11 @@ The sidebar is grouped by job (ADR 0005): **Today**, **Work**, **Knowledge**, **
 (for example Work / Projects / name / Features). The top bar holds the Menu button (narrow screens), the search trigger (`Ctrl+K` or `/`),
 Refresh and **Display**, a popover with the theme (System, Light, Dark, your custom themes), Edit themes (Settings > Appearance) and the
 English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). Below 52rem the sidebar is
-an off-canvas phone menu behind the Menu button; Esc, a tap on the scrim or navigating closes it. The search palette has a Pages
-group that jumps to any page or tab by name, then memories, skills, tools, sessions, features, tasks and graph nodes (nodes last, at most 5). The Range, Project and
-Runtime filters live only on the Activity pages (Usage, Sessions, Tools and skills), which state them in words under the title. The
+an off-canvas phone menu behind the Menu button: focus moves into it and the page behind is inert until Esc, a tap on the scrim or
+navigating closes it. The search palette has a Pages group that jumps to any page or tab by name, then memories, skills, tools, sessions,
+features, tasks and graph nodes (nodes last, at most 5; a node row names its file, and two nodes of one file with one title are one row).
+The Range, Project and Runtime filters live only on the Activity pages (Usage, Sessions, Tools and skills), in the filter bar above the
+page. An unknown `?tab=` value is dropped from the address. Usage days are this machine's local date. The
 dictionaries are `static/i18n/{en,es,srv-es}.json`.
 Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true, "siblings": [...]}`, also editable in Settings > Projects and siblings) and from the git roots of your sessions. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory and skips linked git worktrees (`git worktree add`; their `.git` is a file), which are checkouts of a project rather than projects, while a worktree you configure yourself is kept; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
 
@@ -31,7 +33,7 @@ Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto
 
 | Group | Page | Hash | Tabs and query | What it shows |
 |---|---|---|---|---|
-| Today | Home | `#/` | | One harness health sentence, recent activity by day; rail with pipelines, spending and skill impact |
+| Today | Home | `#/` | | One harness health sentence, recent activity by day (five days, then Show more); rail with pipelines, spending and skill impact (above the feed under 72rem) |
 | Work | Projects | `#/project` | | Table of projects (ODD progress, graph status, last activity) and the sibling cards |
 | Work | Project hub | `#/project/<name>` | `?tab=` `overview` (default, not written), `features`, `graph`, `pipelines`, `sessions`, `memories` | One project in one place; graph sync and connect; features (`#/feature/<project>/<name>`) and graph nodes crumb through the hub |
 | Work | Pipelines | `#/pipelines` | | Every project's pipelines, runs and schedules |

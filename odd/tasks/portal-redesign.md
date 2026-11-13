@@ -213,6 +213,41 @@ Target after redesign: >= 32/40, no P1.
   sections renamed (Quality, Settings tabs, siblings in Settings > Projects and siblings). DESIGN.md: phone scrim, page-head
   pattern, Home rail, --ok for progress. CHANGELOG entry under Unreleased. Guide pages (en and es: portal, extras, pipelines,
   siblings) updated for the new navigation and labels.
+- 2026-11-13 T8 final polish (route: delegated writer; T8 stays open). Second independent re-critique: 30/40, no P1 (target
+  >= 32). Per number: 1 done: Home page head (h1 + health lead) above a .page.home grid whose rail comes first in the DOM
+  (right column when wide via grid-column/row, above the feed under 72rem); the feed shows 5 days, Show more adds 5 and moves
+  focus to the first new day. 2 done: server diagram labels translated client-side before Mermaid draws (app.js
+  localizedSource: a quoted label the srv catalog knows is swapped, entity codes decoded and re-encoded, any other label
+  left byte for byte; 30 catalog entries, a Python test checks every fixed label of odd_progress and workflow); "1 call"
+  (wikiusage.calls, used by wikiusage and wiki search); session titles re-composed client-side (sessionTitle: "<model>,
+  N messages" in the UI language, digits grouped; link(), palette rows and the session h1); memtype labels for project,
+  user, feedback, manual, tool_use, file_change, file_read, command, search, prompt; palette groups plural sentence case;
+  "Instalación de amauta"; graph.semantic split into two sentences; per-kind not-found titles (notfound.<kind>, "Memoria no
+  encontrada"); "Ajustes" -> "Configuración" (sec.lead, nav.group.foot, guide pages); guide/es: arnés -> harness, tú ->
+  usted throughout, "Tu directorio de Claude" -> "Su"; hooks table shows "amauta hooks" with the matcher as a muted detail.
+  3 done: memory, memory files, quality (prompts + scope as one lead) and settings have a lead; the Activity filter-state
+  line is gone (the filter bar says it); no kind label above item titles (breadcrumb names it). 4 done: node rows "title ·
+  basename", path cut from the left (36 chars), same title + file collapsed, group count adjusted (boot.js nodeRows).
+  5 done: api.py LOCAL_DAY = date(ts, 'localtime') for the daily keys and the from/to/days range (only _range and the
+  overview daily query); Home spending windows (wikihome) and per-item usage sparklines (wikiusage._daily) still use UTC
+  substr: left, outside the usage chart. 6 done: .rail-link 24px. 7 done: dark palette backdrop and phone scrim
+  oklch(0 0 0 / .55). 8 done: menu open focuses the first nav link, #view, search, #topbar-end and #filters get inert;
+  closing (Esc, scrim, navigation, widening past 52rem) restores. 9 done: phone bottom-sheet rule and comment removed
+  (popover under Display). 10 done: boot.js knownTab + readRoute replaceState for an unknown or foreign ?tab=. 11 done:
+  stage glued with no-break spaces inside the step label; in-mode steps ink, off-mode muted. 12 done: a cut front-matter
+  value ends at a word with an ellipsis (server). 13 left as is. 14: server attribution, not a client bug (hub tab: all
+  time, only messages with u.project = name, model = max of those rows; #/session: the chosen range, max(project)); the hub
+  tab's sentence now says so. 15 done: DESIGN.md 3.54/3.30 light, 4.25/4.05 dark.
+  RED first: test/portal-final-polish.test.js 19/19 failing (then the guide and dictionary register tests 1/1 each), Python
+  6 failing (local day, two diagram-label catalog tests, ellipsis, "1 call" x2). GREEN: portal node 464/464, simplicity/
+  odd-format/architecture 10/10 (page-wiki long lines 46 -> 45), Python portal tests OK. Changed expectations: "1 calls" ->
+  "1 call" (wiki usage, wiki search); filter-state tests replaced by "the head does not repeat the filter bar"; hooks row
+  "amauta Bash"; emoji test allows U+2713 (the done mark in diagram labels); top bar ids include topbar-end; stage regex
+  accepts the no-break space; Home status sits in the page head; "A semantic pass is pending."; not-found titles; palette
+  groups "Skills (1)", "Memories (2)"; i18n DYNAMIC allows notfound.*. Browser (dev server :8790, static only) at 1100,
+  1280 and 375 px, light and dark: no page overflow, head order h1/lead/tabs, rail above the feed at 1100 and right at
+  1280, menu focus/inert, popover under Display, unknown tabs normalized. The dev server needs a restart for the Python
+  changes (local usage days, "1 call", ellipsis).
 
 ## Next step
 

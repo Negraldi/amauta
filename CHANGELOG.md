@@ -15,7 +15,7 @@ All notable changes to this project are documented here. The format follows [Kee
   jumps to pages. New identity: cochineal-red accent for links, selection and focus, neutral surfaces, monospace titles
   and figures, reworked data colors and dark-aware diagrams. Accessibility: AA contrast checked in tests, 24px targets,
   visible control borders, a phone menu closed by Esc or a tap outside, one date and number format. Old links
-  (`#/activity`, `#/mcp`, `#/themes`, `#sessions` and the like) redirect to the new pages. No API, data or dependency changes.
+  (`#/activity`, `#/mcp`, `#/themes`, `#sessions` and the like) redirect to the new pages. No new endpoints or dependencies.
 - PBIR tools: `refs REPORT MODEL` lists the fields, filters and sorts of a report that its model lacks (report only,
   never repaired); `theme --name N (--colors | --brand FILE | --profile) --out FILE.json` writes a report theme from a
   palette, warns on low text contrast and never replaces a file without `--force`.
@@ -29,6 +29,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Portal: usage day keys (the Usage chart and the date range filters) are this machine's local date instead of UTC; a
+  single call reads "1 call"; a SKILL.md front-matter value cut at 300 characters ends at a word with an ellipsis.
+  Spanish server text and diagram labels are translated on the client (catalog `srv-es.json`).
 - `pbir lint` DAX001 no longer flags a division by a nonzero numeric constant.
 - `amauta upgrade` prints the UPGRADING.md notes of every version in the jump (read from the target, without the
   single-step commands); `--dry-run` fetches and previews the target's own installer from a temporary worktree (files

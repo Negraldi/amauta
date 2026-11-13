@@ -41,7 +41,7 @@ selection tint (`--accent-soft`) carries ink, muted ink or the accent, never a s
 
 The four data colors reach 3:1 on `--bg` and `--surface` in both schemes (non-text contrast) and stay at least 0.1 apart in OKLab, so a stacked bar reads without its legend.
 
-Control boundaries use `--line-strong`, which is not a table token: style.css derives it as `color-mix(in oklch, var(--ink-muted) 70%, var(--bg))`, so custom themes get one too. It measures 3.52:1 on `--bg` and 3.28:1 on `--surface` in light, 4.26:1 and 4.05:1 in dark (WCAG 1.4.11). Placeholder text is `--ink-muted` at full opacity.
+Control boundaries use `--line-strong`, which is not a table token: style.css derives it as `color-mix(in oklch, var(--ink-muted) 70%, var(--bg))`, so custom themes get one too. It measures 3.54:1 on `--bg` and 3.30:1 on `--surface` in light, 4.25:1 and 4.05:1 in dark (WCAG 1.4.11). Placeholder text is `--ink-muted` at full opacity.
 
 ### Themes
 
@@ -77,16 +77,21 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
 
 - Shell: left sidebar (15rem) with the brand, the job groups (a small sentence-case muted label each, never an
   uppercase eyebrow) and a foot group (Guide, Settings) pinned to the bottom under a hairline; below 52rem it becomes
-  an off-canvas panel behind the Menu toggle, with a scrim; Esc, a tap on the scrim or navigating closes it and focus returns to Menu. Top bar: Menu (narrow screens), the search trigger (Ctrl K), and on the
-  right the Refresh button and a Display button that opens a native popover with theme, Edit themes and language.
+  an off-canvas panel behind the Menu toggle, with a scrim (a deeper black in dark); opening it moves focus to its first link
+  and makes the page behind it inert; Esc, a tap on the scrim or navigating closes it and focus returns to Menu. Top bar: Menu
+  (narrow screens), the search trigger (Ctrl K), and on the right the Refresh button and a Display button that opens a native
+  popover with theme, Edit themes and language, anchored under the button on every width.
   The Range / Project / Runtime filter bar shows on the Activity list routes only. No horizontal page scroll at 375px.
-- Page head pattern on every page: the title (h1) with its one-sentence lead, then the tabs, then the content.
+- Page head pattern on every page: breadcrumb, the title (h1), its one-sentence lead, then the tabs, then the content. No
+  kind label above the title (the breadcrumb names the kind); the Activity filter bar is not repeated in words.
 - Item pages open with a breadcrumb (CSS-drawn separators, muted ancestors, the current page in ink); hub pages with
   several views show tabs underlined under the current one (`aria-current`), never pills.
 - Text pages: reading column (max 68ch) plus a right rail (18rem) for metadata, links, backlinks and revisions on
   wide screens; the rail moves below the content under 72rem.
 - Data pages: full content width, dense tables, sticky header row.
-- Home: the harness health sentence leads, recent activity is the main column, pipelines, spending and skill impact sit in the rail. No hero-metric tiles.
+- Home: the harness health sentence leads, recent activity is the main column (the five most recent days, then Show more),
+  pipelines, spending and skill impact sit in the rail; under 72rem the rail comes before the feed (it is first in the DOM).
+  No hero-metric tiles.
 - Spacing scale (rem): 0.25, 0.5, 0.75, 1, 1.5, 2, 3. Vary it for rhythm; sections separated by space and a hairline,
   not by boxes. Cards only where an item is a real object (a search result group, a settings option).
 - Z-index scale: dropdown 10, sticky 20, overlay 30, dialog 40, toast 50, tooltip 60.
@@ -95,7 +100,8 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
 
 - Links: accent color, underline on hover and focus; wikilinks to missing pages in `--ink-muted` with a dotted
   underline. External links get a small arrow glyph.
-- Search palette: native `<dialog>`, results grouped by kind with the kind as a text label, arrow-key navigation.
+- Search palette: native `<dialog>`, results grouped by kind under a plural label ("Memories (4)"), arrow-key navigation;
+  graph node rows name their file and show its path cut from the left.
 - Tables: hairline rules, right-aligned tabular numbers, sortable headers with a visible sort indicator.
 - Status chips: text label plus a shape (filled dot = done, ring = pending, triangle = warning); color reinforces only.
 - Buttons (and links styled as `a.button`): one shape for the whole surface (6px radius, 1px line border); hover
