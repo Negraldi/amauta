@@ -48,7 +48,9 @@ function svg(tag, attrs, ...kids) {
   return el;
 }
 const fmt = (n) => R.fmtNumber(n);
-const short = (n) => (n >= 1e9 ? R.fmtDecimal(n / 1e9, 1) + "B" : n >= 1e6 ? R.fmtDecimal(n / 1e6, 1) + "M" : n >= 1e3 ? R.fmtDecimal(n / 1e3, 1) + "k" : fmt(n || 0));
+// Short counts; the units come from the dictionary: Spanish says "2,4 mil M", since "billón" (B) is 10^12 there.
+const short = (n) => (n >= 1e9 ? t("num.billions", { n: R.fmtDecimal(n / 1e9, 1) }) : n >= 1e6 ? R.fmtDecimal(n / 1e6, 1) + "M"
+  : n >= 1e3 ? R.fmtDecimal(n / 1e3, 1) + "k" : fmt(n || 0));
 const bytes = (n) => (n == null ? "-" : n < 1024 ? `${fmt(n)} B` : n < 1048576 ? `${R.fmtDecimal(n / 1024, 1)} KB` : `${R.fmtDecimal(n / 1048576, 1)} MB`);
 const pct = (r) => (r == null ? "-" : R.fmtPercent(r));
 const words = () => ({ na: t("common.na"), tokens: t("unit.tokens"), pp: t("unit.pp") }); // unit words for R.fmtMetric / R.fmtDelta

@@ -85,6 +85,7 @@
  "filters.runtime": "Runtime",
  "filters.allRuntimes": "All",
  "filters.everyRuntime": "All runtimes",
+ "num.billions": "{n}B",
  "filters.claude": "Claude Code",
  "filters.codex": "Codex",
  "col.runtime": "Runtime",

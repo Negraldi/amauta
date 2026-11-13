@@ -58,7 +58,7 @@ The portal ships Light and Dark (the table above) and follows the system by defa
 
 ### Language
 
-English and Spanish apply to the portal chrome only (navigation, headings, labels, buttons, empty states, errors). Memories, `SKILL.md` and ODD documents are shown as written. Dates are always `YYYY-MM-DD` (date-times `YYYY-MM-DD HH:MM`, 24 h) in both languages and never break across lines; numbers are grouped with the separator of the chosen language.
+English and Spanish apply to the portal chrome only (navigation, headings, labels, buttons, empty states, errors). Memories, `SKILL.md` and ODD documents are shown as written. Dates are always `YYYY-MM-DD` (date-times `YYYY-MM-DD HH:MM`, 24 h) in both languages and never break across lines; numbers are grouped with the separator of the chosen language. Short counts read 3.5k, 12.4M and 2.4B in English; Spanish writes thousands of millions as "2,4 mil M", never "B" (a "billón" is 10^12).
 
 ## Typography
 

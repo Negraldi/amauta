@@ -85,6 +85,7 @@
  "filters.runtime": "Entorno",
  "filters.allRuntimes": "Todos",
  "filters.everyRuntime": "Todos los entornos",
+ "num.billions": "{n} mil M",
  "filters.claude": "Claude Code",
  "filters.codex": "Codex",
  "col.runtime": "Entorno",
