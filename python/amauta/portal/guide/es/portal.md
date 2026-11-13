@@ -46,7 +46,7 @@ La barra lateral se agrupa por tarea. Una página con varias vistas las muestra 
 | Actividad | Sesiones | `#/session` |
 | Actividad | Herramientas y skills | `#/tool` con un segmento: herramientas, skills, servidores MCP, herramientas MCP, subagentes (`?seg=`) |
 | Wiki del harness | Resumen | `#/harness` |
-| Wiki del harness | Catálogo | `#/component`, filtrado por tipo con `?kind=` |
+| Wiki del harness | Catálogo | `#/component`, filtrado por tipo con `?kind=`; cada fila indica su entorno (Claude Code, Codex o ambos) |
 | Wiki del harness | Seguridad | `#/security` |
 | Pie | Guía, Configuración | `#/guide`; `#/settings` con pestañas Preferencias, Proyectos y hermanos, Apariencia (`?tab=`) |
 
@@ -107,7 +107,7 @@ sequenceDiagram
   S-->>P: hecho, deshacer disponible
 ```
 
-El editor de configuración cambia una lista cerrada: persona, modo de revisión, telemetría, los módulos opcionales y reinstalar o reparar. El portal nunca edita por sí mismo un archivo del harness. El token de aplicación es válido cinco minutos y está ligado a las opciones elegidas y al hash de `state.json`. **Deshacer** vuelve a ejecutar la instalación con la configuración anterior al cambio más reciente hecho desde el portal; nunca restaura instantáneas de archivos.
+El editor de configuración cambia una lista cerrada: persona, modo de revisión, telemetría, los módulos opcionales y reinstalar o reparar. El portal nunca edita por sí mismo un archivo del harness. La vista previa, la aplicación y el deshacer llegan a Claude Code y, cuando existe un directorio de Codex, también a Codex (la vista previa muestra aparte los archivos de Codex). El token de aplicación es válido cinco minutos y está ligado a las opciones elegidas y al hash de `state.json`. **Deshacer** vuelve a ejecutar la instalación con la configuración anterior al cambio más reciente hecho desde el portal; nunca restaura instantáneas de archivos.
 
 ### Diagramas
 

@@ -66,7 +66,7 @@ SDD se usa solo cuando usted lo pide o acepta una propuesta; el tamaño o el rie
 
 - **Pipelines**: `amauta pipeline ...` y la página Trabajo > Pipelines y la pestaña Pipelines de cada proyecto.
 - **Impacto de skills**: el panel lateral de Inicio y cada página de skill; un lado con menos de 5 sesiones muestra "no hay datos suficientes".
-- **Explicaciones de la wiki**: pulse Pedir explicación en la página de un componente y luego pida a Claude Code que procese las peticiones de explicación de la wiki (skill `amauta-wiki-explain`).
+- **Explicaciones de la wiki**: pulse Pedir explicación en la página de un componente y luego pida al agente (Claude Code o Codex) que procese las peticiones de explicación de la wiki (skill `amauta-wiki-explain`).
 - **Editor de temas**: Configuración > Apariencia, con vista previa en vivo, avisos de contraste, importación y exportación.
 - **Graphify semántico**: pida una pasada semántica; la skill planifica fragmentos y despacha un subagente extractor de solo lectura por fragmento.
 - **Herramientas PBIR**: la skill `powerbi-report` las llama sobre un proyecto PBIP.

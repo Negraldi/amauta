@@ -46,7 +46,7 @@ The sidebar is grouped by job. A page with several views shows them as tabs, and
 | Activity | Sessions | `#/session` |
 | Activity | Tools and skills | `#/tool` with a segment: Tools, Skills, MCP servers, MCP tools, Subagents (`?seg=`) |
 | Harness wiki | Overview | `#/harness` |
-| Harness wiki | Catalog | `#/component`, filtered by kind with `?kind=` |
+| Harness wiki | Catalog | `#/component`, filtered by kind with `?kind=`; each row names its runtime (Claude Code, Codex or both) |
 | Harness wiki | Security | `#/security` |
 | Foot | Guide, Settings | `#/guide`; `#/settings` with tabs Preferences, Projects and siblings, Appearance (`?tab=`) |
 
@@ -107,7 +107,7 @@ sequenceDiagram
   S-->>P: done, undo available
 ```
 
-The settings editor changes a closed list: persona, review mode, telemetry, the optional modules and reinstall or repair. The portal never edits a harness file itself. The apply token is valid five minutes and is bound to the chosen options and the `state.json` hash. **Undo** re-runs the install with the settings before the newest portal change; it never restores file snapshots.
+The settings editor changes a closed list: persona, review mode, telemetry, the optional modules and reinstall or repair. The portal never edits a harness file itself. Preview, apply and undo reach Claude Code and, when a Codex home exists, Codex too (the preview lists the Codex files apart). The apply token is valid five minutes and is bound to the chosen options and the `state.json` hash. **Undo** re-runs the install with the settings before the newest portal change; it never restores file snapshots.
 
 ### Diagrams
 

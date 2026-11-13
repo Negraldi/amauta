@@ -32,6 +32,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Portal copy is runtime-agnostic: where a statement holds for Claude Code and Codex it says "the agent" (persona,
+  privacy, checks, module help, explanation requests, hook and MCP texts), and Claude Code-only parts say so (output
+  style, the data-file ask, the per-edit check, agents, commands, plugins). Spanish catalog lead uses "usted" throughout.
 - Portal: usage day keys (the Usage chart and the date range filters) are this machine's local date instead of UTC; a
   single call reads "1 call"; a SKILL.md front-matter value cut at 300 characters ends at a word with an ellipsis.
   Spanish server text and diagram labels are translated on the client (catalog `srv-es.json`).

@@ -39,8 +39,8 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  *   .claude.json mcpServers -> <codex home>/config.toml [mcp_servers.<same name>] (same command, args and env)
  * Claude-only assets have no Codex meaning and are never installed: output styles (a Claude Code setting) and the
  * Claude agent definitions (Codex has no equivalent file format). Also not carried over: SDD slash commands and agents,
- * the SDD preflight hook (all Claude dispatch machinery), codegraph's own prompt hook, and the impeccable and archify
- * skills (their rendering is tied to the Claude home).
+ * the SDD preflight hook (all Claude dispatch machinery) and codegraph's own prompt hook. The impeccable and archify
+ * skills are shared like the others (rendered into the store by renderSkillSet, linked from both skills dirs).
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
 /** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */

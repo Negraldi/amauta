@@ -45,21 +45,22 @@ NEW_KINDS = tuple(k for k, _ in KINDS if k not in ("mcp", "tool"))
 EVENT_WHEN = {
     "SessionStart": "When a session starts, resumes, is cleared or is compacted.",
     "SessionEnd": "When a session ends.",
-    "UserPromptSubmit": "Each time you submit a prompt, before Claude sees it.",
-    "PreToolUse": "Before Claude runs a tool; it can block or change the call.",
+    "UserPromptSubmit": "Each time you submit a prompt, before the agent sees it.",
+    "PreToolUse": "Before the agent runs a tool; it can block or change the call.",
     "PostToolUse": "After a tool call succeeds.",
     "PostToolUseFailure": "After a tool call fails.",
     "PermissionRequest": "When Claude Code asks you for a permission.",
     "Notification": "When Claude Code sends you a notification.",
-    "Stop": "When Claude finishes answering.",
+    "Stop": "When the agent finishes answering.",
     "SubagentStart": "When a subagent starts.",
     "SubagentStop": "When a subagent finishes.",
     "PreCompact": "Before the conversation is compacted.",
     "PostCompact": "After the conversation is compacted.",
 }
-HOOK_FALLBACK_WHEN = "When Claude Code reaches this hook event."
-MCP_WHAT = "A Model Context Protocol server: Claude Code starts it or connects to it, and the tools it lists become available to Claude."
-MCP_WHEN = "When a session starts, Claude Code connects to every configured server; Claude then calls its tools when a task needs them."
+HOOK_FALLBACK_WHEN = "When the agent reaches this hook event."
+MCP_WHAT = ("A Model Context Protocol server: the agent (Claude Code or Codex) starts it or connects to it, and the tools it lists "
+            "become available to the agent.")
+MCP_WHEN = "When a session starts, the agent connects to every configured server, then calls its tools when a task needs them."
 AGENT_WHEN = "When Claude delegates a task to this subagent type, or when you pick it."
 COMMAND_WHEN = "When you type this slash command."
 STYLE_WHEN = "While this output style is active, for every reply."

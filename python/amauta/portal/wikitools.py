@@ -20,7 +20,7 @@ SERVER_LABEL = "Reported by the server"
 CONNECTOR_WHAT = ("A claude.ai connector (or a server the Claude app provides itself): it has no local configuration, so the portal cannot see its command or "
                   "settings and never contacts it. What your sessions called is all that is known.")
 CONNECTOR_WHEN = "When Claude calls one of its tools during a session."
-MCPTOOL_WHEN = "When Claude decides the tool fits the task, subject to your permission rules."
+MCPTOOL_WHEN = "When the agent decides the tool fits the task, subject to your permission rules."
 USAGE_ONLY_NOTE = "Seen in your sessions but not in the built-in catalog shipped with amauta."
 TOOL_USAGE_NOTE = "Known only from your sessions: no description was reported. Use Refresh descriptions on the Components page for local servers."
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")

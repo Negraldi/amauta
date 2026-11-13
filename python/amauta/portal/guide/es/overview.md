@@ -59,7 +59,7 @@ Las reglas de importación las hace cumplir `test/architecture.test.js`:
 
 Un día típico con amauta se ve así:
 
-1. **Instale una vez**: `amauta install` escribe los bloques, hooks, skills, agentes y servidores MCP en Claude Code, y en Codex cuando existe `~/.codex`. Consulte [[guide:install|Instalación y runtimes]].
+1. **Instale una vez**: `amauta install` escribe los bloques, hooks, skills y servidores MCP en Claude Code, y en Codex cuando existe un directorio de Codex (`~/.codex`, o `CODEX_HOME`); los agentes y el estilo de salida van solo a Claude Code. Consulte [[guide:install|Instalación y runtimes]].
 2. **Trabaje en una sesión**: el bloque orquestador hace de ODD el flujo de trabajo por defecto. El trabajo sustancial recibe un archivo de tareas en `odd/tasks/<feature>.md`, reflejado en la memoria. Consulte [[guide:odd|ODD y revisión]].
 3. **Deje que los hooks ayuden**: después de una edición, las comprobaciones informan los errores nuevos; en Stop se vuelven a comprobar los archivos cambiados y puede saltar el recordatorio de revisión; el hook de privacidad pregunta antes de leer un archivo de datos.
 4. **Mírelo**: `amauta portal` (o `amauta portal launch`) muestra memorias, sesiones, uso, features, el grafo, el estado de seguridad, los pipelines y esta guía.

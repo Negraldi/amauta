@@ -182,7 +182,7 @@ test('a hook page says where it comes from once, keeps the long command in the m
   assert.doesNotMatch(rail.textContent, /hook dispatch/, 'the command is not squeezed into the rail');
   const pre = tree(v).find((e) => e.tagName === 'pre' && e.textContent === CMD);
   assert.ok(pre, 'the command is a code block in the main column');
-  assert.match(v.textContent, /No explanation written yet\. Request one and ask Claude Code to process the queue \(skill amauta-wiki-explain\)\./);
+  assert.match(v.textContent, /No explanation written yet\. Request one and ask the agent \(Claude Code or Codex\) to process the queue \(skill amauta-wiki-explain\)\./);
   const css = (await read('style.css')) + (await read('style-pages.css'));
   assert.match(css, /\.doc pre\.code \{[^}]*white-space: pre-wrap/, 'the command wraps instead of overflowing');
 });

@@ -66,7 +66,7 @@ SDD is used only when you ask for it or accept a proposal; size or risk alone ne
 
 - **Pipelines**: `amauta pipeline ...` and the Work > Pipelines page and each project's Pipelines tab.
 - **Skill impact**: the Home rail and each skill page; a side with fewer than 5 sessions shows "not enough data".
-- **Wiki explanations**: press Request explanation on a component page, then ask Claude Code to process the wiki explanation requests (skill `amauta-wiki-explain`).
+- **Wiki explanations**: press Request explanation on a component page, then ask the agent (Claude Code or Codex) to process the wiki explanation requests (skill `amauta-wiki-explain`).
 - **Theme editor**: Settings > Appearance, with live preview, contrast warnings, import and export.
 - **Graphify semantic**: ask for a semantic pass; the skill plans chunks and dispatches one read-only extractor subagent per chunk.
 - **PBIR tools**: the `powerbi-report` skill calls them on a PBIP project.

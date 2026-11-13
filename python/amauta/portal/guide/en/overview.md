@@ -59,7 +59,7 @@ The import rules are enforced by `test/architecture.test.js`:
 
 A typical day with amauta looks like this:
 
-1. **Install once**: `amauta install` writes the blocks, hooks, skills, agents and MCP servers into Claude Code, and into Codex when `~/.codex` exists. See [[guide:install|Install and runtimes]].
+1. **Install once**: `amauta install` writes the blocks, hooks, skills and MCP servers into Claude Code, and into Codex when a Codex home exists (`~/.codex`, or `CODEX_HOME`); agents and the output style go to Claude Code only. See [[guide:install|Install and runtimes]].
 2. **Work in a session**: the orchestrator block makes ODD the default workflow. Substantial work gets a task file in `odd/tasks/<feature>.md`, mirrored into memory. See [[guide:odd|ODD and review]].
 3. **Let the hooks help**: after an edit the checks report new errors; at Stop the changed files are checked again and the review reminder may fire; the privacy hook asks before a data file is read.
 4. **Look at it**: `amauta portal` (or `amauta portal launch`) shows memories, sessions, usage, features, the graph, the security state, the pipelines and this guide.
