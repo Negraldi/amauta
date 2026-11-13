@@ -114,7 +114,7 @@ class GraphSync:
         if not found:
             raise SyncError("unknown project")
         if len({os.path.realpath(r) for r in found}) > 1:
-            raise SyncError("several projects share this name; rename or remove one in Settings > Projects")
+            raise SyncError("several projects share this name; rename or remove one in Settings > Projects and siblings")
         real = Path(os.path.realpath(found[0]))
         if not real.is_dir():
             raise SyncError("the project directory no longer exists")

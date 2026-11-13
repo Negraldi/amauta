@@ -686,7 +686,7 @@
  "project.allPipelines": "All pipelines",
  "project.pipelinesEmpty": "This project defines no pipelines. They appear here when the repository has `.amauta/pipelines.json` (see docs/pipelines.md).",
  "project.sessionsEmpty": "No sessions recorded for {name} yet. A Claude Code or Codex session started in this folder appears here after the next usage import (Refresh).",
- "project.sessionsScope": "Sessions with messages recorded under the project name {name}, newest first (at most 200); the counts cover every day and only this project's messages, while Activity > Sessions counts the chosen date range.",
+ "project.sessionsScope": "Sessions of {name} by the project rule (the project that holds each session's working folder), newest first (at most 200); the counts cover every day, while Usage > Sessions counts the chosen date range.",
  "project.memoriesEmpty": "No memories for {name} yet. They appear here after mem_save with this project.",
  "project.graphSynced": "Loaded {at}.",
  "mem.sourceLabel": "Memory store",

@@ -196,7 +196,7 @@
  "Connects a git repository that has a graphify graph but no amauta git hooks (installs them and starts one background refresh), so its graph reaches the portal. Skips repositories that ran `amauta graphify hook uninstall`.": "Conecta un repositorio git que tiene un grafo de graphify pero no los hooks de git de amauta (los instala e inicia una actualización en segundo plano), para que su grafo llegue al portal. Omite los repositorios donde se ejecutó `amauta graphify hook uninstall`.",
  "body must be {\"project\": \"<name>\"}": "El cuerpo debe ser {\"project\": \"<nombre>\"}",
  "unknown project": "Proyecto desconocido",
- "several projects share this name; rename or remove one in Settings > Projects": "Varios proyectos comparten este nombre; renombre o quite uno en Configuración > Proyectos",
+ "several projects share this name; rename or remove one in Settings > Projects and siblings": "Varios proyectos comparten este nombre; renombre o quite uno en Configuración > Proyectos y hermanos",
  "the project directory no longer exists": "El directorio del proyecto ya no existe",
  "graphify is not installed or not on the portal's PATH (install it with: pipx install graphifyy)": "graphify no está instalado o no está en el PATH del portal (instálelo con: pipx install graphifyy)",
  "could not start the refresh: {reason}": "No se pudo iniciar la actualización: {reason}",
