@@ -7,7 +7,7 @@ function graphDiagram(repo, node, depth) {
   api("graph/diagram", { repo, node, depth }).then((d) => {
     if (!d.source) box.replaceChildren(empty(t("graph.nothing")));
     else box.replaceChildren(diagramBox(d.source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? empty(t("graph.nearest", { shown: 30, total: fmt(d.nodes) })) : null);
-  }).catch((err) => box.replaceChildren(h("p", { class: "warn" }, String(err.message || err))));
+  }).catch((err) => box.replaceChildren(errorNote(err)));
   return box;
 }
 
@@ -94,7 +94,7 @@ const disabledCount = (comps) => (comps ? comps.groups.reduce((n, g) => n + g.it
 // /api/skills: the same total the Catalog shows. Skills that fail to load only drop out of the count.
 function healthSentence(hs, comps, skills) {
   const head = t("harness.health.installed", { version: hs.version || "-" });
-  if (!comps) return `${head}.`;
+  if (!comps || !Array.isArray(comps.groups)) return `${head}.`;
   const total = [...skillGroup(skills), ...comps.groups].reduce((n, g) => n + g.items.length, 0);
   const parts = tn("harness.health.components", total, { n: fmt(total) });
   const off = disabledCount(comps);

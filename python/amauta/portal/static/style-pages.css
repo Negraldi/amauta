@@ -79,10 +79,8 @@ button.primary:active:not(:disabled) { background: var(--accent); filter: bright
 .sib-cards { gap: var(--s2); } .sib-cards .pipe-card { padding: var(--s2) var(--s3); } .sib-cards .pipe-card p { margin: var(--s1) 0; }
 .pipe-card { border: 1px solid var(--line); border-radius: 8px; padding: var(--s3) var(--s4); background: var(--surface); }
 .pipe-card h3 { margin: 0 0 var(--s2); }
-.pipe-steps { margin: var(--s2) 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); }
-.pipe-level { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1); }
-.pipe-level + .pipe-level::before { content: "→"; color: var(--ink-muted); margin-bottom: calc(-1 * var(--s1)); }
-.pipe-steps li[data-off="true"] { opacity: 0.55; text-decoration: line-through; }
+.pipe-steps { margin: var(--s2) 0; list-style: none; padding: 0; display: grid; gap: var(--s1); }
+.pipe-steps li[data-off="true"] { color: var(--ink-muted); } /* the words "(not in this mode)" carry it, not a strike-through */
 .pipe-mode { display: inline-flex; gap: var(--s1); align-items: center; margin: var(--s1) 0; font-size: 0.875rem; }
 .pipe-steps li { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .pipe-steps li[data-status="ok"] { color: var(--ok); }

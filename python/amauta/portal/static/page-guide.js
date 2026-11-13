@@ -10,6 +10,7 @@ async function viewGuide(route) {
   const lang = I.lang();
   const slug = (route && route.id) || "overview";
   const [index, page] = await Promise.all([api("guide", { lang }), api("guide/page", { slug, lang })]);
+  state.pageTitle = page.title; // the breadcrumb ends with the page's title, not its slug
   let drawn = 0;
   const mermaid = (src) => (++drawn <= GUIDE_DIAGRAMS ? diagramBox(src, t("diagram.mermaid"))
     : h("pre", { class: "code" }, h("code", null, src)));

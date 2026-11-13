@@ -49,12 +49,17 @@ function svg(tag, attrs, ...kids) {
 }
 const fmt = (n) => R.fmtNumber(n);
 const short = (n) => (n >= 1e9 ? R.fmtDecimal(n / 1e9, 1) + "B" : n >= 1e6 ? R.fmtDecimal(n / 1e6, 1) + "M" : n >= 1e3 ? R.fmtDecimal(n / 1e3, 1) + "k" : fmt(n || 0));
+const bytes = (n) => (n == null ? "-" : n < 1024 ? `${fmt(n)} B` : n < 1048576 ? `${R.fmtDecimal(n / 1024, 1)} KB` : `${R.fmtDecimal(n / 1048576, 1)} MB`);
 const pct = (r) => (r == null ? "-" : R.fmtPercent(r));
 const words = () => ({ na: t("common.na"), tokens: t("unit.tokens"), pp: t("unit.pp") }); // unit words for R.fmtMetric / R.fmtDelta
 // An enum value the server sends (a memory type, a redaction kind ...) shown with its label; a value without one is shown as sent.
 const enumLabel = (prefix, v) => (`${prefix}.${v}` in I.dict.en ? t(`${prefix}.${v}`) : v);
 const memType = (v) => (v ? enumLabel("memtype", v) : "-");
 const plainReason = (e) => String((e && e.message) || e);
+// A request that never reached the server, in words; the browser's own text rides along as the detail.
+const netError = (err) => t("error.network", { reason: plainReason(err) });
+// A part of a page that failed (a diagram, a list): one translated line, the raw reason as a muted detail.
+const errorNote = (err) => h("p", { class: "warn", role: "alert" }, `▲ ${t("error.part")} `, h("span", { class: "muted tok" }, plainReason(err)));
 
 async function api(path, params = {}) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
@@ -126,7 +131,7 @@ async function drawMermaid(source, into, natural) {
     if (w) { drawn.style.maxWidth = "none"; drawn.style.width = `${Math.ceil(w)}px`; }
     into.replaceChildren(drawn);
   } catch (err) {
-    into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: String(err.message || err).split("\n")[0] })), h("pre", { class: "text" }, source));
+    into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: plainReason(err).split("\n")[0] })), h("pre", { class: "text" }, source));
   }
 }
 // The diagrams drawn so far: a theme change draws them again in the new colors. A box is built before its page is shown, so
@@ -162,6 +167,8 @@ function empty(text) { return h("p", { class: "muted" }, text); }
 // Server notes mark commands with `backticks`: show those parts as code, as text nodes like everything else (plan N12h).
 const codeSpans = (text) => String(text).split("`").map((part, i) => (i % 2 ? h("code", null, part) : part));
 
+// A wide element (a table) scrolls sideways in its own keyboard-reachable box; the page keeps the vertical scroll.
+const scrollBox = (el, label) => h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": label || t("table.label") }, el);
 // Sortable table: columns = [{key, label, num, render}], rows = array of objects.
 function table(id, columns, rows, onRow) {
   const s = state.sort[id] || { key: columns.find((c) => c.num)?.key || columns[0].key, dir: -1 };
@@ -203,7 +210,11 @@ async function renderRoute(route) {
   const tabs = tabBar(route);
   const head = pageHead(t(PAGE_TITLES[kind] ?? `nav.${kind}`), null, R.showsFilters(route) ? filterState() : null); // Activity: filters in words
   const page = out.some(hasTitle) ? out : [head, ...out];
-  return tabs ? [tabs, ...page] : page;
+  if (!tabs) return page;
+  // One page-head pattern: title (with its lead), then the tabs, then the content.
+  const at = page.findIndex((n) => /\bpage-head\b/.test(String((n && n.className) || "")));
+  const after = at < 0 ? 0 : at + 1 + (page[at + 1] && /\blead\b/.test(String(page[at + 1].className || "")) ? 1 : 0);
+  return [...page.slice(0, after), tabs, ...page.slice(after)];
 }
 // Every page opens with exactly one title (impeccable critique, plan N12b); views that build their own h1 keep it.
 const PAGE_TITLES = { harness: "nav.harnessPage", tool: "nav.toolsSkills", mcp: "nav.toolsSkills", component: "nav.catalog" };
@@ -280,7 +291,8 @@ async function render() {
     if (seq !== renderSeq) return;
     $("view").replaceChildren(...[crumbBar(route), ...nodes].filter(Boolean));
     const title = firstH1(nodes);
-    if (title) document.title = `${title.textContent} - amauta`;
+    const name = title && title.textContent;
+    if (name) document.title = `${name === "amauta" ? `${kindLabel(route.kind)} ${name}` : name} - amauta`; // never "amauta - amauta"
     state.shown = key;
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {
@@ -331,63 +343,4 @@ function setLanguage(lang) {
   I.saveLang(I.storage(), I.setLang(lang));
   applyLanguage(lang);
   render(); // the current route is built again in the new language; no reload, no navigation
-}
-
-// ---- search palette (native <dialog>) ---------------------------------------------------------------------------
-const palette = { items: [], nodes: [], index: -1, seq: 0 };
-function openPalette() {
-  const dlg = $("palette");
-  if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", ""); }
-  const input = $("palette-input");
-  if (input.focus) input.focus();
-  if (input.select) input.select();
-}
-function closePalette() {
-  const dlg = $("palette");
-  if (dlg.close) dlg.close(); else dlg.removeAttribute("open");
-}
-function selectResult(index) {
-  palette.index = index;
-  palette.nodes.forEach((n, i) => n.setAttribute("aria-selected", String(i === index)));
-  const node = palette.nodes[index];
-  if (node) {
-    $("palette-input").setAttribute("aria-activedescendant", node.getAttribute("id"));
-    if (node.scrollIntoView) node.scrollIntoView({ block: "nearest" });
-  }
-}
-function goResult(index) {
-  const item = palette.items[index];
-  if (!item) return;
-  closePalette();
-  location.hash = R.formatHash(item.kind, item.id);
-}
-// Search groups arrive named after their kind (memory, skill, ...): shown with the same labels as the pages.
-const groupLabel = (kind) => (`palette.group.${kind}` in I.dict.en ? t(`palette.group.${kind}`) : kind);
-function paintResults(found, q) {
-  const groups = R.rankResults(found); // graph nodes last and capped (critique C6)
-  const box = $("palette-results");
-  palette.items = R.flattenResults(groups);
-  palette.nodes = [];
-  if (!palette.items.length) { box.replaceChildren(h("p", { class: "muted" }, t("palette.noResults", { q }))); return; }
-  let flat = 0;
-  box.replaceChildren(...groups.map((g) => h("div", { class: "pal-group", role: "group", "aria-label": groupLabel(g.kind) }, h("div", { class: "pal-head" }, `${groupLabel(g.kind)} (${fmt(g.count)})`),
-    g.items.map((it) => {
-      const i = flat++;
-      const node = h("div", { role: "option", id: `pal-${i}`, class: "pal-item", "aria-selected": "false", onclick: () => goResult(i) },
-        h("span", { class: "pal-kind" }, groupLabel(g.kind)), h("span", { class: "pal-title" }, it.title), it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
-      palette.nodes.push(node);
-      return node;
-    }))));
-  selectResult(0);
-}
-async function runSearch() {
-  const q = $("palette-input").value.trim();
-  const seq = ++palette.seq;
-  if (!q) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "muted" }, t("palette.hint"))); return; }
-  try {
-    const r = await api("wiki/search", { q });
-    if (seq === palette.seq) paintResults(r.groups, q);
-  } catch (err) {
-    if (seq === palette.seq) { palette.items = []; palette.nodes = []; $("palette-results").replaceChildren(h("p", { class: "warn" }, t("palette.failed", { reason: String(err.message || err) }))); }
-  }
 }

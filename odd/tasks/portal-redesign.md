@@ -181,6 +181,33 @@ Target after redesign: >= 32/40, no P1.
   Not fixed (server text, out of scope): session titles "<model>, N messages" are composed in English by wikisess.label;
   graph node kinds (graphify) and pipeline modes (user-defined) stay raw; diagrams.py _STYLE comment still says white card.
 
+- 2026-11-13 T8 polish round (route: delegated writer). Independent re-critique: 29/40 (target >= 32, no P1). Per letter:
+  a done: phone menu closes on Esc and on a scrim tap (focus back to Menu, aria-expanded kept), and on navigation as before.
+  b done: app.js scrollBox(); the skill impact table and the home spending tables sit in scroll boxes (every page table now
+  does). c done: ::placeholder is --ink-muted at opacity 1 (measured 6.41:1 light, 8.29:1 dark on --surface). d done:
+  --line-strong = color-mix(in oklch, var(--ink-muted) 70%, var(--bg)) for inputs, selects, textareas and buttons; not a 15th
+  table token; measured 3.54:1 bg / 3.30:1 surface light, 4.25 / 4.05 dark (native checkboxes keep the browser's border).
+  e done: Run is a plain button, the accent fill only on "Run now". f done: steps in declared order, "stage N" in words when
+  steps run side by side, "(not in this mode)" instead of a strike-through. g skipped: the server sends the day keys (UTC
+  SQL), out of scope. h done: pages without item pages turn an extra path into the not-found panel (wikiroute NO_ITEMS).
+  j done: title (with lead), then tabs, on every tabbed page; Tools and skills dropped the h2 repeating the segment; lint
+  uses pageHead. k done: origins read "added with --repo / saved in Settings / found in your sessions"; Msgs -> Messages;
+  SKILL.md rail keys labelled (meta.*), true/false -> yes/no, an argument hint breaks after each "|"; guide crumb ends with
+  the page title; a page titled "amauta" gets "Project amauta - amauta"; ODD percents through Intl (fmtPercent digits);
+  the Appearance help points to Display in the top bar; path placeholders translated. l done: saved paths are a two-column
+  table. m done: Home leads with the harness health sentence linked to #/harness (the rail health block is gone). n done:
+  Esc/backdrop return focus to the search button, rows no longer repeat the group label, a "Pages" group from R.NAV.
+  o done: .scroll is sideways only (no 75vh inner scrollers). p done: netError()/errorNote() wrap network and part
+  failures in translated text with the raw reason as detail. P3: phone top bar one row (51px), hub/page tabs one
+  scrolling row, memory list newest first, memory file sizes in B/KB/MB; skipped: home session link text (the title is
+  composed by the server) and the graph filter for vendored/minified nodes (not cheap without API fields).
+  Palette code moved from app.js to boot.js (app.js 346 lines). RED first: test/portal-t8-polish.test.js 18/18 failing,
+  then GREEN. Changed expectations: nav tabs come after the header; DAG test checks declared order and stages; buttons use
+  --line-strong; palette rows start with the title; home health is the lead sentence; settings tests find the siblings
+  table by content (saved paths are a table too); "found in your sessions"; Spanish percent "62 %" via Intl; i18n DYNAMIC
+  allows meta.*; dead keys home.agents, home.harnessDetails, home.health removed. Browser: 375px and 1280px, dark and
+  light, no page overflow (incl. #/skill/impeccable), no nested vertical scrollers, menu closes by Esc and scrim.
+
 ## Next step
 
 T8 close: impeccable audit, polish, re-critique vs the 25/40 baseline; then T9. Open carry-over: Settings > Appearance has no

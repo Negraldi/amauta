@@ -111,7 +111,7 @@ test('Projects and siblings lists siblings in a table, with a Remove button that
   const { env, posts } = await boot('#/settings?tab=projects');
   const v = view(env);
   assert.equal(tabLinks(env)[1].getAttribute('aria-current'), 'page');
-  const table = tree(v).find((e) => e.tagName === 'table');
+  const table = tree(v).find((e) => e.tagName === 'table' && /Data catalog/.test(e.textContent)); // T8 l: the saved paths are a table too
   assert.ok(table, 'siblings are a table');
   assert.match(table.textContent, /Data catalog/);
   assert.match(table.textContent, /\/home\/u\/catalog/);
@@ -129,7 +129,7 @@ test('with no siblings the tab teaches what a sibling is and how to add one', as
   const v = view(env);
   assert.match(v.textContent, /A sibling is a project that lives beside amauta/);
   assert.match(v.textContent, /choose Add sibling/);
-  assert.equal(tree(v).filter((e) => e.tagName === 'table').length, 0);
+  assert.equal(tree(v).filter((e) => e.tagName === 'table').length, 1, 'only the saved paths table (T8 l)');
   assert.ok(tree(v).some((e) => e.tagName === 'button' && e.textContent === 'Add sibling'));
 });
 

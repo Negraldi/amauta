@@ -49,7 +49,7 @@ test('the default language comes from the browser: Spanish for es*, English othe
 test('the page is complete in Spanish without a missing-key fallback on the home route', async () => {
   const { env } = await boot({ language: 'es-ES' });
   assert.match(view(env).textContent, /Actividad reciente/);
-  assert.match(view(env).textContent, /Estado del harness/);
+  assert.match(view(env).textContent, /Gasto/); // T8 m: the rail health block became the lead sentence
   assert.doesNotMatch(view(env).textContent, /\b(Recent activity|Harness health)\b/);
   assert.equal($(env, 'refresh').textContent, 'Actualizar');
   assert.equal($(env, 'display-open').textContent, 'Vista');
@@ -93,7 +93,7 @@ test('the stored choice wins over the browser language, and a throwing or missin
 
 test('numbers follow the language and region; dates stay YYYY-MM-DD in both languages', async () => {
   const es = await boot({ language: 'es-ES', hash: '#/project' });
-  assert.match(view(es.env).textContent, /1\.234\.567 de 2\.000\.000 tareas \(62 %\) en 2 funcionalidades/);
+  assert.match(view(es.env).textContent, /1\.234\.567 de 2\.000\.000 tareas \(62\s%\) en 2 funcionalidades/);
   assert.match(view(es.env).textContent, /Reflejado 2026-10-05/);
   const mx = await boot({ language: 'es-MX', hash: '#/project' });
   assert.match(view(mx.env).textContent, /1,234,567 de 2,000,000 tareas/);

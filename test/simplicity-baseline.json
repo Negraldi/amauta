@@ -78,10 +78,10 @@
    "long": 11
   },
   "python/amauta/portal/static/app.js": {
-   "long": 25
+   "long": 23
   },
   "python/amauta/portal/static/boot.js": {
-   "long": 3
+   "long": 2
   },
   "python/amauta/portal/static/i18n.js": {
    "long": 9
@@ -95,16 +95,16 @@
    "fn": 67
   },
   "python/amauta/portal/static/page-activity.js": {
-   "long": 8
+   "long": 7
   },
   "python/amauta/portal/static/page-harness.js": {
    "long": 11
   },
   "python/amauta/portal/static/page-home.js": {
-   "long": 11
+   "long": 6
   },
   "python/amauta/portal/static/page-memory.js": {
-   "long": 6
+   "long": 5
   },
   "python/amauta/portal/static/page-settings.js": {
    "long": 25,
@@ -115,7 +115,7 @@
    "fn": 150
   },
   "python/amauta/portal/static/page-wiki.js": {
-   "long": 47
+   "long": 46
   },
   "python/amauta/portal/static/style.css": {
    "long": 24

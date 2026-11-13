@@ -4,7 +4,7 @@
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 function projectOdd(o) {
-  const params = { done: fmt(o.done), total: fmt(o.total), percent: fmt(o.percent), n: fmt(o.features) };
+  const params = { done: fmt(o.done), total: fmt(o.total), percent: R.fmtPercent(o.total ? o.done / o.total : 0, 0), n: fmt(o.features) };
   return o.features ? tn("project.odd", o.features, params) : t("project.noOdd");
 }
 // A small progress bar with its words beside it (the bar never carries the number alone).
@@ -211,7 +211,7 @@ function graphActions(pg) {
     out.replaceChildren(h("p", { class: "muted" }, t("common.saving")));
     let res;
     try { res = await postJson(path, { project: pg.id }); } catch (err) {
-      res = { ok: false, status: 0, data: { error: String(err.message || err) } };
+      res = { ok: false, status: 0, data: { error: netError(err) } };
     }
     if (!res.ok) { busy(false); fail(res); return; }
     out.replaceChildren(h("p", null, "✓ " + t(started)));

@@ -102,12 +102,17 @@ function scheduleLines(p) {
   });
 }
 
-// The steps by level: a level's steps need only earlier levels, so they may run side by side (ADR 0011).
+// The steps in declared order. When some steps may run side by side (ADR 0011 levels), each says its stage in words.
 function flowRow(p, items) {
   const ids = p.ids || p.steps.map((_, i) => String(i));
   const levels = p.levels || [ids];
-  const cols = levels.map((level) => h("ol", { class: "pipe-level" }, level.map((id) => items[ids.indexOf(id)])));
-  return h("div", { class: "pipe-steps", role: "group", "aria-label": t("pipe.steps") }, cols);
+  if (levels.some((level) => level.length > 1)) {
+    levels.forEach((level, k) => level.forEach((id) => {
+      const li = items[ids.indexOf(id)];
+      if (li) li.append(h("span", { class: "muted" }, ` · ${t("pipe.stage", { n: k + 1 })}`));
+    }));
+  }
+  return h("ol", { class: "pipe-steps", "aria-label": t("pipe.steps") }, items);
 }
 
 // The mode picker; `apply(mode)` marks the steps outside it.
@@ -149,7 +154,7 @@ function checkButton(pr, p, result) {
   const b = h("button", { type: "button" }, t("pipe.check"));
   b.addEventListener("click", async () => {
     result.replaceChildren(h("p", { class: "muted", role: "status" }, t("pipe.checking")));
-    const r = await api("pipelines/check", { project: pr.path, id: p.id }).catch((e) => ({ error: e.message }));
+    const r = await api("pipelines/check", { project: pr.path, id: p.id }).catch((e) => ({ error: netError(e) }));
     if (r.error) { result.replaceChildren(h("p", { class: "warn", role: "status" }, `▲ ${ts(r.error)}`)); return; }
     const item = (f) => (f.level === "error" ? h("li", { class: "warn" }, `✗ ${f.step}: ${f.message}`)
       : h("li", { class: "muted" }, `ℹ ${f.step}: ${f.message}`));
@@ -190,7 +195,7 @@ function pipelineCard(pr, p) {
   const applyMode = (m) => {
     mode = m;
     const outside = (i) => Boolean(m && p.step_modes && p.step_modes[i] && !p.step_modes[i].includes(m));
-    items.forEach((li, i) => li.setAttribute("data-off", String(outside(i))));
+    items.forEach((li, i) => li.setOff(outside(i)));
   };
   applyMode(mode);
   const parts = { items, con, line, actions, idle: () => idle() };
@@ -201,7 +206,7 @@ function pipelineCard(pr, p) {
   card.pipeline = p;
   parts.card = card;
   const idle = () => {
-    const run = h("button", { type: "button", class: "primary", disabled: !pr.trusted }, t("pipe.run"));
+    const run = h("button", { type: "button", disabled: !pr.trusted }, t("pipe.run")); // the accent fill is for the confirm step only
     run.addEventListener("click", () => ask(null));
     actions.replaceChildren(run, checkButton(pr, p, checked));
   };
@@ -217,7 +222,7 @@ function pipelineCard(pr, p) {
   };
   const start = async (n) => {
     actions.replaceChildren(h("p", { role: "status", class: "muted" }, t("pipe.starting")));
-    const failed = (err) => ({ ok: false, data: { error: String(err.message || err) } });
+    const failed = (err) => ({ ok: false, data: { error: netError(err) } });
     const body = n ? { project: pr.path, id: p.id, step: n } : { project: pr.path, id: p.id, ...(mode ? { mode } : {}) };
     const res = await postJson("/api/pipelines/run", body).catch(failed);
     if (res.ok) { followRun(pr, p, res.data.run, parts); return; }

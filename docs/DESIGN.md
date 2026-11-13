@@ -41,6 +41,8 @@ selection tint (`--accent-soft`) carries ink, muted ink or the accent, never a s
 
 The four data colors reach 3:1 on `--bg` and `--surface` in both schemes (non-text contrast) and stay at least 0.1 apart in OKLab, so a stacked bar reads without its legend.
 
+Control boundaries use `--line-strong`, which is not a table token: style.css derives it as `color-mix(in oklch, var(--ink-muted) 70%, var(--bg))`, so custom themes get one too. It measures 3.52:1 on `--bg` and 3.28:1 on `--surface` in light, 4.26:1 and 4.05:1 in dark (WCAG 1.4.11). Placeholder text is `--ink-muted` at full opacity.
+
 ### Themes
 
 The portal ships Light and Dark (the table above) and follows the system by default. A custom theme is one JSON file in `<state>/themes/<slug>.json`:

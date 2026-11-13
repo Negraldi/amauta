@@ -30,6 +30,9 @@ function stepItem({ name, n, id, type, seconds, enabled, onlyThis }) {
     mark.textContent = STEP_MARK[status] || "?";
     state.textContent = ` (${t(`pipe.s.${status}`)})`;
   };
+  const off = h("span", { class: "muted" }, "");
+  li.append(off);
+  li.setOff = (yes) => { li.setAttribute("data-off", String(yes)); off.textContent = yes ? ` (${t("pipe.offMode")})` : ""; };
   li.setSeconds = (s) => { time.textContent = s == null ? "" : ` ${R.fmtDecimal(s, 1)} s`; };
   return li;
 }
@@ -120,7 +123,7 @@ function cancelButton(pr, run, actions) {
     stop.setAttribute("disabled", "");
     stop.disabled = true;
     stop.textContent = t("pipe.cancelling");
-    const failed = (e) => ({ ok: false, data: { error: e.message } });
+    const failed = (e) => ({ ok: false, data: { error: netError(e) } });
     const res = await postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(failed);
     if (!res.ok) actions.append(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`));
   });

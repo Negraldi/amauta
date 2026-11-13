@@ -141,7 +141,8 @@
       return target ? moved(target) : { route: { kind: "unknown", id: raw }, moved: false };
     }
     if ((rest.length === 0 || first === "diagrams") && own(MOVED_LISTS, first)) return moved(MOVED_LISTS[first], query);
-    if (!own(KINDS, first)) return { route: { kind: "unknown", id: raw }, moved: false };
+    const NO_ITEMS = ["home", "usage", "harness", "settings", "lint", "security", "pipelines", "component"]; // pages without item pages
+    if (!own(KINDS, first) || (rest.length && NO_ITEMS.includes(first))) return { route: { kind: "unknown", id: raw }, moved: false };
     const out = { kind: first, id: rest.length ? decode(rest.join("/")) : "" };
     if (out.id && query.source) out.source = query.source;
     return { route: withQuery(out, query), moved: false };
@@ -190,9 +191,9 @@
     const d = digits == null ? 1 : digits;
     return Number.isFinite(v) ? new Intl.NumberFormat(LOCALE, { useGrouping: "always", minimumFractionDigits: d, maximumFractionDigits: d }).format(v) : "-";
   }
-  function fmtPercent(r) {
+  function fmtPercent(r, digits = 1) {
     const v = Number(r);
-    return r == null || r === "" || typeof r === "boolean" || !Number.isFinite(v) ? "-" : new Intl.NumberFormat(LOCALE, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+    return r == null || r === "" || typeof r === "boolean" || !Number.isFinite(v) ? "-" : new Intl.NumberFormat(LOCALE, { style: "percent", minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
   }
   const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
   const ISO_DT = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;

@@ -47,7 +47,7 @@ test('#/project lists every known project with progress, graph status and a link
   assert.match(v.textContent, /2 of 3 tasks \(67%\)/);
   assert.match(v.textContent, /Mirrored 2026-10-14/);
   assert.match(v.textContent, /Not mirrored/);
-  assert.match(v.textContent, /discovered/);
+  assert.match(v.textContent, /found in your sessions/);
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
 

@@ -140,17 +140,18 @@ test('an item page opens with a breadcrumb (text only, last item current) above 
   assert.ok(last, 'the last crumb is the current page');
 });
 
-test('list pages show the breadcrumb, then the tabs of their hub', async () => {
+test('list pages show the breadcrumb, the title, then the tabs of their hub (T8 j: one page-head pattern)', async () => {
   const { env } = await boot('#/session');
   const kids = view(env).children;
   assert.equal(kids[0], crumbNav(env));
-  const tabs = kids[1];
+  assert.equal(kids[1].tagName, 'header');
+  const tabs = kids[2];
   assert.equal(tabs.className, 'tabs');
   assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool']);
   assert.match(tabs.textContent, /Tools and skills/);
   const mem = await boot('#/memory');
-  assert.deepEqual(hrefs(mem.env.document.getElementById('view').children[1]), ['#/memory', '#/memfile', '#/lint']);
-  assert.match(mem.env.document.getElementById('view').children[1].textContent, /Quality/);
+  assert.deepEqual(hrefs(mem.env.document.getElementById('view').children[2]), ['#/memory', '#/memfile', '#/lint']);
+  assert.match(mem.env.document.getElementById('view').children[2].textContent, /Quality/);
 });
 
 test('Memory never filters by the hidden Project select, and the filter bar is hidden there', async () => {

@@ -116,7 +116,7 @@ async function preferencesTab() {
     setDisabled(previewBtn, true); setDisabled(repairBtn, true);
     busy("set.checking");
     let res;
-    try { res = await postJson("/api/settings/preview", body); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/settings/preview", body); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     setDisabled(repairBtn, false); refreshMarks();
     if (!res.ok) return fail(res, () => runPreview(repair));
     showPlan(res.data, repair);
@@ -135,7 +135,7 @@ async function preferencesTab() {
   async function runApply(plan) {
     busy("set.applying");
     let res;
-    try { res = await postJson("/api/settings/apply", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/settings/apply", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return fail(res, () => runPreview(false));
     const d = res.data;
     const undo = d.undo_available ? h("button", { type: "button" }, t("set.undo")) : null;
@@ -150,7 +150,7 @@ async function preferencesTab() {
   async function runUndoPreview() {
     busy("set.checkingUndo");
     let res;
-    try { res = await postJson("/api/settings/undo/preview", {}); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/settings/undo/preview", {}); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return fail(res, () => runUndoPreview());
     const plan = res.data, confirmBox = h("div", null);
     const revert = h("button", { type: "button", class: "primary" }, t("set.revert"));
@@ -167,7 +167,7 @@ async function preferencesTab() {
   async function runUndo(plan) {
     busy("set.undoing");
     let res;
-    try { res = await postJson("/api/settings/undo", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/settings/undo", { apply_token: plan.apply_token, confirm: true }); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return fail(res, () => runUndoPreview());
     const d = res.data;
     out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, t("set.undone")), h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })),

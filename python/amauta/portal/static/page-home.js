@@ -18,20 +18,24 @@ function spendingBlock(sp) {
   if (!sp.available) return h("p", { class: "muted" }, t("home.noSpending"));
   const by = Object.fromEntries(sp.windows.map((w) => [w.days, w]));
   const cols = sp.windows.map((w) => w.days);
+  const dayHeads = () => cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) })));
+  const compact = (head, rows) => scrollBox(h("table", { class: "compact" }, h("thead", null, h("tr", null, head)), h("tbody", null, rows)));
   return h("div", null,
-    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("home.tokens")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
-      h("tbody", null, KINDS.map(([k, label]) => h("tr", null, h("td", null, t(label)), cols.map((d) => h("td", { class: "n" }, short(by[d][k]))))))),
+    compact([h("th", null, t("home.tokens")), ...dayHeads()],
+      KINDS.map(([k, label]) => h("tr", null, h("td", null, t(label)), cols.map((d) => h("td", { class: "n" }, short(by[d][k])))))),
     sp.runtimes && sp.runtimes.length > 1 ? h("div", null, h("h3", null, t("home.byRuntime")),
-      h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("col.runtime")), cols.map((d) => h("th", { class: "n" }, t("home.days", { n: fmt(d) }))))),
-        h("tbody", null, sp.runtimes.map((r) => h("tr", null, h("td", null, runtimeName(r.runtime)), r.windows.map((w) => h("td", { class: "n" }, short(KINDS.reduce((a, [k]) => a + (w[k] || 0), 0))))))))) : null,
+      compact([h("th", null, t("col.runtime")), ...dayHeads()], sp.runtimes.map((r) => h("tr", null, h("td", null, runtimeName(r.runtime)),
+        r.windows.map((w) => h("td", { class: "n" }, short(KINDS.reduce((a, [k]) => a + (w[k] || 0), 0)))))))) : null,
     h("p", null, t("home.cacheRatio", { n: fmt(cols[cols.length - 1]) }) + " ", h("strong", null, pct(sp.cache_hit_ratio))),
     sp.top_models.length ? h("div", null, h("h3", null, t("home.topModels")), h("ul", { class: "refs" }, sp.top_models.map((m) => h("li", null, m.model, h("span", { class: "muted" }, " " + t("home.tokensN", { n: short(m.tokens) })))))) : null,
     h("p", null, link("usage", "", t("home.usageDetails"))));
 }
-function healthBlock(hl) {
-  if (!hl.installed) return h("p", { class: "muted" }, t("harness.notInstalled"));
-  const rows = [[t("harness.version"), hl.version || "-"], [t("harness.hooks"), fmt(hl.hooks)], [t("nav.mcp"), fmt(hl.mcp_servers)], [t("nav.skill"), fmt(hl.skills)], [t("home.agents"), fmt(hl.agents)], [t("harness.telemetry"), hl.telemetry ? t("common.on") : t("common.off")]];
-  return h("div", null, h("dl", { class: "meta" }, rows.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, String(v))])), h("p", null, link("harness", "", t("home.harnessDetails"))));
+// "Is anything broken today?": the harness health sentence (same count as the Catalog), linked to the harness overview.
+async function homeStatus(health) {
+  if (!health || !health.installed) return h("p", { class: "lead" }, link("harness", "", t("harness.notInstalled")));
+  const [hs, comps, skills] = await Promise.all(["harness", "harness/components", "skills"].map((p) => api(p).catch(() => null)));
+  if (!hs || !hs.installed) return null; // the overview itself says how to install
+  return h("p", { class: "lead" }, link("harness", "", healthSentence(hs, comps, skills)));
 }
 function impactRankBlock(rk) {
   if (!rk || !rk.available) return null;
@@ -46,9 +50,9 @@ function impactRankBlock(rk) {
 }
 async function viewHome() {
   const [hm, pipes] = await Promise.all([api("wiki/home"), pipelinesRail()]);
-  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("home.title")), activityBlock(hm.activity)),
+  const status = await homeStatus(hm.health);
+  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("home.title")), status, activityBlock(hm.activity)),
     h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.pipelines"), pipes),
-      railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact)),
-      railBlock(t("home.health"), healthBlock(hm.health))))];
+      railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact))))];
 }
 // Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.

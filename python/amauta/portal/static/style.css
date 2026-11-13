@@ -19,6 +19,8 @@
   --t: 160ms;
   --hit: 1.5rem; /* the 24px minimum target (WCAG 2.2 2.5.8) */
   --sidebar-w: 15rem; --rail-w: 18rem; --measure: 68ch;
+  /* Control boundaries (WCAG 1.4.11, >= 3:1): derived from the theme, so a custom theme gets one too (not a pinned token). */
+  --line-strong: color-mix(in oklch, var(--ink-muted) 70%, var(--bg));
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -111,11 +113,13 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 #view { overflow-wrap: break-word; padding: var(--s5) var(--s5) var(--s7); outline: none; }
 
 /* ---- controls: one shape everywhere (6px radius, 1px line border); accent fill only for a confirm step ---- */
-select, input, button, a.button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+select, input, textarea, button, a.button { font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   padding: var(--s1) var(--s2);
     transition: border-color var(--t) var(--ease), background-color var(--t) var(--ease), color var(--t) var(--ease); }
 button, select, a.button { min-block-size: var(--hit); }
+::placeholder { color: var(--ink-muted); opacity: 1; }
 button { cursor: pointer; }
 a.button { display: inline-flex; align-items: center; text-decoration: none; }
 button:hover:not(:disabled), select:hover:not(:disabled), a.button:hover { border-color: var(--ink-muted); text-decoration: none; }
@@ -211,7 +215,7 @@ pre.text { white-space: pre-wrap; word-break: break-word; max-height: 26rem; }
 .panel { margin: 0 0 var(--s6); }
 .warn { color: var(--warn); }
 .badge { display: inline-block; padding: 0 .45em; border: 1px solid var(--line, currentColor); border-radius: .6em; font-size: .85em; white-space: nowrap; }
-.scroll { overflow: auto; max-height: 75vh; }
+.scroll { overflow-x: auto; } /* sideways only: the page owns the vertical scroll (no nested scrollers) */
 table { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
 thead th { position: sticky; top: 0; background: var(--surface); z-index: var(--z-dropdown); font-weight: 600; }
@@ -265,11 +269,11 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 .pal-item { display: flex; gap: var(--s3); align-items: baseline; min-block-size: var(--hit); padding: var(--s2); border-radius: 6px;
   cursor: pointer; }
 .pal-item[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
-.pal-kind { flex: none; width: 5.5rem; color: var(--ink-muted); font-size: 0.8125rem; }
 .pal-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pal-snip { flex: 0 1 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes pal-in { from { opacity: 0; transform: translateY(-0.25rem); } to { opacity: 1; transform: none; } }
 
+.nav-scrim { display: none; position: fixed; inset: 0; z-index: calc(var(--z-overlay) - 1); background: oklch(0 0 0 / 0.4); }
 /* ---- collapse rules ---- */
 @media (width < 72rem) {
   .page { grid-template-columns: minmax(0, var(--measure)); gap: var(--s5); }
@@ -279,6 +283,7 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); z-index: var(--z-overlay); transform: translateX(-100%); visibility: hidden; transition: transform var(--t) var(--ease), visibility 0s linear var(--t); box-shadow: 0 0 32px oklch(0 0 0 / 0.18); }
   .shell[data-nav="open"] .sidebar { transform: none; visibility: visible; transition-delay: 0s; }
+  .shell[data-nav="open"] .nav-scrim { display: block; } /* a tap outside the menu closes it (boot.js) */
   .nav-toggle { display: inline-block; }
   .topbar { padding: var(--s2) var(--s4); }
   .page-bar { padding: var(--s2) var(--s4); }
@@ -286,8 +291,12 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 }
 @media (max-width: 560px) {
   .diagram svg { max-width: none; min-width: 40rem; } /* readable labels; the box scrolls sideways (plan N12h) */
-  .search-trigger { min-width: 0; flex: 1 1 8rem; }
+  .topbar { flex-wrap: nowrap; gap: var(--s2); } .topbar-end { flex-wrap: nowrap; } /* one row on a phone */
+  .search-trigger { min-width: 0; flex: 1 1 3rem; overflow: hidden; }
+  .search-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* still announced, not shown */
   .search-trigger kbd { display: none; } /* no keyboard shortcut to show on a phone */
+  .tabs { flex-wrap: nowrap; overflow-x: auto; } .tabs a { white-space: nowrap; } /* one row of tabs, scrolled sideways */
   #prefs { inset: auto var(--s4) var(--s4); width: auto; } /* the top bar wraps on a phone: Display opens as a bottom sheet */
   .page-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); align-items: end; }
   .page-bar label { display: grid; gap: var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }

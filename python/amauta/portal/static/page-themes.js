@@ -96,7 +96,7 @@ async function viewThemes() {
     const slug = d.isNew ? freeSlug(TH.slugify(d.name)) : d.slug;
     say(h("p", { role: "status", class: "muted" }, t("common.saving")));
     let res;
-    try { res = await postJson("/api/themes", { slug, ...v.theme }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/themes", { slug, ...v.theme }); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return failed(res);
     d.slug = slug; d.isNew = false;
     saved(res.data, "✓ " + t("common.saved"));
@@ -106,7 +106,7 @@ async function viewThemes() {
     const d = draft();
     say(h("p", { role: "status", class: "muted" }, t("theme.deleting")));
     let res;
-    try { res = await postJson("/api/themes/delete", { slug: d.slug }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/themes/delete", { slug: d.slug }); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return failed(res);
     if (state.themeChoice === `custom:${d.slug}`) chooseTheme("system");
     state.themeDraft = null; state.preview = null;

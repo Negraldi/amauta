@@ -63,7 +63,7 @@ test('the server-text catalog has a Spanish text with the same placeholders for 
 });
 
 // ---- the keys app.js uses exist, and none is dead ---------------------------------------------------------------------
-const DYNAMIC = /^(kind|catalog\.kind|set\.tab|hint|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
+const DYNAMIC = /^(kind|catalog\.kind|set\.tab|hint|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|meta|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
 test('every key that app.js uses exists in en; every en key is used', () => {
   const literals = [...(app + route).matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
   const used = new Set(literals);

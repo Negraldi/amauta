@@ -120,7 +120,7 @@ test('the breadcrumb is a wrapping row with CSS separators; the tabs underline t
 
 test('buttons, a.button and the error panel share one shape; the toast sits on the z scale', () => {
   for (const sel of ['button', 'a.button']) {
-    assert.match(rule(sel), /border: 1px solid var\(--line\)/, sel);
+    assert.match(rule(sel), /border: 1px solid var\(--line-strong\)/, sel); // T8 d: a >= 3:1 control boundary
     assert.match(rule(sel), /border-radius: 6px/, sel);
   }
   assert.match(rule('.error-panel'), /border: 1px solid var\(--line\)/);

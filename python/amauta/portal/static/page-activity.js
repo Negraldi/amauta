@@ -125,7 +125,7 @@ async function viewTools(route) {
   const item = ([s, l]) => h("a", { href: R.segmentHash(s), "aria-current": s === seg ? "true" : false }, `${l} (${count(s)})`);
   return [
     h("nav", { class: "segmented", "aria-label": t("usage.segments") }, kinds.map(item)),
-    panel(kinds.find(([s]) => s === seg)[1], tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(t("usage.nothingRange"))),
+    panel(null, tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(t("usage.nothingRange"))),
   ];
 }
 
@@ -139,6 +139,6 @@ async function viewSessions() {
 // Event handlers run outside render()'s try/catch: show the failure where the result would have gone.
 function guarded(fn, into) {
   return async (...args) => {
-    try { await fn(...args); } catch (err) { into.hidden = false; into.replaceChildren(h("p", { class: "warn" }, String(err.message || err))); }
+    try { await fn(...args); } catch (err) { into.hidden = false; into.replaceChildren(errorNote(err)); }
   };
 }

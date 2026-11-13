@@ -61,7 +61,7 @@ function progressBlock(pg) {
   const label = t("progress.label", { done: fmt(pg.progress.done), total: fmt(pg.progress.total) });
   return h("section", { class: "progress-block", "aria-label": t("progress.aria") },
     h("progress", { max: Math.max(pg.progress.total, 1), value: pg.progress.done, "aria-label": label }),
-    h("p", null, h("strong", null, label), ` (${fmt(p.percent)}%)`, statusChip("done"), ` ${fmt(pg.progress.done)}`, statusChip("pending"), ` ${fmt(pending)}`));
+    h("p", null, h("strong", null, label), ` (${R.fmtPercent(p.percent / 100, 0)})`, statusChip("done"), ` ${fmt(pg.progress.done)}`, statusChip("pending"), ` ${fmt(pending)}`));
 }
 
 function commitsBlock(commits) {
@@ -115,7 +115,7 @@ function impactBlock(im) {
   return h("section", { class: "page-section impact" }, title, note,
     h("p", null, t("impact.summary", { exposed: fmt(im.exposed_sessions), days: fmt(im.days), control: fmt(im.control_sessions), scope, min: fmt(im.min_sessions) })),
     im.outcomes_recorded ? null : h("p", { class: "muted" }, t("impact.noOutcomes")),
-    h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("impact.metric")), h("th", { class: "n" }, t("impact.afterLoad")), h("th", { class: "n" }, t("impact.baseline")), h("th", null, t("impact.difference")), h("th", { class: "n" }, t("impact.nCalls")))), h("tbody", null, rows)),
+    scrollBox(h("table", { class: "compact" }, h("thead", null, h("tr", null, h("th", null, t("impact.metric")), h("th", { class: "n" }, t("impact.afterLoad")), h("th", { class: "n" }, t("impact.baseline")), h("th", null, t("impact.difference")), h("th", { class: "n" }, t("impact.nCalls")))), h("tbody", null, rows))),
     h("p", null, u.suppressed ? t("impact.unusedSuppressed", { n: fmt(u.n), reason: u.reason ? ts(u.reason) : t("impact.tooFewShare") }) : t("impact.unused", { unused: fmt(u.unused), n: fmt(u.n), rate: R.fmtMetric("rate", u.value, words()) })),
     h("h3", null, t("impact.changeLog")),
     ch.versions.length ? h("p", { class: "muted" }, t("impact.versions", { list: ch.versions.map((v) => `${v.hash}${v.current ? ` (${t("impact.current")})` : ""} ${R.fmtDate(v.first_seen)}`).join(", ") })) : null,
@@ -136,20 +136,25 @@ function bodyNodes(pg, text = pg.body_md) {
 // The page data, or null when the server has no such page (any other failure reaches the error panel).
 async function fetchWikiPage(kind, id, source) {
   try { return await api("wiki/page", { kind, id, source }); } catch (err) {
-    if (/not found|no encontrad/i.test(String(err.message))) return null;
+    if (/not found|no encontrad/i.test(plainReason(err))) return null;
     throw err;
   }
 }
 function noPage(kind, id) {
   return [teach(t("page.none", { kind: kindLabel(kind).toLowerCase() }), t("page.nothingStored", { id }), HINTS.includes(kind) ? t(`hint.${kind}`) : "")];
 }
+// "a|b|c" may break after each bar (an argument hint), never one character per line.
+const breakAfterBars = (v) => String(v).split(/(?<=\|)/).flatMap((part, i) => (i ? [h("wbr"), part] : [part]));
 // The rail's details list; `keep` filters the rows (the project hub shows the other facts elsewhere).
 function metaList(pg, keep) {
   const rows = keep ? pg.meta.filter(keep) : pg.meta;
   if (!rows.length) return null;
   return h("dl", { class: "meta" }, rows.flatMap((m) => {
-    const v = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m));
-    return [h("dt", null, ts(m.label)), R.isPathLike(v) ? h("dd", null, pathNode(v)) : h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)];
+    const raw = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ") : ts(R.fmtMeta(m));
+    const v = raw === "true" ? t("common.yes") : raw === "false" ? t("common.no") : raw; // front-matter booleans
+    const dt = h("dt", null, `meta.${m.label}` in I.dict.en ? t(`meta.${m.label}`) : ts(m.label)); // SKILL.md keys get labels
+    if (R.isPathLike(v)) return [dt, h("dd", null, pathNode(v))];
+    return [dt, String(v).includes("|") ? h("dd", null, breakAfterBars(v)) : h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)];
   }));
 }
 

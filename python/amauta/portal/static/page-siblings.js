@@ -48,7 +48,7 @@ async function saveConfig(store, body, out, repaint) {
   out.replaceChildren(h("p", { role: "status", class: "muted" }, t("common.saving")));
   let res;
   try { res = await postJson("/api/projects/config", body); } catch (err) {
-    res = { ok: false, status: 0, data: { error: String(err.message || err) } };
+    res = { ok: false, status: 0, data: { error: netError(err) } };
   }
   if (!res.ok) {
     const reason = res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status });
@@ -67,7 +67,7 @@ function projectsSection(store) {
   const send = (body) => saveConfig(store, body, out, paint);
   function paint() {
     const data = store.data;
-    const input = h("input", { type: "text", id: "project-path", placeholder: "/home/you/code/my-project",
+    const input = h("input", { type: "text", id: "project-path", placeholder: t("sp.placeholder"),
       autocomplete: "off", spellcheck: "false" });
     const add = h("button", { type: "button" }, t("sp.add"));
     add.addEventListener("click", () => { const v = String(input.value || "").trim(); if (v) send({ repos: [...data.config_repos, v] }); });
@@ -75,13 +75,16 @@ function projectsSection(store) {
     box.addEventListener("change", (e) => send({ auto_discover: !!e.target.checked }));
     const only = (p) => p.origin.includes("discovered") && !p.origin.includes("config") && !p.origin.includes("flag");
     const found = data.projects.filter(only);
-    const remove = (p) => {
-      const b = h("button", { type: "button", "aria-label": t("sp.remove", { path: p }) }, t("common.remove"));
-      b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== p) }));
-      return h("li", null, h("code", { class: "tok" }, p), " ", b);
+    const remove = (_v, row) => {
+      const b = h("button", { type: "button", "aria-label": t("sp.remove", { path: row.path }) }, t("common.remove"));
+      b.addEventListener("click", () => send({ repos: data.config_repos.filter((x) => x !== row.path) }));
+      return b;
     };
+    // Path and action in two columns, so every Remove lines up whatever the path's length.
+    const paths = () => table("saved-paths", [{ key: "path", label: t("sib.path"), render: (v) => h("code", { class: "tok" }, v) },
+      { key: "remove", label: t("sib.col.actions"), render: remove }], data.config_repos.map((path) => ({ path })));
     root.replaceChildren(h("h2", null, t("nav.project")), h("p", { class: "muted" }, t("sp.intro")),
-      data.config_repos.length ? h("ul", { class: "plain-list" }, data.config_repos.map(remove)) : h("p", { class: "muted" }, t("sp.none")),
+      data.config_repos.length ? paths() : h("p", { class: "muted" }, t("sp.none")),
       h("div", { class: "actions" }, h("label", { for: "project-path" }, t("sp.addPath")), input, add),
       h("label", { class: "check", for: "project-auto" }, box, t("sp.auto")),
       h("div", null, found.length ? h("p", { class: "muted" }, t("sp.found", { names: found.map((p) => p.name).join(", ") })) : null));
@@ -98,7 +101,7 @@ function siblingsSection(store) {
     h("input", { type: "text", id, placeholder, autocomplete: "off", spellcheck: "false" })];
   function paint() {
     const list = store.data.siblings || [];
-    const fields = [field("sibling-name", t("sib.name"), ""), field("sibling-path", t("sib.path"), "/home/you/code/catalog"),
+    const fields = [field("sibling-name", t("sib.name"), ""), field("sibling-path", t("sib.path"), t("sib.pathPlaceholder")),
       field("sibling-mcp", t("sib.mcpLabel"), "oga-catalog"), field("sibling-watch", t("sib.watchLabel"), "cuts/ACTIVE"),
       field("sibling-age", t("sib.ageLabel"), "35")];
     const value = (i) => String(fields[i][1].value || "").trim();

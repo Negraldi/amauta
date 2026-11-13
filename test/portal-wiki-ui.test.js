@@ -237,7 +237,7 @@ test('typing searches (debounced), shows grouped results with text kind labels a
   assert.ok(text.includes(XSS));
   const options = tree(results).filter((e) => e.attrs.role === 'option');
   assert.equal(options.length, 3);
-  assert.ok(options.every((o) => /^(skill|memory)/.test(o.children[0].textContent)), 'each option starts with its kind label');
+  assert.ok(options.every((o) => /pal-title/.test(o.children[0].className)), 'T8 n: the group heading names the kind once; rows start with the title');
   assert.equal(tree(results).filter((e) => e.tagName === 'img').length, 0);
   assert.ok(tree(results).every((e) => Object.keys(e.attrs).every((k) => !k.startsWith('on'))));
 });
@@ -428,8 +428,9 @@ const HOME = {
   health: { installed: true, version: '0.1.0', hooks: 3, mcp_servers: 2, skills: 12, agents: 4, telemetry: true },
 };
 
-test('home: recent activity grouped by day is the main column; spending and health sit in the rail without metric tiles', async () => {
-  const { env } = await boot('#/home', { '/api/wiki/home': HOME });
+test('home: recent activity grouped by day is the main column; spending sits in the rail, health is the lead sentence (T8)', async () => {
+  const { env } = await boot('#/home', { '/api/wiki/home': HOME, '/api/harness': { installed: true, version: '0.1.0' },
+    '/api/harness/components': { total: 0, groups: [] } });
   const v = view(env);
   assert.ok(env.calls.some((c) => c.url === '/api/wiki/home'));
   assert.deepEqual(tree(v).filter((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);
@@ -443,8 +444,8 @@ test('home: recent activity grouped by day is the main column; spending and heal
   assert.match(rail.textContent, /7 days/);
   assert.match(rail.textContent, /30 days/);
   assert.match(rail.textContent, /75\.0%/);
-  assert.match(rail.textContent, /Harness health/);
-  assert.match(rail.textContent, /Hooks/);
+  assert.match(tree(v).find((e) => cls(e) === 'lead').textContent, /^amauta 0\.1\.0 is installed; 0 components, nothing needs attention\.$/); // T8 m: one status line
+  assert.doesNotMatch(rail.textContent, /Harness health/);
   assert.ok(!tree(rail).some((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)), 'activity is not in the rail');
   assert.equal(env.document.getElementById('filters').hidden, true);
 });

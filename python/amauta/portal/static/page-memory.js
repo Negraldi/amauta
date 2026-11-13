@@ -19,6 +19,7 @@ function memTable(r, source, query) {
     { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items);
 }
 async function viewMemories(route) {
+  sortOnce("mem", "updated_at"); // newest first until a header is clicked
   const source = memSourceOf(route);
   if (state.memSource !== source) { state.memSource = source; state.memQuery = ""; }
   const q = h("input", { type: "search", placeholder: t("mem.search"), "aria-label": t("mem.search"), value: state.memQuery || "" });
@@ -50,7 +51,7 @@ async function viewMemoryFiles() {
   if (!files.items.length) return [h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.filesTeach"))))];
   return [h("p", { class: "muted" }, tn("mem.filesN", files.items.length, { n: fmt(files.items.length) })),
     table("mfiles", [{ key: "name", label: t("col.file"), href: (f) => R.formatHash("memfile", f.id) }, { key: "project", label: t("kind.project") },
-      { key: "size", label: t("col.bytes"), num: true }, { key: "mtime", label: t("col.modified") }], files.items)];
+      { key: "size", label: t("col.bytes"), num: true, render: bytes }, { key: "mtime", label: t("col.modified") }], files.items)];
 }
 
 
@@ -68,7 +69,7 @@ function lintCategory(c) {
 async function viewLint() {
   const l = await api("wiki/lint");
   const sc = l.scanned || {};
-  return [h("div", { class: "page" }, h("article", { class: "doc" }, h("h1", null, t("lint.title")), h("p", { class: "lead" }, t("lint.prompts")),
+  return [pageHead(t("lint.title"), t("lint.prompts")), h("div", { class: "page" }, h("article", { class: "doc" },
     h("p", { class: "muted" }, tn("lint.intro", sc.memories, { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" })),
     l.categories.map(lintCategory)))];
 }
