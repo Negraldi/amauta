@@ -40,8 +40,20 @@ function planBlock(res) {
     h("p", null, t("plan.counts", { written: fmt(files.length), removed: fmt(removed.length), kept: fmt(skipped.length) })),
     p.changed === false ? h("p", { class: "muted" }, t("plan.inPlace")) : null,
     p.impeccable && p.impeccable.engine === "would-install" ? h("p", null, t("plan.npm")) : null,
-    list(t("plan.filesWritten"), files), list(t("plan.filesRemoved"), removed), list(t("plan.kept"), skipped));
+    list(t("plan.filesWritten"), files), list(t("plan.filesRemoved"), removed), list(t("plan.kept"), skipped), codexPlan(p.codex, list));
 }
+// The Codex part of a plan (T10): its own counts and files, or one plain sentence when no Codex home was found.
+function codexPlan(c, list) {
+  if (!c) return h("p", { class: "muted" }, t("plan.codexNone"));
+  const files = c.files || [], removed = c.removed || [], skipped = c.skipped || [];
+  const counts = { written: fmt(files.length), removed: fmt(removed.length), kept: fmt(skipped.length) };
+  return h("div", null, h("p", null, t("plan.codexCounts", counts)),
+    list(t("plan.codexFiles"), files));
+}
+// What an apply or undo did on the Codex side, when Codex was a target.
+const codexDone = (c) => c ? [
+  h("p", null, "✓ " + t("set.codexWritten", { files: fmt((c.files || []).length), removed: fmt((c.removed || []).length) })),
+  c.backup ? h("p", null, t("set.codexBackup", { id: c.backup })) : null] : [];
 function settingLabel(key) {
   if (key.startsWith("module:")) return t("set.moduleN", { name: key.slice(7) });
   const labels = { persona: "set.persona", review_mode: "set.review", telemetry: "set.telemetry", privacy: "set.privacy",
@@ -141,7 +153,7 @@ async function preferencesTab() {
     const undo = d.undo_available ? h("button", { type: "button" }, t("set.undo")) : null;
     if (undo) undo.addEventListener("click", () => { setDisabled(undo, true); runUndoPreview(); });
     out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, t("set.applied")),
-      h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })), d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")),
+      h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })), d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")), ...codexDone(d.codex),
       d.skipped.length ? h("p", { class: "muted" }, tn("set.keptEdited", d.skipped.length, { n: fmt(d.skipped.length) })) : null,
       d.impeccable && d.impeccable.engine === "failed" ? h("p", { class: "warn" }, "▲ " + t("set.engineFailed", { detail: d.impeccable.detail || t("set.npmFailed") })) : null,
       h("div", { class: "actions" }, undo)));
@@ -171,7 +183,7 @@ async function preferencesTab() {
     if (!res.ok) return fail(res, () => runUndoPreview());
     const d = res.data;
     out.replaceChildren(h("section", { class: "panel", role: "status" }, h("h2", null, t("set.undone")), h("p", null, "✓ " + t("set.written", { files: fmt(d.files.length), removed: fmt(d.removed.length) })),
-      d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")),
+      d.backup ? h("p", null, t("set.backup", { id: d.backup })) : h("p", { class: "muted" }, t("set.noBackup")), ...codexDone(d.codex),
       h("p", { class: "muted" }, t("set.undoneNote"))));
     await reload();
   }

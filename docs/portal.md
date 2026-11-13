@@ -108,12 +108,15 @@ The Settings page has three tabs (`?tab=`): Preferences (this editor), Projects 
 
 Changes a closed list of options, and nothing else: persona (`gentleman`/`neutral`), review mode, telemetry, the optional modules
 (`sdd`, `rea`, `context7`, `impeccable`, `archify`) and "reinstall / repair". The portal never edits a harness file itself; every change
-goes through `amauta install`.
+goes through `amauta install`. Both runtimes are targets: when a Codex home directory exists, every preview, apply and undo
+also passes `--codex-home` and `--codex-skills-dir`, and the preview lists the Codex files apart (no Codex home: one sentence says the
+change reaches Claude Code only). The Codex paths follow the installer's rule: a custom Claude home keeps them inside it unless a Codex
+home was given explicitly (`--codex-home` or `AMAUTA_CODEX_HOME`), so a sandboxed portal never names the real `~/.codex` or `~/.agents`.
 
 1. **Preview** runs `amauta install --dry-run --json` and shows the files that would be written, removed or kept (edited files are kept).
 2. **Apply** needs the one-time token from that preview (valid 5 minutes, bound to the chosen options and the `state.json` hash, one apply
    at a time) plus an explicit confirmation. The installer backs up first and reports the backup id.
-3. **Undo** previews and re-runs the same install with the settings that were in place before the newest portal change (its own token, lock and fresh backup); it never restores file snapshots, so edits made since to `~/.claude.json`, `settings.json` or `CLAUDE.md` survive, and it is refused when the settings changed since. `amauta restore --backup <id>` stays a CLI-only expert tool.
+3. **Undo** previews and re-runs the same install with the settings that were in place before the newest portal change (its own token, lock and fresh backup); it never restores file snapshots, so edits made since to `~/.claude.json`, `settings.json` or `CLAUDE.md` survive, and it is refused when the settings changed since. Undo covers Codex when a Codex home exists at undo time (the Codex backup id is logged as `codex_backup`); if the Codex home is gone by then, only Claude Code is undone. `amauta restore --backup <id>` stays a CLI-only expert tool.
 
 Guards: POST only, JSON only (4 KB cap), per-process token header, `Host` and `Origin` checks, closed schema (unknown keys and values are
 rejected), options reach the installer as argv entries (no shell). Limit: undoing a change that turned `impeccable` off does not bring its

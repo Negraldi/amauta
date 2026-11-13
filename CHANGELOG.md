@@ -43,6 +43,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Portal Settings reached only Claude Code: an explicit Claude home made the installer look for Codex inside it. Preview,
+  apply and undo now pass the Codex home and skills dir whenever a Codex home exists (kept inside a sandboxed Claude home),
+  list the Codex changes and backup, and undo re-runs the previous values for both runtimes.
 - Codex home discovery agrees between the installer and the portal: `AMAUTA_CODEX_HOME`, then `<claude home>/.codex`
   for a custom Claude home, then `CODEX_HOME`, then `~/.codex` (`%USERPROFILE%\.codex` on Windows). The portal and
   `amauta.usage` ignored `CODEX_HOME`, and an empty `CODEX_HOME` made the installer use the current directory (Codex
