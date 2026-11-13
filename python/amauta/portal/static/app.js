@@ -206,13 +206,15 @@ function table(id, columns, rows, onRow) {
   return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": t("table.label") }, h("table", null, h("thead", null, head), h("tbody", null, body)));
 }
 
+// A session's model: the one with the most messages, "+N" when others answered too (the session page lists them all).
+const mainModel = (v, row) => (row.models > 1 ? `${v} +${row.models - 1}` : v ?? "-");
 // The session table's columns (#/session and a project's Sessions tab): the id links to its page.
 function sessionColumns() {
   const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")],
     ["cache_write", t("tok.cache_write")]].map(([key, label]) => ({ key, label, num: true }));
   return [{ key: "session_id", label: t("kind.session"), render: (v) => link("session", v, String(v).slice(0, 8)) },
     { key: "runtime", label: t("col.runtime"), render: runtimeBadge }, { key: "project", label: t("kind.project") },
-    { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model") }, ...nums];
+    { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model"), render: mainModel }, ...nums];
 }
 
 const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewCatalog, tool: viewTools, mcp: viewTools,

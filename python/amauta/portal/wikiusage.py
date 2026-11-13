@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from .. import extensions
 from . import sessname, wikisess
+from .sessfacts import MAIN_MODEL
 from .api import NotFound, columns, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref, strip_title_h1
 
@@ -25,7 +26,7 @@ def calls(n) -> str:
 
 
 def session_label(conn, portal, session_id):
-    r = conn.execute("SELECT count(*) n, max(u.project) project, max(u.model) model, min(u.ts) first_ts FROM usage_messages u WHERE u.session_id = ?", (session_id,)).fetchone()
+    r = conn.execute(f"SELECT count(*) n, max(u.project) project, {MAIN_MODEL} model, min(u.ts) first_ts FROM usage_messages u WHERE u.session_id = ?", (session_id,)).fetchone()
     return wikisess.label(portal, session_id, r["project"], r["model"], r["n"], r["first_ts"])
 
 
@@ -196,7 +197,7 @@ def session_page(portal, ident, q):
     try:
         cw = "u.cache_write_5m + u.cache_write_1h"
         t = conn.execute(
-            f"SELECT count(*) messages, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, max(u.model) model, sum(u.input) input, sum(u.output) output, "
+            f"SELECT count(*) messages, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, {MAIN_MODEL} model, sum(u.input) input, sum(u.output) output, "
             f"sum(u.cache_read) cache_read, sum({cw}) cache_write FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()
         if not t["messages"]:
             raise NotFound()

@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import diagrams, projects, wikifeature
+from .sessfacts import MAIN_MODEL
 from .api import NotFound, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref
 
@@ -38,7 +39,7 @@ def _sessions(portal, repo):
         return []
     try:
         marks = ",".join("?" for _ in ids)
-        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u "
+        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, {MAIN_MODEL} model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u "
                             f"WHERE u.session_id IN ({marks}) GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", [*ids, LINK_CAP]).fetchall()
         return [(r["session_id"], wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"])) for r in rows]
     finally:

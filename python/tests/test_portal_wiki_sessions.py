@@ -59,7 +59,7 @@ class SessionLabelTest(SessionBase):
     def test_missing_transcript_falls_back_to_project_name(self):
         (self.f["home"] / "projects" / "-work-alpha" / "s1.jsonl").unlink()
         self.assertEqual(wikisess.session_info(self.portal, "s1"), {})
-        self.assertEqual(self.page("session", "s1")["title"], "alpha · claude-y, 2 messages · 2026-10-01")
+        self.assertEqual(self.page("session", "s1")["title"], "alpha · claude-x, 2 messages · 2026-10-01")  # one message each: the tie goes to the first name, like the Models list
 
 
 class OneProjectNameTest(SessionBase):

@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from ..graph import query as graph_query
 from .api import MAX_TEXT, BadRequest, NotFound, _int, _str, has_table, columns
-from . import diagrams, wikifeature, wikiharness, wikimem, wikiproject, wikisess, wikiusage
+from . import diagrams, sessfacts, wikifeature, wikiharness, wikimem, wikiproject, wikisess, wikiusage
 from .wikiusage import USAGE_COLUMN as _USAGE_COLUMN
 from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime, _ref, strip_title_h1
 
@@ -341,7 +341,7 @@ def _recent_sessions(portal, limit):
     if conn is None:
         return []
     try:
-        rows = conn.execute("SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u WHERE u.ts IS NOT NULL "
+        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, {sessfacts.MAIN_MODEL} model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u WHERE u.ts IS NOT NULL "
                             "GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", (limit,)).fetchall()
         return [{"kind": "session", "id": r["session_id"], "title": (tl := wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"], dated=False)),
                  "ts": _iso(r["last_ts"]), "what": wikisess.feed_what(r["n"], tl), "started": _iso(r["first_ts"])} for r in rows]
@@ -402,7 +402,7 @@ def _search_sessions(portal, text):
     if conn is None:
         return []
     try:
-        rows = conn.execute("SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u GROUP BY u.session_id "
+        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, {sessfacts.MAIN_MODEL} model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u GROUP BY u.session_id "
                             "HAVING u.session_id LIKE ? ESCAPE '\\' OR max(u.project) LIKE ? ESCAPE '\\' ORDER BY last_ts DESC LIMIT ?", (_like(text), _like(text), FETCH_CAP)).fetchall()
         return [_hit("session", r["session_id"], wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"]), r["last_ts"]) for r in rows]
     finally:
