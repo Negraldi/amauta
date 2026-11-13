@@ -52,8 +52,8 @@
    "long": 2
   },
   "python/amauta/portal/api.py": {
-   "lines": 617,
-   "long": 30
+   "lines": 571,
+   "long": 24
   },
   "python/amauta/portal/archify.py": {
    "long": 11,
@@ -127,8 +127,7 @@
    "long": 19
   },
   "python/amauta/portal/wiki.py": {
-   "lines": 451,
-   "long": 28
+   "long": 19
   },
   "python/amauta/portal/wikibase.py": {
    "long": 2

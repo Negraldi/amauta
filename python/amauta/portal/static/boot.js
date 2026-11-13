@@ -58,6 +58,11 @@ function nodeRows(groups) {
     return { ...g, items, count: g.count - ((g.items || []).length - items.length) };
   });
 }
+// A group that hit the server's search cap says so: "first 50 of 728" when the total is known, else "50+".
+function groupCount(g) {
+  if (!g.capped || (g.total != null && g.total <= g.count)) return fmt(g.count);
+  return g.total != null ? t("palette.firstOf", { n: fmt(g.count), total: fmt(g.total) }) : `${fmt(g.count)}+`;
+}
 function paintResults(found, q) {
   const groups = R.rankResults(nodeRows(found)); // graph nodes last and capped (critique C6)
   const box = $("palette-results");
@@ -65,7 +70,7 @@ function paintResults(found, q) {
   palette.nodes = [];
   if (!palette.items.length) { box.replaceChildren(h("p", { class: "muted" }, t("palette.noResults", { q }))); return; }
   let flat = 0;
-  const head = (g) => h("div", { class: "pal-head" }, `${groupLabel(g.kind)} (${fmt(g.count)})`);
+  const head = (g) => h("div", { class: "pal-head" }, `${groupLabel(g.kind)} (${groupCount(g)})`);
   box.replaceChildren(...groups.map((g) => h("div", { class: "pal-group", role: "group", "aria-label": groupLabel(g.kind) }, head(g),
     g.items.map((it) => {
       const i = flat++;

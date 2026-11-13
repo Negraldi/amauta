@@ -284,54 +284,8 @@ class Portal:
         return "revision" if "revision" in cols else ("revision_count" if "revision_count" in cols else None)
 
     def memories(self, q):
-        source, conn = self._memory_conn(q)
-        out = {"source": source, "available": False, "items": [], "facets": {"projects": [], "types": []}}
-        if conn is None:
-            return out
-        try:
-            if not has_table(conn, "observations") or not _OBS_COLUMNS <= set(columns(conn, "observations")):
-                return out  # not an engram-compatible schema
-            rev = self._revision_column(conn)
-            rev_expr = f"o.{rev}" if rev else "1"
-            live = "o.deleted_at IS NULL" if "deleted_at" in columns(conn, "observations") else "1=1"
-            limit = _int(q, "limit", 50, 1, 200)
-            project, typ, text = _str(q, "project"), _str(q, "type"), _str(q, "q", 300)
-            filt, fargs = "", []
-            if project:
-                filt += " AND o.project = ?"
-                fargs.append(project)
-            if typ:
-                filt += " AND o.type = ?"
-                fargs.append(typ)
-            cols = f"o.id, o.title, o.type, o.project, o.topic_key, o.updated_at, {rev_expr} AS revision"
-            rows = None
-            if text:
-                match = mstore.fts_query(text)
-                if not match:
-                    rows = []
-                elif has_table(conn, "observations_fts"):
-                    try:
-                        rows = conn.execute(
-                            f"SELECT {cols}, snippet(observations_fts, 1, '', '', '...', 24) AS snippet FROM observations_fts JOIN observations o ON o.id = observations_fts.rowid "
-                            f"WHERE observations_fts MATCH ? AND {live}{filt} ORDER BY bm25(observations_fts) LIMIT ?", [match, *fargs, limit]).fetchall()
-                    except sqlite3.Error:
-                        rows = None
-                if rows is None:
-                    like = "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-                    rows = conn.execute(
-                        f"SELECT {cols}, substr(o.content, 1, 160) AS snippet FROM observations o WHERE (o.title LIKE ? ESCAPE '\\' OR o.content LIKE ? ESCAPE '\\') AND {live}{filt} "
-                        f"ORDER BY o.updated_at DESC LIMIT ?", [like, like, *fargs, limit]).fetchall()
-            else:
-                rows = conn.execute(f"SELECT {cols}, substr(o.content, 1, 160) AS snippet FROM observations o WHERE {live}{filt} ORDER BY o.updated_at DESC, o.id DESC LIMIT ?", [*fargs, limit]).fetchall()
-            out["items"] = [dict(r) for r in rows]
-            out["facets"] = {
-                "projects": [r[0] for r in conn.execute(f"SELECT DISTINCT o.project FROM observations o WHERE {live} AND o.project IS NOT NULL ORDER BY 1 LIMIT 200")],
-                "types": [r[0] for r in conn.execute(f"SELECT DISTINCT o.type FROM observations o WHERE {live} AND o.type IS NOT NULL ORDER BY 1 LIMIT 100")],
-            }
-            out["available"] = True
-        finally:
-            conn.close()
-        return out
+        from . import memlist
+        return memlist.memories(self, q)
 
     def memory(self, q):
         source, conn = self._memory_conn(q)
@@ -557,8 +511,8 @@ class Portal:
         return wiki.recent(self, q)
 
     def wiki_search(self, q):
-        from . import wiki
-        return wiki.search(self, q)
+        from . import wikisearch
+        return wikisearch.search(self, q)
 
     def skills(self, q):
         from . import wikiskills

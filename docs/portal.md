@@ -70,6 +70,7 @@ Old links keep working: they resolve to the new page and the address bar is rewr
 An unknown path, or an extra path after a page that has no item pages, shows a "not a page" panel.
 
 Search with `Ctrl+K` or `/`: one query across memories (FTS5), skills, tools, MCP servers, sessions, features, tasks and graph nodes.
+Each kind stops at 50 matches; a group that did says so ("Sessions (50+)", or "Memories (first 50 of 728)" since memories also report their total, `wikisearch.py`). The Memory list shows 50 rows with "Showing 50 of 728." and Show more, which fetches the next page (`/api/memories?offset=`, `total` in the answer; `memlist.py`).
 Memory links are derived, because the store keeps no relation table: `[[wikilinks]]` (`[[topic]]`, `[[kind:id|label]]`), the `topic_key`
 hierarchy, whole-word mentions (12+ characters) and graph labels. The store keeps only the latest revision of a memory; the page says so.
 All text from memories, repos and graphs is rendered through text nodes by a small markdown subset (no raw HTML), under a strict CSP.

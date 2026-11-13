@@ -18,6 +18,13 @@ function memTable(r, source, query) {
     { key: "project", label: t("kind.project") }, { key: "topic_key", label: t("col.topic") },
     { key: "revision", label: t("col.rev"), num: true }, { key: "updated_at", label: t("col.updated") }], r.items);
 }
+// "Showing 50 of 728." under the table, with Show more while rows remain (the server pages with an offset).
+function memMore(r, more) {
+  if (!r.available || !r.items.length || r.total == null) return null;
+  const line = h("p", { class: "muted" }, t("mem.showing", { shown: fmt(r.items.length), total: fmt(r.total) }));
+  if (r.items.length >= r.total) return line;
+  return h("div", null, line, h("button", { type: "button", class: "mem-more", onclick: more }, t("mem.showMore")));
+}
 async function viewMemories(route) {
   sortOnce("mem", "updated_at"); // newest first until a header is clicked
   const source = memSourceOf(route);
@@ -25,22 +32,25 @@ async function viewMemories(route) {
   const q = h("input", { type: "search", placeholder: t("mem.search"), "aria-label": t("mem.search"), value: state.memQuery || "" });
   const type = h("select", { "aria-label": t("col.type") }, h("option", { value: "" }, t("mem.allTypes")));
   const mine = h("div", { "aria-live": "polite" });
-  let seq = 0, timer = null;
-  const load = guarded(async () => {
+  let seq = 0, timer = null, shown = null;
+  const load = guarded(async (more) => {
     const mySeq = ++seq;
     state.memQuery = q.value;
-    const r = await api("memories", { source, q: q.value, type: type.value });
+    const r = await api("memories", { source, q: q.value, type: type.value, offset: more ? shown.items.length : 0 });
     if (mySeq !== seq) return; // a newer search is on its way
     if (r.available && !type.dataset.ready) {
       r.facets.types.forEach((v) => type.append(h("option", { value: v }, memType(v))));
       type.dataset.ready = "1";
     }
-    mine.replaceChildren(memTable(r, source, q.value || type.value));
+    shown = more ? { ...r, items: [...shown.items, ...r.items] } : r;
+    mine.replaceChildren(...[memTable(shown, source, q.value || type.value), memMore(shown, () => load(true))].filter(Boolean));
+    const next = mine.querySelector && mine.querySelector("button.mem-more");
+    if (more && next && next.focus) next.focus(); // focus stays on the control, never lost with a re-rendered list
   }, mine);
   // Filters as you type: one request after a 200 ms pause; Enter searches at once.
-  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 200); });
-  q.addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); load(); } });
-  type.addEventListener("change", load);
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => load(false), 200); });
+  q.addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); load(false); } });
+  type.addEventListener("change", () => load(false));
   await load();
   return [pageHead(t("nav.memory"), t("mem.lead")), memSourceSwitch(source), h("div", { class: "controls" }, q, type), mine];
 }

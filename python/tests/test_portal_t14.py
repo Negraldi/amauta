@@ -116,3 +116,31 @@ class ActiveFoldersTest(SessionBase):
         self.assertEqual((folder["path"], folder["sessions"]), (str(self.plain), 1))
         self.assertTrue(folder["last"].startswith("2026-10-05"))
         self.assertIn("data", {p["project"] for p in self.get("/api/sessions", days=3650)["projects"]})
+
+
+class MemoryPagingTest(SessionBase):
+    """The memory list and memory search say how many match and page through them; a capped search group says so."""
+
+    def setUp(self):
+        super().setUp()
+        st = mstore.Store(self.f["state"] / "memory.db")
+        for i in range(60):
+            st.save(f"Paged note {i}", f"pager body number {i}", type="note", topic_key=f"paged/{i}", project="alpha")
+        st.close()
+
+    def test_the_list_reports_the_total_and_pages_with_an_offset(self):
+        first = self.get("/api/memories", source="own")
+        self.assertEqual((len(first["items"]), first["total"], first["offset"]), (50, 62, 0))
+        rest = self.get("/api/memories", source="own", offset=50)
+        self.assertEqual(len(rest["items"]), 12)
+        self.assertFalse({i["id"] for i in first["items"]} & {i["id"] for i in rest["items"]})
+
+    def test_a_search_reports_its_total_too(self):
+        hit = self.get("/api/memories", source="own", q="pager", limit=10)
+        self.assertEqual((len(hit["items"]), hit["total"]), (10, 60))
+        self.assertEqual(len(self.get("/api/memories", source="own", q="pager", limit=10, offset=55)["items"]), 5)
+
+    def test_a_capped_search_group_says_so(self):
+        group = next(g for g in self.get("/api/wiki/search", q="pager")["groups"] if g["kind"] == "memory")
+        self.assertTrue(group["capped"])
+        self.assertEqual(group["total"], 60)
