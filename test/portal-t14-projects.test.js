@@ -38,3 +38,18 @@ test('a project\'s Sessions tab has no Project column', async () => {
   assert.ok(heads.length > 3, heads.join(' | '));
   assert.ok(!heads.includes('Project'), heads.join(' | '));
 });
+
+test('folders with sessions that are not projects are listed apart, with how to add one', async () => {
+  const folders = [{ name: 'data', path: '/h/scratch/data', sessions: 1234, last: '2026-11-13T10:00:00Z' }];
+  const env = makeEnv({ '/api/projects': { ...PROJECTS, folders }, '/api/siblings': { siblings: [] } });
+  env.location.hash = '#/project';
+  await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  await tick();
+  const v = env.document.getElementById('view');
+  const h2 = tree(v).filter((e) => e.tagName === 'h2').map((e) => e.textContent);
+  assert.ok(h2.includes('Active folders that are not projects'), h2.join(' | '));
+  assert.match(v.textContent, /\/h\/scratch\/data/);
+  assert.match(v.textContent, /1,234/);
+  assert.match(v.textContent, /git repository/);
+  assert.ok(tree(v).some((e) => e.tagName === 'a' && e.getAttribute('href') === '#/settings?tab=projects'), 'links to where a folder is added');
+});

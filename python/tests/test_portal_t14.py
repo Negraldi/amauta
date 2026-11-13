@@ -80,3 +80,39 @@ class OneProjectRuleTest(SessionBase):
         hits = self.get("/api/wiki/search", q="ortho-conv")
         ids = [i["id"] for g in hits["groups"] if g["kind"] == "session" for i in g["items"]]
         self.assertIn("s30", ids)
+
+
+class ActiveFoldersTest(SessionBase):
+    """A Codex session's cwd is read from its rollout. One inside a git repository makes it a discovered project; one in a
+    plain folder is listed apart on Projects ("active folders that are not projects"), never silently dropped."""
+
+    def setUp(self):
+        super().setUp()
+        from python.amauta.usage import codex
+        from python.tests.test_usage_codex import meta, record, turn, u
+        home = self.root / "home"
+        self.plain, self.gitrepo = home / "scratch" / "data", home / "tool"
+        self.plain.mkdir(parents=True)
+        (self.gitrepo / ".git").mkdir(parents=True)
+        self.cfg.home = home
+        self.cfg.codex_home = self.root / "codex"
+        for sid, cwd in (("cx-plain", self.plain), ("cx-git", self.gitrepo)):
+            write_jsonl(self.cfg.codex_home / "sessions" / "2026" / "10" / "05" / f"rollout-{sid}.jsonl", [
+                meta(cwd=str(cwd), sid=sid), turn("t1", "gpt-x", cwd=str(cwd)),
+                record(f"resp-{sid}", "t1", u(10, 6, 4, 1, 0), ts="2026-10-05T12:00:00.000Z", sid=sid)])
+        c = mstore.connect(self.f["state"] / "memory.db")
+        codex.backfill(c, self.cfg.codex_home)
+        c.close()
+
+    def test_a_codex_session_in_a_repository_is_a_discovered_project(self):
+        row = next(p for p in self.get("/api/projects")["projects"] if p["name"] == "tool")
+        self.assertEqual((row["origin"], row["sessions"]), (["discovered"], 1))
+        self.assertEqual(self.meta(self.page("session", "cx-git"))["Working directory"], str(self.gitrepo))
+
+    def test_a_plain_folder_with_sessions_is_listed_apart(self):
+        projects = self.get("/api/projects")
+        self.assertNotIn("data", [p["name"] for p in projects["projects"]])
+        folder = next(f for f in projects["folders"] if f["name"] == "data")
+        self.assertEqual((folder["path"], folder["sessions"]), (str(self.plain), 1))
+        self.assertTrue(folder["last"].startswith("2026-10-05"))
+        self.assertIn("data", {p["project"] for p in self.get("/api/sessions", days=3650)["projects"]})

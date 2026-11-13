@@ -20,6 +20,7 @@ from .api import has_table
 CONFIG_NAME = "portal.json"
 MAX_CONFIG_REPOS = 50
 MAX_DISCOVERED = 50
+MAX_FOLDERS = 10
 MAX_SESSIONS = 300
 MAX_EVENT_CWDS = 200
 MAX_PATH = 1024
@@ -335,4 +336,12 @@ def summary(portal, q=None):
                     "sessions": len(session_ids(portal, repo, by)), "last": by.get(repo.name, {}).get("last"),
                     "memories": memory_count(portal, repo.name), "graph": graph_status(portal, repo), "profile": selected.get(os.path.realpath(repo), "default")})
     return {"auto_discover": info["config"]["auto_discover"], "config_repos": info["config"]["repos"],
-            "siblings": info["config"]["siblings"], "projects": out}
+            "siblings": info["config"]["siblings"], "projects": out, "folders": active_folders(by, {p["name"] for p in out})}
+
+
+def active_folders(by, listed):
+    """Folders with sessions that are not listed projects (no git repository, or past the discovery caps), newest first:
+    Today and Usage name them, so Projects says where they are instead of dropping them."""
+    rows = [{"name": name, "path": str(e["folder"]), "sessions": len(e["ids"]), "last": e["last"]}
+            for name, e in by.items() if name not in listed and e["folder"] is not None]
+    return sorted(rows, key=lambda r: r["last"] or "", reverse=True)[:MAX_FOLDERS]

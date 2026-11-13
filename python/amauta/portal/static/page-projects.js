@@ -28,10 +28,24 @@ function usualOrigin(origins) {
   return count >= 2 && count * 2 > origins.length ? top : null;
 }
 
+// Folders that sessions ran in but that are not projects (no git repository, or past the discovery caps): Today and Usage
+// name them, so the list says where they are and how one becomes a project (T14 e).
+function foldersBlock(folders) {
+  if (!folders || !folders.length) return null;
+  sortOnce("pfolders", "last");
+  const cols = [{ key: "name", label: t("col.name") }, { key: "path", label: t("col.path") },
+    { key: "sessions", label: t("nav.session"), num: true },
+    { key: "last", label: t("col.lastActivity"), render: (v) => R.fmtDate(v || null) }];
+  return h("section", { class: "page-section" }, h("h2", null, t("project.foldersTitle")),
+    h("p", { class: "muted" }, t("project.foldersLead"), " ", h("a", { href: "#/settings?tab=projects" }, t("nav.settings")), "."),
+    table("pfolders", cols, folders));
+}
+
 async function viewProjects() {
   const [d, sibs] = await Promise.all([api("projects"), siblingsBlock()]); // last activity comes with each row (sessname rule)
   if (!d.projects.length) {
-    return [teach(t("nav.project"), t("project.noneKnown"), h("span", null, link("settings", "", t("project.openSettings"))))];
+    const settings = h("span", null, link("settings", "", t("project.openSettings")));
+    return [teach(t("nav.project"), t("project.noneKnown"), settings), foldersBlock(d.folders)].filter(Boolean);
   }
   const profile = (p) => (p.profile && p.profile !== "default" ? t("project.profile", { name: p.profile }) : null);
   const originOf = (p) => p.origin.map(originLabel).join(", "), usual = usualOrigin(d.projects.map(originOf));
@@ -49,7 +63,7 @@ async function viewProjects() {
   const count = tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) });
   const said = usual ? ` ${t("project.originCommon", { origin: usual })}` : "";
   const lead = h("p", { class: "muted" }, `${count}${said} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), ".");
-  return [h("h1", null, t("nav.project")), lead, table("projects", cols, rows), sibs].filter(Boolean);
+  return [h("h1", null, t("nav.project")), lead, table("projects", cols, rows), foldersBlock(d.folders), sibs].filter(Boolean);
 }
 
 // ---- the hub ---------------------------------------------------------------------------------------------------
