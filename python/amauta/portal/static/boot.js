@@ -128,6 +128,11 @@ function setNav(open, back) {
 try {
   globalThis.matchMedia("(width >= 52rem)").addEventListener("change", (e) => { if (e.matches && navOpen()) setNav(false); });
 } catch (_) { /* no matchMedia */ }
+// The sticky Activity filter bar sits under the top bar, whatever its height (T11 k); measured on resize, never polled.
+try {
+  const bar = document.querySelector(".topbar");
+  new ResizeObserver(() => $("shell").style.setProperty("--topbar-h", `${Math.ceil(bar.offsetHeight)}px`)).observe(bar);
+} catch (_) { /* no ResizeObserver: the 3rem fallback */ }
 const navOpen = () => $("shell").getAttribute("data-nav") === "open";
 $("nav-toggle").addEventListener("click", () => setNav(!navOpen()));
 $("nav-scrim").addEventListener("click", () => setNav(false, true));

@@ -110,6 +110,11 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 .page-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); padding: var(--s2) var(--s5);
   border-bottom: 1px solid var(--line); background: var(--sidebar); }
 .page-bar[hidden] { display: none; }
+/* Sticky under the top bar on wide screens only: on a phone the bar is three rows tall and would cover the page. boot.js
+   keeps --topbar-h equal to the top bar's height. */
+@media (width >= 52rem) {
+  .page-bar { position: sticky; top: var(--topbar-h, 3rem); z-index: var(--z-sticky); }
+}
 /* "Data as of": under Refresh, right-aligned; its own row on phones. */
 .data-at { margin: 0 0 0 auto; font-size: 0.8125rem; }
 #view { overflow-wrap: break-word; padding: var(--s5) var(--s5) var(--s7); outline: none; }
