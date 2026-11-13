@@ -86,6 +86,11 @@ English and Spanish apply to the portal chrome only (navigation, headings, label
   kind label above the title (the breadcrumb names the kind); the Activity filter bar is not repeated in words.
 - Item pages open with a breadcrumb (CSS-drawn separators, muted ancestors, the current page in ink); hub pages with
   several views show tabs underlined under the current one (`aria-current`), never pills.
+- Tabs or a segmented control: Tabs are views of one page, kept in the URL (`?tab=`), underlined, at most one row per
+  page, right under the lead. A segmented control is a filter of the same list (memory source, tool kind, catalog kind,
+  pipeline category): one bordered group with the selected segment tinted, the same look whether its segments are links
+  kept in the URL (`aria-current="true"`) or buttons (`aria-pressed`). It never wraps a lone segment onto its own row; it
+  scrolls sideways instead.
 - Text pages: reading column (max 68ch) plus a right rail (18rem) for metadata, links, backlinks and revisions on
   wide screens; the rail moves below the content under 72rem.
 - Data pages: full content width, dense tables, sticky header row.

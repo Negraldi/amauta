@@ -126,12 +126,15 @@ button:hover:not(:disabled), select:hover:not(:disabled), a.button:hover { borde
 button:active:not(:disabled), a.button:active { background: var(--line); }
 button:disabled, select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 input[type="search"] { min-width: 14rem; }
-/* A switch between views of one list (memory source, usage kind): one bordered group, not page tabs. */
-.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; margin: 0 0 var(--s4);
-  border: 1px solid var(--line); border-radius: 8px; }
-.segmented button, .segmented a { border: 0; border-radius: 6px; background: transparent; color: var(--ink-muted); padding: var(--s1) var(--s3); }
-.segmented a { display: inline-flex; align-items: center; min-height: var(--hit); text-decoration: none; }
-.segmented a:hover { color: var(--ink); }
+/* A segmented control filters one list (memory source, tool kind, catalog kind, pipeline category); tabs (.tabs) switch the
+   views of a page. One look whether the segments are links (kept in the URL) or buttons (aria-pressed); it scrolls
+   sideways rather than wrapping a lone segment onto its own row. */
+.segmented { display: inline-flex; flex-wrap: nowrap; overflow-x: auto; max-inline-size: 100%; gap: 2px; padding: 2px;
+  margin: 0 0 var(--s4); border: 1px solid var(--line); border-radius: 8px; }
+.segmented button, .segmented a { display: inline-flex; align-items: center; min-block-size: var(--hit); white-space: nowrap; border: 0;
+  border-radius: 6px; background: transparent; color: var(--ink-muted); padding: var(--s1) var(--s3); text-decoration: none; }
+.segmented button:hover:not(:disabled), .segmented a:hover { color: var(--ink); text-decoration: none; }
+.segmented button:active:not(:disabled), .segmented a:active { background: var(--line); }
 .segmented [aria-pressed="true"], .segmented [aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
 .row-link { cursor: pointer; color: var(--accent); background: none; border: 0; padding: 0; text-align: left; }
