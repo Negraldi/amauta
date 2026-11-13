@@ -433,7 +433,7 @@ test('home: recent activity grouped by day is the main column; spending sits in 
     '/api/harness/components': { total: 0, groups: [] } });
   const v = view(env);
   assert.ok(env.calls.some((c) => c.url === '/api/wiki/home'));
-  assert.deepEqual(tree(v).filter((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);
+  assert.deepEqual(tree(v).filter((e) => e.tagName === 'h3' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);
   const links = hrefs(v);
   for (const h of ['#/memory/7', '#/session/s1', '#/feature/feat', '#/usage', '#/harness']) assert.ok(links.includes(h), h);
   assert.ok(v.textContent.includes(XSS));
@@ -463,7 +463,7 @@ test('every page opens with its title (impeccable critique P1: one page skeleton
     '/api/graphify': { repos: [] }, '/api/projects': { projects: [] }, '/api/sessions': { available: true, projects: [], sessions: [] },
     '/api/harness': { installed: false }, '/api/archify': { installed: false }, '/api/harness/components': null,
   };
-  for (const [hash, title] of [['#/memory', 'Memory'], ['#/usage', 'Usage'], ['#/session', 'Sessions'], ['#/harness', 'Harness'], ['#/home', null]]) {
+  for (const [hash, title] of [['#/memory', 'Memory'], ['#/usage', 'Usage'], ['#/session', 'Sessions'], ['#/harness', 'Harness overview'], ['#/home', null]]) {
     const { env } = await boot(hash, stubs);
     assert.doesNotMatch(view(env).textContent, /^Error/, `${hash} rendered the error panel`);
     const first = tree(view(env)).find((e) => /^h[1-6]$/.test(e.tagName)); // the first heading in reading order

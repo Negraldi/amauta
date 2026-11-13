@@ -84,13 +84,13 @@ test('every key that app.js uses exists in en; every en key is used', () => {
 // ---- t, tn, ts -----------------------------------------------------------------------------------------------------------
 test('t resolves in the chosen language, falls back to English, then to the key', () => {
   assert.equal(I.lang(), 'en');
-  assert.equal(I.t('nav.home'), 'Home');
+  assert.equal(I.t('nav.home'), 'Today');
   I.setLang('es');
-  assert.equal(I.t('nav.home'), 'Inicio');
+  assert.equal(I.t('nav.home'), 'Hoy');
   assert.equal(I.t('no.such.key'), 'no.such.key');
   const saved = ES['nav.home'];
   delete ES['nav.home'];
-  try { assert.equal(I.t('nav.home'), 'Home', 'a key missing in es shows the English text'); } finally { ES['nav.home'] = saved; }
+  try { assert.equal(I.t('nav.home'), 'Today', 'a key missing in es shows the English text'); } finally { ES['nav.home'] = saved; }
 });
 
 test('t fills {params} and leaves unknown placeholders visible', () => {

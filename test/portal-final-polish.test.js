@@ -54,7 +54,7 @@ test('1: Home has its head first, then the rail before the feed in the DOM; wide
 });
 test('1: the feed shows the most recent days first and a Show more button reveals the rest', async () => {
   const { env } = await boot('#/', { '/api/wiki/home': HOME });
-  const days = () => tree(view(env)).filter((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent);
+  const days = () => tree(view(env)).filter((e) => e.tagName === 'h3' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent);
   assert.deepEqual(days(), ['2026-11-08', '2026-11-07', '2026-11-06', '2026-11-05', '2026-11-04']);
   const more = tree(view(env)).find((e) => e.tagName === 'button' && /Show more/.test(e.textContent));
   assert.ok(more, 'a Show more button');

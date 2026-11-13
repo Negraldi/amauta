@@ -253,8 +253,9 @@ function pageHead(title, intro) {
 function renderNav(route) {
   const hub = R.hubOf(route);
   const item = (i) => h("li", null, h("a", { href: i.hash, "aria-current": i.hub === hub ? "page" : false }, t(i.key)));
-  const group = (g) => (g.foot
-    ? h("div", { class: "nav-group nav-foot", role: "group", "aria-label": t(g.key) }, h("ul", null, g.items.map(item)))
+  const bare = (g) => g.items.length === 1 && t(g.key) === t(g.items[0].key); // "Today" needs no title above "Today"
+  const group = (g) => (g.foot || bare(g)
+    ? h("div", { class: `nav-group${g.foot ? " nav-foot" : ""}`, role: "group", "aria-label": t(g.key) }, h("ul", null, g.items.map(item)))
     : h("div", { class: "nav-group", role: "group", "aria-labelledby": `nav-g-${g.id}` },
       h("p", { class: "nav-title muted", id: `nav-g-${g.id}` }, t(g.key)), h("ul", null, g.items.map(item))));
   $("nav").replaceChildren(...R.NAV.map(group));

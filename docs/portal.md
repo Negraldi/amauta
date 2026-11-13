@@ -33,7 +33,7 @@ Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto
 
 | Group | Page | Hash | Tabs and query | What it shows |
 |---|---|---|---|---|
-| Today | Home | `#/` | | One harness health sentence, recent activity by day (five days, then Show more); rail with pipelines, spending and skill impact (above the feed under 72rem) |
+| Today | Today | `#/` | | One harness health sentence, recent activity by day (five days, then Show more); rail with pipelines, spending and skill impact (above the feed under 72rem) |
 | Work | Projects | `#/project` | | Table of projects (ODD progress, graph status, last activity) and the sibling cards |
 | Work | Project hub | `#/project/<name>` | `?tab=` `overview` (default, not written), `features`, `graph`, `pipelines`, `sessions`, `memories` | One project in one place; graph sync and connect; features (`#/feature/<project>/<name>`) and graph nodes crumb through the hub |
 | Work | Pipelines | `#/pipelines` | | Every project's pipelines, runs and schedules |
@@ -42,7 +42,7 @@ Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto
 | Activity | Usage | `#/usage` | filters | One summary sentence, token chart (cache behind a checkbox), model split, cost estimate |
 | Activity | Sessions | `#/session[/id]` | filters | Sessions; one session's skills, tools, subagents, tokens and memories |
 | Activity | Tools and skills | `#/tool` | `?seg=` `tools` (default), `skills`, `mcp`, `mcptools`, `subagents`; filters | One table per segment; items open `#/tool\|skill\|mcp/<name>` pages (usage over time, sessions, tokens, impact; skills render `SKILL.md`) |
-| Harness wiki | Overview | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand |
+| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand |
 | Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle` | Every component, with a text filter; item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|skill/<id>` crumb through Catalog / kind |
 | Harness wiki | Security | `#/security` | | Protections, checkers, trusted projects, profiles, memory guard redaction counts (counts and names only) |
 | Foot | Guide | `#/guide[/page]` | | The guide pages |
@@ -133,7 +133,7 @@ npm engine back; run reinstall / repair.
 
 ### Skill impact (comparative, not causal)
 
-Skill pages and the Home rail (skill impact) compare sessions that loaded a skill with sessions that did not: tool error rate, retries (same tool within
+Skill pages and the Today rail (skill impact) compare sessions that loaded a skill with sessions that did not: tool error rate, retries (same tool within
 3 calls after an error), output tokens per turn after the load, test-command failure rate and loaded-but-unused. Every number carries
 `n` and the sessions behind it; a side with fewer than 5 sessions is suppressed ("not enough data"); small differences read "no clear
 difference". **Correlation caveat:** skills are loaded for harder or different tasks, so a worse number is not proof the skill hurts. A per-skill change

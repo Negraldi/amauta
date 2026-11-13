@@ -221,7 +221,7 @@ test('Security opens with one summary sentence and protection chips, then the ta
 });
 
 test('the browser tab title follows the page heading on every hub', async () => {
-  for (const [hash, title] of [['#/tool', 'Tools and skills'], ['#/harness', 'Harness'], ['#/security', 'Security'], ['#/component?kind=hook', 'Catalog']]) {
+  for (const [hash, title] of [['#/tool', 'Tools and skills'], ['#/harness', 'Harness overview'], ['#/security', 'Security'], ['#/component?kind=hook', 'Catalog']]) {
     const env = await boot(hash, { '/api/security': SEC });
     assert.equal(env.document.title, `${title} - amauta`, hash);
   }

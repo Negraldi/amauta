@@ -63,7 +63,7 @@ test('switching the language re-renders the current route and the static chrome 
   await switchTo(env, 'es');
   assert.equal(lang(env), 'es');
   assert.match(view(env).textContent, /Actividad reciente/);
-  assert.match(nav(env).textContent, /Inicio/);
+  assert.match(nav(env).textContent, /Hoy/);
   assert.equal($(env, 'refresh').textContent, 'Actualizar');
   assert.equal($(env, 'palette-input').attrs.placeholder.startsWith('Buscar'), true);
   assert.equal($(env, 'sidebar').attrs['aria-label'], 'Wiki');

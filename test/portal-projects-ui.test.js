@@ -144,6 +144,8 @@ test('removing a path and toggling auto-discover post only what changed', async 
   const { env, posts } = await boot('#/settings?tab=projects', { '/api/settings': SETTINGS });
   byText(view(env), 'button', 'Remove').click();
   await tick();
+  byText(view(env), 'button', 'Remove path').click(); // T11 a: Remove asks first
+  await tick();
   assert.deepEqual(posts[0].body, { repos: [] });
   const box = tree(view(env)).find((e) => e.tagName === 'input' && e.attrs.type === 'checkbox');
   for (const fn of box.listeners.change ?? []) fn({ target: { checked: false } });

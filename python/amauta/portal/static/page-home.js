@@ -11,7 +11,7 @@ function localDays(days) {
 const groupCounts = (text) => String(text).replace(/(?<![\w.,:\/-])\d{4,}(?![\w.,:\/-])/g, (m) => fmt(Number(m)));
 // The feed shows the HOME_DAYS most recent days; Show more adds as many again (client side, the server sends them all).
 const HOME_DAYS = 5;
-const dayBlock = (d) => h("section", { class: "page-section day" }, h("h2", null, d.day),
+const dayBlock = (d) => h("section", { class: "page-section day" }, h("h3", null, d.day),
   h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${groupCounts(ts(i.what))}, ${R.fmtDateTime(i.ts).slice(11) || "?"}`)))));
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
@@ -71,6 +71,6 @@ async function viewHome() {
   return [h("header", { class: "page-head" }, h("h1", null, t("home.title")), status), h("div", { class: "page home" },
     h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.pipelines"), pipes),
       railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact))),
-    h("article", { class: "doc" }, activityBlock(hm.activity)))];
+    h("article", { class: "doc" }, h("h2", null, t("home.recent")), activityBlock(hm.activity)))];
 }
 // Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.

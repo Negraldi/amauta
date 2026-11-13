@@ -41,7 +41,7 @@
  "col.type": "Tipo",
  "col.updated": "Actualizado",
  "commits.title": "Commits",
- "common.backHome": "Volver al inicio",
+ "common.backHome": "Volver a Hoy",
  "common.confirm": "Confirmar",
  "common.error": "Error",
  "common.goBack": "Volver",
@@ -160,7 +160,7 @@
  "home.rankFoot": "{ranked} de {tracked} skills tienen suficientes sesiones (últimos {days} días).",
  "home.rankLine": "{delta} de tasa de error, {n} llamadas, {sessions} sesiones",
  "home.skillImpact": "Impacto de las skills",
- "home.title": "Actividad reciente",
+ "home.title": "Hoy",
  "home.tokens": "Tokens",
  "home.tokensN": "{n} tokens",
  "home.topModels": "Modelos principales",
@@ -192,7 +192,7 @@
  "impact.versions": "Versiones instaladas (primera vez vistas): {list}",
  "kind.feature": "Funcionalidad ODD",
  "kind.harness": "Resumen del harness",
- "kind.home": "Inicio",
+ "kind.home": "Hoy",
  "kind.lint": "Calidad de la memoria",
  "kind.mcp": "Servidor MCP",
  "kind.memfile": "Archivo de memoria",
@@ -218,7 +218,7 @@
  "mem.search": "Buscar memorias",
  "nav.feature": "Funcionalidades ODD",
  "nav.harnessPage": "Resumen del harness",
- "nav.home": "Inicio",
+ "nav.home": "Hoy",
  "nav.lint": "Calidad",
  "nav.mcp": "Servidores MCP",
  "nav.memory": "Memoria",
@@ -855,5 +855,6 @@
  "graph.kind.paper": "Artículo",
  "graph.kind.image": "Imagen",
  "graph.kind.video": "Video",
- "graph.kind.rationale": "Justificación de diseño"
+ "graph.kind.rationale": "Justificación de diseño",
+ "home.recent": "Actividad reciente"
 }
