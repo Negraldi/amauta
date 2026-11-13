@@ -270,11 +270,14 @@ function tabBar(route) {
 }
 // The breadcrumb above the page title: group, hub (or tab), item; the last crumb is the current page. Text nodes only.
 function crumbBar(route) {
-  const trail = R.crumbs(route);
-  if (!trail.length) return null;
+  const full = R.crumbs(route), end = full.length - 1;
+  if (!full.length) return null;
+  const name = (c, i) => (c.key ? t(c.key) : i === end && state.pageTitle ? state.pageTitle : c.text); // an item says its own title
+  const labels = full.map(name);
+  const trail = full.filter((c, i) => i === end || labels[i] !== labels[i + 1]); // a group named like its only page is said once
   const last = trail.length - 1;
   const crumb = (c, i) => {
-    const label = c.key ? t(c.key) : i === last && state.pageTitle ? state.pageTitle : c.text; // an item crumb says the page's own title
+    const label = labels[full.indexOf(c)];
     const here = i === last ? "page" : false;
     return h("li", null, c.hash && !here ? h("a", { href: c.hash }, label) : h("span", { "aria-current": here }, label));
   };

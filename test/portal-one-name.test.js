@@ -46,3 +46,13 @@ test('a one-item group named like its item shows the name once in the sidebar', 
   const group = tree(nav).find((e) => e.attrs.role === 'group' && e.attrs['aria-label'] === 'Today');
   assert.ok(group, 'the group keeps its accessible name');
 });
+
+test('the breadcrumb of Today says the name once, not group and item', async () => {
+  const env = makeEnv({ '/api/wiki/home': { health: { installed: false }, activity: [], spending: { available: false }, impact: null },
+    '/api/pipelines': { projects: [] } });
+  env.location.hash = '#/';
+  await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  await tick();
+  const nav = tree(env.document.getElementById('view')).find((e) => e.tagName === 'nav' && e.className === 'crumbs');
+  assert.deepEqual(tree(nav).filter((e) => e.tagName === 'li').map((e) => e.textContent), ['Today']);
+});
