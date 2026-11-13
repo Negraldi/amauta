@@ -1,10 +1,10 @@
 """Human labels for sessions. The usage tables keep only a project name taken from the last directory of the cwd, so the label is
-completed from the session's own transcript (read-only, first bytes only): the git root of its cwd and its first user prompt."""
+completed from the session's own transcript (read-only, first bytes only): its cwd (named by sessname.project_of) and its
+first user prompt."""
 from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
 SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 READ_BYTES = 65536
@@ -61,26 +61,14 @@ def session_info(portal, session_id):
     return info
 
 
-def repo_name(cwd):
-    """Basename of the nearest ancestor holding a .git entry (the cwd itself when none does)."""
-    if not cwd:
-        return ""
-    here = Path(cwd)
-    for d in [here, *here.parents][:24]:
-        try:
-            if (d / ".git").exists():
-                return d.name or str(d)
-        except OSError:
-            break
-    return here.name
-
-
-def label(portal, session_id, project, model, messages, first_ts):
+def label(portal, session_id, project, model, messages, first_ts, dated=True):
+    """"project · first prompt (or model, count) · start date"; the feed leaves the date out (`dated=False`): its day heading says it."""
+    from . import sessname  # sessname reads projects, which reads this module
     info = session_info(portal, session_id)
-    repo = repo_name(info.get("cwd")) or project or "unknown project"
+    repo = sessname.project_of(portal, info.get("cwd"), project)
     n = int(messages or 0)
     middle = info.get("prompt") or f"{model or 'unknown model'}, {n} message{'' if n == 1 else 's'}"
-    return SEP.join(p for p in (repo, middle, (first_ts or "")[:10]) if p)
+    return SEP.join(p for p in (repo, middle, (first_ts or "")[:10] if dated else "") if p)
 
 
 def what(n):

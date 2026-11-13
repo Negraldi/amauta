@@ -801,6 +801,7 @@
  "meta.allowed-tools": "Herramientas permitidas",
  "error.network": "No se pudo contactar con el servidor del portal ({reason}).",
  "error.part": "Esta parte no se pudo cargar.",
+ "home.startedOn": "iniciada el {date}",
  "home.showMore": "Mostrar más días",
  "memtype.project": "Proyecto",
  "memtype.user": "Usuario",

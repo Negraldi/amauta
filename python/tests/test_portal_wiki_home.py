@@ -36,7 +36,7 @@ class HomeTest(WikiBase):
         self.assertEqual({i["kind"] for i in items}, {"memory", "session", "feature"})
         for d in days:
             for i in d["items"]:
-                self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"})
+                self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"} | ({"started"} if i["kind"] == "session" else set()))
                 self.assertTrue(i["ts"].startswith(d["day"]))
         self.assertIn("memory revised (revision 2)", [i["what"] for i in items])
 

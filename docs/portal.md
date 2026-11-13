@@ -30,6 +30,8 @@ page. An unknown `?tab=` value is dropped from the address. Usage days are this 
 dictionaries are `static/i18n/{en,es,srv-es}.json`.
 Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true, "siblings": [...]}`, also editable in Settings > Projects and siblings) and from the git roots of your sessions. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory and skips linked git worktrees (`git worktree add`; their `.git` is a file), which are checkouts of a project rather than projects, while a worktree you configure yourself is kept; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
 
+A session's project is named by one rule on every page (Today, Usage > Sessions, search, project and session pages; `sessname.py`): the configured or discovered project whose folder holds the session's cwd, else the root of its git repository (a linked worktree counts as its main repository; a repository in your home directory itself, such as dotfiles, never does), else the folder name. A session without a Claude transcript (Codex) keeps the name the usage import stored. The Today feed leaves the date out of a session's title (the day heading says it) and adds "started <date>" when the session began on an earlier day.
+
 ### Routes
 
 | Group | Page | Hash | Tabs and query | What it shows |
@@ -43,7 +45,7 @@ Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto
 | Activity | Usage | `#/usage` | filters | One summary sentence, token chart (cache behind a checkbox), model split, cost estimate |
 | Activity | Sessions | `#/session[/id]` | filters | Sessions; one session's skills, tools, subagents, tokens and memories |
 | Activity | Tools and skills | `#/tool` | `?seg=` `tools` (default), `skills`, `mcp`, `mcptools`, `subagents`; filters | One table per segment; items open `#/tool\|skill\|mcp/<name>` pages (usage over time, sessions, tokens, impact; skills render `SKILL.md`) |
-| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand (fitted to the column, Show at full size scrolls sideways) |
+| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram on demand (natural size in a sideways scroller so labels stay legible; Fit to width is the optional overview) |
 | Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle` | Every component, with a text filter; item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|skill/<id>` crumb through Catalog / kind |
 | Harness wiki | Security | `#/security` | | Protections, checkers, trusted projects, profiles, memory guard redaction counts (counts and names only) |
 | Foot | Guide | `#/guide[/page]` | | The guide pages |

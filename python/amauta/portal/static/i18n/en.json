@@ -801,6 +801,7 @@
  "meta.allowed-tools": "Allowed tools",
  "error.network": "The portal server could not be reached ({reason}).",
  "error.part": "This part could not load.",
+ "home.startedOn": "started {date}",
  "home.showMore": "Show more days",
  "memtype.project": "Project",
  "memtype.user": "User",

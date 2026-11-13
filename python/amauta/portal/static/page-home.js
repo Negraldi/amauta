@@ -11,10 +11,16 @@ function localDays(days) {
 const groupCounts = (text) => String(text).replace(/(?<![\w.,:\/-])\d{4,}(?![\w.,:\/-])/g, (m) => fmt(Number(m)));
 // The feed shows the HOME_DAYS most recent days; Show more adds as many again (client side, the server sends them all).
 const HOME_DAYS = 5;
-// "12 messages, 21:10", or only the time when the title already says the rest (the server leaves `what` empty then).
-const feedTail = (i) => [i.what ? groupCounts(ts(i.what)) : "", R.fmtDateTime(i.ts).slice(11) || "?"].filter(Boolean).join(", ");
+// "12 messages, 21:10", or only the time when the title already says the rest (the server leaves `what` empty then). The
+// day heading carries the date; a session that began on an earlier day says so ("started 2026-11-09").
+const startedBefore = (i, day) => {
+  const start = i.started ? R.fmtDate(i.started) : day;
+  return start !== day ? t("home.startedOn", { date: start }) : "";
+};
+const feedTail = (i, day) =>
+  [i.what ? groupCounts(ts(i.what)) : "", startedBefore(i, day), R.fmtDateTime(i.ts).slice(11) || "?"].filter(Boolean).join(", ");
 const dayBlock = (d) => h("section", { class: "page-section day" }, h("h3", null, d.day),
-  h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${feedTail(i)}`)))));
+  h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${feedTail(i, d.day)}`)))));
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
   const all = localDays(days), box = h("div", null, all.slice(0, HOME_DAYS).map(dayBlock));

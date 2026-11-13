@@ -136,7 +136,7 @@ class RecentTest(WikiBase):
         self.assertEqual({i["kind"] for i in items}, {"memory", "session", "feature"})
         self.assertEqual([i["ts"] for i in items], sorted((i["ts"] for i in items), reverse=True))
         for i in items:
-            self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"})
+            self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"} | ({"started"} if i["kind"] == "session" else set()))
         self.assertIn("memory revised (revision 2)", [i["what"] for i in items])
 
     def test_limit_is_validated_and_applied(self):
