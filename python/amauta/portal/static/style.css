@@ -259,7 +259,7 @@ label.check { display: inline-flex; align-items: center; gap: var(--s1); min-hei
   cursor: pointer; }
 input[type="checkbox"] { inline-size: 1.125rem; block-size: 1.125rem; margin: 0; flex: none; }
 .page-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s4); row-gap: var(--s1); }
-.page-head > .lead { flex-basis: 100%; }
+#view .page-head > .lead { flex: 0 0 100%; max-width: none; padding-right: max(0px, calc(100% - 72ch)); }
 .axis { stroke: var(--line); }
 .f-input { fill: var(--c-input); } .f-output { fill: var(--c-output); } .f-cache_read { fill: var(--c-cache-read); } .f-cache_write { fill: var(--c-cache-write); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-bottom: var(--s2); font-size: 0.8125rem; }
