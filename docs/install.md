@@ -33,5 +33,7 @@ Output styles, agents and SDD commands are Claude-only; usage from both runtimes
 step (`hook sync-check`, silent, a hash compare when nothing moved) runs it by itself when a source changed. `amauta status`
 reports drift ("Codex out of sync"), MCP conflicts, and a parity section (MCP servers, skills and instruction blocks in one
 runtime and not the other, hooks without a Codex event; informational, `--json` adds a `parity` key). Redirect with
-`--codex-home` / `AMAUTA_CODEX_HOME` (else `CODEX_HOME`) and `--codex-skills-dir` / `AMAUTA_CODEX_SKILLS_DIR`. State lives in
+`--codex-home` / `AMAUTA_CODEX_HOME` (else `<claude home>/.codex` when the Claude home is custom, else `CODEX_HOME`, else
+`~/.codex`, which is `%USERPROFILE%\.codex` on Windows; empty values count as unset, and the portal uses the same order)
+and `--codex-skills-dir` / `AMAUTA_CODEX_SKILLS_DIR`. State lives in
 `<state dir>/codex-state.json`; backups and `amauta restore --backup ID` work for Codex files too.

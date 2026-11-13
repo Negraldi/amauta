@@ -35,3 +35,9 @@ test('a custom claude home sandboxes codex too and ignores the ambient CODEX_HOM
   assert.equal(t.codexSkillsDir, path.join('/sandbox/.claude', '.codex', '.agents', 'skills'));
   assert.equal(t.stateDir, path.join('/sandbox/.claude', '.amauta'));
 });
+
+test('an empty CODEX_HOME or AMAUTA_CODEX_HOME counts as unset, as Codex itself treats an empty CODEX_HOME', () => {
+  assert.equal(resolveCodexTargets({}, { CODEX_HOME: '' }, HOME).codexHome, '/fake/home/.codex');
+  assert.equal(resolveCodexTargets({}, { AMAUTA_CODEX_HOME: '' }, HOME).codexHome, '/fake/home/.codex');
+  assert.equal(resolveCodexTargets({}, { AMAUTA_CODEX_HOME: '', CODEX_HOME: '/b/codex' }, HOME).codexHome, '/b/codex');
+});

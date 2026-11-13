@@ -4,7 +4,8 @@
  * Installed command: `node <bin> hook event <Event> [--state-dir DIR] --with a,b,c [--runtime codex]`. The handler list
  * is written by install, so the settings file says exactly what runs. Input: the hook JSON on stdin, read once.
  * Handlers run in the listed order; Node handlers run in this process, Python handlers are started with `spawn` (no
- * shell, no `env` or `timeout` binaries) using AMAUTA_PYTHON or `python3`. Output: at most one merged decision.
+ * shell, no `env` or `timeout` binaries) using AMAUTA_PYTHON or the platform default (`python3`; `python` on Windows).
+ * Output: at most one merged decision.
  * Side effects: the handlers' own, plus `<state dir>/stop-policy/<session>.json` for the Stop policy (at most two
  * blocks per turn). Failure mode: fail open (no output, exit 0), except the SDD preflight, which denies an `sdd-*`
  * dispatch it could not check. The privacy handler prints decisions (ask, a warning) but never a deny (ADR 0007).
@@ -13,7 +14,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { writeFileAtomic } from '../core/fsatomic.js';
-import { PREFLIGHT_DENY, PYTHON_PATH } from '../install/servers.js';
+import { DEFAULT_PYTHON, PREFLIGHT_DENY, PYTHON_PATH } from '../install/servers.js';
 import { resolveTargets } from '../install/paths.js';
 import { syncIfChanged } from '../install/fingerprint.js';
 import { refreshRegistry } from '../registry/skill-registry.js';
@@ -143,7 +144,8 @@ export async function dispatchEvent(opts) {
   if (stateDir) process.env.AMAUTA_STATE_DIR = stateDir;
   if (runtime) process.env.AMAUTA_RUNTIME = runtime;
   const pythonEnv = { ...process.env, PYTHONPATH: PYTHON_PATH, AMAUTA_STATE_DIR: dir, ...(runtime ? { AMAUTA_RUNTIME: runtime } : {}) };
-  const ctx = { event, raw, pythonEnv, stateDir: dir, searchPath, python: python ?? process.env.AMAUTA_PYTHON ?? 'python3' };
+  const interpreter = python ?? process.env.AMAUTA_PYTHON ?? DEFAULT_PYTHON;
+  const ctx = { event, raw, pythonEnv, stateDir: dir, searchPath, python: interpreter };
   const decisions = [];
   for (const name of names) {
     const handler = registry[name];

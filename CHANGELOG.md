@@ -41,6 +41,15 @@ All notable changes to this project are documented here. The format follows [Kee
   (install does not keep them by itself). `AMAUTA_INSTALL_ROOT` (internal) tells a previewing installer the real
   install's checkout.
 
+### Fixed
+
+- Codex home discovery agrees between the installer and the portal: `AMAUTA_CODEX_HOME`, then `<claude home>/.codex`
+  for a custom Claude home, then `CODEX_HOME`, then `~/.codex` (`%USERPROFILE%\.codex` on Windows). The portal and
+  `amauta.usage` ignored `CODEX_HOME`, and an empty `CODEX_HOME` made the installer use the current directory (Codex
+  itself treats it as unset).
+- Windows: with no `--python` or `AMAUTA_PYTHON`, hooks and the memory server use `python` instead of `python3`, which a
+  python.org install does not provide.
+
 ## [0.7.0] - 2026-11-09
 
 ### Added

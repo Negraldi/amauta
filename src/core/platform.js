@@ -45,6 +45,12 @@ export function quoteArg(arg, platform = process.platform) {
   return /^[A-Za-z0-9_./@:+,=-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`;
 }
 
+/**
+ * The Python interpreter used when none was chosen: `python3` on POSIX; `python` on Windows, where the python.org
+ * installer provides `python.exe` and `py.exe` but no `python3.exe` (that name is only the Microsoft Store alias).
+ */
+export const defaultPython = (platform = process.platform) => (platform === 'win32' ? 'python' : 'python3');
+
 /** The `fs.symlink` type for a directory link: a junction on Windows (no administrator rights), a symlink elsewhere. */
 export const linkType = (platform = process.platform) => (platform === 'win32' ? 'junction' : 'dir');
 

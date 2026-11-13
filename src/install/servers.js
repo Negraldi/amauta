@@ -1,10 +1,10 @@
 import path from 'node:path';
-import { quoteArg } from '../core/platform.js';
+import { defaultPython, quoteArg } from '../core/platform.js';
 import { installRoot } from './assets.js';
 
 export const PYTHON_PATH = path.join(installRoot, 'python');
 /** The interpreter used when install was not told one (`--python`, AMAUTA_PYTHON); commands then carry no flag. */
-export const DEFAULT_PYTHON = 'python3';
+export const DEFAULT_PYTHON = defaultPython();
 
 /** Our Python memory MCP server (stdlib only; replaces the compiled engram binary). */
 export const memoryServer = (stateDir, python = DEFAULT_PYTHON) => ({
