@@ -67,9 +67,9 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T18a Every diagram caller (harness architecture, graph neighbours on Graph and node pages, wiki page diagrams, project task progress) picks its layout for the width it gets; a sequence too wide for the box becomes numbered steps (commit 2838986)
 
 - [ ] T19 Every open item (user, 2026-11-14: "continue resolving all the open items"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer per subtask, one at a time; coordinator checks in the browser):
-  - [ ] T19a Errors read as the portal's words: the network message drops the browser's raw reason; part-level errors offer a retry; error pages keep a precise title, breadcrumb and the project tab bar
-  - [ ] T19b Today loads in one request wave
-  - [ ] T19c Checkbox targets are at least 24 px at 375 px
+  - [x] T19a Errors read as the portal's words: the network message drops the browser's raw reason; part-level errors offer a retry; error pages keep a precise title, breadcrumb and the project tab bar (04a0409, with T19b; helpers moved to new `errors.js`; browser-checked: architecture Retry redraws the diagram, failed project keeps its tabs; a failed guide page says "Guía" since its title is unknown without the fetch)
+  - [x] T19b Today loads in one request wave (04a0409)
+  - [x] T19c Checkbox targets are at least 24 px at 375 px (6e7fd2f)
   - [ ] T19d Diagrams: the adaptive layout also turns subgraph directions and BT/RL charts; a flowchart that cannot fit a narrow box is shown as an outline with a control to see the diagram; the harness architecture fits 1280 px with text of 11 px or more
   - [ ] T19e Catalog: a runtime filter (Claude Code, Codex, both) and the instruction blocks as catalog entries
   - [ ] T19f Personal skill links fall back to a marked copy where a symlink cannot be made, refreshed on each sync and removed like a link
