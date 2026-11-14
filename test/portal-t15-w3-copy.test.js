@@ -82,3 +82,10 @@ test('E7: Settings help names the real page (Harness wiki / Overview)', async ()
   const d = await readDicts();
   for (const l of ['en', 'es']) assert.doesNotMatch(d[l]['set.mod.archify.help'], /P(ági|ag)na Harness|Harness page/);
 });
+
+test('D12: "1 session before" is singular in both languages', async () => {
+  const { readDicts } = await import('./helpers/portalboot.js');
+  const d = await readDicts();
+  assert.match(d.es['impact.sessionsAround.one'], /\{before\} sesión antes/);
+  assert.match(d.en['impact.sessionsAround.one'], /\{before\} session before/);
+});

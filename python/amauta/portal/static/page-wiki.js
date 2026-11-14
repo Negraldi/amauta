@@ -106,7 +106,7 @@ function changeItem(c) {
   const when = R.fmtDate(c.when || c.ts);
   const lines = c.suppressed ? [h("p", { class: "muted" }, c.reason ? ts(c.reason) : t("impact.tooFew"))] : Object.entries(c.metrics).filter(([, m]) => m.delta != null).map(([name, m]) =>
     h("li", null, t("impact.beforeAfter", { label: ts(m.label), before: R.fmtMetric(name, m.before, words()), after: R.fmtMetric(name, m.after, words()) }) + " ", markSpan(m), h("span", { class: "muted" }, " " + t("impact.n", { before: fmt(m.n_before), after: fmt(m.n_after) }))));
-  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, ", " + t("impact.sessionsAround", { when, before: fmt(c.before_sessions), after: fmt(c.after_sessions) })), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
+  return h("li", null, h("strong", null, head), h("span", { class: "muted" }, ", " + tn("impact.sessionsAround", c.before_sessions, { when, before: fmt(c.before_sessions), after: fmt(c.after_sessions) })), c.suppressed ? lines[0] : h("ul", { class: "items" }, lines));
 }
 function impactBlock(im) {
   if (!im) return null;

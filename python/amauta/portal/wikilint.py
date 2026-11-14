@@ -268,7 +268,8 @@ def _unevidenced(text):
                     found = True
                     break
         if not found:
-            missing.append(tid or m.group(1)[:40])
+            if (tid or m.group(1)[:40]) not in missing:  # one id checked on two lines is listed once
+                missing.append(tid or m.group(1)[:40])
     return checked, missing
 
 

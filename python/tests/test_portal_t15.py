@@ -323,3 +323,11 @@ class GuideNavNamesTest(unittest.TestCase):
 
     def test_english_table(self):
         self.assertEqual(self.check("en"), [])
+
+
+class LintIdsTest(unittest.TestCase):
+    def test_an_id_checked_twice_is_listed_once(self):
+        from python.amauta.portal import wikilint
+        text = "- [x] T3c first\n- [x] T3c again\n- [x] T4 other\n"
+        checked, missing = wikilint._unevidenced(text)
+        self.assertEqual((checked, missing), (3, ["T3c", "T4"]))

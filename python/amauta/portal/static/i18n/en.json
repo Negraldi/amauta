@@ -190,7 +190,6 @@
  "impact.noOutcomes": "Tool outcomes are not recorded yet: run Refresh usage so the transcripts are read again.",
  "impact.notLoaded": "This skill was not loaded in the last {days} days, so there is nothing to compare.",
  "impact.sameProject": "same project",
- "impact.sessionsAround": "{when}: {before} sessions before, {after} after",
  "impact.summary": "{exposed} sessions loaded this skill in the last {days} days; {control} sessions without it ({scope}) form the baseline. Values below {min} sessions on either side are withheld.",
  "impact.title": "Impact (comparative)",
  "impact.tooFew": "too few sessions",
@@ -966,5 +965,7 @@
  "explain.basedOn": "Based on:",
  "pipe.howTo": "How a project defines them",
  "pipe.histLatest": "Latest: {run}",
- "project.originLegend": "Found by: \"Saved in Settings\" means you added it in Settings; \"Your sessions\" means found in the folders your sessions ran in; \"Command line\" means added when the portal was started."
+ "project.originLegend": "Found by: \"Saved in Settings\" means you added it in Settings; \"Your sessions\" means found in the folders your sessions ran in; \"Command line\" means added when the portal was started.",
+ "impact.sessionsAround.one": "{when}: {before} session before, {after} after",
+ "impact.sessionsAround.other": "{when}: {before} sessions before, {after} after"
 }

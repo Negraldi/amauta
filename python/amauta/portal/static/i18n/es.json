@@ -190,7 +190,6 @@
  "impact.noOutcomes": "Aún no se registran los resultados de las herramientas: pulse Actualizar uso para que se vuelvan a leer las transcripciones.",
  "impact.notLoaded": "Esta skill no se cargó en los últimos {days} días, así que no hay nada que comparar.",
  "impact.sameProject": "el mismo proyecto",
- "impact.sessionsAround": "{when}: {before} sesiones antes, {after} después",
  "impact.summary": "{exposed} sesiones cargaron esta skill en los últimos {days} días; {control} sesiones sin ella ({scope}) forman la línea base. Se omiten los valores con menos de {min} sesiones en cualquiera de los lados.",
  "impact.title": "Impacto (comparativo)",
  "impact.tooFew": "muy pocas sesiones",
@@ -966,5 +965,7 @@
  "explain.basedOn": "Basado en:",
  "pipe.howTo": "Cómo los define un proyecto",
  "pipe.histLatest": "Última: {run}",
- "project.originLegend": "Encontrado por: «Guardado en Configuración» significa que usted lo agregó en Configuración; «Sus sesiones», encontrado en las carpetas donde se ejecutaron sus sesiones; «Línea de comandos», agregado al iniciar el portal."
+ "project.originLegend": "Encontrado por: «Guardado en Configuración» significa que usted lo agregó en Configuración; «Sus sesiones», encontrado en las carpetas donde se ejecutaron sus sesiones; «Línea de comandos», agregado al iniciar el portal.",
+ "impact.sessionsAround.one": "{when}: {before} sesión antes, {after} después",
+ "impact.sessionsAround.other": "{when}: {before} sesiones antes, {after} después"
 }
