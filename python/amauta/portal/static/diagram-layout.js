@@ -14,11 +14,17 @@ function diagramCandidates(src) {
     const seq = (width, actorMargin) => initLine({ sequence: { wrap: true, width, actorMargin, messageMargin: 28 } }) + src;
     return [src, seq(150, 40), seq(120, 24), seq(90, 8)];
   }
-  const dir = /^(\s*(?:flowchart|graph)\s+)(TD|TB|LR)\b/m.exec(src);
+  const dir = /^(\s*(?:flowchart|graph)\s+)(TD|TB|BT|LR|RL)\b/m.exec(src);
   if (!dir) return [src];
-  const flip = src.replace(dir[0], dir[1] + (dir[2] === "LR" ? "TD" : "LR"));
+  // Flip across axes keeping the arrow sense: BT (up) <-> RL (leftwards), TD/TB <-> LR; LR reads back as TD.
+  const FLIPPED = { TD: "LR", TB: "LR", LR: "TD", BT: "RL", RL: "BT" };
+  const flip = src.replace(dir[0], dir[1] + FLIPPED[dir[2]]);
   const tight = (s, wrappingWidth) => initLine({ flowchart: { nodeSpacing: 18, rankSpacing: 36, wrappingWidth } }) + s;
-  return [src, tight(src, 160), tight(flip, 160), tight(flip, 120), tight(src, 110)];
+  // A subgraph with its own horizontal direction defeats a top-level flip: turn it to TB (a long row becomes a column).
+  const nested = /^\s*direction\s+(?:LR|RL)\b/m.test(src);
+  const column = (s) => s.replace(/^(\s*direction\s+)(?:LR|RL)\b/gm, "$1TB");
+  const base = [src, tight(src, 160), tight(flip, 160), tight(flip, 120), tight(src, 110)];
+  return nested ? base.concat(tight(column(src), 160), tight(column(flip), 120), tight(column(src), 110)) : base;
 }
 // measured: [{source, width}] in candidate order. The first that fits `avail`, else the narrowest; null when nothing was measured.
 function pickLayout(measured, avail) {

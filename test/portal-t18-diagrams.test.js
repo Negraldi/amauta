@@ -64,7 +64,7 @@ test('onDrawn is optional', async () => {
 
 test('kinds without a layout to try pass through unchanged and still draw', async () => {
   const kinds = ['pie title Pets\n  "Dogs" : 3', 'gantt\n  title T\n  section S\n  A :a1, 2026-01-01, 3d', 'stateDiagram-v2\n  [*] --> A',
-    'flowchart BT\n  A --> B', 'graph RL\n  A --> B'];
+    'flowchart\n  A --> B'];
   const { c } = await drawn(FLOW, { width: 600 });
   for (const k of kinds) assert.deepEqual(candidates(c, k), [k], k.split('\n')[0]);
   for (const k of kinds) {
