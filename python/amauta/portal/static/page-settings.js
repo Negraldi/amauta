@@ -227,7 +227,10 @@ function languageSection() {
   return h("section", { class: "option-group" }, title,
     h("div", { class: "option" }, pick, h("p", { id: "set-lang-help", class: "option-help muted" }, t("set.lang.help"))));
 }
-async function appearanceTab() { return [h("p", { class: "muted" }, t("theme.intro")), ...(await viewThemes()), languageSection()]; }
+async function appearanceTab() {
+  const editor = await viewThemes(); // loads the themes first: the picker below lists them
+  return [h("p", { class: "muted" }, t("theme.intro")), themeSection(), ...editor, languageSection()];
+}
 
 // The page: one title, the tabs (links that keep the tab in the URL) and the active tab's body, loaded inside its own panel.
 const SETTINGS_BODIES = () => ({ preferences: preferencesTab, projects: projectsTab, appearance: appearanceTab });

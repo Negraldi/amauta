@@ -9,10 +9,27 @@ const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateT
 const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((th) => `custom:${th.slug}` === state.themeChoice) ? "system" : state.themeChoice);
 const onAppearance = (route) => route.kind === "settings" && R.settingsTab(route) === "appearance"; // the editor previews its draft here
 function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); redrawDiagrams(); }
+const themeOptions = () => [["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")], ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])]
+  .map(([v, l]) => h("option", { value: v }, l));
+// One list, one choice: the top-bar popover (#theme-picker) and the Appearance tab (#set-theme) are painted by the same code and both call chooseTheme.
 function paintPicker() {
-  const pick = $("theme-picker");
-  pick.replaceChildren(...[["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")], ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])].map(([v, l]) => h("option", { value: v }, l)));
+  for (const id of ["theme-picker", "set-theme"]) {
+    const pick = document.getElementById(id);
+    if (!pick) continue;
+    pick.replaceChildren(...themeOptions());
+    pick.value = effectiveChoice();
+  }
+}
+function themeSelect() {
+  const pick = h("select", { id: "set-theme", "aria-labelledby": "set-theme-title", "aria-describedby": "set-theme-help" });
+  pick.addEventListener("change", (e) => chooseTheme(e.target.value));
+  pick.replaceChildren(...themeOptions());
   pick.value = effectiveChoice();
+  return pick;
+}
+function themeSection() {
+  return h("section", { class: "option-group" }, h("h2", { id: "set-theme-title" }, t("chrome.theme")),
+    h("div", { class: "option" }, themeSelect(), h("p", { id: "set-theme-help", class: "option-help muted" }, t("set.theme.help"))));
 }
 async function loadThemes() {
   try { state.themes = (await api("themes")).themes || []; } catch (_) { state.themes = []; }
