@@ -10,7 +10,7 @@ function graphDiagram(repo, node, depth) {
     if (!d.source) box.replaceChildren(empty(t("graph.nothing")));
     else {
       const source = localizeGraphSource(d.source);
-      box.replaceChildren(diagramBox(source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? nearestNote(30, d) : null);
+      box.replaceChildren(adaptiveDiagram(source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? nearestNote(30, d) : null);
     }
   }).catch((err) => box.replaceChildren(errorNote(err)));
   return box;
@@ -180,7 +180,7 @@ function archifyBlock(d) {
   const label = t("harness.installArch");
   const scroller = d.fallback
     ? h("div", { class: "arch-scroll", "data-size": "full", tabindex: 0, role: "region", "aria-label": label },
-      diagramBox(d.fallback, label, (box) => { fitDiagram(box); centerScroll(scroller); })) : null;
+      adaptiveDiagram(d.fallback, label, (box) => { fitDiagram(box); centerScroll(scroller); })) : null;
   return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
     scroller ? archSizeToggle(scroller) : null, scroller, full);
 }

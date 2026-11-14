@@ -177,7 +177,7 @@ function oddDiagramsBlock(pg) {
     const body = h("div", null), name = String(d.name).replace(/\.md$/, ""); // the feature, not its file
     let drawn = false;
     const draw = () => {
-      if (!drawn) { drawn = true; body.replaceChildren(diagramBox(d.source, t("project.progressOf", { name }))); }
+      if (!drawn) { drawn = true; body.replaceChildren(adaptiveDiagram(d.source, t("project.progressOf", { name }))); }
     };
     const head = t("project.featureDone", { name, done: fmt(d.done), total: fmt(d.total) });
     const det = h("details", { open: i === 0 }, h("summary", null, head), body);

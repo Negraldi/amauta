@@ -3,7 +3,7 @@
 // flipped direction with wrapped labels; for a sequence, wrapped messages in less room). Each is measured by its rendered width and
 // the first one that fits the box is drawn, else the narrowest (fit.js then scales it to the text floor and the box scrolls).
 // A sequence that cannot fit even at the floor is shown as an ordered list of steps. The pure parts come first.
-// Shares the globals of app.js and fit.js, loaded before; the guide page draws its diagrams with adaptiveDiagram.
+// Shares the globals of app.js and fit.js, loaded before; every page draws its diagrams with adaptiveDiagram (T18a).
 
 const isSequence = (src) => /^\s*sequenceDiagram/m.test(src);
 // The init directive is added by this code only, from numbers: user text never reaches it.
@@ -86,7 +86,8 @@ function watchLayouts() {
     layoutTimer = setTimeout(() => layoutBoxes.forEach((b) => (b.isConnected === false ? layoutBoxes.delete(b) : b.relayout())), 300);
   });
 }
-function adaptiveDiagram(src, caption) {
+// onDrawn(box), when given, runs after every layout draw (the first one and each relayout).
+function adaptiveDiagram(src, caption, onDrawn) {
   const label = caption || t("diagram.label");
   const box = h("div", { class: "diagram scroll", role: "img", "aria-label": label }, h("p", { class: "muted" }, t("common.rendering")));
   const entry = { box, source: src, drawn: false, steps: false, redraw: () => { if (!entry.steps) drawMermaid(entry.source, box); } };
@@ -97,7 +98,7 @@ function adaptiveDiagram(src, caption) {
     const avail = box.clientWidth - BOX_PAD;
     if (Math.abs(avail - lastAvail) < 2) return;
     lastAvail = avail;
-    chooseLayout(box, src, label, entry, ++box.layoutToken, avail).then(() => { entry.drawn = true; });
+    chooseLayout(box, src, label, entry, ++box.layoutToken, avail).then(() => { entry.drawn = true; if (onDrawn) onDrawn(box); });
   };
   diagrams = diagrams.filter((d) => !gone(d)).concat(entry);
   layoutBoxes.add(box);

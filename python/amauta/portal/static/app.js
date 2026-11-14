@@ -150,13 +150,6 @@ async function drawMermaid(source, into) {
 // only a drawn box that has left the page is dropped.
 let diagrams = [];
 const gone = (d) => d.drawn && d.box.isConnected === false;
-function diagramBox(source, caption, onDrawn) {
-  const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || t("diagram.label") }, h("p", { class: "muted" }, t("common.rendering")));
-  const entry = { box, source, drawn: false };
-  diagrams = diagrams.filter((d) => !gone(d)).concat(entry);
-  drawMermaid(source, box).then(() => { entry.drawn = true; if (onDrawn) onDrawn(box); });
-  return box;
-}
 async function redrawDiagrams() {
   if (!mermaidReady || !diagrams.length) return;
   const mermaid = await mermaidReady.catch(() => null);

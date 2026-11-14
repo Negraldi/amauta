@@ -77,7 +77,7 @@ function commitsBlock(commits) {
 // Graph node: the neighborhood diagram is drawn lazily (mermaid loads on first use) from source the server generated with every label escaped.
 function nodeDiagramBlock(diagram) {
   if (!diagram || !diagram.source) return null;
-  const box = diagramBox(localizeGraphSource(diagram.source), t("node.neighborsOfThis"));
+  const box = adaptiveDiagram(localizeGraphSource(diagram.source), t("node.neighborsOfThis"));
   return h("section", { class: "page-section" }, h("h2", null, t("node.neighborhood")), box,
     diagram.truncated ? nearestNote(R.NODE_CAP, diagram) : null);
 }
@@ -135,7 +135,8 @@ function pageExtras(pg) {
 function bodyNodes(pg, text = pg.body_md) {
   const known = (kind, id) => !(pg.missing || []).some((m) => m.kind === kind && m.id === id);
   let diagrams = 0;
-  const mermaid = (src) => (++diagrams <= 5 ? diagramBox(src, t("diagram.mermaid")) : h("pre", { class: "code" }, h("code", null, src)));
+  const mermaid = (src) => (++diagrams <= 5 ? adaptiveDiagram(src, t("diagram.mermaid"))
+    : h("pre", { class: "code" }, h("code", null, src)));
   return MD.toDom(MD.parse(text), document, { known, mermaid, headingOffset: 1, labels: { missing: (kind, id) => t("md.missing", { kind, id }), table: t("table.label") } });
 }
 

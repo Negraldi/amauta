@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
-import { makeEnv, Element } from './helpers/fakedom.js';
+import { makeEnv, Element, giveLayout } from './helpers/fakedom.js';
+giveLayout();
 import { runPortal, STATIC, readApp, readDicts } from './helpers/portalboot.js';
 
 process.env.TZ = 'UTC';
@@ -184,11 +185,12 @@ test('Mermaid draws with the current theme tokens: a dark page gets a dark diagr
 
 test('changing the theme redraws the diagrams on the page with the new tokens', async () => {
   const b = await bootDiagram('light');
-  assert.equal(b.log.render.length, 1);
+  const before = b.log.render.length; // the candidate layouts measured, then the pick drawn
+  assert.ok(before >= 1);
   Object.assign(b.tokens, T.BASES.dark); // what the stylesheet resolves to once data-theme="dark" is set
   vm.runInContext('chooseTheme("dark")', b.ctx);
   await tick();
-  assert.equal(b.log.render.length, 2, 'drawn again');
+  assert.equal(b.log.render.length, before + 1, 'drawn again, once, without measuring');
   assert.equal(b.log.init.at(-1).themeVariables.background, T.toHex(T.BASES.dark.bg));
 });
 
