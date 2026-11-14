@@ -32,7 +32,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T16a Sessions list fits 1280 px without sideways scroll (2c9d774; title wraps anywhere, project clipped with title, tighter cells; pixel width not browser-measured)
   - [x] T16b Today feed never shows a partial oldest day without saying so (01599ec; server flag activity_cut, client note)
   - [x] T16c Settings > Appearance has a theme picker (same themes as the Display popover) (3e0cc00)
-  - [ ] T16d Review of the cells T15 left out: dark theme at 1024 and 375 px, loading and server-error states; fix findings
+  - [x] T16d Review of the cells T15 left out: dark theme at 1024 and 375 px, loading and server-error states; fix findings
   - [x] T16e Codex tool calls recorded (03dfb0e): Codex rollouts feed `tool_calls` (name only; `namespace.name`, MCP as `mcp__server__tool`); old rollouts rescan once; portal copy now says none were found only when true
 - [x] T17 Guide layout and adaptive diagrams (user, 2026-11-14: the contents column splits the screen; diagrams should fit different widths; user chose the page selector above the article over a sidebar index; TDD on; route: one delegated sonnet writer from a browser-verified prototype):
   - [x] T17a Guide: page selector above the article plus previous/next links; the contents column is gone (f14249e)
@@ -392,10 +392,20 @@ Target after redesign: >= 32/40, no P1.
 - Test files a writer loosened, to be confirmed by the owner: `portal-ui.test.js` skips the `onerror` text check for
   `title` attributes; `portal-i18n.test.js` ALLOW list gained `%%{init:`.
 
+### T16d, T16e and T18 closed (coordinator, 2026-11-14)
+
+- T18 (`2838986`, `b1c9dc5`): adaptive diagrams on every view; browser-checked at 1280, 1024 and 375 px. The harness architecture diagram still scrolls at every width (1342 px).
+- T16e (`03dfb0e`): Codex tool calls are read from rollouts. Checked against one real rollout in memory (3020 tool rows), nothing written to the real state.
+- T16d: two sonnet reviewers (dark at 1024/375; loading and error states), then one sonnet writer (delegated: more than two files), commits `314c3b5`, `e699a87`, and `c3cbeaf` (coordinator, inline: Spanish number agreement in the part error).
+  Reviewer finding "scroll hint and tab stop missing on guide and security" was not reproduced in the browser (light and dark, 1024 and 375) and was dropped.
+  Browser-checked with in-page fetch failures, nothing saved: partial component count says so, the architecture section and the theme list show an error note, the page error has no raw route, loading is announced in `#status` and cleared.
+  Not browser-checked: same-route busy state, palette failure, history mark border, sparkline text (covered by tests only).
+- Checks at head: Node 1227/1227; Python 1077 run, 1 known failure (`test_a_missing_scheduled_run_is_noticed`), 2 skipped.
+
 ## Next step
 
 T17 done and verified. Push and PR are the owner's decision. Open:
-- T16d: review of the dark theme at 1024 and 375 px and of loading and server-error states; fix findings.
+- T16d leftovers (P3, not fixed): part-level errors have no retry; error-page titles and breadcrumbs are less precise; `#/` loads in two request waves; 18 px checkboxes at 375 px (labels are the larger target); the network message still carries the browser's own reason in brackets. Not seen: palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages.
 - Phone flowcharts still scroll sideways (11 on 10 guide pages); two diagrams scroll at 1024 px.
 - Adaptive layout covers the guide only; other diagram callers keep fit-to-width.
 - Restart the amauta memory MCP server so mem_save refuses unspaced bodies.
