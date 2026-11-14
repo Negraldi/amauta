@@ -1,5 +1,31 @@
 # Feature: Portal redesign
 
+## Next session
+
+Read this first; it is written for any agent (Claude Code or Codex) picking the work up.
+
+- State (2026-11-14): tasks T1 to T18 are checked. Branch `feat/portal-redesign` is pushed; no pull request is open.
+  Opening one, merging and releasing are the owner's decisions.
+- What is left: the list under "Next step" at the end of this file. Nothing there blocks a merge; all of it is
+  polish or a check that could not be made.
+- Checks at the pushed head: `LANG=C node --test` (no directory argument) 1227 of 1227; from the repository root
+  `python3 -P -m unittest discover -s python/tests -t .` runs 1077 with one known failure
+  (`test_pipelines DeclaredScheduleTest.test_a_missing_scheduled_run_is_noticed`, it depends on the date) and 2 skipped.
+- How the work is done here: strict TDD (see the test fail first), one Conventional Commit per task with its tests
+  and docs, no AI attribution lines, English artifacts, the rules in `AGENTS.md` (simplicity ratchet, `MODULES.json`,
+  never touch the real home directories).
+- Portal conventions: a new static file is registered in `STATIC_FILES` (`python/amauta/portal/server.py`),
+  `index.html` and `test/helpers/portalboot.js`; every string goes through `i18n/en.json` and `i18n/es.json` with
+  identical keys (server strings through `srv-es.json`); Spanish copy is formal "usted"; colours come from the tokens
+  in `style.css`. Diagrams go through `adaptiveDiagram()` in `static/diagram-layout.js`; a part that fails to load
+  shows `errorNote(err, what)`, never an empty state.
+- Seeing it in a browser: `PYTHONPATH=python python3 -P -m amauta.portal --port 8790` from the repository root. It
+  shows the owner's real data: look only. Do not save settings or themes, run or check pipelines, add or remove
+  projects, sync or refresh descriptions. A failure can be simulated by wrapping `fetch` in the page.
+- Design reviews: give the reviewer `docs/audits/portal-critique-checklist.md` (coverage matrix and 31 learned
+  classes) and verify each finding in the browser before fixing it; one reviewer finding in T16d did not reproduce.
+- Memory, when the engram MCP server is available: project `amauta`, topic `odd/portal-redesign/tasks`.
+
 ## Objective
 
 Rebuild the portal UI (python/amauta/portal/static) with a job-based information architecture and a fresh
