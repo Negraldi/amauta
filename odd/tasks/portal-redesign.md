@@ -34,9 +34,9 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T16c Settings > Appearance has a theme picker (same themes as the Display popover) (3e0cc00)
   - [ ] T16d Review of the cells T15 left out: dark theme at 1024 and 375 px, loading and server-error states; fix findings
   - [ ] T16e Codex tool calls recorded: BLOCKED, needs a Codex rollout sample the owner provides (reading the real `~/.codex` was denied on 2026-11-14)
-- [ ] T17 Guide layout and adaptive diagrams (user, 2026-11-14: the contents column splits the screen; diagrams should fit different widths; user chose the page selector above the article over a sidebar index; TDD on; route: one delegated sonnet writer from a browser-verified prototype):
-  - [ ] T17a Guide: page selector above the article plus previous/next links; the contents column is gone
-  - [ ] T17b Diagrams pick a layout for the width they get (direction, wrapped labels, spacing); a sequence that cannot fit a phone is shown as numbered steps
+- [x] T17 Guide layout and adaptive diagrams (user, 2026-11-14: the contents column splits the screen; diagrams should fit different widths; user chose the page selector above the article over a sidebar index; TDD on; route: one delegated sonnet writer from a browser-verified prototype):
+  - [x] T17a Guide: page selector above the article plus previous/next links; the contents column is gone (f14249e)
+  - [x] T17b Diagrams pick a layout for the width they get (direction, wrapped labels, spacing); a sequence that cannot fit a phone is shown as numbered steps (7f59991)
 
 ## Acceptance criteria
 
