@@ -1,11 +1,17 @@
 """T15 W1: caps and counts. A list cut for length says how many there are and where the rest is; counts are real."""
+import os
+import time
 from unittest import mock
 
 from python.amauta.graph import query as graph_query
 
-from python.amauta.portal import wikiproject
+from python.amauta.memory import store as mstore
+from python.amauta.portal import wikiproject, wikiusage
+from python.amauta.usage import ingest
 from python.tests import test_portal_projects as tp
+from python.tests import test_portal_wiki_tools as tt
 from python.tests.test_portal_wiki import WikiBase
+from python.tests.test_usage import assistant, tool_use, write_jsonl
 
 
 class FeatureDiagramsTest(tp.ProjectBase):
@@ -69,3 +75,41 @@ class DiagramCapTest(WikiBase):
     def test_the_node_page_diagram_says_the_same(self):
         with mock.patch.object(graph_query, "NODE_LIMIT", 2):
             self.assertTrue(self.page("node", "repo::a")["diagram"]["capped"])
+
+
+class ToolPageCountsTest(tt.ToolsBase):
+    """D4 and D3: the sessions list says how many there are in all, and the 30-day chart ends on the local day."""
+
+    def add_sessions(self, n, tz_ts="2026-10-06T10:00:00.000Z"):
+        for i in range(n):
+            write_jsonl(self.f["home"] / "projects" / "-many" / f"b{i}.jsonl",
+                        [assistant(f"b{i}-m", [tool_use("Bash", f"t{i}")], session=f"b{i}", ts=tz_ts, cwd="/work/many")])
+        conn = mstore.connect(self.f["state"] / "memory.db")
+        ingest.backfill(conn, self.f["home"])
+        conn.close()
+
+    def test_every_session_is_listed_up_to_a_cap(self):
+        self.add_sessions(30)
+        pg = self.page("tool", "Bash")
+        sessions = [b for b in pg["backlinks"] if b["kind"] == "session"]
+        self.assertEqual((len(sessions), pg["backlinks_more"]), (32, 0))
+        self.assertEqual(self.meta(pg)["Sessions"], "32")
+
+    def test_a_cut_session_list_says_how_many_are_missing(self):
+        self.add_sessions(30)
+        with mock.patch.object(wikiusage, "SESSION_REFS", 20):
+            pg = self.page("tool", "Bash")
+        self.assertEqual((len([b for b in pg["backlinks"] if b["kind"] == "session"]), pg["backlinks_more"]), (20, 12))
+
+    def test_the_thirty_day_window_ends_on_the_local_day_of_the_last_call(self):
+        self.addCleanup(lambda: (os.environ.pop("TZ", None), time.tzset()))
+        os.environ["TZ"] = "America/Bogota"  # UTC-5: 2026-10-05T02:00Z is still 2026-10-04 here
+        time.tzset()
+        write_jsonl(self.f["home"] / "projects" / "-late" / "late.jsonl",
+                    [assistant("late-m", [tool_use("Glob", "g1")], session="late", ts="2026-10-05T02:00:00.000Z", cwd="/work/late")])
+        conn = mstore.connect(self.f["state"] / "memory.db")
+        ingest.backfill(conn, self.f["home"])
+        conn.close()
+        daily = self.page("tool", "Glob")["usage"]["daily"]
+        self.assertEqual(daily[-1], {"day": "2026-10-04", "value": 1})
+        self.assertEqual(len(daily), 30)

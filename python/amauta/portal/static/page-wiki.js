@@ -17,8 +17,10 @@ function skeleton() {
 function teach(title, ...paras) {
   return h("div", { class: "teach" }, h("h1", null, title), ...paras.map((p) => h("p", null, p)), h("p", null, link("home", "", t("common.backHome"))));
 }
-function refList(refs) {
-  return h("ul", { class: "refs" }, refs.map((r) => h("li", null, link(r.kind, r.id, r.title, null, r.source), h("span", { class: "muted" }, ` ${kindLabel(r.kind)}`))));
+const REF_ROWS = 20; // a rail list opens on 20 rows; `total` (from the server) is the real number when it sent fewer
+function refList(refs, total) {
+  const row = (r) => h("li", null, link(r.kind, r.id, r.title, null, r.source), h("span", { class: "muted" }, ` ${kindLabel(r.kind)}`));
+  return pagedList(refs, REF_ROWS, row, { class: "refs" }, total);
 }
 function railBlock(title, body) { return body ? h("section", { class: "rail-block" }, h("h2", null, title), body) : null; }
 
@@ -177,7 +179,7 @@ async function viewWikiPage(kind, id, source) {
   // Every item's crumb is its title, never its raw id (a memory's "709"); a session's is its short id, as the session tables
   // show it, since its title is the whole label (project, first prompt or model and count, date).
   state.pageTitle = pg.kind === "session" ? String(pg.id).slice(0, 8) : pg.title || null;
-  const refs = (list) => (list.length ? refList(list) : null);
+  const refs = (list, more) => (list.length ? refList(list, list.length + (more || 0)) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
   const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");
   return [h("div", { class: "page" },
@@ -187,7 +189,7 @@ async function viewWikiPage(kind, id, source) {
       pg.refresh ? refreshControl(pg.refresh.server) : null, pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),
     h("aside", { class: "rail", "aria-label": t("page.details") }, railBlock(t("page.detailsTitle"), metaList(pg, keep)),
-      railBlock(t("page.links"), refs(pg.links)), railBlock(t("page.linkedFrom"), refs(pg.backlinks))))];
+      railBlock(t("page.links"), refs(pg.links)), railBlock(t("page.linkedFrom"), refs(pg.backlinks, pg.backlinks_more))))];
 }
 
 // A curated component carries its own Spanish text in `i18n.es`; every other text is the server's English (or the user's own words) run through ts().

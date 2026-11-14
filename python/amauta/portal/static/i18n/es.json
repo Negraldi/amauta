@@ -512,8 +512,8 @@
  "project.countAuto.other": "{n} proyectos, incluidas las raíces git encontradas en sus sesiones.",
  "uot.bar.one": "{day}: 1 llamada",
  "uot.bar.other": "{day}: {n} llamadas",
- "uot.summary.one": "1 llamada en los {days} días hasta {last}.",
- "uot.summary.other": "{n} llamadas en los {days} días hasta {last}.",
+ "uot.summary.one": "1 llamada en los últimos {days} días (hasta {last}).",
+ "uot.summary.other": "{n} llamadas en los últimos {days} días (hasta {last}).",
  "harness.review": "Modo de revisión",
  "table.empty": "No hay nada que mostrar para esta selección.",
  "set.privacy": "Hook de privacidad",
@@ -877,5 +877,6 @@
  "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente.",
  "harness.fitWidth": "Ajustar al ancho",
  "more.button": "Mostrar más",
- "more.showing": "Se muestran {shown} de {total}."
+ "more.showing": "Se muestran {shown} de {total}.",
+ "meta.Calls": "Llamadas en total"
 }

@@ -4,16 +4,17 @@
 
 // A list of `rows` that shows `page` of them, then "Showing N of M." with a Show more button until all are on the page.
 // `renderRow(row)` returns one element; `extra` adds attributes to the <ul>. `total` is the real size when the rows
-// themselves are only a part (then no button, only the honest sentence).
-function pagedList(rows, page, renderRow, extra) {
+// themselves are only a part (the server cut them): the sentence keeps saying so after every row sent is on the page.
+function pagedList(rows, page, renderRow, extra, total) {
   const list = h("ul", extra || { class: "items" }, rows.slice(0, page).map(renderRow));
-  if (rows.length <= page) return list;
+  const all = Math.max(total || 0, rows.length);
+  if (all <= page) return list;
   const box = h("div", null);
-  let shown = page;
+  let shown = Math.min(page, rows.length);
   const button = h("button", { type: "button", class: "show-more" }, t("more.button"));
   const draw = () => {
-    const note = h("p", { class: "muted" }, t("more.showing", { shown: fmt(shown), total: fmt(rows.length) }));
-    box.replaceChildren(list, ...(shown < rows.length ? [note, button] : []));
+    const note = h("p", { class: "muted" }, t("more.showing", { shown: fmt(shown), total: fmt(all) }));
+    box.replaceChildren(list, ...(shown < all ? [note] : []), ...(shown < rows.length ? [button] : []));
   };
   button.addEventListener("click", () => {
     const added = rows.slice(shown, shown + page).map(renderRow);

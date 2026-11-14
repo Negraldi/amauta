@@ -17,6 +17,7 @@ FRONT_KEYS = 12
 FRONT_VALUE = 300
 DAYS = 30
 RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
+SESSION_REFS = 100  # sessions listed under "Linked from"; the page carries backlinks_more, how many were left out
 SHORT_ID = 8  # the session tables show the first 8 characters of an id
 
 
@@ -43,8 +44,17 @@ def session_title(portal, session_id):
 
 
 def _session_refs(conn, portal, where, args):
-    rows = conn.execute(f"SELECT c.session_id, max(c.ts) last_ts FROM tool_calls c WHERE {where} GROUP BY c.session_id ORDER BY last_ts DESC LIMIT {LINK_CAP}", args).fetchall()
+    rows = conn.execute(f"SELECT c.session_id, max(c.ts) last_ts FROM tool_calls c WHERE {where} GROUP BY c.session_id ORDER BY last_ts DESC LIMIT {SESSION_REFS}", args).fetchall()
     return [_ref("session", r["session_id"], session_label(conn, portal, r["session_id"])) for r in rows]
+
+
+def add_sessions(conn, portal, pg, col, name):
+    """Add the sessions that used `name` to the backlinks (once each); backlinks_more counts the sessions left out."""
+    have = {(r["kind"], r["id"]) for r in pg["backlinks"]}
+    refs = _session_refs(conn, portal, f"{col} = ?", (name,))
+    pg["backlinks"] += [r for r in refs if (r["kind"], r["id"]) not in have]
+    total = conn.execute(f"SELECT count(DISTINCT c.session_id) FROM tool_calls c WHERE {col} = ?", (name,)).fetchone()[0]
+    pg["backlinks_more"] = max(0, total - len(refs))
 
 
 # ---- installed SKILL.md -------------------------------------------------------------------------------------------
@@ -76,13 +86,16 @@ def parse_frontmatter(text):
 
 # ---- usage numbers ------------------------------------------------------------------------------------------------
 def _daily(conn, col, ident, last_ts):
+    local = conn.execute("SELECT coalesce(date(?, 'localtime'), substr(?, 1, 10))", (last_ts, last_ts)).fetchone()[0]  # local day
     try:
-        end = datetime.strptime((last_ts or "")[:10], "%Y-%m-%d").date()
+        end = datetime.strptime((local or "")[:10], "%Y-%m-%d").date()
     except ValueError:
-        end = datetime.now(timezone.utc).date()
+        end = datetime.now().date()
     days = [(end - timedelta(days=i)).isoformat() for i in range(DAYS - 1, -1, -1)]
+    day = "coalesce(date(c.ts, 'localtime'), substr(c.ts, 1, 10))"
     counts = {r["day"]: r["n"] for r in conn.execute(
-        f"SELECT substr(c.ts, 1, 10) day, count(*) n FROM tool_calls c WHERE {col} = ? AND substr(c.ts, 1, 10) BETWEEN ? AND ? GROUP BY day", (ident, days[0], days[-1]))}
+        f"SELECT {day} day, count(*) n FROM tool_calls c WHERE {col} = ? AND {day} BETWEEN ? AND ? GROUP BY day",
+        (ident, days[0], days[-1]))}
     return [{"day": d, "value": counts.get(d, 0)} for d in days]
 
 
@@ -139,6 +152,7 @@ def usage_page(kind):
             if used:
                 pg["usage"] = {"daily": _daily(conn, col, ident, t["last_ts"]), "days": DAYS}
                 pg["backlinks"] = _session_refs(conn, portal, f"{col} = ?", (ident,))
+                pg["backlinks_more"] = max(0, t["sessions"] - len(pg["backlinks"]))
                 pg["sections"].append({"heading": "Tokens in the sessions that used it", "items": _token_items(conn, col, ident)})
             else:
                 pg["usage"] = {"daily": [], "days": DAYS}

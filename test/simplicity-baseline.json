@@ -115,7 +115,7 @@
    "fn": 150
   },
   "python/amauta/portal/static/page-wiki.js": {
-   "long": 45
+   "long": 44
   },
   "python/amauta/portal/static/style.css": {
    "long": 23
@@ -136,7 +136,7 @@
    "long": 6
   },
   "python/amauta/portal/wikiharness.py": {
-   "lines": 589,
+   "lines": 588,
    "long": 21
   },
   "python/amauta/portal/wikihome.py": {
@@ -167,7 +167,7 @@
    "long": 60
   },
   "python/amauta/portal/wikiusage.py": {
-   "long": 27
+   "long": 26
   },
   "python/amauta/sdd/__main__.py": {
    "long": 2

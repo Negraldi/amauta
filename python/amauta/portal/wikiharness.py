@@ -503,8 +503,7 @@ def _add_usage(portal, pg, e):
         if last is None:
             return
         pg["usage"] = {"daily": wikiusage._daily(conn, col, name, last), "days": wikiusage.DAYS}
-        have = {(r["kind"], r["id"]) for r in pg["backlinks"]}
-        pg["backlinks"] += [r for r in wikiusage._session_refs(conn, portal, f"{col} = ?", (name,)) if (r["kind"], r["id"]) not in have]
+        wikiusage.add_sessions(conn, portal, pg, col, name)
     finally:
         conn.close()
 

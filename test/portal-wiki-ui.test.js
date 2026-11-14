@@ -344,7 +344,7 @@ test('a skill page draws usage over time as bars with a text summary, or says no
   let { env } = await boot('#/skill/work-unit-commits', { '/api/wiki/page': { ...PAGE, kind: 'skill', id: 'work-unit-commits', usage: { daily, days: 30 } } });
   const v = view(env);
   assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Usage over time'));
-  assert.match(v.textContent, /3 calls in the 30 days up to 2026-09-30/);
+  assert.match(v.textContent, /3 calls in the last 30 days \(up to 2026-09-30\)/);
   const rects = tree(v).filter((e) => e.tagName === 'rect');
   assert.equal(rects.length, 30);
   assert.ok(rects.every((r) => Number.isFinite(Number(r.getAttribute('height')))));

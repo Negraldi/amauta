@@ -512,8 +512,8 @@
  "project.countAuto.other": "{n} projects, including git roots found from your sessions.",
  "uot.bar.one": "{day}: 1 call",
  "uot.bar.other": "{day}: {n} calls",
- "uot.summary.one": "1 call in the {days} days up to {last}.",
- "uot.summary.other": "{n} calls in the {days} days up to {last}.",
+ "uot.summary.one": "1 call in the last {days} days (up to {last}).",
+ "uot.summary.other": "{n} calls in the last {days} days (up to {last}).",
  "harness.review": "Review mode",
  "table.empty": "Nothing to show for this selection.",
  "set.privacy": "Privacy hook",
@@ -877,5 +877,6 @@
  "data.asOf": "Data as of {at}; Refresh imports newer activity.",
  "harness.fitWidth": "Fit to width",
  "more.button": "Show more",
- "more.showing": "Showing {shown} of {total}."
+ "more.showing": "Showing {shown} of {total}.",
+ "meta.Calls": "Calls in total"
 }
