@@ -15,8 +15,7 @@ from .wikibase import _live, _ref
 
 SCAN_CAP = 1500        # memories examined
 CONTENT_CAP = 20000    # characters of one memory examined
-ITEM_CAP = 50          # items listed per category
-MEMBER_CAP = 6
+PAGE = 50             # rows the page shows before "Show more" (the server sends every item; the scan is already capped)
 BUCKET_CAP = 30
 NEAR_RATIO = 0.95
 SUPERSEDE_RATIO = 0.7
@@ -41,7 +40,7 @@ def _extra_categories(portal):
 
 def _category(cid, title, note, items, count=None):
     count = len(items) if count is None else count
-    return {"id": cid, "title": title, "note": note, "count": count, "items": items[:ITEM_CAP], "truncated": count > ITEM_CAP}
+    return {"id": cid, "title": title, "note": note, "count": count, "items": items, "truncated": count > len(items)}
 
 
 def _mem_item(row, detail, **extra):
@@ -196,7 +195,7 @@ def _duplicates(rows):
             continue  # one topic_key is one topic, not a duplicate
         first = members[0]
         items.append(_mem_item(first, f"{len(members)} notes with the same or near-identical title under different topic keys: review whether they should be merged",
-                               members=[{"kind": "memory", "id": str(m["id"]), "title": m["title"] or f"#{m['id']}", "topic_key": m["topic_key"]} for m in members[:MEMBER_CAP]]))
+                               members=[{"kind": "memory", "id": str(m["id"]), "title": m["title"] or f"#{m['id']}", "topic_key": m["topic_key"]} for m in members]))
     return _category("duplicates", "Possible duplicates",
                      "Same title (ignoring case and punctuation) saved under different topic keys. A candidate list to review, not a claim that either note is wrong.", items)
 

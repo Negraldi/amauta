@@ -202,15 +202,22 @@ class MissingLinkTest(LintBase):
 
 
 class CapTest(LintBase):
-    def test_items_are_capped_but_count_is_the_total(self):
+    def test_every_item_is_sent_so_the_page_can_show_more(self):
         st = mstore.Store(self.f["state"] / "memory.db")
-        for n in range(wikilint.ITEM_CAP + 20):
+        for n in range(wikilint.PAGE + 20):
             st.save(f"solo note {n:04d} unique words {n * 7919}", "x", type="note", project="alpha", topic_key=f"lonely{n}")
         st.close()
         c = self.cat("orphans")
-        self.assertLessEqual(len(c["items"]), wikilint.ITEM_CAP)
-        self.assertGreater(c["count"], wikilint.ITEM_CAP)
-        self.assertTrue(c["truncated"])
+        self.assertEqual(len(c["items"]), c["count"])
+        self.assertGreater(c["count"], wikilint.PAGE)
+        self.assertFalse(c["truncated"])
+
+    def test_a_duplicate_group_lists_every_member(self):
+        for n in range(wikilint.PAGE + 4):
+            self.save("Same title for everyone", "x", topic_key=f"t/{n}")
+        group = self.cat("duplicates")["items"][0]
+        self.assertEqual(len(group["members"]), wikilint.PAGE + 4)
+        self.assertIn(f"{wikilint.PAGE + 4} notes", group["detail"])
 
     def test_scan_cap_is_reported(self):
         out = self.lint()

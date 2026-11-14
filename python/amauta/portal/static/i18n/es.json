@@ -874,5 +874,7 @@
  "graph.kind.concept": "Concepto",
  "home.recent": "Actividad reciente",
  "data.asOf": "Datos al {at}; Actualizar importa la actividad más reciente.",
- "harness.fitWidth": "Ajustar al ancho"
+ "harness.fitWidth": "Ajustar al ancho",
+ "more.button": "Mostrar más",
+ "more.showing": "Se muestran {shown} de {total}."
 }

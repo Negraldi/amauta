@@ -65,15 +65,17 @@ async function viewMemoryFiles() {
 }
 
 
+// The server sends every item; a category opens on LINT_PAGE rows and a duplicate group on MEMBER_PAGE members.
+const LINT_PAGE = 50, MEMBER_PAGE = 6;
 function lintItem(it) {
   const people = Array.isArray(it.members) && it.members.length > 1
-    ? h("ul", { class: "refs" }, it.members.map((m) => h("li", null, link(m.kind, m.id, m.title), m.topic_key ? h("span", { class: "muted" }, ` ${m.topic_key}`) : null)))
+    ? pagedList(it.members, MEMBER_PAGE, (m) => h("li", null, link(m.kind, m.id, m.title), m.topic_key ? h("span", { class: "muted" }, ` ${m.topic_key}`) : null), { class: "refs" })
     : null;
   return h("li", null, people ? h("span", null, t("lint.group") + " ") : link(it.kind, it.id, it.title), it.detail ? h("span", { class: "muted" }, ` ${ts(it.detail)}`) : null, people);
 }
 function lintCategory(c) {
   return h("section", { class: "page-section lint-cat" }, h("h2", null, `${ts(c.title)} (${fmt(c.count)})`), h("p", { class: "muted" }, ts(c.note)),
-    c.items.length ? h("ul", { class: "items" }, c.items.map(lintItem)) : h("p", null, t("lint.nothing")),
+    c.items.length ? pagedList(c.items, LINT_PAGE, lintItem) : h("p", null, t("lint.nothing")),
     c.truncated ? h("p", { class: "muted" }, t("lint.showing", { shown: fmt(c.items.length), total: fmt(c.count) })) : null);
 }
 async function viewLint() {

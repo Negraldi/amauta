@@ -874,5 +874,7 @@
  "graph.kind.concept": "Concept",
  "home.recent": "Recent activity",
  "data.asOf": "Data as of {at}; Refresh imports newer activity.",
- "harness.fitWidth": "Fit to width"
+ "harness.fitWidth": "Fit to width",
+ "more.button": "Show more",
+ "more.showing": "Showing {shown} of {total}."
 }
