@@ -12,12 +12,14 @@ KINDS = ("input", "output", "cache_read", "cache_write")
 
 
 def activity(portal):
+    """(days newest first, cut): cut is True when the read filled its window, so the oldest day sent may be missing items."""
     days: dict = {}
-    for item in wiki.recent(portal, {"limit": str(FETCH)})["items"]:
+    items = wiki.recent(portal, {"limit": str(FETCH)})["items"]
+    for item in items:
         day = item["ts"][:10]
         if day:
             days.setdefault(day, []).append(item)
-    return [{"day": d, "items": days[d]} for d in sorted(days, reverse=True)[:DAYS_SHOWN]]
+    return [{"day": d, "items": days[d]} for d in sorted(days, reverse=True)[:DAYS_SHOWN]], len(items) >= FETCH and len(days) <= DAYS_SHOWN
 
 
 def _window(portal, days):
@@ -57,4 +59,5 @@ def health(portal):
 
 def home(portal, q):
     impact = extensions.call("home.impact", portal)  # the skill_impact extra, when present
-    return {"activity": activity(portal), "spending": spending(portal), "health": health(portal), "impact": impact}
+    days, cut = activity(portal)
+    return {"activity": days, "activity_cut": cut, "spending": spending(portal), "health": health(portal), "impact": impact}

@@ -155,6 +155,7 @@
  "hist.revision": "Revisión {n}",
  "hist.title": "Historial de revisiones",
  "home.cacheRatio": "Tasa de aciertos de caché en {n} días:",
+ "home.dayCut": "Actividad anterior de este día no se muestra.",
  "home.days": "{n} días",
  "home.empty": "Las memorias guardadas, las sesiones y las ediciones de documentos ODD aparecen aquí, agrupadas por día.",
  "home.higherError": "Mayor tasa de error tras la carga",

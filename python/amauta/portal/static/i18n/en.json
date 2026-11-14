@@ -155,6 +155,7 @@
  "hist.revision": "Revision {n}",
  "hist.title": "Revision history",
  "home.cacheRatio": "Cache hit ratio over {n} days:",
+ "home.dayCut": "Earlier activity on this day is not shown.",
  "home.days": "{n} days",
  "home.empty": "Memories saved, sessions and ODD document edits appear here, grouped by day.",
  "home.higherError": "Higher error rate after load",

@@ -27,7 +27,7 @@ class HomeTest(WikiBase):
 
     def test_shape(self):
         h = self.home()
-        self.assertEqual(set(h), {"activity", "spending", "health", "impact"})
+        self.assertEqual(set(h), {"activity", "activity_cut", "spending", "health", "impact"})
 
     def test_activity_is_grouped_by_day_newest_first_with_links_data(self):
         days = self.home()["activity"]
@@ -57,6 +57,11 @@ class HomeTest(WikiBase):
         days = self.home()["activity"]
         self.assertLessEqual(len(days), wikihome.DAYS_SHOWN)
         self.assertGreater(max(len(d["items"]) for d in days), 20)  # a busy day is sent whole: the page shows N of M and the rest
+
+    def test_the_feed_says_when_the_newest_hundred_items_cut_off_older_activity(self):
+        self.assertFalse(self.home()["activity_cut"])  # the fixture has far fewer than FETCH items: nothing is missing
+        with mock.patch.object(wikihome, "FETCH", 2):
+            self.assertTrue(self.home()["activity_cut"])  # the read filled the window: the oldest day may be partial
 
     def test_spending_windows_cache_ratio_and_top_models(self):
         self.add_old_session()

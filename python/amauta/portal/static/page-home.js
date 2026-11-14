@@ -21,11 +21,15 @@ const feedTime = (i) => {
   return i.kind === "session" ? t("home.lastActive", { time }) : time;
 };
 const feedTail = (i, day) => [i.what ? groupDigits(ts(i.what)) : "", startedBefore(i, day), feedTime(i)].filter(Boolean).join(", ");
+// The feed reads only the newest items; when the server says that read was cut, the oldest day may be missing some of its items (T16b).
 const dayBlock = (d) => h("section", { class: "page-section day" }, h("h3", null, d.day),
-  pagedList(d.items, DAY_ROWS, (i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` · ${feedTail(i, d.day)}`))));
-function activityBlock(days) {
+  pagedList(d.items, DAY_ROWS, (i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` · ${feedTail(i, d.day)}`))),
+  d.cut ? h("p", { class: "muted day-cut" }, t("home.dayCut")) : null);
+function activityBlock(days, cut) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
-  const all = localDays(days), box = h("div", null, all.slice(0, HOME_DAYS).map(dayBlock));
+  const all = localDays(days);
+  if (cut) all.at(-1).cut = true;
+  const box = h("div", null, all.slice(0, HOME_DAYS).map(dayBlock));
   if (all.length <= HOME_DAYS) return box;
   let shown = HOME_DAYS;
   const more = h("button", { type: "button" }, t("home.showMore")), wrap = h("div", null, box, more);
@@ -84,6 +88,6 @@ async function viewHome() {
   return [h("header", { class: "page-head" }, h("h1", null, t("home.title")), status, asOf), h("div", { class: "page home" },
     h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.pipelines"), pipes),
       railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact))),
-    h("article", { class: "doc" }, h("h2", null, t("home.recent")), activityBlock(hm.activity)))];
+    h("article", { class: "doc" }, h("h2", null, t("home.recent")), activityBlock(hm.activity, hm.activity_cut)))];
 }
 // Lint: candidates worth a second look, counted per check and linked to their pages. Wording is "review", never a verdict.
