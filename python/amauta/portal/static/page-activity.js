@@ -71,16 +71,21 @@ function usageChart(daily) {
 
 function modelBars(models) {
   const total = models.reduce((a, m) => a + KINDS.reduce((s, [k]) => s + (m[k] || 0), 0), 0) || 1;
-  return table("models", [{ key: "model", label: t("col.model") }, { key: "messages", label: t("col.messages"), num: true },
+  sortOnce("models", "share"); // the order of the Share column, until a header is clicked
+  return table("models", [{ key: "model", label: t("col.model"), render: modelName },
+    { key: "messages", label: t("col.messages"), num: true },
     ...KINDS.map(([k, l]) => ({ key: k, label: t(l), num: true })), { key: "share", label: t("col.share"), num: true, render: (v) => pct(v) },
   ], models.map((m) => ({ ...m, share: KINDS.reduce((s, [k]) => s + (m[k] || 0), 0) / total })));
+}
+function modelPanel(models) {
+  return [modelBars(models), h("p", { class: "muted" }, t("usage.shareNote"))];
 }
 function costPanel(c) {
   if (c.error) return panel(t("cost.title"), h("p", { class: "warn" }, ts(c.error)));
   if (!c.enabled) return null;
   return panel(t("cost.title"), h("p", { class: "warn" }, ts(c.label)),
     c.invalid_prices && c.invalid_prices.length ? h("p", { class: "warn" }, t("cost.invalid", { models: c.invalid_prices.join(", ") })) : null,
-    table("cost", [{ key: "model", label: t("col.model") }, { key: "cost", label: t("cost.estimated"), num: true,
+    table("cost", [{ key: "model", label: t("col.model"), render: modelName }, { key: "cost", label: t("cost.estimated"), num: true,
       render: (v) => (v == null ? t("cost.noPrice") : R.fmtDecimal(v, 2)) }], c.models),
     h("p", null, t("cost.total"), " ", h("strong", null, R.fmtDecimal(c.total || 0, 2))));
 }
@@ -99,7 +104,7 @@ async function viewOverview() {
     panel(t("usage.tokensPerDay"), usageChart(o.daily)),
     panel(t("usage.sessionsPerDay"), o.daily.length ? table("sessday", [{ key: "day", label: t("col.day") },
       { key: "sessions", label: t("nav.session"), num: true }, { key: "messages", label: t("col.messages"), num: true }], o.daily) : empty(t("usage.noSessionsRange"))),
-    panel(t("usage.modelSplit"), modelBars(o.models)),
+    panel(t("usage.modelSplit"), ...modelPanel(o.models)),
     o.runtimes && o.runtimes.length > 1 ? panel(t("usage.byRuntime"), table("runtimes", runtimeCols, o.runtimes)) : null,
     costPanel(c),
   ].filter(Boolean);

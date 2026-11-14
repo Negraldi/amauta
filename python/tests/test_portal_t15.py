@@ -192,3 +192,68 @@ class CodexSessionNoteTest(WikiBase):
         catalog = json.loads((STATIC / "i18n" / "srv-es.json").read_text())
         self.assertIn("Tool calls", catalog)
         self.assertIn(wikiusage.CODEX_NOTE, catalog)
+
+
+class SessionToolsLabelsTest(WikiBase):
+    """W3 A5: the session page merges case variants of one tool, labels placeholder names and groups MCP tools by server."""
+
+    def setUp(self):
+        super().setUp()
+        calls = [tool_use("Bash", "t1"), tool_use("bash", "t2"), tool_use("Bash", "t3"), tool_use("bash_placeholder", "t4"),
+                 tool_use("mcp__engram__mem_save", "t5"), tool_use("mcp__engram__mem_context", "t6"), tool_use("mcp__codegraph__codegraph_explore", "t7")]
+        write_jsonl(self.f["home"] / "projects" / "-w-a" / "sw3.jsonl",
+                    [assistant("w3-a", calls, session="sw3", ts="2026-10-06T09:00:00.000Z", cwd="/work/a", model="claude-z"),
+                     assistant("w3-b", [], session="sw3", ts="2026-10-06T09:01:00.000Z", cwd="/work/a", model="<synthetic>")])
+        c = mstore.connect(self.f["state"] / "memory.db")
+        ingest.backfill(c, self.f["home"])
+        c.close()
+        self.sections = {s["heading"]: s["items"] for s in self.page("session", "sw3")["sections"]}
+
+    def test_case_variants_of_a_tool_are_one_row(self):
+        names = [i["label"] for i in self.sections["Tools"]]
+        self.assertEqual([n for n in names if n.lower() == "bash"], ["Bash"])
+        self.assertEqual(next(i["value"] for i in self.sections["Tools"] if i["label"] == "Bash"), "3 calls")
+
+    def test_placeholder_names_are_one_labelled_row(self):
+        names = [i["label"] for i in self.sections["Tools"]]
+        self.assertNotIn("bash_placeholder", names)
+        self.assertIn("Placeholder entries (not tool calls)", names)
+
+    def test_mcp_tools_are_grouped_by_server_not_listed_with_raw_names(self):
+        self.assertFalse([i for i in self.sections["Tools"] if i["label"].startswith("mcp__")])
+        grouped = self.sections["MCP tools"]
+        self.assertEqual({i["label"] for i in grouped}, {"engram / mem_context", "engram / mem_save", "codegraph / codegraph_explore"})
+        self.assertTrue(all(" / " in i["label"] for i in grouped))
+        self.assertEqual([i["label"].split(" / ")[0] for i in grouped], sorted(i["label"].split(" / ")[0] for i in grouped))
+
+    def test_the_synthetic_model_does_not_count_in_the_plus_n(self):
+        rows = self.get("/api/sessions", days=3650)["sessions"]
+        row = next(r for r in rows if r["session_id"] == "sw3")
+        self.assertEqual((row["model"], row["models"]), ("claude-z", 1))
+
+
+class MemoryFileProjectTest(WikiBase):
+    """W3 B8: the memory files list and page name a project like #/memory does (no leading dash of the directory slug)."""
+
+    def test_the_list_and_the_page_agree(self):
+        item = self.get("/api/memory-files")["items"][0]
+        self.assertEqual(item["project"], "work-alpha")
+        meta = {m["label"]: m["value"] for m in self.page("memfile", item["id"])["meta"]}
+        self.assertEqual(meta["Project"], "work-alpha")
+
+
+class McpToolOriginTest(tt.ToolsBase):
+    """W3 C5: the origin of an MCP tool says it once, and the refresh time is a value the page formats, not a raw label."""
+
+    def test_the_origin_row_has_no_second_copy_of_the_source(self):
+        pg = self.page("mcptool", "projsrv/other")
+        for s in pg["sections"]:
+            for it in s["items"]:
+                self.assertNotEqual(it["label"], it.get("value"), s["heading"])
+
+    def test_the_refresh_time_is_a_value(self):
+        pg = self.page("mcptool", "projsrv/do_thing")
+        refresh = next((s for s in pg["sections"] if s["heading"] == "Last refresh"), None)
+        self.assertIsNotNone(refresh)
+        self.assertEqual(refresh["items"][0]["label"], "Tool list read from the server")
+        self.assertRegex(refresh["items"][0]["value"], r"^\d{4}-\d{2}-\d{2}")

@@ -28,7 +28,7 @@ class HarnessTextCatalogTest(ToolsBase):
             texts = [m["label"] for m in pg["meta"]] + [s["heading"] for s in pg["sections"]] + [pg["summary"]["source"]]
             texts += [x for x in (pg["summary"]["note"], None if pg["summary"].get("i18n") else pg["summary"]["when"]) if x]  # curated tools carry their own Spanish text
             for s in pg["sections"]:
-                texts += [it["value"] for it in s["items"] if it.get("value") and s["heading"] in ("Configured in", "Source of these facts", "Reported by the server")]
+                texts += [it["value"] for it in s["items"] if it.get("value") and s["heading"] in ("Configured in", "Source of these facts")]
             missing |= {t for t in texts if not covered(t, self.keys)}
             if pg["kind"] in ("connector",) and pg["summary"]["description"]:
                 texts.append(pg["summary"]["description"])

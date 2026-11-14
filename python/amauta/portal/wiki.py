@@ -134,7 +134,7 @@ def _memfile_page(portal, ident, q):
     except OSError:
         raise NotFound() from None
     pg = _blank("memfile", ident, found.name, text)
-    pg["meta"] = _meta(("Project", found.parent.parent.name), ("Size", st.st_size), ("Modified", _mtime(found)), ("Truncated", "yes" if st.st_size > MAX_TEXT else None))
+    pg["meta"] = _meta(("Project", found.parent.parent.name.lstrip("-")), ("Size", st.st_size), ("Modified", _mtime(found)), ("Truncated", "yes" if st.st_size > MAX_TEXT else None))
     pg["links"], pg["missing"] = _wikilink_links(portal, text)
     return pg
 
@@ -287,7 +287,7 @@ def _relation_groups(repo_name, pairs, direction):
     groups: dict = {}
     for e, n in pairs:
         groups.setdefault(e["relation"] or "related", []).append(_item(n["label"] or n["id"], n["kind"], "node", f"{repo_name}::{n['id']}"))
-    return [{"heading": f"{rel} ({direction})", "items": items} for rel, items in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
+    return [{"heading": f"{rel} ({direction})", "relation": rel, "direction": direction, "items": items} for rel, items in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
 
 
 # ---- light existence checks (wikilink targets, search) --------------------------------------------------------

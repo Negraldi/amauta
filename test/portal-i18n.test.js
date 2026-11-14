@@ -63,7 +63,7 @@ test('the server-text catalog has a Spanish text with the same placeholders for 
 });
 
 // ---- the keys app.js uses exist, and none is dead ---------------------------------------------------------------------
-const DYNAMIC = /^(kind|catalog\.kind|graph\.kind|set\.tab|hint|notfound|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|meta|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
+const DYNAMIC = /^(kind|catalog\.kind|graph\.kind|set\.tab|hint|notfound|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|meta|pipemode|memscope|memsource|scope|hooktype|transport|rel\.(out|in|edge|dir)|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
 test('every key that app.js uses exists in en; every en key is used', () => {
   const literals = [...(app + route).matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
   const used = new Set(literals);
@@ -245,7 +245,7 @@ const QUIET_BEFORE = new RegExp([
   String.raw`\bh\("code",\s*(?:null|\{[^}]*\}),\s*$`,
   String.raw`(?:===|!==|==|!=|case|\bin|\?\?|\|\||&&)\s*$`,
 ].join('|'));
-const ALLOW = new Set(['Tokens in the sessions that used it', 'Tool calls', 'use strict', 'Content-Type', 'X-Portal-Token', 'amauta', 'MCP', 'ODD', 'Source Serif 4']);
+const ALLOW = new Set(['Tokens in the sessions that used it', 'Tool calls', 'Last refresh', 'use strict', 'Content-Type', 'X-Portal-Token', 'amauta', 'MCP', 'ODD', 'Source Serif 4']);
 function visible(l) {
   const v = l.value;
   if (!/[A-Za-z]/.test(v) || ALLOW.has(v.trim())) return false;

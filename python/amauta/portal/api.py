@@ -337,8 +337,8 @@ class Portal:
         items = []
         for p in self._memory_files():
             st = p.stat()
-            items.append({"id": p.relative_to(root).as_posix(), "name": p.name, "project": p.parent.parent.name, "size": st.st_size,
-                          "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+            items.append({"id": p.relative_to(root).as_posix(), "name": p.name, "project": p.parent.parent.name.lstrip("-"),
+                          "size": st.st_size, "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
         return {"items": items}
 
     def memory_file(self, q):

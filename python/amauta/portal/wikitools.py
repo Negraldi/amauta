@@ -207,5 +207,5 @@ def _mcptool_entry(owner_kind, server, tool, src, source, fetched):
     if cached is None or not cached["description"]:
         entry["note"] = TOOL_USAGE_NOTE
     if cached is not None and fetched:
-        entry["sections"] = [{"heading": "Reported by the server", "items": [_item(fetched, SERVER_LABEL)]}]
+        entry["sections"] = [{"heading": "Last refresh", "items": [_item("Tool list read from the server", fetched)]}]
     return entry

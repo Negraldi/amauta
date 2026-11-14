@@ -9,7 +9,8 @@ const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value 
 const isStatus = (v) => v === "done" || v === "pending" || v === "warning";
 // How a project was found (--repo flag, the Settings list, or discovery from sessions): the server sends the identifiers.
 const originLabel = (o) => (`origin.${o}` in I.dict.en ? t(`origin.${o}`) : o);
-const CHROME_ITEMS = ["Tokens in the sessions that used it", "Tool calls"]; // server section whose item labels are fixed text
+// Server sections whose item labels are fixed text.
+const CHROME_ITEMS = ["Tokens in the sessions that used it", "Tool calls", "Last refresh"];
 
 function skeleton() {
   return h("div", { class: "skeleton", "aria-hidden": "true" }, h("div", { class: "sk sk-title" }), h("div", { class: "sk" }), h("div", { class: "sk" }), h("div", { class: "sk sk-short" }));
@@ -27,10 +28,11 @@ function railBlock(title, body) { return body ? h("section", { class: "rail-bloc
 function sectionBlock(s) {
   // Item labels that link to a page, or are user content (ODD task titles), stay as written; only the fixed token-row labels are translated.
   const label = (it) => (CHROME_ITEMS.includes(s.heading) ? ts(it.label) : it.label);
-  return h("section", { class: "page-section" }, h("h2", null, ts(s.heading)), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
+  const heading = s.relation ? relationHeading(s.relation, s.direction) : ts(s.heading);
+  return h("section", { class: "page-section" }, h("h2", null, heading), h("ul", { class: "items" }, s.items.map((it) => h("li", null,
     it.kind && it.id ? link(it.kind, it.id, it.label, null, it.source) : h("span", null, label(it)),
-    it.value == null ? null : isStatus(it.value) ? statusChip(it.value)
-      : h("span", { class: "muted" }, ` ${groupDigits(ts(R.fmtMeta(it)))}`)))));
+    it.value == null ? null : s.relation ? h("span", { class: "muted" }, ` ${nodeKind(it.value)}`)
+      : isStatus(it.value) ? statusChip(it.value) : h("span", { class: "muted" }, ` ${groupDigits(ts(R.fmtMeta(it)))}`)))));
 }
 
 function historyBlock(hist) {
@@ -75,7 +77,8 @@ function commitsBlock(commits) {
 // Graph node: the neighborhood diagram is drawn lazily (mermaid loads on first use) from source the server generated with every label escaped.
 function nodeDiagramBlock(diagram) {
   if (!diagram || !diagram.source) return null;
-  return h("section", { class: "page-section" }, h("h2", null, t("node.neighborhood")), diagramBox(diagram.source, t("node.neighborsOfThis")),
+  const box = diagramBox(localizeGraphSource(diagram.source), t("node.neighborsOfThis"));
+  return h("section", { class: "page-section" }, h("h2", null, t("node.neighborhood")), box,
     diagram.truncated ? nearestNote(R.NODE_CAP, diagram) : null);
 }
 
@@ -155,7 +158,7 @@ function metaList(pg, keep) {
   if (!rows.length) return null;
   return h("dl", { class: "meta" }, rows.flatMap((m) => {
     const raw = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ")
-      : m.label === "Kind" && pg.kind === "node" ? nodeKind(m.value) : groupDigits(ts(R.fmtMeta(m)));
+      : metaEnumLabel(pg.kind, m.label, m.value) || groupDigits(ts(R.fmtMeta(m)));
     const v = raw === "true" ? t("common.yes") : raw === "false" ? t("common.no") : raw; // front-matter booleans
     const dt = h("dt", null, `meta.${m.label}` in I.dict.en ? t(`meta.${m.label}`) : ts(m.label)); // SKILL.md keys get labels
     if (R.isPathLike(v)) return [dt, h("dd", null, pathNode(v))];

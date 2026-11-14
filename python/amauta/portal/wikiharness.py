@@ -457,7 +457,7 @@ def source_section(e):
     rows = e.get("configs")
     if rows:
         return {"heading": "Configured in", "items": [_item(c["path"], c["source"]) for c in rows]}
-    return {"heading": "Source of these facts", "items": [_item(e.get("path") or e["source"], e["source"])]}
+    return {"heading": "Source of these facts", "items": [_item(e["path"], e["source"]) if e.get("path") else _item(e["source"])]}
 
 
 def stdio_config(e):

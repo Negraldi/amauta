@@ -208,7 +208,7 @@ function table(id, columns, rows, onRow) {
 }
 
 // A session's model: the one with the most messages, "+N" when others answered too (the session page lists them all).
-const mainModel = (v, row) => (row.models > 1 ? `${v} +${row.models - 1}` : v ?? "-");
+const mainModel = (v, row) => (row.models > 1 ? `${modelName(v)} +${row.models - 1}` : modelName(v));
 // The session table's columns (#/session and a project's Sessions tab, which drops Project): the id links to its page.
 function sessionColumns({ project = true } = {}) {
   const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")],

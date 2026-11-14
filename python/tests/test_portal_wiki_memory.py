@@ -141,7 +141,7 @@ class MemoryFilePageTest(WikiBase):
         self.assertEqual((pg["kind"], pg["id"], pg["title"]), ("memfile", self.FILE_ID, "note.md"))
         self.assertIn(fx.XSS, pg["body_md"])  # raw data; the UI renders text nodes
         m = {x["label"]: x for x in pg["meta"]}
-        self.assertEqual(m["Project"]["value"], "-work-alpha")
+        self.assertEqual(m["Project"]["value"], "work-alpha")  # T15 W3 B8: no leading dash, as #/memory names projects
         self.assertEqual(m["Size"].get("fmt"), "number")
         self.assertIn("Modified", m)
         self.assertEqual(set(pg), {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"})

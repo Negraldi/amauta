@@ -280,5 +280,8 @@
  "Messages": "Mensajes",
  "Models": "Modelos",
  "Tool calls": "Llamadas a herramientas",
- "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only.": "Las llamadas a herramientas no se registran en las sesiones de Codex: sus archivos solo se leen para contar el uso de tokens."
+ "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only.": "Las llamadas a herramientas no se registran en las sesiones de Codex: sus archivos solo se leen para contar el uso de tokens.",
+ "Placeholder entries (not tool calls)": "Entradas de relleno (no son llamadas a herramientas)",
+ "Last refresh": "Última actualización",
+ "Tool list read from the server": "Lista de herramientas leída del servidor"
 }

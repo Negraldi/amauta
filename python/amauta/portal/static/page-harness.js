@@ -8,7 +8,10 @@ function graphDiagram(repo, node, depth) {
   const box = h("div", null, h("p", { class: "muted" }, t("common.rendering")));
   api("graph/diagram", { repo, node, depth }).then((d) => {
     if (!d.source) box.replaceChildren(empty(t("graph.nothing")));
-    else box.replaceChildren(diagramBox(d.source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? nearestNote(30, d) : null);
+    else {
+      const source = localizeGraphSource(d.source);
+      box.replaceChildren(diagramBox(source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? nearestNote(30, d) : null);
+    }
   }).catch((err) => box.replaceChildren(errorNote(err)));
   return box;
 }
@@ -63,7 +66,8 @@ function neighborsPanel(r) {
     const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
     const nodeCols = [{ key: "depth", label: t("graph.depth"), num: true }, { key: "label", label: t("col.label") }, KIND_COLUMN(),
       { key: "file", label: t("col.file") }];
-    const edgeCols = [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation") }, { key: "dst", label: t("col.to") }];
+    const edgeCols = [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation"), render: edgeRelation },
+      { key: "dst", label: t("col.to") }];
     body.replaceChildren(h("p", null, link("node", `${r.name}::${node.id}`, t("graph.openPage"))), table("gn-" + r.path, nodeCols, g.nodes),
       h("h3", null, t("graph.diagramTitle")), graphDiagram(r.path, node.id, depth.value),
       g.edges.length ? table("ge-" + r.path, edgeCols, g.edges) : empty(t("graph.noEdges")));
@@ -214,7 +218,7 @@ function installFacts(hs) {
   const mode = known ? stateChip(hs.rdd_mode === "on", t(`common.${hs.rdd_mode}`)) : "-";
   return h("dl", { class: "meta facts" }, ...row(t("harness.version"), hs.version || "-"), ...row(t("harness.review"), mode),
     ...row(t("harness.telemetry"), stateChip(hs.telemetry, hs.telemetry ? t("common.on") : t("common.off"))),
-    ...row(t("harness.persona"), hs.persona || "-"),
+    ...row(t("harness.persona"), personaLabel(hs.persona)),
     ...row(t("harness.modules"), (hs.components || []).join(", ") || t("common.none")),
     ...row(t("harness.managed"), fmt(hs.managed_files)));
 }

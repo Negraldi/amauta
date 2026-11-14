@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from .. import extensions
-from . import sessname, sesswhere, wikisess
+from . import sessname, sesswhere, wikisess, wikisesstools
 from .sessfacts import MAIN_MODEL
 from .api import NotFound, columns, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref, strip_title_h1
@@ -234,13 +234,9 @@ def session_page(portal, ident, q):
         pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", sessname.project_of(portal, cwd, t["project"])), ("Repository", getattr(sessname.repo_root(portal, cwd), "name", None)), ("Working directory", cwd),
                            ("Started", t["first_ts"]), ("Last activity", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
                            ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
-        for heading, kind, col, cond in (("Skills", "skill", "c.skill", "c.skill IS NOT NULL"), ("Tools", "tool", "c.tool", "1=1"),
-                                         ("MCP servers", "mcp", "c.mcp_server", "c.mcp_server IS NOT NULL"), ("Subagent types", None, "c.subagent_type", "c.subagent_type IS NOT NULL")):
-            rows = conn.execute(f"SELECT {col} name, count(*) n FROM tool_calls c WHERE c.session_id = ? AND {cond} GROUP BY name ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
-            if rows:
-                pg["sections"].append({"heading": heading, "items": [_item(r["name"], calls(r["n"]), kind, r["name"] if kind else None) for r in rows]})
-                if kind in ("skill", "mcp"):
-                    pg["links"] += [_ref(kind, r["name"]) for r in rows][:LINK_CAP]
+        sections, links = wikisesstools.tool_sections(conn, ident)
+        pg["sections"] += sections
+        pg["links"] += links
         if runtime == "codex" and not any(s["heading"] == "Tools" for s in pg["sections"]):
             pg["sections"].append({"heading": "Tool calls", "items": [_item(CODEX_NOTE)]})
         saved = session_memories(portal, ident)

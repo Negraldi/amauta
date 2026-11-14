@@ -121,7 +121,7 @@ test('server text is translated, user content is left exactly as written', async
   assert.match(mtext, /Decision about caching/);
   assert.match(mtext, /We keep the latest revision only\./);
   assert.match(mtext, /Este almacén conserva solo la última revisión/);
-  assert.match(mtext, /decision/, 'a memory type is data');
+  assert.match(mtext, /Decisión/, 'a memory type has a label, like the list');
   assert.ok(tree(view(mem.env)).some((e) => e.tagName === 'dt' && e.textContent === 'Tipo'));
 });
 

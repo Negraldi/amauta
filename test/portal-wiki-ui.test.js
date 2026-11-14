@@ -101,7 +101,7 @@ test('a wiki page asks /api/wiki/page for the route, shows title, kind label, me
   assert.equal(h1[0].textContent, XSS); // hostile title is text
   assert.match(v.textContent, /Memory/);
   assert.match(v.textContent, /Type/);
-  assert.match(v.textContent, /decision/);
+  assert.match(v.textContent, /Decision/);
   const links = hrefs(v);
   assert.ok(links.includes('#/skill/work-unit-commits'));
   assert.ok(links.includes('#/session/s1'));

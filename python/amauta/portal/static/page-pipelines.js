@@ -99,7 +99,7 @@ function scheduleLines(p) {
   return (p.schedules || []).map((sc) => {
     const state = sc.state === "missed" ? h("span", { class: "warn" }, ` ▲ ${t("pipe.missed")}`)
       : sc.state === "never" ? h("span", { class: "muted" }, " ", codeSpans(t("pipe.neverScheduled", { id: p.id }))) : null;
-    return h("p", null, `⏲ ${scheduleText(sc)}${sc.mode ? ` · ${sc.mode}` : ""}.`, state);
+    return h("p", null, `⏲ ${scheduleText(sc)}${sc.mode ? ` · ${modeName(sc.mode)}` : ""}.`, state);
   });
 }
 
@@ -119,7 +119,7 @@ function flowRow(p, items) {
 // The mode picker; `apply(mode)` marks the steps outside it.
 function modePicker(p, apply) {
   if (!p.modes || !p.modes.length) return null;
-  const pick = h("select", { "aria-label": t("pipe.mode") }, p.modes.map((m) => h("option", { value: m }, m)));
+  const pick = h("select", { "aria-label": t("pipe.mode") }, p.modes.map((m) => h("option", { value: m }, modeName(m))));
   pick.value = p.default_mode;
   pick.addEventListener("change", (e) => apply(e.target.value));
   return h("label", { class: "pipe-mode" }, `${t("pipe.mode")} `, pick);
@@ -130,7 +130,8 @@ function historyStrip(p, open) {
   if (!p.history || !p.history.length) return null;
   const marks = [...p.history].reverse().map((r) => {
     const label = t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
-      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) }) + (r.mode ? ` · ${r.mode}` : "");
+      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) })
+      + (r.mode ? ` · ${modeName(r.mode)}` : "");
     const attrs = { type: "button", class: "hist-mark", "data-status": r.status, "aria-label": label, title: label };
     const b = h("button", attrs, STEP_MARK[r.status] || "?");
     b.addEventListener("click", () => open(r.run));
