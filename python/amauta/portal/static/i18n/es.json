@@ -665,6 +665,7 @@
  "sib.add": "Agregar hermano",
  "sib.remove": "Quitar {name}",
  "nav.guide": "Guía",
+ "diagram.reply": "respuesta",
  "guide.pick": "Página de la guía",
  "guide.position": "{n} de {total}",
  "guide.prev": "Anterior",

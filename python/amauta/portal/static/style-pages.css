@@ -124,6 +124,9 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 /* The guide page takes the whole content area: diagrams and tables need the width; only running text keeps the reading measure. */
 .guide-page { min-width: 0; max-inline-size: none; }
 .guide-page > :where(p, ul, ol, blockquote, h2, h3, h4, h5, h6, pre, hr) { max-inline-size: var(--measure); }
+.diagram.fitted { display: flex; justify-content: center; }
+.seq-steps { margin: 0; padding-left: var(--s4); display: grid; gap: var(--s2); text-align: left; }
+.seq-steps .who { display: block; font-size: 0.8125rem; color: var(--ink-muted); }
 .guide-pick { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: 0 0 var(--s4); font-size: 0.9375rem; }
 .guide-pick select { max-width: 100%; }
 .guide-pager { display: flex; justify-content: space-between; gap: var(--s4); margin-top: var(--s5); padding-top: var(--s3);

@@ -665,6 +665,7 @@
  "sib.add": "Add sibling",
  "sib.remove": "Remove {name}",
  "nav.guide": "Guide",
+ "diagram.reply": "reply",
  "guide.pick": "Guide page",
  "guide.position": "{n} of {total}",
  "guide.prev": "Previous",

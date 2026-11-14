@@ -162,7 +162,7 @@ async function redrawDiagrams() {
   const mermaid = await mermaidReady.catch(() => null);
   if (!mermaid || !syncMermaidTheme(mermaid)) return; // not loaded, or the same colors: nothing to draw again
   diagrams = diagrams.filter((d) => !gone(d));
-  for (const d of diagrams) drawMermaid(d.source, d.box);
+  for (const d of diagrams) (d.redraw || (() => drawMermaid(d.source, d.box)))(); // an adaptive box redraws its chosen layout
 }
 try { globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawDiagrams); } catch (_) { /* no matchMedia */ }
 

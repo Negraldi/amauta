@@ -245,7 +245,7 @@ const QUIET_BEFORE = new RegExp([
   String.raw`\bh\("code",\s*(?:null|\{[^}]*\}),\s*$`,
   String.raw`(?:===|!==|==|!=|case|\bin|\?\?|\|\||&&)\s*$`,
 ].join('|'));
-const ALLOW = new Set(['Tokens in the sessions that used it', 'Tool calls', 'Last refresh', 'use strict', 'Content-Type', 'X-Portal-Token', 'amauta', 'MCP', 'ODD', 'Source Serif 4']);
+const ALLOW = new Set(['Tokens in the sessions that used it', 'Tool calls', 'Last refresh', 'use strict', 'Content-Type', 'X-Portal-Token', 'amauta', 'MCP', 'ODD', 'Source Serif 4', '%%{init:']); // the last is Mermaid syntax (diagram-layout.js), not text
 function visible(l) {
   const v = l.value;
   if (!/[A-Za-z]/.test(v) || ALLOW.has(v.trim())) return false;

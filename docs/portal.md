@@ -171,7 +171,10 @@ what it is made of, how the parts relate, how you use it, scripts and commands, 
 diagrams. The pages are Markdown in `python/amauta/portal/guide/<lang>/<page>.md` (English and Spanish, English when
 a translation is missing), served read-only by `GET /api/guide` and `GET /api/guide/page?slug=&lang=` for known pages
 only. A page selector ("n. Title", with "n of m") sits above the page and previous / next links below it; there is no
-contents column. `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
+contents column. Guide diagrams pick the layout that fits the width they get (`static/diagram-layout.js`: as written,
+tighter spacing, flipped direction with wrapped labels; sequences with wrapped messages), and a sequence that cannot
+fit a narrow screen even at the 11 px text floor is shown as an ordered list of steps. Other diagrams keep one layout.
+`node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
 
 ### Sibling projects
 
