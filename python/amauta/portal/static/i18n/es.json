@@ -878,5 +878,6 @@
  "harness.fitWidth": "Ajustar al ancho",
  "more.button": "Mostrar más",
  "more.showing": "Se muestran {shown} de {total}.",
- "meta.Calls": "Llamadas en total"
+ "meta.Calls": "Llamadas en total",
+ "usage.noCodexTools": "Las llamadas a herramientas no se registran en las sesiones de Codex: sus archivos solo se leen para contar el uso de tokens."
 }

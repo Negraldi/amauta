@@ -9,7 +9,7 @@ const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value 
 const isStatus = (v) => v === "done" || v === "pending" || v === "warning";
 // How a project was found (--repo flag, the Settings list, or discovery from sessions): the server sends the identifiers.
 const originLabel = (o) => (`origin.${o}` in I.dict.en ? t(`origin.${o}`) : o);
-const CHROME_ITEMS = ["Tokens in the sessions that used it"]; // server section whose item labels are fixed text
+const CHROME_ITEMS = ["Tokens in the sessions that used it", "Tool calls"]; // server section whose item labels are fixed text
 
 function skeleton() {
   return h("div", { class: "skeleton", "aria-hidden": "true" }, h("div", { class: "sk sk-title" }), h("div", { class: "sk" }), h("div", { class: "sk" }), h("div", { class: "sk sk-short" }));

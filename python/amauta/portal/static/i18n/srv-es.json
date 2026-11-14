@@ -278,5 +278,7 @@
  "Started": "Inicio",
  "Last activity": "Última actividad",
  "Messages": "Mensajes",
- "Models": "Modelos"
+ "Models": "Modelos",
+ "Tool calls": "Llamadas a herramientas",
+ "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only.": "Las llamadas a herramientas no se registran en las sesiones de Codex: sus archivos solo se leen para contar el uso de tokens."
 }

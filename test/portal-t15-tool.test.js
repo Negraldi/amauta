@@ -41,3 +41,27 @@ test('the all-time count is labelled "Calls in total" and the chart sentence nam
   assert.match(v.textContent, /Calls in total/);
   assert.match(v.textContent, /3 calls in the last 30 days \(up to 2026-09-30\)/);
 });
+
+const EMPTY_TOOLS = { available: true, tools: [], skills: [], subagents: [], mcp_servers: [], mcp_tools: [] };
+async function tools(runtime) {
+  const env = makeEnv({ '/api/tools': EMPTY_TOOLS, '/api/sessions': { available: true, sessions: [], projects: [] }, '/api/overview': { available: false } });
+  env.location.hash = '#/tool';
+  await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  await tick();
+  const select = env.document.getElementById('runtime');
+  select.value = runtime;
+  for (const fn of select.listeners.change ?? []) fn({ target: select });
+  await tick();
+  return env.document.getElementById('view').textContent;
+}
+
+test('D6: an empty Tools page under the Codex filter says tool calls are not recorded for Codex', async () => {
+  const text = await tools('codex');
+  assert.match(text, /Tool calls are not recorded for Codex/);
+  assert.doesNotMatch(text, /Nothing recorded in this range/);
+});
+
+test('D6: other runtimes keep the plain empty state', async () => {
+  assert.match(await tools('claude'), /Nothing recorded in this range/);
+  assert.match(await tools(''), /Nothing recorded in this range/);
+});

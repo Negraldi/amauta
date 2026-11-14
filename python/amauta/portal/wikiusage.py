@@ -18,6 +18,7 @@ FRONT_VALUE = 300
 DAYS = 30
 RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
 SESSION_REFS = 100  # sessions listed under "Linked from"; the page carries backlinks_more, how many were left out
+CODEX_NOTE = "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only."
 SHORT_ID = 8  # the session tables show the first 8 characters of an id
 
 
@@ -240,6 +241,8 @@ def session_page(portal, ident, q):
                 pg["sections"].append({"heading": heading, "items": [_item(r["name"], calls(r["n"]), kind, r["name"] if kind else None) for r in rows]})
                 if kind in ("skill", "mcp"):
                     pg["links"] += [_ref(kind, r["name"]) for r in rows][:LINK_CAP]
+        if runtime == "codex" and not any(s["heading"] == "Tools" for s in pg["sections"]):
+            pg["sections"].append({"heading": "Tool calls", "items": [_item(CODEX_NOTE)]})
         saved = session_memories(portal, ident)
         if saved:
             pg["sections"].append({"heading": "Memories saved in this session", "items": [_item(r["title"], None, "memory", r["id"]) for r in saved]})

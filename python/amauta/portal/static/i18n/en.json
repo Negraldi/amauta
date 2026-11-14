@@ -878,5 +878,6 @@
  "harness.fitWidth": "Fit to width",
  "more.button": "Show more",
  "more.showing": "Showing {shown} of {total}.",
- "meta.Calls": "Calls in total"
+ "meta.Calls": "Calls in total",
+ "usage.noCodexTools": "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only."
 }

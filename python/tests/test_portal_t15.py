@@ -129,3 +129,30 @@ class HarnessDiagramCountTest(unittest.TestCase):
     def test_the_label_is_translated_like_every_server_string(self):
         catalog = json.loads((STATIC / "i18n" / "srv-es.json").read_text())
         self.assertIn("Portal: reads memory.db only \u00b7 {n} skills and {m} agents installed by amauta", catalog)
+
+
+class CodexSessionNoteTest(WikiBase):
+    """D6: Codex tool calls are not recorded (rollouts are read for tokens only), so a Codex session page says so."""
+
+    def setUp(self):
+        super().setUp()
+        from python.amauta.usage import codex
+        from python.tests.test_portal_runtime import add_codex, CSID
+        self.sid = CSID
+        home = self.root / "codex"
+        add_codex(self.root, home)
+        conn = mstore.connect(self.f["state"] / "memory.db")
+        codex.backfill(conn, home)
+        conn.close()
+
+    def test_a_codex_session_says_its_tool_calls_are_not_recorded(self):
+        sections = {s["heading"]: s for s in self.page("session", self.sid)["sections"]}
+        self.assertIn("not recorded", sections["Tool calls"]["items"][0]["label"])
+
+    def test_a_claude_session_has_no_such_note(self):
+        self.assertNotIn("Tool calls", {s["heading"] for s in self.page("session", "s1")["sections"]})
+
+    def test_the_note_is_translated(self):
+        catalog = json.loads((STATIC / "i18n" / "srv-es.json").read_text())
+        self.assertIn("Tool calls", catalog)
+        self.assertIn(wikiusage.CODEX_NOTE, catalog)

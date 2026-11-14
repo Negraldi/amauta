@@ -119,9 +119,10 @@ async function viewTools(route) {
   const count = (s) => fmt(tl[R.SEGMENTS[s]].length);
   const item = ([s, l]) => h("a", { href: R.segmentHash(s), "aria-current": s === seg ? "true" : false },
     t("usage.segUsed", { label: l, n: count(s) })); // used in the range: not the Catalog's or the Overview's skill count
+  const none = t(filters().runtime === "codex" ? "usage.noCodexTools" : "usage.nothingRange"); // Codex tool calls are never recorded
   return [
     h("nav", { class: "segmented", "aria-label": t("usage.segments") }, kinds.map(item)),
-    panel(null, tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(t("usage.nothingRange"))),
+    panel(null, tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(none)),
   ];
 }
 
