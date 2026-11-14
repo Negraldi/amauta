@@ -125,7 +125,9 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 .guide-nav { position: sticky; top: var(--s3); font-size: 0.9375rem; }
 .guide-nav ol { padding-left: var(--s4); display: grid; gap: var(--s1); }
 .guide-nav a[aria-current="page"] { font-weight: 600; }
-.guide-page { min-width: 0; }
+/* The guide page takes the whole content area: diagrams and tables need the width; only running text keeps the reading measure. */
+.guide-page { min-width: 0; max-inline-size: none; }
+.guide-page > :where(p, ul, ol, blockquote, h2, h3, h4, h5, h6, pre, hr) { max-inline-size: var(--measure); }
 @media (max-width: 860px) { .guide { grid-template-columns: minmax(0, 1fr); } .guide-nav { position: static; } }
 
 /* Harness wiki (T6): install facts, status chips, the diagram at natural size in a sideways scroller, wrapped commands. */

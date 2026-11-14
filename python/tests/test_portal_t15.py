@@ -351,3 +351,21 @@ class ToolSegmentsTest(unittest.TestCase):
         t = self.base.get("/api/tools", days=3650)
         self.assertTrue(t["subagents"])
         self.assertTrue(all(isinstance(r.get("page"), bool) for r in t["subagents"]))
+
+
+class SessionListTitleTest(unittest.TestCase):
+    """W3b D14: a row of the Sessions list carries the title the session page shows (first prompt, else main model and count)."""
+
+    def test_rows_carry_a_title(self):
+        from python.tests import test_portal_t14 as t14
+
+        class Case(t14.OneProjectRuleTest):
+            def runTest(self):
+                self.mixed = t14.MixedModelBase.mixed_session
+                self.mixed(self, "s20")
+                rows = {r["session_id"]: r for r in self.get("/api/sessions", days=3650)["sessions"]}
+                self.assertEqual(rows["s30"]["title"], "ortho work")
+                self.assertEqual(rows["s20"]["title"], "claude-opus-5-5, 4 messages")
+        res = unittest.TestResult()
+        Case().run(res)
+        self.assertEqual((res.errors, res.failures), ([], []), res.errors + res.failures)

@@ -163,6 +163,7 @@ td a, .refs a, .items a { padding-block: 0.25rem; }
 
 /* ---- wiki page: reading column + rail ---- */
 .page { display: grid; grid-template-columns: minmax(0, var(--measure)) var(--rail-w); gap: var(--s7); justify-content: start; align-items: start; }
+.page.page-wide { grid-template-columns: minmax(0, 1fr) var(--rail-w); } /* a page with a diagram: the column takes the free width */
 .doc { min-width: 0; }
 h1 { font: 600 1.5rem/1.25 var(--mono); letter-spacing: -0.02em; margin: 0 0 var(--s5); text-wrap: balance; }
 .page-section { margin-top: var(--s6); border-top: 1px solid var(--line); padding-top: var(--s4); }
@@ -305,6 +306,7 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 @media (width < 72rem) {
   th, td { padding-inline: var(--s2); } /* narrow column: tighter cells before any sideways scroll */
   .page { grid-template-columns: minmax(0, var(--measure)); gap: var(--s5); }
+  .page.page-wide { grid-template-columns: minmax(0, 1fr); }
   .rail { border-top: 1px solid var(--line); padding-top: var(--s4); }
   .page.home > .rail, .page.home > .doc { grid-column: auto; grid-row: auto; }
   .page.home > .rail { border-top: 0; padding-top: 0; border-bottom: 1px solid var(--line); padding-bottom: var(--s4); }

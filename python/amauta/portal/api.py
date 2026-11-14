@@ -225,7 +225,7 @@ class Portal:
         try:
             where, args = self._range(q, conn)
             rt = self._rt(conn)
-            out["sessions"] = ([dict(r) for r in conn.execute(
+            out["sessions"] = sessname.titled(self, [dict(r) for r in conn.execute(
                 f"SELECT u.session_id session_id, max({rt}) runtime, session_project(u.session_id, max(u.project)) project, min(u.ts) first_ts, max(u.ts) last_ts, count(*) messages, sum(u.input) input, sum(u.output) output, "
                 f"sum(u.cache_read) cache_read, sum({cw}) cache_write, {sessfacts.MAIN_MODEL} model, {sessfacts.MODEL_COUNT} models FROM usage_messages u WHERE {where} GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", [*args, limit])])
             out["projects"] = sessname.project_totals(conn, where, args)

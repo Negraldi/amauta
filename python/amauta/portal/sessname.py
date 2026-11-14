@@ -112,6 +112,16 @@ def register(portal, conn):
     return conn
 
 
+def titled(portal, rows):
+    """Adds `title` to each session row: its first prompt, else the main model and the message count (the session page's wording)."""
+    from . import wikisess  # wikisess reads this module for the project rule
+    for r in rows:
+        n = int(r.get("messages") or 0)
+        fallback = f"{r.get('model') or 'unknown model'}, {n} message{'' if n == 1 else 's'}"
+        r["title"] = wikisess.session_info(portal, r["session_id"]).get("prompt") or fallback
+    return rows
+
+
 def project_totals(conn, where, args):
     """Usage > Projects: per-session sums first, then one session_project() call per session to group them."""
     cw = "u.cache_write_5m + u.cache_write_1h"

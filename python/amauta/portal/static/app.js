@@ -211,13 +211,20 @@ function table(id, columns, rows, onRow) {
 
 // A session's model: the one with the most messages, "+N" when others answered too (the session page lists them all).
 const mainModel = (v, row) => (row.models > 1 ? `${modelName(v)} +${row.models - 1}` : modelName(v));
-// The session table's columns (#/session and a project's Sessions tab, which drops Project): the id links to its page.
+// The session table's columns (#/session and a project's Sessions tab, which drops Project). The first cell stacks what is secondary:
+// the title, then runtime, main model and start date; so the table is narrow enough to read without sideways scrolling.
+function sessionCell(v, row) {
+  const started = row.first_ts ? t("sess.startedOn", { date: R.fmtDate(row.first_ts) }) : null;
+  return [link("session", v, row.title || String(v).slice(0, 8)),
+    h("div", { class: "muted sess-sub" }, [runtimeBadge(row.runtime), " ", mainModel(row.model, row), started ? ` · ${started}` : ""]),
+    h("div", { class: "muted tok" }, String(v).slice(0, 8))];
+}
 function sessionColumns({ project = true } = {}) {
   const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")],
     ["cache_write", t("tok.cache_write")]].map(([key, label]) => ({ key, label, num: true }));
-  return [{ key: "session_id", label: t("kind.session"), render: (v) => link("session", v, String(v).slice(0, 8)) },
-    { key: "runtime", label: t("col.runtime"), render: runtimeBadge }, project ? { key: "project", label: t("kind.project") } : null,
-    { key: "last_ts", label: t("col.lastActivity") }, { key: "model", label: t("col.model"), render: mainModel }, ...nums].filter(Boolean);
+  return [{ key: "title", label: t("kind.session"), render: (_v, row) => sessionCell(row.session_id, row) },
+    project ? { key: "project", label: t("kind.project") } : null,
+    { key: "last_ts", label: t("col.lastActivity") }, ...nums].filter(Boolean);
 }
 
 const VIEWS = () => ({ home: viewHome, project: viewProjects, usage: viewOverview, skill: viewCatalog, tool: viewTools, mcp: viewTools,

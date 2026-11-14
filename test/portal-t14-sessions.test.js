@@ -22,6 +22,6 @@ async function cells(hash, routes) {
 
 test('a session that used several models names the main one and how many others', async () => {
   const text = await cells('#/session', {});
-  assert.ok(text.includes('claude-opus-5-5 +1'), text.join(' | '));
-  assert.ok(text.includes('claude-sonnet-5-5'), text.join(' | '));
+  assert.ok(text.some((c) => c.includes('claude-opus-5-5 +1')), text.join(' | ')); // the model sits in the session cell
+  assert.ok(text.some((c) => c.includes('claude-sonnet-5-5') && !c.includes('+')), text.join(' | '));
 });

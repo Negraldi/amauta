@@ -817,6 +817,7 @@
  "meta.allowed-tools": "Allowed tools",
  "error.network": "The portal server could not be reached ({reason}).",
  "error.part": "This part could not load.",
+ "sess.startedOn": "started {date}",
  "home.startedOn": "started {date}",
  "home.lastActive": "last active {time}",
  "home.showMore": "Show more days",

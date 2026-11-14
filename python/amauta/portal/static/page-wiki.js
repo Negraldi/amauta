@@ -185,7 +185,7 @@ async function viewWikiPage(kind, id, source) {
   const refs = (list, more) => (list.length ? refList(list, list.length + (more || 0)) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
   const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");
-  return [h("div", { class: "page" },
+  return [h("div", { class: pg.kind === "node" ? "page page-wide" : "page" },
     h("article", { class: "doc" },
       h("h1", null, itemTitle(pg.kind, pg.title)), progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
       commandBlock(pg),

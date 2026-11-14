@@ -46,4 +46,6 @@ function watchOverflow(view) {
   const later = () => { if (!queued) { queued = true; (globalThis.requestAnimationFrame || setTimeout)(run); } };
   try { new MutationObserver(later).observe(view, { childList: true, subtree: true }); } catch (_) { /* no MutationObserver */ }
   window.addEventListener("resize", later);
+  view.addEventListener("toggle", later, true); // a table in a closed <details> has no width until it opens; toggle does not bubble
+  later();
 }
