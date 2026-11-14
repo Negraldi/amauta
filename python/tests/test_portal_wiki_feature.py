@@ -50,7 +50,7 @@ class FeatureCommitsTest(WikiBase):
         (c,) = pg["commits"]
         self.assertEqual((c["hash"], c["full"], c["subject"]), (self.short, self.full, "feat: first <b>subject</b>"))
         self.assertRegex(c["date"], r"^\d{4}-\d\d-\d\dT")
-        self.assertIn("deadbee", pg["body_md"])  # unresolved stays in the document as text
+        self.assertIn("deadbee", pg["sections"][0]["items"][1]["label"])  # unresolved stays as text in the task list (the body does not repeat it)
 
     def test_progress_is_reported(self):
         self.assertEqual(self.page("feature", "feat")["progress"], {"done": 2, "total": 3, "percent": 67})

@@ -215,7 +215,7 @@ def _feature_page(portal, ident, q):
     tasks = [(t["done"], t["title"]) for t in parsed]
     title = next((m.group(1).strip() for m in re.finditer(r"^# (.+)$", text, re.M)), ident)
     ident = feature_id(repo, f)
-    pg = _blank("feature", ident, title, strip_title_h1(text, title))
+    pg = _blank("feature", ident, title, strip_title_h1(wikifeature.strip_tasks(text), title))
     pg["meta"] = _meta(("Repository", repo.name), ("File", f.name), ("Tasks done", f"{sum(d for d, _ in tasks)} of {len(tasks)}"), ("Modified", _mtime(f)))
     pg["sections"] = [{"heading": "Tasks", "items": [_item(t, "done" if d else "pending") for d, t in tasks]}] if tasks else []
     pg["progress"] = wikifeature.progress(tasks)

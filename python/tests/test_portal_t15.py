@@ -369,3 +369,35 @@ class SessionListTitleTest(unittest.TestCase):
         res = unittest.TestResult()
         Case().run(res)
         self.assertEqual((res.errors, res.failures), ([], []), res.errors + res.failures)
+
+
+class FeatureBodyTasksTest(unittest.TestCase):
+    """W3b A3: a feature document's checklist lines are listed once (the Tasks section), not again inside its text."""
+
+    TEXT = "# Feat\n\nIntro paragraph.\n\n## Phase 1\n\n- [x] T1 one\n- [ ] T2 two\n\n## Phase 2\n\n- [x] T3 three\n\n## Notes\n\nKeep this.\n"
+
+    def test_task_lines_and_the_headings_they_leave_empty_are_dropped(self):
+        from python.amauta.portal import wikifeature
+        out = wikifeature.strip_tasks(self.TEXT)
+        self.assertNotIn("T1 one", out)
+        self.assertNotIn("Phase 1", out)
+        self.assertNotIn("Phase 2", out)
+        self.assertIn("Intro paragraph.", out)
+        self.assertIn("## Notes\n\nKeep this.", out)
+
+    def test_a_document_without_tasks_is_unchanged(self):
+        from python.amauta.portal import wikifeature
+        self.assertEqual(wikifeature.strip_tasks("# A\n\ntext\n"), "# A\n\ntext\n")
+
+    def test_the_feature_page_body_has_no_checklist(self):
+        from python.tests.test_portal_wiki import WikiBase
+
+        class Case(WikiBase):
+            def runTest(self):
+                (self.f["repo"] / "odd" / "tasks" / "feat.md").write_text(FeatureBodyTasksTest.TEXT)
+                pg = self.page("feature", "feat")
+                self.assertNotRegex(pg["body_md"] or "", r"- \[[ x]\]")
+                self.assertEqual(len(pg["sections"][0]["items"]), 3)
+        res = unittest.TestResult()
+        Case().run(res)
+        self.assertEqual((res.errors, res.failures), ([], []), res.errors + res.failures)

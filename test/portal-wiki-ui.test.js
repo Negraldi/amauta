@@ -372,17 +372,17 @@ test('a feature page shows progress with a bar, a count and shape-labelled chips
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
 
-test('a feature page draws the task grid once and notes a capped document; a node page keeps its own diagram', async () => {
-  const pg = { ...PAGE, sections: [], kind: 'feature', id: 'feat', title: 'Feature', body_md: 'text', progress: { done: 1, total: 90, percent: 1 }, commits: [],
+test('a feature page lists its tasks once and counts them once; a node page keeps its own diagram', async () => {
+  const pg = { ...PAGE, sections: [{ heading: 'Tasks', items: [{ label: 'T1 one', value: 'done' }] }], kind: 'feature', id: 'feat', title: 'Feature', body_md: 'text',
+    progress: { done: 1, total: 90, percent: 1 }, commits: [], meta: [{ label: 'Tasks done', value: '1 of 90' }, { label: 'Repository', value: 'amauta' }],
     diagram: { source: 'flowchart TB\n  s0(["x"])', tasks: 90, shown: 60 } };
-  let { env } = await boot('#/feature/feat', { '/api/wiki/page': pg });
+  const { env } = await boot('#/feature/feat', { '/api/wiki/page': pg });
   const v = view(env);
-  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
-  assert.equal(tree(v).filter((e) => /diagram/.test(cls(e))).length, 1);
-  assert.match(v.textContent, /Showing the first 60 of 90 tasks/);
-  assert.ok(!tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Neighborhood'));
-  ({ env } = await boot('#/feature/feat', { '/api/wiki/page': { ...pg, diagram: null } }));
-  assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
+  assert.ok(!tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'), 'the grid repeats the list: not drawn here');
+  assert.equal(tree(v).filter((e) => /diagram/.test(cls(e))).length, 0);
+  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Tasks'));
+  assert.equal((v.textContent.match(/1 of 90/g) || []).length, 1, 'one count');
+  assert.match(v.textContent, /Repository/);
 });
 
 test('the Harness page shows the session flow in Mermaid and links archify, never frames it (plan N12e)', async () => {

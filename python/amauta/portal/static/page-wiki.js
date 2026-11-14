@@ -82,14 +82,6 @@ function nodeDiagramBlock(diagram) {
     diagram.truncated ? nearestNote(R.NODE_CAP, diagram) : null);
 }
 
-// ODD feature: tasks grouped by phase in a grid (shape + word + class carry the status); long documents are capped server-side.
-function taskDiagramBlock(pg) {
-  const d = pg.diagram;
-  if (pg.kind !== "feature" || !d || !d.source) return null;
-  return h("section", { class: "page-section" }, h("h2", null, t("grid.title")), diagramBox(d.source, t("grid.aria")),
-    d.tasks > d.shown ? h("p", { class: "muted" }, t("grid.first", { shown: fmt(d.shown), total: fmt(d.tasks) })) : null);
-}
-
 // Skill impact (comparative): the metrics with their sample sizes, then the change log with before/after deltas. Direction is a shape plus words.
 function markSpan(m) {
   const d = R.deltaMark(m);
@@ -129,7 +121,7 @@ function impactBlock(im) {
 }
 
 function pageExtras(pg) {
-  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), taskDiagramBlock(pg), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
+  return [usageBlock(pg.usage), pg.kind === "skill" ? impactBlock(pg.impact) : null, historyBlock(pg.history), commitsBlock(pg.commits), pg.kind === "node" ? nodeDiagramBlock(pg.diagram) : null];
 }
 
 function bodyNodes(pg, text = pg.body_md) {
@@ -184,7 +176,8 @@ async function viewWikiPage(kind, id, source) {
   state.pageTitle = pg.kind === "session" ? String(pg.id).slice(0, 8) : pg.title || null;
   const refs = (list, more) => (list.length ? refList(list, list.length + (more || 0)) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
-  const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source");
+  const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source")
+    && !(pg.progress && m.label === "Tasks done"); // the progress bar says it
   return [h("div", { class: pg.kind === "node" ? "page page-wide" : "page" },
     h("article", { class: "doc" },
       h("h1", null, itemTitle(pg.kind, pg.title)), progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
