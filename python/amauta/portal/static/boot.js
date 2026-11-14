@@ -6,6 +6,7 @@
 const palette = { items: [], nodes: [], index: -1, seq: 0 };
 function openPalette() {
   const dlg = $("palette");
+  if (!dlg.open && $("palette-input").value) { $("palette-input").value = ""; resetSearch(); } // a closed palette starts empty
   if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", ""); }
   const input = $("palette-input");
   if (input.focus) input.focus();
@@ -107,9 +108,17 @@ async function runSearch() {
 }
 
 let searchTimer = null;
-$("palette-input").addEventListener("input", () => {
+// The empty state at once: a pending answer or timer is dropped (a newer seq), so nothing old is painted over it.
+function resetSearch() {
   if (searchTimer) clearTimeout(searchTimer);
-  if ($("palette-input").value.trim()) { searchBusy(true); paletteNote("muted", t("palette.searching")); }
+  palette.seq++;
+  searchBusy(false);
+  paletteNote("muted", t("palette.hint"));
+}
+$("palette-input").addEventListener("input", () => {
+  if (!$("palette-input").value.trim()) return resetSearch();
+  if (searchTimer) clearTimeout(searchTimer);
+  searchBusy(true); paletteNote("muted", t("palette.searching"));
   searchTimer = setTimeout(runSearch, 120);
 });
 $("palette-input").addEventListener("keydown", (e) => {

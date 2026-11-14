@@ -317,6 +317,12 @@ function emptyCatalog(total, runtime, kind, shown) {
   if (runtime && !shown) return t(kind ? "catalog.noRuntimeKind" : "catalog.noRuntime", { runtime: runtimeNames([runtime]) });
   return t("components.noMatch");
 }
+// Under a runtime filter the intro says how many of the installed things apply to it.
+function catalogIntro(total, pool, runtime) {
+  const n = pool.reduce((sum, g) => sum + g.items.length, 0);
+  if (!runtime) return tn("catalog.intro", total, { n: fmt(total) });
+  return tn("catalog.introRuntime", n, { n: fmt(n), total: fmt(total), runtime: runtimeNames([runtime]) });
+}
 // Catalog (#/component): every harness component and skill, grouped by kind; ?kind= keeps one kind, the box filters what is loaded.
 // When only one of the two lists loads, the page shows it with the error panel for the other.
 async function viewCatalog(route) {
@@ -346,7 +352,7 @@ async function viewCatalog(route) {
   const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
   const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
   const partial = res.err || sk ? null : errorNote(null, t("part.skills"), true); // without skills the total is partial: it is not said
-  const intro = sk || res.err ? tn("catalog.intro", total, { n: fmt(total) }) : null;
+  const intro = sk || res.err ? catalogIntro(total, pool, runtime) : null;
   return [pageHead(t("nav.catalog"), intro), partial, res.err ? errorPanel(route, res.err) : null,
     noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box, runtimeLinks(kind, runtime)), refresh, list, teachWhere];
 }

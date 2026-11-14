@@ -75,3 +75,88 @@ test('F2: after the diagram/list toggle the new toggle button has focus', async 
   assert.equal(button().focused, true, 'the button to see the diagram has focus');
   assert.match(box.className, /outline/, 'the outline box wraps');
 });
+
+// ---- F3: the palette has no stale state ----
+import { makeEnv } from './helpers/fakedom.js';
+import { runPortal, readDicts } from './helpers/portalboot.js';
+
+async function palette(search) {
+  const env = makeEnv({ '/api/wiki/home': { activity: [], spending: { available: false }, health: { installed: false } }, '/api/pipelines': { projects: [] },
+    '/api/wiki/search': search });
+  env.location.hash = '#/';
+  const c = await runPortal(env, { DOMParser: class {}, queueMicrotask });
+  await tick();
+  const input = env.document.getElementById('palette-input'), results = env.document.getElementById('palette-results');
+  const type = (value) => { input.value = value; for (const fn of input.listeners.input ?? []) fn({ target: input }); };
+  return { c, input, results, type };
+}
+const HIT = { groups: [{ kind: 'memory', items: [{ kind: 'memory', id: '1', title: 'Widgets' }] }] };
+
+test('F3: clearing the input returns to the empty state at once, and a late answer does not repaint it', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let calls = 0;
+  const { results, type } = await palette(async () => { if (++calls === 2) await gate; return HIT; });
+  type('widg');
+  await tick(250);
+  assert.match(results.textContent, /Widgets/);
+  type('widgets');
+  await tick(200);
+  type('');
+  assert.match(results.textContent, /Type to search/, 'the hint, before any debounce');
+  release();
+  await tick(60);
+  assert.doesNotMatch(results.textContent, /Widgets/, 'the late answer is dropped');
+  assert.equal(results.getAttribute('aria-busy'), undefined);
+});
+
+test('F3: clearing the input removes a failure note', async () => {
+  const { results, type } = await palette(async () => { throw new Error('boom'); });
+  type('widg');
+  await tick(250);
+  assert.match(results.textContent, /Search failed/);
+  type('');
+  assert.doesNotMatch(results.textContent, /failed/);
+  assert.match(results.textContent, /Type to search/);
+});
+
+test('F3: reopening the palette after closing it starts empty', async () => {
+  const { c, input, results, type } = await palette(async () => HIT);
+  run(c, 'openPalette()');
+  type('widg');
+  await tick(250);
+  assert.match(results.textContent, /Widgets/);
+  run(c, 'closePalette(true)');
+  run(c, 'openPalette()');
+  assert.equal(input.value, '');
+  assert.match(results.textContent, /Type to search/);
+  assert.doesNotMatch(results.textContent, /Widgets/);
+});
+
+test('F3: the placeholder is short in both languages and the long list lives in the hint', async () => {
+  const d = await readDicts();
+  for (const lang of ['en', 'es']) assert.ok(d[lang]['palette.placeholder'].length <= 24, d[lang]['palette.placeholder']);
+  assert.match(d.en['palette.hint'], /memories, skills, tools, sessions, features/);
+  assert.match(d.es['palette.hint'], /memorias, skills, herramientas, sesiones, funcionalidades/);
+});
+
+// ---- F4: the catalog intro follows the runtime filter ----
+import { view, text, ES } from './helpers/t15w3.js';
+const item = (kind, id, runtimes) => ({ kind, id, title: id, description: `About ${id}`, source: 'Your Claude home', uses: 0, ...(runtimes ? { runtimes } : {}) });
+const COMPS = { total: 3, pending: 0, refresh: { servers: 0 }, groups: [
+  { kind: 'hook', label: 'Hooks', items: [item('hook', 'a', ['claude']), item('hook', 'b', ['codex']), item('hook', 'c', ['claude', 'codex'])] }] };
+const CAT = { '/api/harness/components': COMPS, '/api/skills': { total: 0, groups: [] } };
+
+test('F4: the intro count follows the runtime filter and says so, and the kinds include instruction blocks', async () => {
+  const all = await boot('#/component', CAT);
+  assert.match(text(all), /3 things installed in your harness/);
+  assert.match(text(all), /instruction blocks/);
+  const codex = await boot('#/component?runtime=codex', CAT);
+  assert.match(text(codex), /2 of 3 things in your harness apply to Codex/);
+  assert.doesNotMatch(text(codex), /3 things installed/);
+  const es = await boot('#/component?runtime=codex', CAT, ES);
+  assert.match(text(es), /2 de 3 elementos de su harness se aplican a Codex/);
+  const esAll = await boot('#/component', CAT, ES);
+  assert.match(text(esAll), /bloques de instrucciones/);
+  void view;
+});
