@@ -97,6 +97,10 @@ Each class names what to look for and the automated test that now guards it, whe
 31. **Dark-theme control borders and small scaled text.** A control border drawn with `--line` can fall near 1:1 in
     the dark theme (use `--line-strong`); an SVG scaled to fit a phone can take its 11px text below 11px. Guard:
     `portal-t16d-states` (F9, F10).
+32. **A nested direction defeats a top-level flip.** A subgraph with its own `direction LR` keeps a long row of nodes wide
+    however the top-level direction turns (one real source stayed 1342 px in a 977 px box); the layout candidates must
+    turn the subgraph direction too, and a flowchart that still cannot be legible in a narrow box becomes an outline.
+    Guard: `portal-t19-diagrams`.
 
 ## Rules for the reviewer
 

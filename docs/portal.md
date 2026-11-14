@@ -173,9 +173,12 @@ a translation is missing), served read-only by `GET /api/guide` and `GET /api/gu
 only. A page selector ("n. Title", with "n of m") sits above the page and previous / next links below it; there is no
 contents column. Every diagram in the portal (guide, Graph, wiki and node pages, Harness architecture, project progress) is drawn
 through one entry point, `adaptiveDiagram(source, caption, onDrawn)`, and picks the layout that fits the width it gets
-(`static/diagram-layout.js`: as written, tighter spacing, flipped flowchart direction with wrapped labels; sequences with
-wrapped messages) and draws it again when the window is resized. A sequence that cannot fit a narrow screen even at the
-11 px text floor is shown as an ordered list of steps. Other kinds (pie, gantt, state, flowcharts with BT or RL) keep one layout.
+(`static/diagram-layout.js`: as written, tighter spacing, flipped flowchart direction (TD/TB with LR, BT with RL) with wrapped
+labels, subgraph `direction LR`/`RL` turned to `TB`; sequences with wrapped messages) and draws it again when the window is
+resized. A sequence that cannot fit a narrow screen even at the 11 px text floor is shown as an ordered list of steps. A
+flowchart in that case in a box under 480 px is shown as an outline (nodes in source order, each with its outgoing edges as
+"→ target (label)", subgraphs as headings) with a "Show the diagram" button that swaps in the scrollable diagram and a "Show as
+a list" button back; a wider box returns to the diagram. Other kinds (pie, gantt, state) keep one layout.
 `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
 
 ### Sibling projects
