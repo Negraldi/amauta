@@ -109,7 +109,8 @@
   const SEGMENTS = { skills: "skills", tools: "tools", mcp: "mcp_servers", mcptools: "mcp_tools", subagents: "subagents" };
   const SOURCES = ["engram"]; // stores besides the default one ("own") that a memory page can be read from
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-  const QUERY = { seg: (v) => own(SEGMENTS, v), kind: (v) => CATALOG_KINDS.includes(v), source: (v) => SOURCES.includes(v),
+  const QUERY = { seg: (v) => own(SEGMENTS, v), kind: (v) => CATALOG_KINDS.includes(v),
+    runtime: (v) => v === "claude" || v === "codex", source: (v) => SOURCES.includes(v),
     tab: (v) => (v !== "overview" && PROJECT_TABS.includes(v)) || (v !== "preferences" && SETTINGS_TABS.includes(v)) };
 
   function decode(part) {

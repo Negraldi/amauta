@@ -128,7 +128,8 @@ test('?kind=skill shows only skills in the same catalog (no separate skill page)
   const v = view(env);
   assert.equal(tree(v).find((e) => e.tagName === 'h1').textContent, 'Catalog');
   assert.deepEqual(tree(v).filter((e) => e.tagName === 'h2').map((e) => e.textContent), ['Skills (2)']);
-  const current = tree(v).filter((e) => e.tagName === 'a' && e.getAttribute('aria-current') === 'true').map((a) => a.textContent);
+  const kinds = tree(v).find((e) => e.tagName === 'nav' && e.getAttribute('aria-label') === 'Component kinds'); // the Runtime control marks its own current segment
+  const current = tree(kinds).filter((e) => e.tagName === 'a' && e.getAttribute('aria-current') === 'true').map((a) => a.textContent);
   assert.deepEqual(current, ['Skills (2)']);
   assert.match(v.textContent, /Split PRs/);
   assert.match(v.textContent, /Installed by amauta/);

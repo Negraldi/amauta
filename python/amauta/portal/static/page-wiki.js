@@ -265,7 +265,11 @@ function explainBlock(pg) {
 }
 const clip = (text) => clipText(text, 220);
 const CATALOG_CAP = 8; // items per kind in the All view; the kind link shows the rest
-const catalogHash = (kind) => R.routeHash({ kind: "component", id: "", query: kind ? { kind } : {} });
+const catalogHash = (kind, runtime) => R.routeHash({ kind: "component", id: "",
+  query: { ...(kind ? { kind } : {}), ...(runtime ? { runtime } : {}) } });
+// The runtime filter: an entry without runtimes (an older server) is Claude Code's; a group left empty stays so its count reads 0.
+const onRuntime = (groups, runtime) => (runtime
+  ? groups.map((g) => ({ ...g, items: g.items.filter((i) => (i.runtimes || ["claude"]).includes(runtime)) })) : groups);
 // Skills join the component groups as one "Skills" group; each row keeps the label of where it comes from.
 function skillGroup(sk) {
   const row = (g) => (i) => ({ kind: "skill", id: i.id, title: i.id, description: i.description, source: g.label, uses: i.uses,
@@ -282,23 +286,36 @@ function catalogRow(i) {
     i.description ? h("div", null, clip(localized(i, "description"))) : null, usage,
     i.runtimes ? h("div", { class: "muted" }, t("catalog.runtime", { names: runtimeNames(i.runtimes) })) : null);
 }
-function catalogGroup(g, capped) {
+function catalogGroup(g, capped, runtime) {
   const shown = capped ? g.items.slice(0, CATALOG_CAP) : g.items;
   const label = ts(g.label);
   const more = shown.length < g.items.length
-    ? h("p", null, h("a", { href: catalogHash(g.kind) }, t("catalog.showAll", { n: fmt(g.items.length), label }))) : null;
+    ? h("p", null, h("a", { href: catalogHash(g.kind, runtime) }, t("catalog.showAll", { n: fmt(g.items.length), label }))) : null;
   return h("section", { class: "page-section", "aria-label": label }, h("h2", null, `${label} (${fmt(g.items.length)})`),
     g.lead ? h("p", { class: "muted" }, ts(g.lead)) : null, // said once for the group, not on every row
     h("ul", { class: "items" }, shown.map(catalogRow)), more);
 }
 // The kind links: All plus one per kind present, each with its count; the current one is marked, the choice lives in ?kind=.
 // Up to a dozen kinds: the group wraps onto rows (segmented-wrap) instead of hiding kinds behind a sideways scroll.
-function kindLinks(groups, current, counts) {
+function kindLinks(groups, current, counts, runtime) {
   const count = (g) => (counts ? counts.get(g.kind) || 0 : g.items.length); // the counts follow the text filter
   const total = groups.reduce((n, g) => n + count(g), 0);
-  const one = (kind, label, n) => h("a", { href: catalogHash(kind), "aria-current": kind === current ? "true" : false }, `${label} (${fmt(n)})`);
+  const one = (kind, label, n) => h("a", { href: catalogHash(kind, runtime), "aria-current": kind === current ? "true" : false },
+    `${label} (${fmt(n)})`);
   return h("nav", { class: "segmented segmented-wrap", "aria-label": t("catalog.kinds") }, one("", t("catalog.all"), total),
     ...groups.map((g) => one(g.kind, ts(g.label), count(g))));
+}
+// The runtime segments (All, Claude Code, Codex): links that keep ?kind= and carry ?runtime=, like the kind links.
+function runtimeLinks(kind, current) {
+  const one = (runtime, label) => h("a", { href: catalogHash(kind, runtime), "aria-current": runtime === current ? "true" : false }, label);
+  return h("nav", { class: "segmented segmented-wrap", "aria-label": t("catalog.runtimes") }, one("", t("catalog.runtimeAll")),
+    one("claude", t("runtime.claude")), one("codex", t("runtime.codex")));
+}
+// What an empty list says: nothing installed, nothing for the runtime, or nothing matching the text.
+function emptyCatalog(total, runtime, kind, shown) {
+  if (!total) return t("components.none");
+  if (runtime && !shown) return t(kind ? "catalog.noRuntimeKind" : "catalog.noRuntime", { runtime: runtimeNames([runtime]) });
+  return t("components.noMatch");
 }
 // Catalog (#/component): every harness component and skill, grouped by kind; ?kind= keeps one kind, the box filters what is loaded.
 // When only one of the two lists loads, the page shows it with the error panel for the other.
@@ -307,19 +324,22 @@ async function viewCatalog(route) {
   if (res.err && !sk) throw res.err; // nothing to show: the page error panel
   const cat = res.err ? { groups: [] } : res;
   const groups = [...skillGroup(sk), ...cat.groups];
+  const runtime = (route.query && route.query.runtime) || "";
+  const pool = onRuntime(groups, runtime);
   const asked = route.query && route.query.kind;
   const kind = asked && groups.some((g) => g.kind === asked) ? asked : "";
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   const list = h("div", { "aria-live": "polite" }); // an empty result is announced
-  const kinds = kindLinks(groups, kind);
+  const kinds = kindLinks(groups, kind, new Map(pool.map((g) => [g.kind, g.items.length])), runtime);
   const box = h("input", { type: "search", placeholder: t("components.filter"), "aria-label": t("components.filter"), value: state.componentQuery || "" });
   const paint = () => {
     state.componentQuery = box.value;
-    const found = R.filterComponents(kind ? groups.filter((g) => g.kind === kind) : groups, box.value);
-    const none = empty(total ? t("components.noMatch") : t("components.none"));
-    list.replaceChildren(...(found.length ? found.map((g) => catalogGroup(g, !kind && !box.value.trim())) : [none]));
-    const counts = new Map(R.filterComponents(groups, box.value).map((g) => [g.kind, g.items.length]));
-    kinds.replaceChildren(...kindLinks(groups, kind, counts).children);
+    const found = R.filterComponents(kind ? pool.filter((g) => g.kind === kind) : pool, box.value);
+    const shown = pool.some((g) => (!kind || g.kind === kind) && g.items.length);
+    const none = empty(emptyCatalog(total, runtime, kind, shown));
+    list.replaceChildren(...(found.length ? found.map((g) => catalogGroup(g, !kind && !box.value.trim(), runtime)) : [none]));
+    const counts = new Map(R.filterComponents(pool, box.value).map((g) => [g.kind, g.items.length]));
+    kinds.replaceChildren(...kindLinks(groups, kind, counts, runtime).children);
   };
   box.addEventListener("input", paint);
   paint();
@@ -328,7 +348,7 @@ async function viewCatalog(route) {
   const partial = res.err || sk ? null : errorNote(null, t("part.skills"), true); // without skills the total is partial: it is not said
   const intro = sk || res.err ? tn("catalog.intro", total, { n: fmt(total) }) : null;
   return [pageHead(t("nav.catalog"), intro), partial, res.err ? errorPanel(route, res.err) : null,
-    noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box), refresh, list, teachWhere];
+    noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box, runtimeLinks(kind, runtime)), refresh, list, teachWhere];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.
