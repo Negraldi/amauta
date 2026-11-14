@@ -190,11 +190,13 @@ async function viewWikiPage(kind, id, source) {
   const refs = (list, more) => (list.length ? refList(list, list.length + (more || 0)) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s) && !isSameConfig(s, pg.summary)) : pg.sections;
   const h1 = h("h1", null, itemTitle(pg.kind, pg.kind === "session" ? sessionHeading(pg.title) : pg.title));
-  const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source")
+  const nodeId = pg.kind === "node" ? (pg.meta.find((m) => m.label === "Node id") || {}).value : null;
+  const secondary = nodeId && nodeId !== pg.title ? h("p", { class: "muted tok h1-sub" }, nodeId) : null; // the internal id, small
+  const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source") && !(secondary && m.label === "Node id")
     && !(pg.progress && m.label === "Tasks done"); // the progress bar says it
   return [h("div", { class: pg.kind === "node" ? "page page-wide" : "page" },
     h("article", { class: "doc" },
-      h1, progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
+      h1, secondary, progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
       commandBlock(pg),
       pg.refresh ? refreshControl(pg.refresh.server) : null, pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),

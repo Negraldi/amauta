@@ -135,3 +135,12 @@ test('A15: Today says how fresh its data is, like Usage', async () => {
   const env = await boot('#/', FEED([item, { ...item, id: '2', ts: '2026-11-14T12:30:00Z' }]));
   assert.match(text(env), /Data as of 2026-11-14 12:30; Refresh imports newer activity\./);
 });
+
+test('D7: a node page heading is its readable label with the internal id as small secondary text, once', async () => {
+  const pg = page('node', { id: 'r::n1', title: 'Helper', meta: [{ label: 'Kind', value: 'code' }, { label: 'Node id', value: 'ref_node_fs' }] });
+  const env = await boot('#/node/r%3A%3An1', { '/api/wiki/page': pg });
+  assert.equal(tree(view(env)).find((e) => e.tagName === 'h1').textContent, 'Helper');
+  const sub = tree(view(env)).find((e) => /\bh1-sub\b/.test(e.className));
+  assert.ok(sub && sub.textContent.includes('ref_node_fs'));
+  assert.equal((text(env).match(/ref_node_fs/g) || []).length, 1, 'the id is said once');
+});
