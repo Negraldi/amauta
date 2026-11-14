@@ -71,10 +71,14 @@ function lintItem(it) {
   const people = Array.isArray(it.members) && it.members.length > 1
     ? pagedList(it.members, MEMBER_PAGE, (m) => h("li", null, link(m.kind, m.id, m.title), m.topic_key ? h("span", { class: "muted" }, ` ${m.topic_key}`) : null), { class: "refs" })
     : null;
-  return h("li", null, people ? h("span", null, t("lint.group") + " ") : link(it.kind, it.id, it.title), it.detail ? h("span", { class: "muted" }, ` ${ts(it.detail)}`) : null, people);
+  const who = it.kind === "memory" && "updated" in it // rows with one title differ by project, date and id
+    ? ` ${[it.project || t("mem.noProject"), R.fmtDate(it.updated), `#${it.id}`].join(" · ")}` : "";
+  const tail = [who, it.detail ? ` ${ts(it.detail)}` : ""].join("");
+  return h("li", null, people ? h("span", null, t("lint.group") + " ") : link(it.kind, it.id, it.title), tail ? h("span", { class: "muted" }, tail) : null, people);
 }
+const lintHeading = (c) => `${ts(c.title)} (${fmt(c.count)})`;
 function lintCategory(c) {
-  return h("section", { class: "page-section lint-cat" }, h("h2", null, `${ts(c.title)} (${fmt(c.count)})`), h("p", { class: "muted" }, ts(c.note)),
+  return h("section", { class: "page-section lint-cat" }, c.head, h("p", { class: "muted" }, ts(c.note)),
     c.items.length ? pagedList(c.items, LINT_PAGE, lintItem) : h("p", null, t("lint.nothing")),
     c.truncated ? h("p", { class: "muted" }, t("lint.showing", { shown: fmt(c.items.length), total: fmt(c.count) })) : null);
 }
@@ -82,6 +86,9 @@ async function viewLint() {
   const l = await api("wiki/lint");
   const sc = l.scanned || {};
   const scope = tn("lint.intro", sc.memories, { n: fmt(sc.memories), capped: sc.capped ? t("lint.capped") : "" });
-  return [pageHead(t("lint.title"), `${t("lint.prompts")} ${scope}`), h("div", { class: "page" }, h("article", { class: "doc" },
+  for (const c of l.categories) c.head = h("h2", { tabindex: -1 }, lintHeading(c)); // the index moves focus here
+  const goTo = (c) => { const b = h("button", { type: "button" }, lintHeading(c)); b.addEventListener("click", () => { c.head.focus(); c.head.scrollIntoView?.(); }); return b; };
+  const index = h("nav", { class: "segmented segmented-wrap", "aria-label": t("lint.sections") }, l.categories.map(goTo));
+  return [pageHead(t("lint.title"), `${t("lint.prompts")} ${scope}`), index, h("div", { class: "page" }, h("article", { class: "doc" },
     l.categories.map(lintCategory)))];
 }

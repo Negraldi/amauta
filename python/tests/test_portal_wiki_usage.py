@@ -106,7 +106,7 @@ class SessionPageTest(SkillBase):
         self.assertEqual(m["Working directory"], "/work/alpha")
         sec = {s["heading"]: s for s in pg["sections"]}
         self.assertEqual([(i["kind"], i["label"]) for i in sec["Memories saved in this session"]["items"]], [("memory", "Saved in s1")])
-        self.assertIn(("memory", "Saved in s1"), [(x["kind"], x["title"]) for x in pg["links"]])
+        self.assertEqual(pg["links"], [])
         self.assertIn(("skill", "work-unit-commits"), [(i["kind"], i["id"]) for i in sec["Skills"]["items"]])
         self.assertIn(("mcp", "engram"), [(i["kind"], i["id"]) for i in sec["MCP servers"]["items"]])
         self.assertIn("sdd-apply", [i["label"] for i in sec["Subagent types"]["items"]])

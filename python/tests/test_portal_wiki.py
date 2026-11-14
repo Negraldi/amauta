@@ -95,8 +95,7 @@ class UsagePagesTest(WikiBase):
         self.assertIn(("skill", "work-unit-commits"), [(i["kind"], i["id"]) for i in headings["Skills"]["items"]])
         self.assertIn(("tool", "Bash"), [(i["kind"], i["id"]) for i in headings["Tools"]["items"]])
         self.assertIn("sdd-apply", [i["label"] for i in headings["Subagent types"]["items"]])
-        self.assertIn(("skill", "work-unit-commits"), [(x["kind"], x["id"]) for x in pg["links"]])
-        self.assertIn(("mcp", "engram"), [(x["kind"], x["id"]) for x in pg["links"]])
+        self.assertEqual(pg["links"], [])  # the sections above are the list: no second "Links" copy (T15 A4)
 
     def test_usage_pages_404_without_a_database(self):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
@@ -109,7 +108,7 @@ class FeatureAndNodePagesTest(WikiBase):
     def test_feature_page_has_the_document_and_task_progress(self):
         pg = self.page("feature", "feat")
         self.assertEqual(pg["title"], "Feature")
-        self.assertIn("T2 Open thing", pg["body_md"])
+        self.assertNotIn("T2 Open thing", pg["body_md"])  # the Tasks section lists it once
         self.assertEqual(self.meta(pg)["Tasks done"], "2 of 3")
         (tasks,) = pg["sections"]
         self.assertEqual([(i["label"], i["value"]) for i in tasks["items"]][:2], [("T1 Done thing", "done"), ("T2 Open thing", "pending")])

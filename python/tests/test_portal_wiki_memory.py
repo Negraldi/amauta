@@ -24,7 +24,7 @@ class TitleDedupTest(Saver):
         pg = self.page("feature", "feat")
         self.assertEqual(pg["title"], "Feature")
         self.assertFalse(pg["body_md"].lstrip().startswith("#"))
-        self.assertIn("T1 Done thing", pg["body_md"])
+        self.assertNotIn("T1 Done thing", pg["body_md"])  # task lines are listed once, in the Tasks section
 
     def test_feature_prefix_and_case_are_ignored_and_other_headings_stay(self):
         (self.f["repo"] / "odd" / "tasks" / "other.md").write_text("# Feature: Portal Wiki\n\n## Objective\n\ntext\n# Portal wiki\n")

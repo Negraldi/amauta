@@ -44,7 +44,16 @@ def _category(cid, title, note, items, count=None):
 
 
 def _mem_item(row, detail, **extra):
-    return {"kind": "memory", "id": str(row["id"]), "title": row["title"] or f"#{row['id']}", "detail": detail, **extra}
+    """A memory row. Project and update date are sent so that rows with the same title can be told apart (the page adds the id)."""
+    return {"kind": "memory", "id": str(row["id"]), "title": row["title"] or f"#{row['id']}", "detail": detail,
+            "project": row.get("project"), "updated": row.get("updated_at"), **extra}
+
+
+def _word_cut(text, limit):
+    """`text` cut at the last space before `limit` characters (the whole text when it fits, a hard cut for one long word)."""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-") or text[:limit]
 
 
 def _load(conn):
@@ -194,10 +203,11 @@ def _duplicates(rows):
         if len(members) < 2 or len(keys) < 2:
             continue  # one topic_key is one topic, not a duplicate
         first = members[0]
-        items.append(_mem_item(first, f"{len(members)} notes with the same or near-identical title under different topic keys: review whether they should be merged",
+        items.append(_mem_item(first, f"{len(members)} notes",
                                members=[{"kind": "memory", "id": str(m["id"]), "title": m["title"] or f"#{m['id']}", "topic_key": m["topic_key"]} for m in members]))
     return _category("duplicates", "Possible duplicates",
-                     "Same title (ignoring case and punctuation) saved under different topic keys. A candidate list to review, not a claim that either note is wrong.", items)
+                     "Notes with the same or near-identical title (ignoring case and punctuation) saved under different topic keys: review whether they should be "
+                     "merged. A candidate list, not a claim that either note is wrong.", items)
 
 
 def _superseded(rows):
@@ -234,7 +244,7 @@ def _unused_skills(portal, days):
         used = {r[0] for r in conn.execute("SELECT DISTINCT skill FROM tool_calls WHERE skill IS NOT NULL AND substr(ts, 1, 10) >= ?", (since,))}
     finally:
         conn.close()
-    items = [{**_ref("skill", n), "detail": f"Installed, not loaded in the last {days} days"} for n in names if n not in used]
+    items = [_ref("skill", n) for n in names if n not in used]  # the note says why, once for all rows
     return _category("unused_skills", "Installed skills never used", note, items)
 
 
@@ -268,8 +278,8 @@ def _unevidenced(text):
                     found = True
                     break
         if not found:
-            if (tid or m.group(1)[:40]) not in missing:  # one id checked on two lines is listed once
-                missing.append(tid or m.group(1)[:40])
+            if (tid or _word_cut(m.group(1), 40)) not in missing:  # one id checked on two lines is listed once
+                missing.append(tid or _word_cut(m.group(1), 40))
     return checked, missing
 
 
@@ -311,9 +321,9 @@ def _missing_links(portal, rows, resolver):
 
 
 def _unspaced(rows):
-    items = [_mem_item(r, "Body stored with almost no spaces between words.") for r in rows if spacing.looks_unspaced(r["content"])]
+    items = [_mem_item(r, None) for r in rows if spacing.looks_unspaced(r["content"])]
     return _category("unspaced", "Notes saved without spaces",
-                     "The body was saved this way by the agent that wrote it; the portal shows it as stored. It cannot be repaired "
+                     "Bodies stored with almost no spaces between words. The agent that wrote the note saved them this way; the portal shows them as stored. It cannot be repaired "
                      "automatically because guessing where words start would change the text. Rewrite the note or delete it.", items)
 
 

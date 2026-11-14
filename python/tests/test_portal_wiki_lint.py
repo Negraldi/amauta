@@ -101,8 +101,9 @@ class DuplicateTest(LintBase):
         c = self.cat("duplicates")
         self.assertEqual(c["count"], 1)
         group = c["items"][0]
-        self.assertIn("review", group["detail"].lower())
-        self.assertNotIn("contradict", group["detail"].lower())
+        self.assertEqual(group["detail"], "2 notes")  # the reason is the category note's, said once
+        self.assertIn("review", c["note"].lower())
+        self.assertNotIn("contradict", c["note"].lower())
         self.assertEqual(len(group["members"]), 2)
 
     def test_same_topic_key_in_two_projects_is_not_a_duplicate(self):
@@ -217,7 +218,7 @@ class CapTest(LintBase):
             self.save("Same title for everyone", "x", topic_key=f"t/{n}")
         group = self.cat("duplicates")["items"][0]
         self.assertEqual(len(group["members"]), wikilint.PAGE + 4)
-        self.assertIn(f"{wikilint.PAGE + 4} notes", group["detail"])
+        self.assertEqual(group["detail"], f"{wikilint.PAGE + 4} notes")
 
     def test_scan_cap_is_reported(self):
         out = self.lint()

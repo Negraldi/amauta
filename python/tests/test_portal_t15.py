@@ -428,3 +428,57 @@ class SessionPageRepeatsTest(unittest.TestCase):
     def test_the_project_detail_says_which_page_it_opens(self):
         project = next(m for m in self.page("s60")["meta"] if m["label"] == "Project")
         self.assertEqual(project.get("kind"), "project")
+
+
+def _lint_case(body):
+    """Runs `body(case)` inside a lint fixture (LintBase), returning nothing; failures surface as the outer test's failure."""
+    from python.tests.test_portal_wiki_lint import LintBase
+
+    class Case(LintBase):
+        def runTest(self):
+            body(self)
+    res = unittest.TestResult()
+    Case().run(res)
+    return res.errors + res.failures
+
+
+class LintRepeatsTest(unittest.TestCase):
+    """W3b B4, B5, B12: a section says its reason once; rows that look alike carry a date, project and id; task text is cut on a word."""
+
+    def test_rows_do_not_repeat_the_reason_of_their_section(self):
+        def body(c):
+            c.install_skill("never-used")
+            c.save("Alpha note one", "x", topic_key="a/1")
+            skills = c.cat("unused_skills", days=3650)
+            c.assertTrue(skills["items"])
+            c.assertTrue(all(not i.get("detail") for i in skills["items"]))
+            c.assertIn("no load", skills["note"])
+            c.save("Use sqlite for storage", topic_key="db/choice")
+            c.save("Use SQLite for storage!", topic_key="storage/choice")
+            dup = c.cat("duplicates")
+            c.assertEqual(dup["items"][0]["detail"], "2 notes")
+            c.assertIn("review", dup["note"].lower())
+        self.assertEqual(_lint_case(body), [])
+
+    def test_memory_rows_carry_project_date_and_id(self):
+        def body(c):
+            c.save("Lonely note number one", "x", topic_key="lonely/one", project="alpha")
+            item = c.cat("orphans")["items"][0]
+            c.assertEqual(item["project"], "alpha")
+            c.assertRegex(item["updated"], r"^\d{4}-\d\d-\d\d")
+        self.assertEqual(_lint_case(body), [])
+
+    def test_a_removed_hook_gets_a_readable_title_and_a_short_state(self):
+        from python.amauta.extras import wiki_explain as we
+        self.assertEqual(we._gone_title("hook", "PostToolUse:36ce7f65"), "PostToolUse hook (36ce7f65)")
+        self.assertEqual(we._gone_title("agent", "my-agent"), "my-agent")
+        self.assertLess(len(we.GONE_NOTE), 40)
+        self.assertLess(len(we.STALE_NOTE), 40)
+
+    def test_a_task_label_is_cut_on_a_word_boundary(self):
+        from python.amauta.portal import wikilint
+        text = "- [x] " + "reconsider the portal sidebar grouping properly " * 3 + "\n"
+        _, missing = wikilint._unevidenced(text)
+        self.assertLessEqual(len(missing[0]), 40)
+        self.assertTrue(text[6:].startswith(missing[0]))
+        self.assertFalse(text[6 + len(missing[0])].isalnum() if text[6 + len(missing[0])] != " " else False)

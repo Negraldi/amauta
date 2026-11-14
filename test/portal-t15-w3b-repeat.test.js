@@ -45,3 +45,27 @@ test('A7: a session row on Today puts a separator before its details', async () 
   const li = tree(view(env)).find((e) => e.tagName === 'li' && /Fix it/.test(e.textContent));
   assert.match(li.textContent, /Fix it · 3 messages/);
 });
+
+const LINTP = { window_days: 30, scanned: { memories: 3, capped: false }, categories: [
+  { id: 'orphans', title: 'Orphan memories', note: 'Why: no links.', count: 2, truncated: false, items: [
+    { kind: 'memory', id: '7', title: 'Same title', detail: null, project: 'amauta', updated: '2026-10-02T10:00:00Z' },
+    { kind: 'memory', id: '8', title: 'Same title', detail: null, project: null, updated: '2026-10-03T10:00:00Z' }] },
+  { id: 'unspaced', title: 'Notes saved without spaces', note: 'Because.', count: 0, truncated: false, items: [] }] };
+test('B5: lint rows with the same title carry project, date and id; no project says so', async () => {
+  const env = await boot('#/lint', { '/api/wiki/lint': LINTP });
+  const rows = tree(view(env)).filter((e) => e.tagName === 'li' && /Same title/.test(e.textContent)).map((e) => e.textContent);
+  assert.equal(rows.length, 2);
+  assert.match(rows[0], /amauta · 2026-10-02 · #7/);
+  assert.match(rows[1], /no project · 2026-10-03 · #8/);
+});
+test('B12: long lint pages get an in-page index that moves focus to a section', async () => {
+  const env = await boot('#/lint', { '/api/wiki/lint': LINTP });
+  const nav = tree(view(env)).find((e) => e.tagName === 'nav' && /On this page/.test(e.attrs['aria-label'] || ''));
+  assert.ok(nav, 'an index nav');
+  const buttons = tree(nav).filter((e) => e.tagName === 'button');
+  assert.deepEqual(buttons.map((b) => b.textContent), ['Orphan memories (2)', 'Notes saved without spaces (0)']);
+  const h2 = tree(view(env)).find((e) => e.tagName === 'h2' && /^Orphan memories/.test(e.textContent));
+  assert.equal(h2.attrs.tabindex, '-1');
+  buttons[0].click();
+  assert.equal(h2.focused, true);
+});

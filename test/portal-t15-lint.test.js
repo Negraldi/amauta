@@ -19,7 +19,7 @@ async function boot(categories) {
   return env.document.getElementById('view');
 }
 const items = (v) => tree(v).filter((e) => e.tagName === 'li' && /Note \d+/.test(e.textContent) && !e.children.some((c) => c.tagName === 'ul'));
-const button = (v) => tree(v).find((e) => e.tagName === 'button');
+const button = (v) => tree(v).find((e) => e.tagName === 'button' && e.textContent === 'Show more'); // not the index buttons
 
 test('a category with more rows than a page shows 50 of N and Show more reveals the rest', async () => {
   const v = await boot([cat('orphans', Array.from({ length: 120 }, (_, i) => mem(i)))]);
