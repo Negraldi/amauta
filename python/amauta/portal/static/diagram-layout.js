@@ -2,7 +2,8 @@
 // Diagrams that pick a layout for the width they get (T17b). A Mermaid source has a few layout candidates (as written, tighter,
 // flipped direction with wrapped labels; for a sequence, wrapped messages in less room). Each is measured by its rendered width and
 // the first one that fits the box is drawn, else the narrowest (fit.js then scales it to the text floor and the box scrolls).
-// A sequence that cannot fit even at the floor is shown as an ordered list of steps. The pure parts come first.
+// A sequence that cannot fit even at the floor is shown as an ordered list of steps; a flowchart in that case in a narrow box
+// (under NARROW_PX) is shown as an outline: its nodes with their outgoing edges, and a button to see the diagram. Pure parts first.
 // Shares the globals of app.js and fit.js, loaded before; every page draws its diagrams with adaptiveDiagram (T18a).
 
 const isSequence = (src) => /^\s*sequenceDiagram/m.test(src);
@@ -46,6 +47,46 @@ function sequenceSteps(src) {
     reply: m[2].startsWith("--"), self: m[1] === m[3] }));
 }
 
+// Even a flowchart scrolls unless the box is this narrow and the text would fall under the floor.
+const NARROW_PX = 480;
+const needsOutline = (src, width, avail) => !isSequence(src) && /^\s*(?:flowchart|graph)\b/m.test(src) && avail < NARROW_PX
+  && width * MIN_DIAGRAM_SCALE > avail;
+// The outline of a flowchart: [{title, nodes: [{id, label, edges: [{to, label}]}]}], groups by first appearance ("" = no subgraph).
+const NODE = String.raw`([\w.-]+)(?:\s*(\[[^\]]*\]|\([^)]*\)|\{[^}]*\}))?`;
+const EDGE = String.raw`\s*(?:--\s*([^->=|][^>|]*?)\s*[-=]{2,}[>xo]?|-\.\s*([^.]+?)\s*\.->|[-=.]{2,}[>xo]?(?:\s*\|([^|]*)\|)?)\s*`;
+const clean = (s) => (s || "").replace(/^[[({/\\>]+|[\])}/\\]+$/g, "").replace(/<br\s*\/?>/gi, " ").replace(/^"|"$/g, "").trim();
+function flowOutline(src) {
+  const nodes = new Map(), groups = [], stack = [];
+  const touch = (id, shape) => {
+    if (!nodes.has(id)) nodes.set(id, { id, label: id, edges: [], group: stack[stack.length - 1] || "" });
+    if (shape) nodes.get(id).label = clean(shape) || id;
+    return nodes.get(id);
+  };
+  const SKIP = /^(?:flowchart|graph|direction|style|classDef|class|linkStyle|click|%%)\b/;
+  for (const raw of src.split("\n")) {
+    const line = raw.trim();
+    const sub = /^subgraph\s+(?:[\w.-]+\s*\[(.*)\]|(.+))$/.exec(line);
+    if (sub) { stack.push(clean(sub[1] || sub[2])); continue; }
+    if (line === "end") { stack.pop(); continue; }
+    if (!line || SKIP.test(line)) continue;
+    const re = new RegExp(`^${NODE}`), first = re.exec(line);
+    if (!first) continue;
+    let prev = touch(first[1], first[2]), rest = line.slice(first[0].length), m;
+    while ((m = new RegExp(`^${EDGE}${NODE}`).exec(rest))) {
+      const to = touch(m[4], m[5]);
+      prev.edges.push({ to: to.id, label: clean(m[1] || m[2] || m[3]) });
+      prev = to; rest = rest.slice(m[0].length);
+    }
+  }
+  for (const n of nodes.values()) {
+    n.edges = n.edges.map((e) => ({ to: nodes.get(e.to).label, label: e.label }));
+    let g = groups.find((x) => x.title === n.group);
+    if (!g) groups.push((g = { title: n.group, nodes: [] }));
+    g.nodes.push({ id: n.id, label: n.label, edges: n.edges });
+  }
+  return groups;
+}
+
 // ---- the drawn box ----
 let layoutSeq = 0;
 async function layoutWidth(source) {
@@ -61,6 +102,26 @@ function stepList(src, caption) {
   const reply = ` (${t("diagram.reply")})`;
   return h("ol", { class: "seq-steps", "aria-label": caption }, sequenceSteps(src).map((s) =>
     h("li", null, h("span", { class: "who" }, s.self ? s.from : `${s.from} → ${s.to}${s.reply ? reply : ""}`), s.text)));
+}
+function outlineList(src, caption) {
+  const edge = (e) => h("li", null, `→ ${e.to}${e.label ? ` (${e.label})` : ""}`);
+  const item = (n) => h("li", null, n.label, n.edges.length ? h("ul", null, n.edges.map(edge)) : null);
+  return h("div", { class: "flow-list", role: "group", "aria-label": caption }, flowOutline(src).map((g) =>
+    h("section", null, g.title ? h("h4", null, g.title) : null, h("ul", null, g.nodes.map(item)))));
+}
+// A flowchart in a narrow box that would not be legible: the outline first, the scrollable diagram on request, and back.
+function showFlow(box, entry, src, caption, source) {
+  const toggle = (diagram) => { entry.wantDiagram = diagram; showFlow(box, entry, src, caption, source); };
+  const button = (key, diagram) => h("button", { type: "button", class: "link", onclick: () => toggle(diagram) }, t(key));
+  box.removeAttribute("role");
+  entry.steps = !entry.wantDiagram; // the outline has nothing to redraw
+  entry.target = null;
+  const toDiagram = h("p", null, button("diagram.showDiagram", true));
+  if (!entry.wantDiagram) return box.replaceChildren(outlineList(src, caption), toDiagram);
+  const inner = h("div", { role: "img", "aria-label": caption });
+  entry.target = inner;
+  box.replaceChildren(inner, h("p", null, button("diagram.showList", false)));
+  return drawMermaid(source, inner);
 }
 // Measures candidates until one fits the box, then draws the pick; a stale pick (the box changed meanwhile) draws nothing.
 async function chooseLayout(box, src, caption, entry, mine, avail) {
@@ -80,6 +141,10 @@ async function chooseLayout(box, src, caption, entry, mine, avail) {
     box.replaceChildren(stepList(src, caption));
     return;
   }
+  const outline = needsOutline(src, pick.width, avail);
+  if (!outline) entry.wantDiagram = false; // a box that is wide enough again starts from the diagram next time
+  entry.target = null;
+  if (outline) return showFlow(box, entry, src, caption, pick.source);
   box.setAttribute("role", "img");
   await drawMermaid(pick.source, box);
 }
@@ -96,7 +161,8 @@ function watchLayouts() {
 function adaptiveDiagram(src, caption, onDrawn) {
   const label = caption || t("diagram.label");
   const box = h("div", { class: "diagram scroll", role: "img", "aria-label": label }, h("p", { class: "muted" }, t("common.rendering")));
-  const entry = { box, source: src, drawn: false, steps: false, redraw: () => { if (!entry.steps) drawMermaid(entry.source, box); } };
+  const entry = { box, source: src, drawn: false, steps: false, target: null };
+  entry.redraw = () => { if (!entry.steps) drawMermaid(entry.source, entry.target || box); };
   let lastAvail = -1, waits = 0;
   box.layoutToken = 0;
   box.relayout = () => {

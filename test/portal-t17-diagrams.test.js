@@ -121,7 +121,7 @@ test('a narrow box gets the first candidate that fits; the drawn one is the chos
 
 test('when nothing fits, the narrowest candidate is drawn (fitDiagram then scales it to the floor)', async () => {
   const w = widthByInit((s, n) => 2000 + (s === FLOW ? 0 : n));
-  const { renders } = await drawn(FLOW, { width: 300, widthOf: w });
+  const { renders } = await drawn(FLOW, { width: 600, widthOf: w }); // not narrow (T19d): a narrower box shows an outline
   const widths = renders.slice(0, -1).map((s) => w(s));
   const lastW = w(renders[renders.length - 1]);
   assert.equal(lastW, Math.min(...widths), 'the narrowest measured');

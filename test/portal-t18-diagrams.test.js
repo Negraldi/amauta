@@ -68,7 +68,7 @@ test('kinds without a layout to try pass through unchanged and still draw', asyn
   const { c } = await drawn(FLOW, { width: 600 });
   for (const k of kinds) assert.deepEqual(candidates(c, k), [k], k.split('\n')[0]);
   for (const k of kinds) {
-    const { box, renders } = await drawn(k, { width: 300 });
+    const { box, renders } = await drawn(k, { width: 600 }); // not narrow (T19d): a narrow flowchart shows an outline
     assert.deepEqual(renders, [k, k], 'measured once, drawn once, as written');
     assert.equal(box.children[0].tagName, 'svg');
   }

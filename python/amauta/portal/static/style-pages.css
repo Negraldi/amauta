@@ -147,3 +147,7 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 .arch-scroll .diagram svg { max-width: none; } /* the width is set by fit.js: natural, or fitted down to the text floor */
 .arch-scroll[data-size="fit"] .diagram { width: auto; }
 .doc pre.code { white-space: pre-wrap; overflow-wrap: break-word; }
+.flow-list { text-align: left; display: grid; gap: var(--s3); }
+.flow-list h4 { margin: 0 0 var(--s1); font-size: 0.8125rem; color: var(--ink-muted); }
+.flow-list ul { margin: 0; padding-left: var(--s4); display: grid; gap: var(--s2); }
+.flow-list ul ul { gap: 0; font-size: 0.8125rem; color: var(--ink-muted); }
