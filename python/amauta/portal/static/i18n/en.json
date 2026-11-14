@@ -982,12 +982,12 @@
  "project.originLegend": "Found by: \"Saved in Settings\" means you added it in Settings; \"Your sessions\" means found in the folders your sessions ran in; \"Command line\" means added when the portal was started.",
  "impact.sessionsAround.one": "{when}: {before} session before, {after} after",
  "impact.sessionsAround.other": "{when}: {before} sessions before, {after} after",
- "error.partNamed": "{part} could not be loaded.",
- "part.skills": "The skills",
- "part.pipelines": "The pipelines",
- "part.harnessStatus": "The harness status",
- "part.architecture": "The architecture diagram",
- "part.themes": "The custom themes",
+ "error.partNamed": "Could not load {part}.",
+ "part.skills": "the skills",
+ "part.pipelines": "the pipelines",
+ "part.harnessStatus": "the harness status",
+ "part.architecture": "the architecture diagram",
+ "part.themes": "the custom themes",
  "harness.health.partial": "{n} components, not counting skills (they could not be loaded)",
  "palette.failedLocal": "The search could not finish. Only pages are listed."
 }

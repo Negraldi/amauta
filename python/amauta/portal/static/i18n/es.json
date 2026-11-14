@@ -982,12 +982,12 @@
  "project.originLegend": "Encontrado por: «Guardado en Configuración» significa que usted lo agregó en Configuración; «Sus sesiones», encontrado en las carpetas donde se ejecutaron sus sesiones; «Línea de comandos», agregado al iniciar el portal.",
  "impact.sessionsAround.one": "{when}: {before} sesión antes, {after} después",
  "impact.sessionsAround.other": "{when}: {before} sesiones antes, {after} después",
- "error.partNamed": "{part} no se pudo cargar.",
- "part.skills": "Las skills",
- "part.pipelines": "Los pipelines",
- "part.harnessStatus": "El estado del harness",
- "part.architecture": "El diagrama de arquitectura",
- "part.themes": "Los temas personalizados",
+ "error.partNamed": "No se pudo cargar: {part}.",
+ "part.skills": "las skills",
+ "part.pipelines": "los pipelines",
+ "part.harnessStatus": "el estado del harness",
+ "part.architecture": "el diagrama de arquitectura",
+ "part.themes": "los temas personalizados",
  "harness.health.partial": "{n} componentes, sin contar las skills (no se pudieron cargar)",
  "palette.failedLocal": "La búsqueda no pudo completarse. Solo se listan páginas."
 }
