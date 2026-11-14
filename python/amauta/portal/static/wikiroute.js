@@ -6,7 +6,7 @@
     home: "Home", project: "Project", memory: "Memory", skill: "Skill", tool: "Tool", mcp: "MCP server", session: "Session", feature: "ODD feature",
     node: "Graph node", memfile: "Memory file", harness: "Harness", usage: "Usage", settings: "Settings", lint: "Lint",
     security: "Security", pipelines: "Pipelines", guide: "Guide",
-    hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", component: "Components",
+    hook: "Hook", mcptool: "MCP tool", connector: "Connector", agent: "Agent", command: "Command", plugin: "Plugin", outputstyle: "Output style", instructions: "Instruction blocks", component: "Components",
   };
   // ---- navigation model (portal redesign T1) ----------------------------------------------------------------------
   // The sidebar is DATA: job groups in order, each item a hub page with its hash, label key and (optionally) the list
@@ -29,9 +29,10 @@
       { hub: "settings", kind: "settings", hash: "#/settings", key: "nav.settings" }] }, // its tabs ride in ?tab= (SETTINGS_TABS)
   ];
   // An item kind -> the list route that shows it (a hub's own kind or one of its tabs), with the query that list needs.
-  const CATALOG = ["hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"];
+  const CATALOG = ["hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle", "instructions"];
   // Every kind the Catalog (#/component) lists, in its order; ?kind= picks one. Their item pages crumb through Catalog / <kind>.
-  const CATALOG_KINDS = ["skill", "hook", "mcp", "mcptool", "connector", "tool", "agent", "command", "plugin", "outputstyle"];
+  const CATALOG_KINDS = ["skill", "hook", "mcp", "mcptool", "connector", "tool", "agent", "command", "plugin", "outputstyle",
+    "instructions"];
   const catalogItem = (r) => Boolean(r && typeof r === "object" && r.id && CATALOG_KINDS.includes(r.kind));
   const LIST_OF = { feature: { kind: "project" }, mcp: { kind: "tool", query: { seg: "mcp" } }, themes: { kind: "settings" },
     skill: { kind: "component", query: { kind: "skill" } },

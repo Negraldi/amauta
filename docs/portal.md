@@ -46,7 +46,7 @@ A session's project is named by one rule on every page (Today, Usage > Sessions,
 | Activity | Sessions | `#/session[/id]` | filters | Sessions; one session's skills, tools, subagents, tokens and memories |
 | Activity | Tools and skills | `#/tool` | `?seg=` `tools` (default), `skills`, `mcp`, `mcptools`, `subagents`; filters | One table per segment; items open `#/tool\|skill\|mcp/<name>` pages (usage over time, sessions, tokens, impact; skills render `SKILL.md`) |
 | Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram shown at natural size in a sideways scroller that opens centred on its middle (labels stay legible; Fit to width is the optional overview) |
-| Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle` | Every component, with a text filter and a Runtime filter (`?runtime=claude\|codex`, kept next to `?kind=`; the kind counts follow it); item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|skill/<id>` crumb through Catalog / kind |
+| Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle`, `instructions` | Every component, with a text filter and a Runtime filter (`?runtime=claude\|codex`, kept next to `?kind=`; the kind counts follow it); item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|instructions\|skill/<id>` crumb through Catalog / kind |
 | Harness wiki | Security | `#/security` | | Protections, checkers, trusted projects, profiles, memory guard redaction counts (counts and names only) |
 | Foot | Guide | `#/guide[/page]` | | The guide pages |
 | Foot | Settings | `#/settings` | `?tab=` `preferences` (default, not written), `projects`, `appearance` | Guarded settings editor, projects and siblings, theme editor and language |
@@ -107,6 +107,11 @@ switches. The Codex home is the one the portal was given or the installer's rule
 The Catalog filters by runtime with a segmented control (All, Claude Code, Codex; `#/component?runtime=codex`, combined with `?kind=`). An entry for
 both runtimes shows under either, an entry with no runtime field counts as Claude Code's, the kind links keep their kinds and count what the filter
 leaves, and a kind with nothing for that runtime says so.
+The instruction blocks amauta writes to `CLAUDE.md` and `AGENTS.md` are the catalog kind `instructions` ("Instruction blocks", `wikiblocks.py`,
+`#/instructions/<id>`). A block is the text between its `<!-- amauta:ID -->` markers (both needed; only regular files, never a link, of the Claude
+home and the Codex home the portal was given). Its row and page give what it is for (its first paragraph, else its first heading), the runtimes
+that carry it, each file it is written to and its size in characters in each; the page shows the block text. The Overview runtimes table links each
+block to its page.
 Refresh descriptions probes only servers configured for Claude Code.
 
 - **Graph sync** (project hub, `#/project/<name>`): shows when the graph was last mirrored and, for git projects, whether it is older than the last commit. **Sync graph now** (`POST /api/projects/graph-sync`, `{"project": name}`) starts one background refresh for that project, git or not, and answers 202 at once: `python3 -P -m amauta.graph.refresh --repo DIR` takes the repo's graphify lock (the hooks' lock in a git repo, `graphify-out/.amauta-graphify.lock` otherwise), runs `graphify update .` and `graphify check-update .`, and mirrors the graph into `memory.db`. It answers 409 when `graphify` is not on the portal's `PATH`. **Connect** (`POST /api/projects/graph-connect`, same body) appears for a git project without amauta's hooks and runs `amauta graphify hook install --cwd DIR --state-dir STATE`. Both use the same guard as the other writes, accept only a project name the portal already lists (never a path) and a closed one-key body.

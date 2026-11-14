@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from .. import extensions
-from . import wikicodex, wikisecret
+from . import wikiblocks, wikicodex, wikisecret
 from .wikihooks import HOOK_SUMMARIES, known_hook  # noqa: F401 (HOOK_SUMMARIES re-exported for the i18n tests)
 from .api import NotFound
 from .wikibase import _blank, _item, _meta, _ref
@@ -39,7 +39,7 @@ NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,99}$")
 
 # kind -> (group label, "What it does" note shown when no description exists). Order is the catalog order.
 KINDS = (("hook", "Hooks"), ("mcp", "MCP servers"), ("mcptool", "MCP tools"), ("connector", "Connectors"), ("tool", "Built-in tools"),
-         ("agent", "Agents"), ("command", "Commands"), ("plugin", "Plugins"), ("outputstyle", "Output styles"))
+         ("agent", "Agents"), ("command", "Commands"), ("plugin", "Plugins"), ("outputstyle", "Output styles"), *wikiblocks.KINDS)
 NEW_KINDS = tuple(k for k, _ in KINDS if k not in ("mcp", "tool"))
 
 EVENT_WHEN = {
@@ -371,7 +371,7 @@ def _extra_collectors(portal, base):
         from . import wikitools
     except ImportError:
         return []
-    return wikitools.collect(portal, base)
+    return wikitools.collect(portal, base) + wikiblocks.collect(portal)
 
 
 def index(portal):

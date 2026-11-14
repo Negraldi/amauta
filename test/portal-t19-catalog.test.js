@@ -76,3 +76,64 @@ test('T19e: the runtime strings exist in both languages', () => {
   }
   assert.doesNotMatch(ES_DICT['catalog.noRuntimeKind'], /—/);
 });
+
+// ---- instruction blocks as a catalog kind ----
+const BLOCKS = { kind: 'instructions', label: 'Instruction blocks', items: [
+  item('instructions', 'persona', ['claude'], { description: 'Persona text, no heading.' }),
+  item('instructions', 'codegraph-guidance', ['claude', 'codex'], { description: 'Use CodeGraph first.' })] };
+const WITH_BLOCKS = { ...COMPS, total: 7, groups: [...COMPS.groups, BLOCKS],
+  runtimes: { claude: { found: true, home: '/h/.claude', installed: true, blocks: ['codegraph-guidance', 'persona'], hooks: 1, mcp_servers: 0, skills: 0 },
+    codex: { found: true, home: '/h/.codex', installed: true, blocks: ['codegraph-guidance'], hooks: 0, mcp_servers: 0, skills: 0 } } };
+const BLOCK_PAGE = { kind: 'instructions', id: 'codegraph-guidance', title: 'codegraph-guidance', body_md: '## CodeGraph\n\nUse CodeGraph first.', links: [], backlinks: [], missing: [],
+  meta: [{ label: 'Size in CLAUDE.md (characters)', value: '36', fmt: 'number' }, { label: 'Runtime', value: 'Claude Code, Codex' }],
+  sections: [{ heading: 'Configured in', items: [{ label: '/h/.claude/CLAUDE.md', value: 'Your Claude home', kind: null, id: null }] }],
+  summary: { description: 'Use CodeGraph first.', trigger: null, when: 'At the start of every session.', source: 'Your Claude home', path: '/h/.claude/CLAUDE.md', builtin: false, note: null } };
+
+test('T19e: instructions is a route kind whose items crumb through Catalog / Instruction blocks', () => {
+  assert.deepEqual(plain(R.parseHash('#/instructions/persona')), { kind: 'instructions', id: 'persona' });
+  assert.deepEqual(plain(R.parseHash('#/component?kind=instructions')), { kind: 'component', id: '', query: { kind: 'instructions' } });
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/instructions/persona'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' },
+    { key: 'catalog.kind.instructions', hash: '#/component?kind=instructions' }, { text: 'persona' }]);
+  assert.equal(R.hubOf({ kind: 'instructions', id: 'persona' }), 'component');
+  assert.equal(R.KINDS.instructions, 'Instruction blocks');
+});
+
+test('T19e: the Catalog lists the blocks as a kind, each linked to its page with its runtimes', async () => {
+  const env = await boot('#/component', { '/api/harness/components': WITH_BLOCKS, '/api/skills': { total: 0, groups: [] } });
+  const kinds = navs(env).find((n) => n.getAttribute('aria-label') === 'Component kinds');
+  assert.ok(links(kinds).some((a) => a.textContent === 'Instruction blocks (2)' && a.getAttribute('href') === '#/component?kind=instructions'));
+  assert.ok(hrefs(view(env)).includes('#/instructions/codegraph-guidance'));
+  assert.match(text(env), /codegraph-guidance[^]*Runtime: Claude Code, Codex/);
+  const codex = await boot('#/component?kind=instructions&runtime=codex', { '/api/harness/components': WITH_BLOCKS, '/api/skills': { total: 0, groups: [] } });
+  assert.deepEqual(hrefs(view(codex)).filter((h) => h.startsWith('#/instructions/')), ['#/instructions/codegraph-guidance']);
+});
+
+test('T19e: a block page shows what it is for, its files and size, runtimes and the block text', async () => {
+  const env = await boot('#/instructions/codegraph-guidance', { '/api/wiki/page': BLOCK_PAGE });
+  const t = text(env);
+  assert.match(t, /Use CodeGraph first\./);
+  assert.match(t, /\/h\/\.claude\/CLAUDE\.md/);
+  assert.match(t, /Size in CLAUDE\.md \(characters\)/);
+  assert.match(t, /Runtime/);
+  const es = await boot('#/instructions/codegraph-guidance', { '/api/wiki/page': BLOCK_PAGE }, ES);
+  assert.match(text(es), /Bloques de instrucciones[^]*Tamaño en CLAUDE\.md \(caracteres\)/);
+});
+
+test('T19e: an unknown block says so in the portal words', async () => {
+  const env = await boot('#/instructions/nope', { '/api/wiki/page': { __status: 404, error: 'not found' } });
+  assert.match(text(env), /Instruction block not found/);
+  assert.match(text(await boot('#/instructions/nope', { '/api/wiki/page': { __status: 404, error: 'not found' } }, ES)), /Bloque de instrucciones no encontrado/);
+});
+
+test('T19e: the Overview runtimes table links each block to its page', async () => {
+  const env = await boot('#/harness', { '/api/harness': { installed: true, version: '1', rdd_mode: 'on', telemetry: false, managed_files: 1, persona: 'neutral', components: [], hooks: [], mcp_servers: [] },
+    '/api/harness/components': WITH_BLOCKS, '/api/archify': { installed: false } });
+  const block = hrefs(view(env)).filter((h) => h.startsWith('#/instructions/'));
+  assert.deepEqual(block.sort(), ['#/instructions/codegraph-guidance', '#/instructions/codegraph-guidance', '#/instructions/persona']);
+});
+
+test('T19e: the strings of the new kind exist in both languages', () => {
+  for (const key of ['kind.instructions', 'palette.group.instructions', 'hint.instructions', 'catalog.kind.instructions', 'notfound.instructions']) {
+    assert.ok(EN[key] && ES_DICT[key], key);
+  }
+});

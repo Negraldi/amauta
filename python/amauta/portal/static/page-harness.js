@@ -264,14 +264,18 @@ function hooksTable(hs, comps) {
 const RUNTIME_KEYS = { claude: "runtime.claude", codex: "runtime.codex" };
 const runtimeNames = (list) => (list || []).map((r) => (RUNTIME_KEYS[r] ? t(RUNTIME_KEYS[r]) : r)).join(", ");
 const noCodexNote = (rt) => (rt && rt.codex && rt.codex.found === false ? h("p", { class: "muted" }, t("runtime.noCodex")) : null);
+// Each instruction block names its catalog page; no block is the word "none".
+const blockLinks = (v, r) => (r.blockIds.length ? r.blockIds.flatMap((id, i) => [i ? ", " : null, link("instructions", id, id)]) : v);
 function runtimesSection(rt) {
   if (!rt || !rt.claude || !rt.codex) return null;
   const row = (key, r) => ({ runtime: runtimeNames([key]), home: r.home, installed: r.installed,
-    blocks: (r.blocks || []).join(", ") || t("common.none"), hooks: r.hooks, mcp: r.mcp_servers, skills: r.skills });
+    blocks: (r.blocks || []).join(", ") || t("common.none"), blockIds: r.blocks || [],
+    hooks: r.hooks, mcp: r.mcp_servers, skills: r.skills });
   const rows = [row("claude", rt.claude), ...(rt.codex.found ? [row("codex", rt.codex)] : [])];
   const yes = (v) => stateChip(v, v ? t("common.yes") : t("common.no"));
   const cols = [{ key: "runtime", label: t("col.runtime") }, { key: "home", label: t("harness.rt.home") },
-    { key: "installed", label: t("harness.rt.installed"), render: yes }, { key: "blocks", label: t("harness.rt.blocks") },
+    { key: "installed", label: t("harness.rt.installed"), render: yes },
+    { key: "blocks", label: t("harness.rt.blocks"), render: blockLinks },
     { key: "hooks", label: t("harness.rt.hooks"), num: true }, { key: "mcp", label: t("harness.rt.mcp"), num: true },
     { key: "skills", label: t("harness.rt.skills"), num: true }];
   return h("section", { class: "page-section" }, h("h2", null, t("harness.runtimes")), h("p", { class: "muted" }, t("harness.rt.lead")),

@@ -3,8 +3,8 @@
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 // ---- wiki pages ---------------------------------------------------------------------------------------------
-const WIKI_KINDS = ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node", "hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"];
-const HINTS = ["memory", "skill", "tool", "mcp", "session", "feature", "project", "node", "hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle"]; // each has a hint.<kind> text
+const WIKI_KINDS = ["project", "memory", "memfile", "skill", "tool", "mcp", "session", "feature", "node", "hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle", "instructions"];
+const HINTS = ["memory", "skill", "tool", "mcp", "session", "feature", "project", "node", "hook", "mcptool", "connector", "agent", "command", "plugin", "outputstyle", "instructions"]; // each has a hint.<kind> text
 const statusChip = (value) => h("span", { class: `chip chip-${value}` }, (value === "done" ? "● " : value === "pending" ? "○ " : "▲ ") + t(`status.${value}`));
 const isStatus = (v) => v === "done" || v === "pending" || v === "warning";
 // How a project was found (--repo flag, the Settings list, or discovery from sessions): the server sends the identifiers.
