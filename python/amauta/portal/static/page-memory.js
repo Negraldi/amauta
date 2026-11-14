@@ -52,7 +52,8 @@ async function viewMemories(route) {
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); load(false); } });
   type.addEventListener("change", () => load(false));
   await load();
-  return [pageHead(t("nav.memory"), t("mem.lead")), memSourceSwitch(source), h("div", { class: "controls" }, q, type), mine];
+  const filters = shown && !shown.available ? null : h("div", { class: "controls" }, q, type); // nothing to search in a missing store
+  return [pageHead(t("nav.memory"), t("mem.lead")), memSourceSwitch(source), filters, mine].filter(Boolean);
 }
 
 // Memory files tab: Claude's file memories (MEMORY.md and its notes), one table.

@@ -109,3 +109,21 @@ test('A14: a project page title follows one pattern whatever the project is call
     assert.equal(env.document.title, `Project ${name} - amauta`, name);
   }
 });
+
+test('B13: a memory store that is missing hides the search box and the type select', async () => {
+  const env = await boot('#/memory?source=engram', { '/api/memories': { available: false, items: [], facets: { types: [] } } });
+  assert.ok(!tree(view(env)).some((e) => e.tagName === 'select' || (e.tagName === 'input' && e.attrs.type !== 'checkbox')), 'no filters over nothing');
+  assert.match(text(env), /engram/i);
+});
+test('B14: a memory without a project says so on its page', async () => {
+  const env = await boot('#/memory/9', { '/api/wiki/page': page('memory', { id: '9', title: 'Loose', meta: [{ label: 'Type', value: 'note' }] }) });
+  const dts = tree(view(env)).filter((e) => e.tagName === 'dt').map((e) => e.textContent);
+  assert.ok(dts.includes('Project'), dts.join(','));
+  assert.match(text(env), /Project\s*no project/);
+});
+test('B7: a memory file page lists its frontmatter keys as details', async () => {
+  const pg = page('memfile', { id: '-a/memory/fm.md', title: 'fm.md', body_md: 'Body', meta: [{ label: 'Project', value: 'a' }, { label: 'Size', value: '120', fmt: 'number' }, { label: 'name', value: 'Feedback style' }] });
+  const env = await boot('#/memfile/-a%2Fmemory%2Ffm.md', { '/api/wiki/page': pg });
+  const dts = tree(view(env)).filter((e) => e.tagName === 'dt').map((e) => e.textContent);
+  assert.deepEqual(dts, ['Project', 'Size', 'name']);
+});

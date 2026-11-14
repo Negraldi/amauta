@@ -133,8 +133,10 @@ def _memfile_page(portal, ident, q):
         text = found.read_bytes()[:MAX_TEXT].decode("utf-8", "replace")
     except OSError:
         raise NotFound() from None
-    pg = _blank("memfile", ident, found.name, text)
-    pg["meta"] = _meta(("Project", found.parent.parent.name.lstrip("-")), ("Size", st.st_size), ("Modified", _mtime(found)), ("Truncated", "yes" if st.st_size > MAX_TEXT else None))
+    front, body = wikiusage.parse_frontmatter(text)  # the file's own header is a list of details, not a paragraph of its text
+    pg = _blank("memfile", ident, found.name, body)
+    pg["meta"] = _meta(("Project", found.parent.parent.name.lstrip("-")), ("Size", st.st_size), ("Modified", _mtime(found)),
+                       ("Truncated", "yes" if st.st_size > MAX_TEXT else None), *front.items())
     pg["links"], pg["missing"] = _wikilink_links(portal, text)
     return pg
 

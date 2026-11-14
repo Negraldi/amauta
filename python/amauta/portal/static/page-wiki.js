@@ -154,7 +154,9 @@ function noPage(kind, id) {
 const breakAfterBars = (v) => String(v).split(/(?<=\|)/).flatMap((part, i) => (i ? [h("wbr"), part] : [part]));
 // The rail's details list; `keep` filters the rows (the project hub shows the other facts elsewhere).
 function metaList(pg, keep) {
-  const rows = keep ? pg.meta.filter(keep) : pg.meta;
+  const loose = pg.kind === "memory" && !pg.meta.some((m) => m.label === "Project"); // a memory saved without a project says so
+  const none = loose ? [{ label: I.dict.en["kind.project"], value: t("mem.noProject") }] : [];
+  const rows = [...(keep ? pg.meta.filter(keep) : pg.meta), ...none];
   if (!rows.length) return null;
   return h("dl", { class: "meta" }, rows.flatMap((m) => {
     const raw = m.label === "Found by" ? String(m.value).split(", ").map(originLabel).join(", ")

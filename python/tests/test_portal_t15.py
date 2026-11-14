@@ -523,3 +523,26 @@ class HookNameTest(unittest.TestCase):
         from python.amauta.portal import wikihooks
         self.assertEqual(wikihooks.known_hook("node amauta.js hook event Stop --with nope")[0], "amauta hooks")
         self.assertTrue(wikihooks.known_hook("node amauta.js hook event Stop --with usage")[0].startswith("amauta hooks: "))
+
+
+class MemoryFileFrontmatterTest(unittest.TestCase):
+    """W3b B7: a memory file's frontmatter is a list of details (plus project, size and date), not a paragraph of the text."""
+
+    def test_frontmatter_becomes_details_and_leaves_the_body(self):
+        from python.tests.test_portal_wiki import WikiBase
+
+        class Case(WikiBase):
+            def runTest(self):
+                d = self.f["home"] / "projects" / "-work-alpha" / "memory"
+                (d / "fm.md").write_text("---\nname: Feedback style\ndescription: How to answer\ntype: feedback\n---\nBody text here.\n")
+                item = next(i for i in self.get("/api/memory-files")["items"] if i["id"].endswith("fm.md"))
+                pg = self.page("memfile", item["id"])
+                meta = {m["label"]: m["value"] for m in pg["meta"]}
+                self.assertEqual((meta["name"], meta["description"], meta["type"]), ("Feedback style", "How to answer", "feedback"))
+                self.assertEqual(meta["Project"], "work-alpha")
+                self.assertIn("Size", meta)
+                self.assertNotIn("---", pg["body_md"])
+                self.assertEqual(pg["body_md"].strip(), "Body text here.")
+        res = unittest.TestResult()
+        Case().run(res)
+        self.assertEqual((res.errors, res.failures), ([], []), res.errors + res.failures)
