@@ -95,7 +95,8 @@ function adaptiveDiagram(src, caption, onDrawn) {
   box.layoutToken = 0;
   box.relayout = () => {
     if (!box.isConnected || !box.clientWidth) { if (++waits < 50) setTimeout(box.relayout, 60); return; } // not laid out yet
-    const avail = box.clientWidth - BOX_PAD;
+    const room = box.parentNode && box.parentNode.clientWidth; // a box that grows with its drawing: the parent gives the room
+    const avail = Math.min(box.clientWidth, room || box.clientWidth) - BOX_PAD;
     if (Math.abs(avail - lastAvail) < 2) return;
     lastAvail = avail;
     chooseLayout(box, src, label, entry, ++box.layoutToken, avail).then(() => { entry.drawn = true; if (onDrawn) onDrawn(box); });

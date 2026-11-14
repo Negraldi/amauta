@@ -84,3 +84,14 @@ test('a source that already starts with an init directive keeps it and can still
   const seq = candidates(c, '%%{init: {"theme": "dark"}}%%\nsequenceDiagram\n  A->>B: hi');
   assert.ok(seq.length > 1 && seq.every((s) => s.includes('"theme": "dark"')));
 });
+
+test('a box that grows with its drawing (inside a scroller) keeps measuring the room its parent gives', async () => {
+  const seen = [];
+  const { c, box } = await drawn(FLOW, { width: 600, onDrawn: (b) => seen.push(b) });
+  box.parentNode = { clientWidth: 600 };
+  box.clientWidth = 1342; // width: max-content after the draw
+  c.__b = box;
+  run(c, '__b.relayout()');
+  await tick(200);
+  assert.equal(seen.length, 1, 'the room did not change, so no second layout');
+});
