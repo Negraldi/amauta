@@ -59,7 +59,7 @@ Each class names what to look for and the automated test that now guards it, whe
 15. **Control far from its effect.** A control sits next to things it does not change, or its result renders out of
     view. Put it in the panel it changes, act at once, bring the result into view. Guard: `portal-t15-explorer`.
 16. **Wrong empty-state reason.** "No records in this range" when the data is never recorded (tool calls in Codex
-    sessions). Say the real reason. Guard: `portal-t15-tool`.
+    sessions, until they were read from rollouts). Say the real reason, and drop the claim once it is no longer true. Guard: `portal-t15-tool`.
 17. **Rows that look alike.** Rows with the same title need a distinguishing detail (date, project, id). Guard:
     `portal-t15-lint`.
 18. **Caps inside grouped lists and behind counts.** A cap can hide inside a group ("165 notes", 6 listed), a

@@ -900,7 +900,7 @@
  "more.button": "Show more",
  "more.showing": "Showing {shown} of {total}.",
  "meta.Calls": "Calls in total",
- "usage.noCodexTools": "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only.",
+ "usage.noCodexTools": "No tool calls were found in Codex sessions in this range.",
  "memscope.project": "Project",
  "memscope.personal": "Personal",
  "memsource.own": "amauta memory",

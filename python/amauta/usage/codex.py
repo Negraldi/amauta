@@ -1,7 +1,11 @@
 """Codex rollout ingestion: one usage row per model response, runtime='codex'. Token counts and metadata only.
 
 A rollout (`<codex-home>/sessions/YYYY/MM/DD/rollout-*.jsonl`) also holds prompts and tool output; none of it is read past
-the record type, and nothing but numbers and short identifiers reaches the database. Rows are keyed by the response id,
+the record type, and nothing but numbers and short identifiers reaches the database. Tool calls (`function_call`,
+`custom_tool_call`, `local_shell_call`) are stored in `tool_calls` like Claude Code's: name only, never arguments or
+output. A namespaced call is named `namespace.name` (`collaboration.send_message`); an MCP namespace (`mcp__server__`)
+becomes Claude's `mcp__server__tool` with `mcp_server` set. Each call joins the usage row of the response that closes it.
+Rows are keyed by the response id,
 so a rescan of a grown file is idempotent. The file is rescanned from the start when it changed (the model and the cwd
 come from earlier lines), with a cheap substring filter so large rollouts stay fast.
 """
@@ -13,8 +17,13 @@ import sqlite3
 import time
 from pathlib import Path
 
-WANTED = (b'"session_meta"', b'"turn_context"', b'"token_usage_record"', b'"token_count"')
+WANTED = (b'"session_meta"', b'"turn_context"', b'"token_usage_record"', b'"token_count"',
+          b'"function_call"', b'"custom_tool_call"', b'"local_shell_call"')
+CALL_TYPES = ("function_call", "custom_tool_call", "local_shell_call")
+READ_TOOLS = -1  # ingest_state offset of a rollout read with its tool calls; older amauta left offset == size, so those rescan once
 
+_INSERT_TOOL = ("INSERT INTO tool_calls (message_id, call_id, session_id, ts, tool, skill, subagent_type, mcp_server, cmd_class) "
+                "VALUES (?,?,?,?,?,?,?,?,?)")
 _UPSERT = (
     "INSERT INTO usage_messages (message_id, session_id, project, model, ts, input, output, cache_read, cache_write_5m, cache_write_1h, thinking, sidechain, runtime) "
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'codex') ON CONFLICT(message_id) DO UPDATE SET "
@@ -44,8 +53,27 @@ def _tokens(usage) -> tuple[int, int, int, int, int]:
     return max(_int(usage.get("input_tokens")) - cached, 0), _int(usage.get("output_tokens")), cached, _int(usage.get("cache_write_input_tokens")), _int(usage.get("reasoning_output_tokens"))
 
 
-def parse(path: Path) -> list[tuple]:
-    """Usage rows (without the runtime) of one rollout, in file order."""
+def _call(payload, ts) -> tuple | None:
+    """(call_id | None, ts, tool, mcp_server) of one tool-call payload, or None when it has no usable name."""
+    if payload.get("type") == "local_shell_call":
+        name, ns = "local_shell", None
+    else:
+        name, ns = _text(payload.get("name")), _text(payload.get("namespace"))
+        if not name:
+            return None
+    server = None
+    if ns and ns.startswith("mcp__"):
+        server = ns[5:].strip("_") or None
+        name = f"mcp__{server}__{name}" if server else name
+    elif name.startswith("mcp__") and name.count("__") >= 2:
+        server = name.split("__")[1] or None
+    elif ns:
+        name = f"{ns}.{name}"
+    return _text(payload.get("call_id")) or _text(payload.get("id")), ts, name, server
+
+
+def parse(path: Path) -> tuple[list[tuple], list[tuple]]:
+    """(usage rows without the runtime, tool-call rows) of one rollout, in file order."""
     session = None
     parent = False
     cwd = None
@@ -54,6 +82,7 @@ def parse(path: Path) -> list[tuple]:
     records: list[tuple] = []  # (id, session, cwd, model, ts, usage)
     counts: list[tuple] = []  # token_count fallbacks
     seen_counts: set[int] = set()
+    calls: list[tuple] = []  # (call, records so far, counts so far)
     with open(path, "rb") as f:
         for raw in f:
             if not any(w in raw for w in WANTED):
@@ -87,6 +116,10 @@ def parse(path: Path) -> list[tuple]:
                 turn = _text(payload.get("turn_id"))
                 rid = _text(payload.get("response_id")) or f"codex:{sess}:{turn}:{len(records)}"
                 records.append((rid, sess, cwd, models.get(turn) or model, ts, usage))
+            elif kind == "response_item" and payload.get("type") in CALL_TYPES:
+                call = _call(payload, ts)
+                if call:
+                    calls.append((call, len(records), len(counts)))
             elif kind == "event_msg" and payload.get("type") == "token_count":
                 info = payload.get("info")
                 last = info.get("last_token_usage") if isinstance(info, dict) else None
@@ -96,34 +129,55 @@ def parse(path: Path) -> list[tuple]:
                     continue
                 seen_counts.add(cumulative)
                 counts.append((f"codex:{session}:{cumulative}", session, cwd, model, ts, last))
+    out = _usage_rows(records or counts, session, cwd, parent)
+    return out, _tool_rows(calls, bool(records), session, out)
+
+
+def _usage_rows(chosen, session, cwd, parent) -> list[tuple]:
     out = []
-    for rid, sess, c, m, ts, usage in records or counts:
+    for rid, sess, c, m, ts, usage in chosen:
         inp, output, cache_read, cache_write, reasoning = _tokens(usage)
         out.append((rid, sess or session, _project(c or cwd), m, ts, inp, output, cache_read, cache_write, 0, reasoning, 1 if parent else 0))
     return out
 
 
+def _tool_rows(calls, from_records, session, usage) -> list[tuple]:
+    """tool_calls rows in column order (see _INSERT_TOOL); a call joins the next response."""
+    if not usage:
+        return []
+    ids = [r[0] for r in usage]
+    out = []
+    for n, ((call_id, ts, tool, server), n_records, n_counts) in enumerate(calls):
+        pos = min(n_records if from_records else n_counts, len(ids) - 1)
+        out.append((ids[pos], call_id or f"{session}#{n}", session, ts, tool, None, None, server, None))
+    return out
+
+
 def ingest_file(conn, path, max_lines: int | None = None, deadline: float | None = None) -> dict:
-    """Ingest one rollout when it changed since the last run. Returns {"messages": new rows, "lines": 0}."""
+    """Ingest one rollout when it changed since the last run. Returns {"messages": new rows, "tools": new tool rows, "lines": 0}."""
     path = Path(path)
-    stats = {"messages": 0, "lines": 0}
+    stats = {"messages": 0, "tools": 0, "lines": 0}
     st = path.stat()
-    row = conn.execute('SELECT size, mtime FROM ingest_state WHERE path = ?', (str(path),)).fetchone()
-    if row and st.st_size == row["size"] and st.st_mtime == row["mtime"]:
+    row = conn.execute('SELECT size, mtime, "offset" FROM ingest_state WHERE path = ?', (str(path),)).fetchone()
+    if row and st.st_size == row["size"] and st.st_mtime == row["mtime"] and row["offset"] == READ_TOOLS:
         return stats
     if deadline is not None and time.monotonic() > deadline:
         return stats
-    parsed = parse(path)
+    parsed, tools = parse(path)
     with conn:  # rows and the state they were read at commit together
         for r in parsed:
             existed = conn.execute("SELECT 1 FROM usage_messages WHERE message_id = ?", (r[0],)).fetchone()
             conn.execute(_UPSERT, r)
             if not existed:
                 stats["messages"] += 1
+        for t in tools:
+            if not conn.execute("SELECT 1 FROM tool_calls WHERE message_id = ? AND call_id = ?", t[:2]).fetchone():
+                conn.execute(_INSERT_TOOL, t)
+                stats["tools"] += 1
         conn.execute(
             'INSERT INTO ingest_state (path, size, mtime, "offset") VALUES (?,?,?,?) '
             'ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, "offset"=excluded."offset"',
-            (str(path), st.st_size, st.st_mtime, st.st_size),
+            (str(path), st.st_size, st.st_mtime, READ_TOOLS),
         )
     return stats
 
@@ -136,7 +190,7 @@ def rollout_files(codex_home) -> list[Path]:
 
 
 def backfill(conn, codex_home, deadline: float | None = None) -> dict:
-    total = {"files": 0, "messages": 0, "errors": 0}
+    total = {"files": 0, "messages": 0, "tools": 0, "errors": 0}
     for p in rollout_files(codex_home):
         try:
             s = ingest_file(conn, p, deadline=deadline)
@@ -145,6 +199,7 @@ def backfill(conn, codex_home, deadline: float | None = None) -> dict:
             continue
         total["files"] += 1
         total["messages"] += s["messages"]
+        total["tools"] += s["tools"]
         if deadline is not None and time.monotonic() > deadline:
             break
     return total

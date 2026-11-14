@@ -900,7 +900,7 @@
  "more.button": "Mostrar más",
  "more.showing": "Se muestran {shown} de {total}.",
  "meta.Calls": "Llamadas en total",
- "usage.noCodexTools": "Las llamadas a herramientas no se registran en las sesiones de Codex: sus archivos solo se leen para contar el uso de tokens.",
+ "usage.noCodexTools": "No se encontraron llamadas a herramientas en las sesiones de Codex de este intervalo.",
  "memscope.project": "Proyecto",
  "memscope.personal": "Personal",
  "memsource.own": "Memoria de amauta",

@@ -65,7 +65,7 @@ Unverified by the coordinator unless marked. IDs are stable.
 - D3 P2 class 1/12: #/tool/Bash shows three counts: chart caption 4.102 calls in 30 days "hasta 2026-11-14" (UTC tomorrow), Usage table 5.534 in 9 sessions, Details 7.163 in 31 sessions (all time, unlabeled). Skill page uses "hasta <last use day>".
 - D4 P2 class 2: Bash page "Enlazada desde" lists 20 sessions of 31, no note.
 - D5 P2 class 6: #/tool segments clip at every width (1070 vs 975 at 1280). Same as M1.
-- D6 P2 NEW (wrong empty-state reason): Codex filter on Tools says "No hay registros en este intervalo" though no Codex tool calls are ever recorded; Codex session pages have no Tools section and no explanation.
+- D6 P2 NEW (wrong empty-state reason): Codex filter on Tools says "No hay registros en este intervalo" though no Codex tool calls were recorded at the time (since T16e they are); Codex session pages have no Tools section and no explanation.
 - D7 P2 class 4/3: node page raw values: "imports_from (incoming)", "re_exports (outgoing)", neighbour suffix "code"/"concept", diagram labels "ref_node_fs (concept)", h1 is an internal id, edge table ids.
 - D8 P2 class 11: #/node default order = concepts noise (same as B9).
 - D9 P2 class 5: neighbourhood diagram text 7.8 px at 1280, 6.0 px at 375; diagram 565 px wide with empty space beside it.

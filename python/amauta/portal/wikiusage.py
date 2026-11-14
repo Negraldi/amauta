@@ -18,7 +18,7 @@ FRONT_VALUE = 300
 DAYS = 30
 RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
 SESSION_REFS = 100  # sessions listed under "Linked from"; the page carries backlinks_more, how many were left out
-CODEX_NOTE = "Tool calls are not recorded for Codex sessions: their rollouts are read for token usage only."
+CODEX_NOTE = "No tool calls were found in this Codex session."
 SHORT_ID = 8  # the session tables show the first 8 characters of an id
 
 

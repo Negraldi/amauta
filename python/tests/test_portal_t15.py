@@ -182,9 +182,24 @@ class CodexSessionNoteTest(WikiBase):
         codex.backfill(conn, home)
         conn.close()
 
-    def test_a_codex_session_says_its_tool_calls_are_not_recorded(self):
+    def test_a_codex_session_without_tool_calls_says_none_were_found(self):
         sections = {s["heading"]: s for s in self.page("session", self.sid)["sections"]}
-        self.assertIn("not recorded", sections["Tool calls"]["items"][0]["label"])
+        self.assertEqual(sections["Tool calls"]["items"][0]["label"], wikiusage.CODEX_NOTE)
+        self.assertNotIn("not recorded", wikiusage.CODEX_NOTE)
+
+    def test_a_codex_session_with_tool_calls_lists_them_and_has_no_note(self):
+        from python.tests.test_usage_codex import fcall
+        from python.tests.test_usage import write_jsonl
+        rollout = next((self.root / "codex" / "sessions").rglob("*.jsonl"))
+        write_jsonl(rollout, [fcall("send_message", "collaboration", "c1", ts="2026-10-02T11:59:00.000Z")], mode="a")
+        write_jsonl(rollout, [fcall("send_message", "collaboration", "c2", ts="2026-10-02T11:59:30.000Z")], mode="a")
+        from python.amauta.usage import codex
+        conn = mstore.connect(self.f["state"] / "memory.db")
+        codex.backfill(conn, self.root / "codex")
+        conn.close()
+        sections = {s["heading"]: s for s in self.page("session", self.sid)["sections"]}
+        self.assertNotIn("Tool calls", sections)
+        self.assertEqual(sections["Tools"]["items"][0]["label"], "collaboration.send_message")
 
     def test_a_claude_session_has_no_such_note(self):
         self.assertNotIn("Tool calls", {s["heading"] for s in self.page("session", "s1")["sections"]})

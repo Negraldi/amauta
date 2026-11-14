@@ -55,9 +55,9 @@ async function tools(runtime) {
   return env.document.getElementById('view').textContent;
 }
 
-test('D6: an empty Tools page under the Codex filter says tool calls are not recorded for Codex', async () => {
+test('D6: an empty Tools page under the Codex filter says no Codex tool calls were found in the range', async () => {
   const text = await tools('codex');
-  assert.match(text, /Tool calls are not recorded for Codex/);
+  assert.match(text, /No tool calls were found in Codex sessions in this range/);
   assert.doesNotMatch(text, /Nothing recorded in this range/);
 });
 

@@ -89,6 +89,13 @@ timestamps and token counts (input, output, cache read, cache write 5m/1h, think
 names in `tool_calls` (Skill names, subagent types and MCP server names only; never prompt text or tool payloads).
 Ingestion is incremental through `ingest_state` (byte offset; a shrunk or rewritten file is rescanned).
 
+Codex rollouts feed the same two tables (`--runtime codex`): the `function_call`, `custom_tool_call` and `local_shell_call`
+lines become `tool_calls` rows, name only, never arguments or output. A namespaced call is named `namespace.name`
+(`collaboration.send_message`); an MCP namespace becomes `mcp__server__tool` with `mcp_server` set. Each call joins the
+usage row of the response that closes it, so the runtime filter applies to it. A rollout is rescanned from the start when it
+changed; one read by an older amauta (before tool calls) is rescanned once on the next backfill or Stop hook, with no action
+needed.
+
 ```
 PYTHONPATH=python python3 -P -m amauta.usage backfill [--claude-home ~/.claude] [--runtime claude|codex|all] [--codex-home ~/.codex]
 ```
