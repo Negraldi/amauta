@@ -94,6 +94,9 @@ Each class names what to look for and the automated test that now guards it, whe
     `portal-t16d-states` (F4, F8).
 30. **Loading and reloading without announcement.** A slow load says so once in the live region; a reload of the same
     route sets `aria-busy` and dims the old content (reduced motion honoured). Guards: `portal-t16d-states` (F5, F6).
+31. **Dark-theme control borders and small scaled text.** A control border drawn with `--line` can fall near 1:1 in
+    the dark theme (use `--line-strong`); an SVG scaled to fit a phone can take its 11px text below 11px. Guard:
+    `portal-t16d-states` (F9, F10).
 
 ## Rules for the reviewer
 

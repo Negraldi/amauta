@@ -2,6 +2,7 @@
 // shown as an empty state, transport errors and routes stay out of the copy, and loading / reloading is announced.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { boot, tick, tree, view, text, ES } from './helpers/t15w3.js';
@@ -129,3 +130,20 @@ test('F8: a failed search keeps the page results and adds a translated note', as
   }
 });
 
+// ---- F9, F10 live in the second commit's block below ----
+test('F9: the pipeline history mark has a control boundary of at least 3:1 (--line-strong)', async () => {
+  const css = await read('style-pages.css');
+  const rule = /\.hist-mark \{([^}]*)\}/.exec(css)[1];
+  assert.match(rule, /border: 1px solid var\(--line-strong\)/);
+});
+test('F10: the sparkline is natural-size at 343px (375px phone): viewBox no wider than 343, text not scaled below 11px', async () => {
+  const env = await boot('#/', { '/api/wiki/home': HOME });
+  const usage = { days: 30, daily: Array.from({ length: 30 }, (_, i) => ({ day: `2026-09-${String(i + 1).padStart(2, '0')}`, value: i + 1 })) };
+  const block = vm.runInContext('usageBlock', env.__ctx)(usage);
+  const svg = tree(block).find((e) => e.tagName === 'svg');
+  const [, , w] = svg.attrs.viewBox.split(' ').map(Number);
+  assert.ok(w <= 343, `viewBox width ${w}`);
+  assert.equal(svg.attrs.width, String(w), 'the svg states its natural width');
+  assert.ok(11 * Math.min(1, 343 / w) >= 11);
+  assert.deepEqual(Object.keys(EN).sort(), Object.keys(ES_DICT).sort());
+});

@@ -50,10 +50,10 @@ function usageBlock(usage) {
   const total = usage.daily.reduce((a, d) => a + d.value, 0);
   const last = usage.daily.length ? usage.daily[usage.daily.length - 1].day : "";
   if (!total) return h("section", { class: "page-section" }, h("h2", null, t("uot.title")), h("p", { class: "muted" }, t("uot.none")));
-  const W = 360, H = 60;
+  const W = 336, H = 60; // natural width: a 375px phone gives it 343px, so its 11px text is never scaled below 11px
   const bars = R.dailyBars(usage.daily, W, H);
   const aria = t("uot.aria", { days: fmt(usage.days), last: R.fmtDate(last) });
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": aria },
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, width: W, role: "img", "aria-label": aria },
     ...bars.map((b) => svg("g", null, svg("title", null, tn("uot.bar", b.value, { day: R.fmtDate(b.day), n: fmt(b.value) })), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
     svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, R.fmtDate(bars[0].day)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, R.fmtDate(last)));
   return h("section", { class: "page-section" }, h("h2", null, t("uot.title")), h("p", { class: "muted" }, tn("uot.summary", total, { n: fmt(total), days: fmt(usage.days), last: R.fmtDate(last) })), h("div", { class: "spark" }, root));
