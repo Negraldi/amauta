@@ -98,7 +98,7 @@ sequenceDiagram
   participant H as Hooks de amauta
   participant M as Servidor de memoria
   participant DB as memory.db
-  U->>R: inicias una sesión
+  U->>R: iniciar una sesión
   R->>H: SessionStart
   H->>H: línea base de revisión, conexión de graphify, comprobación de sync
   U->>R: un prompt
@@ -124,4 +124,4 @@ Hacia dónde seguir:
 - [[guide:data-security|Seguridad de datos]] y [[guide:code-security|Seguridad de código]]: los dos pilares de seguridad.
 - [[guide:pipelines|El orquestador de pipelines]]: ejecutar los procesos de un proyecto.
 - [[guide:siblings|Proyectos hermanos]]: proyectos junto a amauta.
-- [[guide:extras|Módulos opcionales y extras]]: lo que puede añadir o quitar.
+- [[guide:extras|Módulos opcionales y extras]]: lo que puede agregar o quitar.

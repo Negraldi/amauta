@@ -72,7 +72,7 @@ Locator: odd/tasks/weekly-sales.md (branch feat/weekly-sales)
 ## Next step
 ```
 
-Solo cuentan los ítems de primer nivel: `- [ ]` abierto, `- [x]` hecho, `- [!]` bloqueado. Las tareas de datos añaden `## Criteria`, `## Contracts` y `## Review` (ADR 0008).
+Solo cuentan los ítems de primer nivel: `- [ ]` abierto, `- [x]` hecho, `- [!]` bloqueado. Las tareas de datos agregan `## Criteria`, `## Contracts` y `## Review` (ADR 0008).
 
 ## Scripts y comandos
 

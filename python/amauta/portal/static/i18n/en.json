@@ -331,7 +331,7 @@
  "set.gentleman": "Gentleman",
  "set.intro": "A short, closed list of harness options for Claude Code and Codex. Every change is previewed first, needs your confirmation, makes a backup and can be undone (also previewed first). Nothing else about either agent is editable here.",
  "set.mod.archify": "Architecture diagrams (archify)",
- "set.mod.archify.help": "Installs the diagram skill for Claude Code and Codex (runs offline). The Harness page uses it to draw the architecture.",
+ "set.mod.archify.help": "Installs the diagram skill for Claude Code and Codex (runs offline). The Overview page of the Harness wiki uses it to draw the architecture.",
  "set.mod.context7": "Library docs (context7)",
  "set.mod.context7.help": "Registers the context7 MCP server in Claude Code and Codex so the agent can look up current library documentation.",
  "set.mod.impeccable": "Frontend design (impeccable)",

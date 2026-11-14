@@ -76,3 +76,9 @@ test('C12: the Spanish diagram label says manejadores, like the diagram itself',
   const d = await readDicts();
   assert.doesNotMatch(d.es['harness.installArch'], /handlers/);
 });
+
+test('E7: Settings help names the real page (Harness wiki / Overview)', async () => {
+  const { readDicts } = await import('./helpers/portalboot.js');
+  const d = await readDicts();
+  for (const l of ['en', 'es']) assert.doesNotMatch(d[l]['set.mod.archify.help'], /P(ági|ag)na Harness|Harness page/);
+});

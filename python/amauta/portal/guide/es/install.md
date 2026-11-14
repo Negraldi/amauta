@@ -57,7 +57,7 @@ Los interruptores y los módulos son persistentes: un `amauta install` posterior
 | `--no-privacy` | Sin hook de privacidad |
 | `--no-checks` | Sin comprobaciones de edición ni de Stop |
 | `--no-mirror-mcp` | Omite la sincronización MCP en esta ejecución |
-| `--with-sdd`, `--with-archify`, `--with-impeccable`, `--with-context7`, `--with-rea` | Añade un módulo opcional ([[guide:extras|Módulos opcionales y extras]]) |
+| `--with-sdd`, `--with-archify`, `--with-impeccable`, `--with-context7`, `--with-rea` | Agrega un módulo opcional ([[guide:extras|Módulos opcionales y extras]]) |
 | `--without-<module>` | Vuelve a desactivar un módulo |
 | `--force` | Reemplaza los archivos gestionados que editaste (si no, se conservan y se informan) |
 | `--json` | Salida legible por máquinas |
@@ -101,7 +101,7 @@ flowchart TD
   C --> F["registrar los hashes nuevos en mcp-sync.json"]
 ```
 
-Las claves que pertenecen a un runtime (el `type` de Claude, el `startup_timeout_sec` de Codex) se quedan en su lado. Los servidores que no son stdio y los servidores internos del runtime se listan pero no se sincronizan; puede añadir sus propias exclusiones con `{"exclude": ["name"]}` en `mcp-sync.json`. Los servidores que escribe el propio amauta se escriben directamente en ambos lados, no mediante la fusión.
+Las claves que pertenecen a un runtime (el `type` de Claude, el `startup_timeout_sec` de Codex) se quedan en su lado. Los servidores que no son stdio y los servidores internos del runtime se listan pero no se sincronizan; puede agregar sus propias exclusiones con `{"exclude": ["name"]}` en `mcp-sync.json`. Los servidores que escribe el propio amauta se escriben directamente en ambos lados, no mediante la fusión.
 
 ### Mantenerse al día
 

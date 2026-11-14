@@ -3,6 +3,7 @@ import json
 import os
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from python.amauta.graph import query as graph_query
@@ -266,3 +267,59 @@ class FeatureNameTest(tp.ProjectBase):
         d = self.page("project", "repo")["odd_diagrams"][0]
         self.assertFalse(d["name"].endswith(".md"), d["name"])
         self.assertNotIn(".md", d["source"].splitlines()[1])
+
+
+class SpanishVoiceTest(unittest.TestCase):
+    """W3 E2: the Spanish portal speaks to the reader as "usted": no tuteo, no voseo in its guide or dictionaries."""
+
+    INFORMAL = (r"tú|tu|tus|contigo|vos|puedes|tienes|quieres|sabes|debes|necesitas|inicias|confirmas|obtienes|haces|usas|eliges|agregas|añades|creas|"
+                r"instalas|podés|tenés|iniciá|confirmá|elegí|agregá|haz|vas|estás|eres|sos|mirá|usá|ejecutá")
+
+    def sources(self):
+        base = Path(STATIC).parent
+        files = sorted((base / "guide" / "es").glob("*.md")) + [STATIC / "i18n" / "es.json", STATIC / "i18n" / "srv-es.json"]
+        return [(f, f.read_text(encoding="utf-8")) for f in files]
+
+    def test_no_informal_second_person_forms(self):
+        import re
+        pattern = re.compile(rf"(?<![\w`/-])({self.INFORMAL})(?![\w`/-])", re.I)
+        hits = []
+        for f, text in self.sources():
+            for n, line in enumerate(text.splitlines(), 1):
+                hits += [f"{f.name}:{n}: {m.group(1)}" for m in pattern.finditer(line)]
+        self.assertEqual(hits, [])
+
+    def test_the_diagram_actions_of_the_reader_are_impersonal(self):
+        text = "".join(t for f, t in self.sources() if f.suffix == ".md")
+        for informal in ("U->>R: inicias", "U->>P: confirmas", "U->>P: elige"):
+            self.assertNotIn(informal, text)
+
+    def test_one_verb_for_adding(self):
+        """E7: the UI says "Agregar" (buttons, help); the guide and the dictionaries do not mix in "Añadir"."""
+        import re
+        hits = [f"{f.name}:{n}" for f, text in self.sources() for n, line in enumerate(text.splitlines(), 1) if re.search(r"añad", line, re.I)]
+        self.assertEqual(hits, [])
+
+
+class GuideNavNamesTest(unittest.TestCase):
+    """W3 E7: the guide's sidebar table names only groups and pages the sidebar really has, in the words the sidebar uses."""
+
+    def check(self, lang):
+        d = json.loads((STATIC / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
+        groups = {d[k] for k in ("nav.group.today", "nav.group.work", "nav.group.knowledge", "nav.group.harnessWiki", "nav.group.foot", "nav.activity")}
+        pages = {d[k] for k in ("nav.home", "nav.project", "nav.pipelines", "nav.memory", "nav.node", "nav.usage", "nav.harnessOverview", "nav.catalog",
+                                "nav.security", "nav.guide", "nav.settings")}
+        lines = (Path(STATIC).parent / "guide" / lang / "portal.md").read_text(encoding="utf-8").splitlines()
+        start = next(n for n, line in enumerate(lines) if line.startswith(("| Group |", "| Grupo |")))
+        rows = []
+        for line in lines[start + 2:]:
+            if not line.startswith("|"):
+                break
+            rows.append([c.strip() for c in line.strip("|").split("|")[:2]])
+        return [r for r in rows if r[0] not in groups or any(p.strip() not in pages for p in r[1].split(","))]
+
+    def test_spanish_table(self):
+        self.assertEqual(self.check("es"), [])
+
+    def test_english_table(self):
+        self.assertEqual(self.check("en"), [])

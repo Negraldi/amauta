@@ -37,18 +37,16 @@ The sidebar is grouped by job. A page with several views shows them as tabs, and
 
 | Group | Page | Tabs and routes |
 | --- | --- | --- |
-| Today | Home | `#/` the harness health sentence, recent activity by day; a rail with pipelines, spending and skill impact |
+| Today | Today | `#/` the harness health sentence, recent activity by day; a rail with pipelines, spending and skill impact |
 | Work | Projects | `#/project` a table of projects and the sibling cards; one project is `#/project/<name>` with tabs Overview, Features, Graph, Pipelines, Sessions, Memories (`?tab=`) |
 | Work | Pipelines | `#/pipelines` |
 | Knowledge | Memory | `#/memory`, Memory files `#/memfile`, Quality `#/lint` |
 | Knowledge | Graph | `#/node` |
-| Activity | Usage | `#/usage` |
-| Activity | Sessions | `#/session` |
-| Activity | Tools and skills | `#/tool` with a segment: Tools, Skills, MCP servers, MCP tools, Subagents (`?seg=`) |
+| Activity | Usage | `#/usage` with the tabs Sessions (`#/session`) and Tools and skills (`#/tool`, with a segment: Tools, Skills, MCP servers, MCP tools, Subagents, `?seg=`) |
 | Harness wiki | Overview | `#/harness` |
 | Harness wiki | Catalog | `#/component`, filtered by kind with `?kind=`; each row names its runtime (Claude Code, Codex or both) |
 | Harness wiki | Security | `#/security` |
-| Foot | Guide, Settings | `#/guide`; `#/settings` with tabs Preferences, Projects and siblings, Appearance (`?tab=`) |
+| Help and settings | Guide, Settings | `#/guide`; `#/settings` with tabs Preferences, Projects and siblings, Appearance (`?tab=`) |
 
 Item pages open with a breadcrumb back to their page, and old links (`#/themes`, `#/mcp`, `#/activity`, `#/skill`, `#sessions` and the like) redirect to where the content now lives.
 
@@ -61,7 +59,7 @@ amauta portal install-launcher      # a desktop entry or Start menu shortcut
 ```
 
 - Search with `Ctrl+K` or `/`: one query across memories (full-text), skills, tools, MCP servers, sessions, features, tasks and graph nodes.
-- Use the Range, Project and Runtime filters on the Activity pages (Usage, Sessions, Tools and skills); they are the only pages that have them (All, Claude Code, Codex).
+- Use the Range, Project and Runtime filters on the Activity pages (the Usage, Sessions and Tools and skills tabs); they are the only pages that have them (All, Claude Code, Codex).
 - Switch the theme (System, Light, Dark, your own themes) and the language (English, Spanish) from Display in the top bar; Edit themes opens Settings > Appearance. Your own text stays as written; dates are always `YYYY-MM-DD`.
 - Add projects in Settings > Projects and siblings, or with `--repo DIR` (repeatable).
 - Read this guide from Guide at the foot of the sidebar; each page follows the portal's language and falls back to English.

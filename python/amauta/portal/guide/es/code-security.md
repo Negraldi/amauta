@@ -1,6 +1,6 @@
 # Seguridad de código
 
-El pilar de seguridad de código le da al agente una retroalimentación al estilo de un compilador: después de una edición ve líneas `file:line:col: error: message [checker]` y las corrige en el mismo turno, y en Stop se vuelven a comprobar los archivos cambiados del repositorio (ADR 0006). Solo cuentan los errores que añadió el cambio, porque cada archivo se compara con su última versión confirmada. Los checkers que ejecutan código del repositorio solo se ejecutan en un proyecto en el que usted confió.
+El pilar de seguridad de código le da al agente una retroalimentación al estilo de un compilador: después de una edición ve líneas `file:line:col: error: message [checker]` y las corrige en el mismo turno, y en Stop se vuelven a comprobar los archivos cambiados del repositorio (ADR 0006). Solo cuentan los errores que agregó el cambio, porque cada archivo se compara con su última versión confirmada. Los checkers que ejecutan código del repositorio solo se ejecutan en un proyecto en el que usted confió.
 
 ## De qué está hecho
 
@@ -78,7 +78,7 @@ amauta mermaid check docs/architecture.md README.md
 
 ### La línea base
 
-Para cada archivo, el motor ejecuta los checkers sobre el texto actual y sobre la última versión confirmada (`git show HEAD:<file>`, en un directorio temporal), y luego conserva solo los hallazgos que añadió la edición, emparejados por checker y mensaje para que las líneas movidas no cuenten como nuevas. Un archivo nuevo no tiene línea base: cuenta cada error. No se guarda nada en caché a nivel de proyecto.
+Para cada archivo, el motor ejecuta los checkers sobre el texto actual y sobre la última versión confirmada (`git show HEAD:<file>`, en un directorio temporal), y luego conserva solo los hallazgos que agregó la edición, emparejados por checker y mensaje para que las líneas movidas no cuenten como nuevas. Un archivo nuevo no tiene línea base: cuenta cada error. No se guarda nada en caché a nivel de proyecto.
 
 ### Confianza
 

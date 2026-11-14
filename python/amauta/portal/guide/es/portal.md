@@ -37,18 +37,16 @@ La barra lateral se agrupa por tarea. Una página con varias vistas las muestra 
 
 | Grupo | Página | Pestañas y rutas |
 | --- | --- | --- |
-| Hoy | Inicio | `#/` la frase de salud del harness, actividad reciente por día; un panel lateral con pipelines, gasto e impacto de skills |
+| Hoy | Hoy | `#/` la frase de salud del harness, actividad reciente por día; un panel lateral con pipelines, gasto e impacto de skills |
 | Trabajo | Proyectos | `#/project` una tabla de proyectos y las tarjetas de hermanos; un proyecto es `#/project/<nombre>` con pestañas Resumen, Funcionalidades, Grafo, Pipelines, Sesiones, Memorias (`?tab=`) |
 | Trabajo | Pipelines | `#/pipelines` |
 | Conocimiento | Memoria | `#/memory`, Archivos de memoria `#/memfile`, Calidad `#/lint` |
 | Conocimiento | Grafo | `#/node` |
-| Actividad | Uso | `#/usage` |
-| Actividad | Sesiones | `#/session` |
-| Actividad | Herramientas y skills | `#/tool` con un segmento: herramientas, skills, servidores MCP, herramientas MCP, subagentes (`?seg=`) |
+| Actividad | Uso | `#/usage` con las pestañas Sesiones (`#/session`) y Herramientas y skills (`#/tool`, con un segmento: herramientas, skills, servidores MCP, herramientas MCP, subagentes, `?seg=`) |
 | Wiki del harness | Resumen | `#/harness` |
 | Wiki del harness | Catálogo | `#/component`, filtrado por tipo con `?kind=`; cada fila indica su entorno (Claude Code, Codex o ambos) |
 | Wiki del harness | Seguridad | `#/security` |
-| Pie | Guía, Configuración | `#/guide`; `#/settings` con pestañas Preferencias, Proyectos y hermanos, Apariencia (`?tab=`) |
+| Ayuda y configuración | Guía, Configuración | `#/guide`; `#/settings` con pestañas Preferencias, Proyectos y hermanos, Apariencia (`?tab=`) |
 
 Las páginas de elemento abren con una ruta de migas hasta su página, y los enlaces antiguos (`#/themes`, `#/mcp`, `#/activity`, `#/skill`, `#sessions` y similares) redirigen a donde ahora vive el contenido.
 
@@ -61,9 +59,9 @@ amauta portal install-launcher      # una entrada de escritorio o un acceso dire
 ```
 
 - Busque con `Ctrl+K` o `/`: una sola consulta sobre memorias (texto completo), skills, herramientas, servidores MCP, sesiones, features, tareas y nodos del grafo.
-- Use los filtros de Rango, Proyecto y Runtime en las páginas de Actividad (Uso, Sesiones, Herramientas y skills); son las únicas que los tienen (Todos, Claude Code, Codex).
+- Use los filtros de Rango, Proyecto y Runtime en las páginas de Actividad (las pestañas Uso, Sesiones y Herramientas y skills); son las únicas que los tienen (Todos, Claude Code, Codex).
 - Cambie el tema (Sistema, Claro, Oscuro, sus propios temas) y el idioma (inglés, español) desde Vista en la barra superior; Editar temas abre Configuración > Apariencia. Su propio texto se queda como lo escribió; las fechas son siempre `YYYY-MM-DD`.
-- Añada proyectos en Configuración > Proyectos y hermanos, o con `--repo DIR` (repetible).
+- Agregue proyectos en Configuración > Proyectos y hermanos, o con `--repo DIR` (repetible).
 - Lea esta guía desde Guía, al pie de la barra lateral; cada página sigue el idioma del portal y recurre al inglés si falta.
 
 ## Scripts y comandos
@@ -95,12 +93,12 @@ sequenceDiagram
   participant P as Página de Configuración
   participant S as servidor del portal
   participant I as amauta install
-  U->>P: elige opciones
+  U->>P: elegir opciones
   P->>S: vista previa con token
   S->>I: install --dry-run --json
   I-->>S: archivos a escribir, quitar, conservar
   S-->>P: plan y un token de aplicación de un solo uso
-  U->>P: confirmas
+  U->>P: confirmar
   P->>S: aplicar con ese token
   S->>I: install con las opciones como argv
   I-->>S: id del respaldo

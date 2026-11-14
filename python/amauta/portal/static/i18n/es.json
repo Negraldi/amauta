@@ -331,7 +331,7 @@
  "set.gentleman": "Gentleman",
  "set.intro": "Una lista breve y cerrada de opciones del harness para Claude Code y Codex. Cada cambio se previsualiza primero, requiere su confirmación, genera una copia de seguridad y puede deshacerse (también con vista previa). Aquí no se puede editar nada más de ninguno de los dos agentes.",
  "set.mod.archify": "Diagramas de arquitectura (archify)",
- "set.mod.archify.help": "Instala la skill de diagramas para Claude Code y Codex (funciona sin conexión). La página Harness la usa para dibujar la arquitectura.",
+ "set.mod.archify.help": "Instala la skill de diagramas para Claude Code y Codex (funciona sin conexión). La página Resumen de la wiki del harness la usa para dibujar la arquitectura.",
  "set.mod.context7": "Documentación de bibliotecas (context7)",
  "set.mod.context7.help": "Registra el servidor MCP context7 en Claude Code y en Codex para que el agente pueda consultar la documentación vigente de las bibliotecas.",
  "set.mod.impeccable": "Diseño de interfaces (impeccable)",
@@ -735,7 +735,7 @@
  "harness.userSettings": "Su directorio de Claude",
  "harness.runs": "se ejecuta",
  "harness.pluginOff": "plugin fuera de uso",
- "harness.howInstall": "Ejecuta `amauta install` en una terminal; esta página mostrará entonces qué se instaló y qué hace cada parte.",
+ "harness.howInstall": "Ejecute `amauta install` en una terminal; esta página mostrará entonces qué se instaló y qué hace cada parte.",
  "col.handler": "Manejador",
  "col.source": "Origen",
  "col.status": "Estado",
@@ -966,5 +966,5 @@
  "explain.basedOn": "Basado en:",
  "pipe.howTo": "Cómo los define un proyecto",
  "pipe.histLatest": "Última: {run}",
- "project.originLegend": "Encontrado por: «Guardado en Configuración» significa que usted lo añadió en Configuración; «Sus sesiones», encontrado en las carpetas donde se ejecutaron sus sesiones; «Línea de comandos», añadido al iniciar el portal."
+ "project.originLegend": "Encontrado por: «Guardado en Configuración» significa que usted lo agregó en Configuración; «Sus sesiones», encontrado en las carpetas donde se ejecutaron sus sesiones; «Línea de comandos», agregado al iniciar el portal."
 }

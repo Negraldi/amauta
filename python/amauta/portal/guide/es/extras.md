@@ -1,12 +1,12 @@
 # Módulos opcionales y extras
 
-Más allá del núcleo y los cuatro pilares, amauta tiene dos tipos de añadidos. Los **módulos opcionales** se instalan solo cuando usted los pide (`amauta install --with-<module>`) y se quitan con `--without-<module>` o `uninstall`. Los **extras** son código bajo `python/amauta/extras/` que el núcleo y los pilares nunca importan: llegan a él a través del registro de extensiones, así que borrar la carpeta de un extra quita su función y nada más (ADR 0009).
+Más allá del núcleo y los cuatro pilares, amauta tiene dos tipos de agregados. Los **módulos opcionales** se instalan solo cuando usted los pide (`amauta install --with-<module>`) y se quitan con `--without-<module>` o `uninstall`. Los **extras** son código bajo `python/amauta/extras/` que el núcleo y los pilares nunca importan: llegan a él a través del registro de extensiones, así que borrar la carpeta de un extra quita su función y nada más (ADR 0009).
 
 ## De qué está hecho
 
 ### Módulos opcionales
 
-| Módulo | Opción | Qué obtienes |
+| Módulo | Opción | Qué obtiene |
 | --- | --- | --- |
 | `sdd` | `--with-sdd` | Desarrollo guiado por especificaciones: skills y agentes `sdd-*`, comandos renombrados a `/amauta-sdd-*`, un módulo de estado de solo lectura y el hook de preflight de SDD |
 | `archify` | `--with-archify` | La skill de diagramas archify vendorizada: el agente escribe JSON tipado, `bin/archify.mjs` genera un diagrama HTML autocontenido; la página del harness del portal también la usa |
@@ -48,10 +48,10 @@ Capas, según `MODULES.json`: los módulos opcionales solo importan el núcleo; 
 
 ## Flujo de uso y de trabajo
 
-### Añadir o quitar un módulo opcional
+### Agregar o quitar un módulo opcional
 
 ```bash
-amauta install --with-sdd --with-archify     # añadir
+amauta install --with-sdd --with-archify     # agregar
 amauta install --without-archify             # volver a quitar uno
 amauta status                                # muestra lo instalado y comprueba la CLI de archify y el motor de impeccable
 ```
@@ -60,7 +60,7 @@ También puede cambiar los módulos en la página de Configuración del portal, 
 
 ### SDD
 
-SDD se usa solo cuando usted lo pide o acepta una propuesta; el tamaño o el riesgo por sí solos nunca lo eligen. Los comandos `/amauta-sdd-*` trabajan sobre `openspec/changes/<change>/`. Antes de despachar un subagente `sdd-*`, el agente principal debe hacer el preflight de tres preguntas y usted debe responderlo; luego el hook añade el bloque de preflight al prompt. Es el único hook que falla en cerrado, solo para los despachos `sdd-*`.
+SDD se usa solo cuando usted lo pide o acepta una propuesta; el tamaño o el riesgo por sí solos nunca lo eligen. Los comandos `/amauta-sdd-*` trabajan sobre `openspec/changes/<change>/`. Antes de despachar un subagente `sdd-*`, el agente principal debe hacer el preflight de tres preguntas y usted debe responderlo; luego el hook agrega el bloque de preflight al prompt. Es el único hook que falla en cerrado, solo para los despachos `sdd-*`.
 
 ### Usar los extras
 
@@ -71,12 +71,12 @@ SDD se usa solo cuando usted lo pide o acepta una propuesta; el tamaño o el rie
 - **Graphify semántico**: pida una pasada semántica; la skill planifica fragmentos y despacha un subagente extractor de solo lectura por fragmento.
 - **Herramientas PBIR**: la skill `powerbi-report` las llama sobre un proyecto PBIP.
 
-### Añadir un extra propio
+### Agregar un extra propio
 
 1. Cree `python/amauta/extras/<name>/__init__.py` con un comentario de cabecera y `POINTS = {"point.name": function}`.
 2. Use solo puntos de extensión que el núcleo o un pilar ya llamen (listados en `docs/modules.md`), o ninguno para un extra de línea de comandos.
 3. Importe el núcleo y los pilares según lo necesite; nunca haga que un módulo del núcleo o de un pilar importe su extra.
-4. Manténgase dentro de los límites de simplicidad (archivo de 400 líneas, función de 60, línea de 140) y añade tests.
+4. Manténgase dentro de los límites de simplicidad (archivo de 400 líneas, función de 60, línea de 140) y agregue tests.
 
 Para quitar un extra, borre su carpeta: su pestaña, bloque o comando desaparece y todo lo demás sigue funcionando.
 
@@ -84,13 +84,13 @@ Para quitar un extra, borre su carpeta: su pestaña, bloque o comando desaparece
 
 | Comando | Qué hace |
 | --- | --- |
-| `amauta install --with-sdd\|rea\|context7\|impeccable\|archify` | Añade un módulo opcional |
+| `amauta install --with-sdd\|rea\|context7\|impeccable\|archify` | Agrega un módulo opcional |
 | `amauta install --without-<module>` | Lo quita |
 | `amauta sdd status [change] [--cwd DIR] [--json] [--instructions]` | Estado de SDD sobre `openspec/changes/` (solo lectura) |
 | `amauta sdd continue [change]` | El siguiente paso de SDD (solo lectura) |
 | `amauta pipeline list\|check\|run\|status\|cancel\|schedule-hint` | El extra de pipelines |
 | `amauta py amauta.extras.pbir lint MODEL` | Reglas de DAX y del modelo como avisos |
-| `amauta py amauta.extras.pbir diff OLD NEW` | Tablas, columnas y medidas añadidas, quitadas o cambiadas |
+| `amauta py amauta.extras.pbir diff OLD NEW` | Tablas, columnas y medidas agregadas, quitadas o cambiadas |
 | `amauta py amauta.extras.pbir dictionary MODEL` | Un diccionario de datos en Markdown |
 | `amauta py amauta.extras.pbir layout REPORT` | Visuales fuera de la página, superpuestos o demasiado pequeños; sale con 1 si hay alguno |
 | `amauta py amauta.extras.pbir refs REPORT MODEL` | Campos, filtros y ordenaciones del informe que el modelo no tiene; sale con 1 si hay alguno |

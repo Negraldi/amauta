@@ -132,7 +132,7 @@ Un solo archivo SQLite en `<state dir>/memory.db` guarda todo lo local: memorias
 
 ### El motor de comprobaciones y los detectores
 
-`src/checks/engine.js` define un solo formato de hallazgo, impreso como `file:line:col: severity: message [checker]`, y la regla de línea base: la última versión confirmada del archivo se comprueba en un directorio temporal, así que solo se informan los errores que añadió una edición. `python/amauta/detectors/` valida identificadores (cédula y RUC con dígitos verificadores, tarjetas por Luhn, IBAN, correo electrónico, teléfonos) y patrones de secretos; un hallazgo lleva un tipo y desplazamientos, nunca el texto encontrado.
+`src/checks/engine.js` define un solo formato de hallazgo, impreso como `file:line:col: severity: message [checker]`, y la regla de línea base: la última versión confirmada del archivo se comprueba en un directorio temporal, así que solo se informan los errores que agregó una edición. `python/amauta/detectors/` valida identificadores (cédula y RUC con dígitos verificadores, tarjetas por Luhn, IBAN, correo electrónico, teléfonos) y patrones de secretos; un hallazgo lleva un tipo y desplazamientos, nunca el texto encontrado.
 
 ### El registro de extensiones
 
