@@ -69,3 +69,31 @@ test('B12: long lint pages get an in-page index that moves focus to a section', 
   buttons[0].click();
   assert.equal(h2.focused, true);
 });
+
+test('C7: the MCP sentence is the lead of the catalog group once; a server page links to the list instead', async () => {
+  const lead = 'A Model Context Protocol server: the agent starts it.';
+  const comps = { total: 2, pending: 0, groups: [{ kind: 'mcp', label: 'MCP servers', lead, items: [
+    { kind: 'mcp', id: 'a', title: 'a', description: null, source: 'Your Claude home', uses: 0 }, { kind: 'mcp', id: 'b', title: 'b', description: null, source: 'Your Claude home', uses: 0 }] }] };
+  const env = await boot('#/component', { '/api/harness/components': comps });
+  assert.equal((text(env).match(/Model Context Protocol server/g) || []).length, 1);
+  const pg = page('mcp', { id: 'a', title: 'a', summary: { description: null, when: null, generic: true, source: 'Your Claude home', path: null, trigger: null } });
+  const one = await boot('#/mcp/a', { '/api/wiki/page': pg });
+  assert.doesNotMatch(text(one), /Model Context Protocol/);
+  assert.ok(tree(view(one)).some((e) => e.tagName === 'a' && e.attrs.href === '#/component?kind=mcp'));
+});
+
+const M = (reason) => ({ label: 'Error rate', suppressed: true, reason, exposed: { value: null, n: 2 }, baseline: { value: null, n: 3 }, delta: null });
+const IMPACT = { available: true, note: 'N', days: 30, exposed_sessions: 2, control_sessions: 3, control_scope: 'same-project', min_sessions: 5, outcomes_recorded: true,
+  metrics: { error_rate: M('fewer than 5 sessions'), retry_rate: M('fewer than 5 sessions'), tokens_per_turn: M('fewer than 5 sessions'), test_failure_rate: M('fewer than 5 sessions'),
+    unused_after_load: { suppressed: true, reason: 'fewer than 5 sessions', n: 2 } },
+  changes: { versions: [], commits: [], changes: [{ kind: 'installed', label: 'v2', when: '2026-10-01', before_sessions: 1, after_sessions: 1, suppressed: true, reason: 'fewer than 5 sessions' }] } };
+test('D12: the "fewer than 5 sessions" caveat of a skill page is said once', async () => {
+  const env = await boot('#/skill/x', { '/api/wiki/page': page('skill', { id: 'x', title: 'x', impact: IMPACT }) });
+  assert.equal((text(env).match(/fewer than 5 sessions/g) || []).length, 1);
+});
+const HOOKP = page('hook', { id: 'Stop:abc', title: 'Stop · x', summary: { description: null, when: 'w', source: 'Your Claude home', path: '/h/settings.json', trigger: null, generic: false },
+  sections: [{ heading: 'Configured in', items: [{ label: '/h/settings.json', value: 'Your Claude home' }] }] });
+test('C10: a hook page names where it is configured once', async () => {
+  const env = await boot('#/hook/Stop%3Aabc', { '/api/wiki/page': HOOKP });
+  assert.equal((text(env).match(/\/h\/settings\.json/g) || []).length, 1);
+});

@@ -60,7 +60,6 @@ EVENT_WHEN = {
 HOOK_FALLBACK_WHEN = "When the agent reaches this hook event."
 MCP_WHAT = ("A Model Context Protocol server: the agent (Claude Code or Codex) starts it or connects to it, and the tools it lists "
             "become available to the agent.")
-MCP_WHEN = "When a session starts, the agent connects to every configured server, then calls its tools when a task needs them."
 AGENT_WHEN = "When Claude delegates a task to this subagent type, or when you pick it."
 COMMAND_WHEN = "When you type this slash command."
 STYLE_WHEN = "While this output style is active, for every reply."
@@ -303,7 +302,7 @@ def _collect_servers(portal, repos, plugs):
         for c in configs:
             aliases |= server_aliases(name, c["scope"], c["plugin"])
         material = {"name": name, "configs": [{"source": c["source"], "path": c["path"], **c["facts"]} for c in configs]}
-        out.append({"kind": "mcp", "id": name, "title": name, "description": MCP_WHAT, "when": MCP_WHEN, "source": configs[0]["source"], "path": configs[0]["path"], "material": material,
+        out.append({"kind": "mcp", "id": name, "title": name, "generic": True, "source": configs[0]["source"], "path": configs[0]["path"], "material": material,
                     "configs": configs, "aliases": aliases, "plugin": next((c["plugin"] for c in configs if c["plugin"]), None),
                     "meta": _meta(("Type", first["type"]), ("Command", " ".join(x for x in [first["command"], *first["args"]] if x) or None), ("URL", first["url"]),
                                   ("Environment variables (names only)", ", ".join(first["env_keys"]) or None), ("Header names", ", ".join(first["header_keys"]) or None))})
@@ -444,7 +443,7 @@ def _ref_of(entries, key):
 
 
 def summary_of(e):
-    out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
+    out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "generic": bool(e.get("generic")), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
     if e.get("i18n"):
         out["i18n"] = e["i18n"]
     if e.get("disabled"):
@@ -529,7 +528,7 @@ def groups(portal, q=None):
                  for e in entries.values() if e["kind"] == kind]
         if items:
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
-            out.append({"kind": kind, "label": label, "items": items})
+            out.append({"kind": kind, "label": label, "items": items, **({"lead": MCP_WHAT} if kind == "mcp" else {})})
             total += len(items)
     pending = extensions.call("harness.pending", portal, default=0)
     return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending, "runtimes": wikicodex.overview(portal)}

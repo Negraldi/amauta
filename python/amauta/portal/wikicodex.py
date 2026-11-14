@@ -143,7 +143,7 @@ def _merge_servers(home, base):
             continue
         f = row["facts"]
         command = " ".join(x for x in [f["command"], *f["args"]] if x) or None
-        out.append({"kind": "mcp", "id": name, "title": name, "description": wh.MCP_WHAT, "when": wh.MCP_WHEN, "source": CODEX_LABEL,
+        out.append({"kind": "mcp", "id": name, "title": name, "generic": True, "source": CODEX_LABEL,
                     "path": path, "material": {"name": name, "configs": [{"source": CODEX_LABEL, "path": path, **f}]}, "configs": [row],
                     "aliases": wh.server_aliases(name, "user"), "plugin": None, "runtimes": ["codex"], "codex_only": True,
                     "meta": wh._meta(("Type", f["type"]), ("Command", command), ("URL", f["url"]),

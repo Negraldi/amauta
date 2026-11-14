@@ -482,3 +482,44 @@ class LintRepeatsTest(unittest.TestCase):
         self.assertLessEqual(len(missing[0]), 40)
         self.assertTrue(text[6:].startswith(missing[0]))
         self.assertFalse(text[6 + len(missing[0])].isalnum() if text[6 + len(missing[0])] != " " else False)
+
+
+class McpSentenceOnceTest(unittest.TestCase):
+    """W3b C7: the generic "what is an MCP server" sentence is said once, as the lead of the catalog group, not on every server page or row."""
+
+    def run_case(self, body):
+        from python.tests.test_portal_wiki_harness import HarnessBase
+
+        class Case(HarnessBase):
+            def runTest(self):
+                body(self)
+        res = unittest.TestResult()
+        Case().run(res)
+        self.assertEqual((res.errors, res.failures), ([], []), res.errors + res.failures)
+
+    def test_catalog_group_has_the_lead_and_rows_do_not_repeat_it(self):
+        from python.amauta.portal import wikiharness
+
+        def body(c):
+            group = next(g for g in c.get("/api/harness/components")["groups"] if g["kind"] == "mcp")
+            c.assertEqual(group["lead"], wikiharness.MCP_WHAT)
+            c.assertTrue(group["items"])
+            c.assertTrue(all(not i["description"] for i in group["items"]))
+        self.run_case(body)
+
+    def test_a_server_page_says_it_is_generic_instead_of_repeating_it(self):
+        def body(c):
+            sm = c.page("mcp", "engram")["summary"]
+            c.assertIsNone(sm["description"])
+            c.assertIsNone(sm["when"])
+            c.assertTrue(sm["generic"])
+        self.run_case(body)
+
+
+class HookNameTest(unittest.TestCase):
+    """W3b C9: a dispatcher without known handler names is "amauta hooks", never "amauta hooks:"."""
+
+    def test_no_dangling_colon(self):
+        from python.amauta.portal import wikihooks
+        self.assertEqual(wikihooks.known_hook("node amauta.js hook event Stop --with nope")[0], "amauta hooks")
+        self.assertTrue(wikihooks.known_hook("node amauta.js hook event Stop --with usage")[0].startswith("amauta hooks: "))

@@ -67,7 +67,7 @@ def known_hook(command):
     if m:
         names = [n for n in m.group(1).split(",") if n in HANDLER_SUMMARIES]
         what = " ".join(HANDLER_SUMMARIES[n] for n in names)
-        return f"amauta hooks: {', '.join(names)}", what, " ".join(HANDLER_SUMMARIES_ES[n] for n in names)
+        return (f"amauta hooks: {', '.join(names)}" if names else "amauta hooks"), what, " ".join(HANDLER_SUMMARIES_ES[n] for n in names)
     return next(((short, what, None) for needle, short, what in HOOK_SUMMARIES if needle in command), None)
 
 
