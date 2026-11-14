@@ -376,15 +376,27 @@ Target after redesign: >= 32/40, no P1.
 - Not a portal defect: memory bodies shown without spaces are stored that way (151 of the latest 200, one project,
   one Codex session); the memory guard keeps spaces.
 
+### T16 and T17 verification (coordinator, 2026-11-14)
+
+- Head 9e40714. Node suite 1203/1203 with LANG=C; Python 1070 tests, the one known failure
+  (test_pipelines DeclaredScheduleTest.test_a_missing_scheduled_run_is_noticed), 2 skipped.
+- Guide, all 10 pages on the restarted server (real data, read-only): no contents column, selector and previous/next
+  present, no page overflow, no error block, no console error.
+  - 1280 px: 21 diagrams, none scrolls, smallest text 12.8 px.
+  - 1024 px: 19 fit; `odd` (839 in 719) and `portal` (824 in 719) scroll sideways with the hint; text 11 px or more.
+  - 375 px: 9 sequences shown as numbered steps (no hint, no tab stop); 11 flowcharts scroll sideways with the hint.
+  - Dark theme at 1280: diagrams repaint with dark tokens and keep the fitted layout.
+- Not checked in the browser: the Today cut-day note (tests only).
+- Test files a writer loosened, to be confirmed by the owner: `portal-ui.test.js` skips the `onerror` text check for
+  `title` attributes; `portal-i18n.test.js` ALLOW list gained `%%{init:`.
+
 ## Next step
 
-All tasks checked. Open items are listed under the 2026-11-14 T15 entry. Push and PR are the owner's decision.
-Open, none started:
-- Browser pass at 1024, 1280 and 375px in light and dark after restarting the portal server (Python changed: session
-  rule in SQL, memory paging, search module, graph counts): Today rows, Usage > Projects and the project filter, a
-  project's Sessions tab and the Projects list on real data, the folders section, Memory Show more, the centred
-  architecture diagram, the wrapped phone tabs.
-- Restart the amauta memory MCP server so mem_save refuses unspaced bodies; Memory > Quality then lists the stored ones.
-- Settings > Appearance has no theme picker (only the Display popover).
+T17 done and verified. Push and PR are the owner's decision. Open:
+- T16d: review of the dark theme at 1024 and 375 px and of loading and server-error states; fix findings.
+- T16e: blocked until the owner provides a Codex rollout sample.
+- Phone flowcharts still scroll sideways (11 on 10 guide pages); two diagrams scroll at 1024 px.
+- Adaptive layout covers the guide only; other diagram callers keep fit-to-width.
+- Restart the amauta memory MCP server so mem_save refuses unspaced bodies.
 - T10 leftovers: personal-skill links have no copy fallback where symlinks fail; nothing was run on a real Windows
-  machine (settings.py kill and environment are fixed and unit-tested with an injected platform).
+  machine.
