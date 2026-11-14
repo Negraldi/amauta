@@ -61,12 +61,6 @@ const words = () => ({ na: t("common.na"), tokens: t("unit.tokens"), pp: t("unit
 const enumLabel = (prefix, v) => (`${prefix}.${v}` in I.dict.en ? t(`${prefix}.${v}`) : v);
 const memType = (v) => (v ? enumLabel("memtype", v) : "-");
 const plainReason = (e) => String((e && e.message) || e);
-// A request that never reached the server, in words; the browser's own text rides along as the detail.
-const netError = (err) => (err && err.net ? plainReason(err) : t("error.network", { reason: plainReason(err) })); // api() already said it
-// A part of a page that failed (a diagram, a list): one translated line naming it (`what`, when known), the raw reason as a muted detail.
-const errorNote = (err, what) => h("p", { class: "warn", role: "alert" },
-  `▲ ${what ? t("error.partNamed", { part: what }) : t("error.part")} `, err ? h("span", { class: "muted tok" }, plainReason(err)) : null);
-
 async function api(path, params = {}) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
   const r = await fetch(`/api/${path}${q.toString() ? "?" + q : ""}`, { headers: { Accept: "application/json" } })
@@ -294,15 +288,6 @@ function crumbBar(route) {
   };
   return h("nav", { class: "crumbs", "aria-label": t("nav.breadcrumb") }, h("ol", null, trail.map(crumb)));
 }
-// A page that failed to load: what happened, where, and two ways on (try again, or go to Today).
-function errorPanel(route, err) {
-  const retry = h("button", { type: "button", onclick: () => { state.shown = null; render(); } }, t("error.retry"));
-  return h("section", { class: "panel error-panel", role: "alert" }, h("h2", null, t("common.error")),
-    h("p", { class: "warn" }, t("error.lead")),
-    h("p", { class: "muted" }, h("span", { class: "tok" }, plainReason(err))),
-    h("div", { class: "controls" }, retry, h("a", { href: "#/", class: "button" }, t("error.home"))));
-}
-
 // "Data as of": how fresh the imported usage on an Activity page is (T11 i), from the newest timestamp its API returned.
 function dataAsOf(stamps) {
   const at = stamps.filter(Boolean).sort().at(-1);
@@ -347,7 +332,8 @@ async function render() {
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {
     if (seq !== renderSeq) return;
-    $("view").replaceChildren(...[crumbBar(route), tabBar(route), errorPanel(route, err)].filter(Boolean)); // the tabs stay usable
+    const failed = errorPage(route, err); // names the page, keeps its tabs
+    $("view").replaceChildren(...[crumbBar(route), ...failed].filter(Boolean));
     state.shown = key;
   } finally {
     if (seq === renderSeq) { $("view").setAttribute("aria-busy", "false"); $("view").removeAttribute("data-reloading"); announceLoading(false); }

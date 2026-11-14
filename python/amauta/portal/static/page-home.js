@@ -60,13 +60,16 @@ function spendingBlock(sp) {
     h("p", null, link("usage", "", t("home.usageDetails"))));
 }
 // "Is anything broken today?": the harness health sentence (same count as the Catalog); its component count links to the overview.
-async function homeStatus(health) {
+// `parts` are the three requests it reads, already started by viewHome so they run beside the page's own.
+async function homeStatus(health, parts) {
   if (!health || !health.installed) return h("p", { class: "lead warn" }, "▲ ", link("harness", "", t("harness.notInstalled")));
-  const [hs, comps, skills] = await Promise.all(["harness", "harness/components", "skills"].map((p) => api(p).catch(() => null)));
-  if (!hs) return errorNote(null, t("part.harnessStatus")); // the lede is never dropped silently
+  const [hs, comps, skills] = await parts;
+  const again = () => homeStatus(health, STATUS_PARTS()); // Retry asks for the lede's three requests again, nothing else
+  if (!hs) return errorNote(null, t("part.harnessStatus"), again); // the lede is never dropped silently
   if (!hs.installed) return null; // the overview itself says how to install
-  return [healthLine(hs, comps, skills), comps && !skills ? errorNote(null, t("part.skills")) : null];
+  return [healthLine(hs, comps, skills), comps && !skills ? errorNote(null, t("part.skills"), true) : null];
 }
+const STATUS_PARTS = () => Promise.all(["harness", "harness/components", "skills"].map((p) => api(p).catch(() => null)));
 function impactRankBlock(rk) {
   if (!rk || !rk.available) return null;
   const line = (r) => h("li", null, `${r.verdict === "better" ? "▼" : "▲"} `, link("skill", r.skill, r.skill),
@@ -81,8 +84,8 @@ function impactRankBlock(rk) {
 // The rail comes first in the DOM: one column under 72rem shows spending before the long feed; wide screens put it on the
 // right (style.css .page.home).
 async function viewHome() {
-  const [hm, pipes] = await Promise.all([api("wiki/home"), pipelinesRail()]);
-  const status = await homeStatus(hm.health);
+  const [hm, pipes, parts] = await Promise.all([api("wiki/home"), pipelinesRail(), STATUS_PARTS()]); // all five requests start together
+  const status = await homeStatus(hm.health, parts);
   const stamps = hm.activity.flatMap((d) => d.items.map((i) => i.ts)); // the filter bar, and its line, is not on Today
   const newest = stamps.filter(Boolean).sort().at(-1);
   const asOf = newest ? h("p", { class: "muted data-at" }, t("data.asOf", { at: R.fmtDateTime(newest) })) : null;

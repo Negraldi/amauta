@@ -33,7 +33,7 @@ function pipeSummary(projects) {
 // The home page's rail: the same summary with a link, when any project has pipelines (null otherwise).
 async function pipelinesRail() {
   let d;
-  try { d = await api("pipelines"); } catch (err) { return errorNote(err, t("part.pipelines")); } // a failure is not "no pipelines"
+  try { d = await api("pipelines"); } catch (err) { return errorNote(err, t("part.pipelines"), pipelinesRail); } // a failure is not "no pipelines"
   if (!d || !d.available || !d.projects.length) return null;
   return h("div", null, h("p", null, pipeSummaryText(d.projects)), h("a", { href: "#/pipelines", class: "rail-link" }, t("pipe.open")));
 }

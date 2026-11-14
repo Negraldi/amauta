@@ -827,7 +827,7 @@
  "meta.description": "Description",
  "meta.model": "Model",
  "meta.allowed-tools": "Allowed tools",
- "error.network": "The portal server could not be reached ({reason}).",
+ "error.network": "The portal server could not be reached.",
  "error.part": "This part could not load.",
  "sess.startedOn": "started {date}",
  "home.startedOn": "started {date}",

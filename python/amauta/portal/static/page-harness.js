@@ -172,11 +172,16 @@ function archSizeToggle(scroller) {
   });
   return h("p", null, b);
 }
+const archifyAgain = () => api("archify").then((d) => (d.installed ? archifyParts(d) : null)); // Retry redraws only the diagram part
 function archifyBlock(d) {
   if (d.failed) {
-    return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")), errorNote(d.failed, t("part.architecture")));
+    return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
+      errorNote(d.failed, t("part.architecture"), archifyAgain));
   }
   if (!d.installed) return null;
+  return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")), archifyParts(d));
+}
+function archifyParts(d) {
   const full = d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)
     ? h("p", null, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       tn("harness.drawn", d.components, { n: fmt(d.components) }))) : null;
@@ -184,8 +189,7 @@ function archifyBlock(d) {
   const scroller = d.fallback
     ? h("div", { class: "arch-scroll", "data-size": "full", tabindex: 0, role: "region", "aria-label": label },
       adaptiveDiagram(d.fallback, label, (box) => { fitDiagram(box); centerScroll(scroller); })) : null;
-  return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
-    scroller ? archSizeToggle(scroller) : null, scroller, full);
+  return h("div", null, scroller ? archSizeToggle(scroller) : null, scroller, full);
 }
 
 // One status vocabulary for the Harness wiki: a filled dot for on/runs, a ring for off/disabled, always with the word.
@@ -280,7 +284,7 @@ async function viewHarness() {
   const title = pageHead(t("nav.harnessPage"), hs.installed ? healthSentence(hs, comps, skills) : null);
   const how = h("div", { class: "teach" }, h("p", null, t("harness.notInstalled")), h("p", null, codeSpans(t("harness.howInstall"))));
   if (!hs.installed) return [title, how];
-  const skillsDown = comps && !skills ? errorNote(null, t("part.skills")) : null; // the count above is partial: say what is missing
+  const skillsDown = comps && !skills ? errorNote(null, t("part.skills"), true) : null; // the count above is partial: say what is missing
   const pending = comps && comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null;
   const hooks = h("section", { class: "page-section" }, h("h2", null, t("harness.hooks")), hooksTable(hs, comps));
   const open = h("p", null, link("component", "", t("harness.openComponents")));

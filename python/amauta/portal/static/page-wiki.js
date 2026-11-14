@@ -325,7 +325,7 @@ async function viewCatalog(route) {
   paint();
   const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
   const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
-  const partial = res.err || sk ? null : errorNote(null, t("part.skills")); // without skills the total is partial: it is not said
+  const partial = res.err || sk ? null : errorNote(null, t("part.skills"), true); // without skills the total is partial: it is not said
   const intro = sk || res.err ? tn("catalog.intro", total, { n: fmt(total) }) : null;
   return [pageHead(t("nav.catalog"), intro), partial, res.err ? errorPanel(route, res.err) : null,
     noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box), refresh, list, teachWhere];

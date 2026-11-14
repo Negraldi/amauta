@@ -196,7 +196,7 @@ async function viewThemes() {
       state.themes.length ? h("ul", { class: "items" }, state.themes.map((th) => th.error
         ? h("li", null, h("code", null, th.slug), h("p", { class: "warn" }, "▲ " + t("theme.invalidFile", { reason: themeMsg(th) })))
         : h("li", null, editButton(th), h("span", { class: "muted" }, ` ${t(th.base === "dark" ? "theme.dark" : "theme.light")}${state.themeChoice === `custom:${th.slug}` ? ", " + t("theme.inUse") : ""}`))))
-        : state.themesError ? errorNote(state.themesError, t("part.themes")) : h("p", { class: "muted" }, t("theme.noneYet")),
+        : state.themesError ? errorNote(state.themesError, t("part.themes"), () => loadThemes().then(paintList)) : h("p", { class: "muted" }, t("theme.noneYet")),
       h("div", { class: "actions" }, create, importButton, input));
   }
   paintList();
