@@ -333,7 +333,9 @@ async function render() {
     $("view").replaceChildren(...[crumbBar(route), ...nodes].filter(Boolean));
     const title = firstH1(nodes);
     const name = title && title.textContent;
-    if (name) document.title = `${name === "amauta" ? `${kindLabel(route.kind)} ${name}` : name} - amauta`; // never "amauta - amauta"
+    // One pattern: the heading; a project always has its kind first (never "amauta - amauta").
+    const kinded = name === "amauta" || (route.kind === "project" && route.id);
+    if (name) document.title = `${kinded ? `${kindLabel(route.kind)} ${name}` : name} - amauta`;
     state.shown = key;
     if (changed && $("view").focus) $("view").focus({ preventScroll: true });
   } catch (err) {

@@ -93,7 +93,10 @@
     if (!r.id) return [...out, { key: item.key, hash: item.hash }];
     const list = listOf(r.kind), tabbed = (item.tabs || []).find((t) => t.kind === list.kind);
     const listHash = list.kind === item.kind && !list.query ? item.hash : routeHash({ kind: list.kind, id: "", query: list.query });
-    return [...out, { key: tabbed ? tabbed.key : item.key, hash: listHash }, { text: r.id }];
+    // An item under a tab of its hub goes hub, tab, item: the hub is the entry the sidebar highlights (T15 A14).
+    const trail = tabbed && tabbed.key !== item.key ? [{ key: item.key, hash: item.hash }, { key: tabbed.key, hash: listHash }]
+      : [{ key: item.key, hash: listHash }];
+    return [...out, ...trail, { text: r.id }];
   }
 
   // ---- hashes ---------------------------------------------------------------------------------------------------

@@ -76,7 +76,8 @@ test('crumbs: group, hub (or tab) and the item; list pages stop at the hub', () 
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/feature/proj/name'))),
     [{ key: 'nav.group.work' }, { key: 'nav.project', hash: '#/project' }, { text: 'proj', hash: '#/project/proj?tab=features' }, { text: 'name' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/memory/k'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.memory', hash: '#/memory' }, { text: 'k' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/session/id'))), [{ key: 'nav.activity' }, { key: 'nav.session', hash: '#/session' }, { text: 'id' }]);
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/session/id'))), [{ key: 'nav.activity' }, { key: 'nav.usage', hash: '#/usage' },
+    { key: 'nav.session', hash: '#/session' }, { text: 'id' }]); // the hub the sidebar highlights, then its tab (T15 A14)
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/mcp/engram'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' },
     { key: 'catalog.kind.mcp', hash: '#/component?kind=mcp' }, { text: 'engram' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/skill/s'))), [{ key: 'nav.group.harnessWiki' }, { key: 'nav.catalog', hash: '#/component' },

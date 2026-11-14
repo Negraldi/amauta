@@ -97,3 +97,15 @@ test('C10: a hook page names where it is configured once', async () => {
   const env = await boot('#/hook/Stop%3Aabc', { '/api/wiki/page': HOOKP });
   assert.equal((text(env).match(/\/h\/settings\.json/g) || []).length, 1);
 });
+
+const crumbItems = (env) => tree(tree(view(env)).find((e) => e.tagName === 'nav' && e.className === 'crumbs')).filter((e) => e.tagName === 'li').map((e) => e.textContent);
+test('A14: a session page crumb goes Activity / Usage / Sessions, like the sidebar entry it sits under', async () => {
+  const env = await boot('#/session/b9600f26', { '/api/wiki/page': page('session', { id: 'b9600f26-aaaa', title: 'p · x · 2026-10-01' }) });
+  assert.deepEqual(crumbItems(env), ['Activity', 'Usage', 'Sessions', 'b9600f26']);
+});
+test('A14: a project page title follows one pattern whatever the project is called', async () => {
+  for (const name of ['amauta', 'ortho-conv']) {
+    const env = await boot(`#/project/${name}`, { '/api/wiki/page': page('project', { id: name, title: name, meta: [], progress: null }) });
+    assert.equal(env.document.title, `Project ${name} - amauta`, name);
+  }
+});
