@@ -82,22 +82,33 @@ function sequenceSteps(src) {
 const NARROW_PX = 480;
 const needsOutline = (src, width, avail) => !isSequence(src) && /^\s*(?:flowchart|graph)\b/m.test(src) && avail < NARROW_PX
   && width * MIN_DIAGRAM_SCALE > avail;
-// The outline of a flowchart: [{title, nodes: [{id, label, edges: [{to, label}]}]}], groups by first appearance ("" = no subgraph).
+// The outline of a flowchart: [{title, edges, nodes: [{id, label, edges: [{to, label}]}]}], groups by first appearance ("" = no
+// subgraph). A subgraph id is never an entry: an edge to it names its title, an edge out of it hangs on its group's `edges`.
 const NODE = String.raw`([\w.-]+)(?:\s*(\[[^\]]*\]|\([^)]*\)|\{[^}]*\}))?`;
 const EDGE = String.raw`\s*(?:--\s*([^->=|][^>|]*?)\s*[-=]{2,}[>xo]?|-\.\s*([^.]+?)\s*\.->|[-=.]{2,}[>xo]?(?:\s*\|([^|]*)\|)?)\s*`;
-const clean = (s) => (s || "").replace(/^[[({/\\>]+|[\])}/\\]+$/g, "").replace(/<br\s*\/?>/gi, " ").replace(/^"|"$/g, "").trim();
+const decodeCodes = (s) => s.replace(/#(\d+);/g, (m, n) => String.fromCharCode(Number(n)));
+const clean = (s) => decodeCodes((s || "").replace(/^[[({/\\>]+|[\])}/\\]+$/g, "").replace(/<br\s*\/?>/gi, " ")
+  .replace(/^"|"$/g, "")).trim();
 const SKIP = /^(?:flowchart|graph|direction|style|classDef|class|linkStyle|click|%%)\b/;
+const SUBGRAPH = /^subgraph\s+(?:([\w.-]+)\s*\[(.*)\]|(.+))$/;
 function flowOutline(src) {
-  const nodes = new Map(), groups = [], stack = [];
+  const nodes = new Map(), groups = [], stack = [], subs = new Map();
+  for (const raw of src.split("\n")) { const m = SUBGRAPH.exec(raw.trim()); if (m) subs.set(m[1] || clean(m[3]), clean(m[2] || m[3])); }
+  const groupOf = (title) => {
+    let g = groups.find((x) => x.title === title);
+    if (!g) groups.push((g = { title, edges: [], nodes: [] }));
+    return g;
+  };
   const touch = (id, shape) => {
+    if (subs.has(id)) return { sub: subs.get(id), label: subs.get(id), edges: groupOf(subs.get(id)).edges };
     if (!nodes.has(id)) nodes.set(id, { id, label: id, edges: [], group: stack[stack.length - 1] || "" });
     if (shape) nodes.get(id).label = clean(shape) || id;
     return nodes.get(id);
   };
   for (const raw of src.split("\n")) {
     const line = raw.trim();
-    const sub = /^subgraph\s+(?:[\w.-]+\s*\[(.*)\]|(.+))$/.exec(line);
-    if (sub) { stack.push(clean(sub[1] || sub[2])); continue; }
+    const sub = SUBGRAPH.exec(line);
+    if (sub) { stack.push(clean(sub[2] || sub[3])); continue; }
     if (line === "end") { stack.pop(); continue; }
     if (!line || SKIP.test(line)) continue;
     const re = new RegExp(`^${NODE}`), first = re.exec(line);
@@ -105,17 +116,14 @@ function flowOutline(src) {
     let prev = touch(first[1], first[2]), rest = line.slice(first[0].length), m;
     while ((m = new RegExp(`^${EDGE}${NODE}`).exec(rest))) {
       const to = touch(m[4], m[5]);
-      prev.edges.push({ to: to.id, label: clean(m[1] || m[2] || m[3]) });
+      prev.edges.push({ to, label: clean(m[1] || m[2] || m[3]) });
       prev = to; rest = rest.slice(m[0].length);
     }
   }
-  for (const n of nodes.values()) {
-    n.edges = n.edges.map((e) => ({ to: nodes.get(e.to).label, label: e.label }));
-    let g = groups.find((x) => x.title === n.group);
-    if (!g) groups.push((g = { title: n.group, nodes: [] }));
-    g.nodes.push({ id: n.id, label: n.label, edges: n.edges });
-  }
-  return groups;
+  const named = (e) => ({ to: e.to.label, label: e.label });
+  for (const g of groups) g.edges = g.edges.map(named);
+  for (const n of nodes.values()) groupOf(n.group).nodes.push({ id: n.id, label: n.label, edges: n.edges.map(named) });
+  return groups.filter((g) => g.nodes.length || g.edges.length);
 }
 
 // ---- the drawn box ----
@@ -134,25 +142,35 @@ function stepList(src, caption) {
   return h("ol", { class: "seq-steps", "aria-label": caption }, sequenceSteps(src).map((s) =>
     h("li", null, h("span", { class: "who" }, s.self ? s.from : `${s.from} → ${s.to}${s.reply ? reply : ""}`), s.text)));
 }
+// The outline's words go through the same dictionary as the drawn diagram (localizedSource): ts() unless the portal is English.
+const outlineText = (text) => (I.lang() === "en" ? text : ts(text));
 function outlineList(src, caption) {
-  const edge = (e) => h("li", null, `→ ${e.to}${e.label ? ` (${e.label})` : ""}`);
-  const item = (n) => h("li", null, n.label, n.edges.length ? h("ul", null, n.edges.map(edge)) : null);
+  const edge = (e) => h("li", null, `→ ${outlineText(e.to)}${e.label ? ` (${outlineText(e.label)})` : ""}`);
+  const edges = (list) => (list.length ? h("ul", null, list.map(edge)) : null);
+  const item = (n) => h("li", null, outlineText(n.label), edges(n.edges));
   return h("div", { class: "flow-list", role: "group", "aria-label": caption }, flowOutline(src).map((g) =>
-    h("section", null, g.title ? h("h4", null, g.title) : null, h("ul", null, g.nodes.map(item)))));
+    h("section", null, g.title ? h("h4", null, outlineText(g.title)) : null, edges(g.edges), h("ul", null, g.nodes.map(item)))));
 }
 // A flowchart in a narrow box that would not be legible: the outline first, the scrollable diagram on request, and back.
-function showFlow(box, entry, src, caption, source) {
-  const toggle = (diagram) => { entry.wantDiagram = diagram; showFlow(box, entry, src, caption, source); };
+function showFlow(box, entry, src, caption, source, focus) {
+  const toggle = (diagram) => { entry.wantDiagram = diagram; showFlow(box, entry, src, caption, source, true); };
   const button = (key, diagram) => h("button", { type: "button", class: "link", onclick: () => toggle(diagram) }, t(key));
   box.removeAttribute("role");
+  box.className = box.className.replace(/\s*\boutline\b/, "") + (entry.wantDiagram ? "" : " outline");
+  // (the list wraps, the diagram scrolls)
   entry.steps = !entry.wantDiagram; // the outline has nothing to redraw
   entry.target = null;
-  const toDiagram = h("p", null, button("diagram.showDiagram", true));
-  if (!entry.wantDiagram) return box.replaceChildren(outlineList(src, caption), toDiagram);
-  const inner = h("div", { role: "img", "aria-label": caption });
-  entry.target = inner;
-  box.replaceChildren(inner, h("p", null, button("diagram.showList", false)));
-  return drawMermaid(source, inner);
+  // The button that was clicked is replaced by the other one: focus moves to it, or the keyboard falls back to the page.
+  const next = button(entry.wantDiagram ? "diagram.showList" : "diagram.showDiagram", !entry.wantDiagram);
+  const toDiagram = h("p", null, next);
+  if (!entry.wantDiagram) box.replaceChildren(outlineList(src, caption), toDiagram);
+  else {
+    const inner = h("div", { role: "img", "aria-label": caption });
+    entry.target = inner;
+    box.replaceChildren(inner, toDiagram);
+  }
+  if (focus && next.focus) next.focus();
+  return entry.wantDiagram ? drawMermaid(source, entry.target) : undefined;
 }
 // Measures candidates until one fits the box, then draws the pick; a stale pick (the box changed meanwhile) draws nothing.
 async function chooseLayout(box, src, caption, entry, mine, avail) {
