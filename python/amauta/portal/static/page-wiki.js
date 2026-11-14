@@ -153,6 +153,7 @@ function metaList(pg, keep) {
       : metaEnumLabel(pg.kind, m.label, m.value) || groupDigits(ts(R.fmtMeta(m)));
     const v = raw === "true" ? t("common.yes") : raw === "false" ? t("common.no") : raw; // front-matter booleans
     const dt = h("dt", null, `meta.${m.label}` in I.dict.en ? t(`meta.${m.label}`) : ts(m.label)); // SKILL.md keys get labels
+    if (m.kind) return [dt, h("dd", null, link(m.kind, v, v))]; // a value that names a page (a session's project)
     if (R.isPathLike(v)) return [dt, h("dd", null, pathNode(v))];
     return [dt, String(v).includes("|") ? h("dd", null, breakAfterBars(v)) : h("dd", { class: R.isLongToken(v) ? "tok" : false }, v)];
   }));
@@ -176,11 +177,12 @@ async function viewWikiPage(kind, id, source) {
   state.pageTitle = pg.kind === "session" ? String(pg.id).slice(0, 8) : pg.title || null;
   const refs = (list, more) => (list.length ? refList(list, list.length + (more || 0)) : null);
   const sections = pg.summary ? pg.sections.filter((s) => !isOrigin(s)) : pg.sections;
+  const h1 = h("h1", null, itemTitle(pg.kind, pg.kind === "session" ? sessionHeading(pg.title) : pg.title));
   const keep = (m) => !isCommand(m) && !(pg.summary && m.label === "Source")
     && !(pg.progress && m.label === "Tasks done"); // the progress bar says it
   return [h("div", { class: pg.kind === "node" ? "page page-wide" : "page" },
     h("article", { class: "doc" },
-      h("h1", null, itemTitle(pg.kind, pg.title)), progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
+      h1, progressBlock(pg), summaryBlock(pg.summary), // the breadcrumb names the kind
       commandBlock(pg),
       pg.refresh ? refreshControl(pg.refresh.server) : null, pg.body_md ? h("div", { class: "prose" }, bodyNodes(pg)) : null,
       ...sections.map(sectionBlock), explainBlock(pg), ...pageExtras(pg)),

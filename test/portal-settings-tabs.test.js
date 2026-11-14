@@ -40,7 +40,7 @@ const tabLinks = (env) => {
 const labelled = (el) => {
   const ids = new Set(tree(el).filter((e) => e.tagName === 'label').map((e) => e.attrs.for));
   return tree(el).filter((e) => ['input', 'select', 'textarea'].includes(e.tagName) && e.attrs.type !== 'file')
-    .filter((e) => !(e.attrs.id && ids.has(e.attrs.id)) && !e.attrs['aria-label']).map((e) => e.attrs.id || e.attrs.type);
+    .filter((e) => !(e.attrs.id && ids.has(e.attrs.id)) && !e.attrs['aria-label'] && !e.attrs['aria-labelledby']).map((e) => e.attrs.id || e.attrs.type);
 };
 
 // ---- routing -----------------------------------------------------------------------------------------------

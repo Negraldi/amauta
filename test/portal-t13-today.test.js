@@ -24,6 +24,6 @@ test('a session that started on an earlier day says so; one from the same day sh
   const rows = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'li' && /amauta/.test(e.textContent)).map((e) => e.textContent);
   assert.equal(rows.length, 2);
   assert.match(rows.find((r) => /Fix the build/.test(r)), /12 messages, started 2026-11-09 \d\d:\d\d, last active \d\d:\d\d$/);
-  assert.match(rows.find((r) => /Same day/.test(r)), /Same day 3 messages, last active \d\d:\d\d$/);
+  assert.match(rows.find((r) => /Same day/.test(r)), /Same day · 3 messages, last active \d\d:\d\d$/);
   assert.doesNotMatch(rows.join(' '), /2026-11-13/); // the heading already says the day
 });

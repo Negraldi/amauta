@@ -19,7 +19,7 @@ const SETTING_MODULES = [
   ["impeccable", "set.mod.impeccable", "set.mod.impeccable.help"],
   ["archify", "set.mod.archify", "set.mod.archify.help"],
 ];
-const SETTING_GROUPS = [["set.group.behavior", ["persona", "review_mode"]], ["set.group.hooks", ["telemetry", "privacy", "checks"]]];
+const SETTING_GROUPS = [["set.group.behavior", ["persona", "review_mode"]], ["set.group.hooks", ["telemetry", "privacy", "checks"], "set.group.hooks.help"]];
 const PERSONA_LABELS = Object.fromEntries(SETTING_OPTIONS[0][2]); // "now Gentleman" matches the select (plan N12h)
 // The plan's lifetime in whole minutes ("valid for 5 minutes", or "1 minute").
 const minutesOf = (plan) => Math.round((plan.expires_in || 300) / 60);
@@ -104,8 +104,7 @@ async function preferencesTab() {
     const mark = h("span", { class: "changed" });
     marks.set(key, mark);
     const select = h("select", { id, "aria-describedby": `${id}-help` }, choices.map(([v, l]) => h("option", { value: v, selected: v === value }, t(l))));
-    select.value = value;
-    controls.set(key, select);
+    select.value = value; controls.set(key, select);
     select.addEventListener("change", (e) => {
       const v = e.target.value;
       if (key.startsWith("module:")) draft.modules[key.slice(7)] = v; else draft[key] = v;
@@ -113,7 +112,8 @@ async function preferencesTab() {
     });
     return h("div", { class: "option" }, h("label", { for: id }, t(label)), select, h("span", { class: "current" }, t("set.now", { value: valueLabel(value) })), mark, h("p", { id: `${id}-help`, class: "option-help muted" }, t(help)));
   };
-  const optionGroup = (title, items) => h("section", { class: "option-group" }, h("h2", null, t(title)), ...items);
+  const optionGroup = (title, items, lead) => h("section", { class: "option-group" }, h("h2", null, t(title)),
+    lead ? h("p", { class: "muted" }, t(lead)) : null, ...items);
   const prefOption = (key) => {
     const [, label, choices, help] = SETTING_OPTIONS.find((o) => o[0] === key);
     return option(key, `set-${key.replace("_", "-")}`, label, choices, info.current[key], help);
@@ -127,7 +127,7 @@ async function preferencesTab() {
     repairBtn.addEventListener("click", () => runPreview(true));
     formBox.replaceChildren(...[
       info.installed ? null : h("p", { class: "notice" }, t("set.notInstalled")),
-      h("div", { class: "options" }, ...SETTING_GROUPS.map(([title, keys]) => optionGroup(title, keys.map(prefOption))),
+      h("div", { class: "options" }, ...SETTING_GROUPS.map(([title, keys, lead]) => optionGroup(title, keys.map(prefOption), lead)),
         optionGroup("set.modules", SETTING_MODULES.map(([name, label, help]) =>
           option(`module:${name}`, `set-module-${name}`, label, ON_OFF, info.current.modules[name], help)))),
       h("div", { class: "actions" }, previewBtn),
@@ -220,11 +220,12 @@ async function preferencesTab() {
 // The language choice: the same setting as the Display popover; changing it builds the page again in the new language.
 const LANGUAGES = [["en", "lang.en"], ["es", "lang.es"]]; // each language is named in itself in both dictionaries
 function languageSection() {
-  const pick = h("select", { id: "set-lang", "aria-describedby": "set-lang-help" }, LANGUAGES.map(([v, l]) => h("option", { value: v }, t(l))));
+  const pick = h("select", { id: "set-lang", "aria-labelledby": "set-lang-title", "aria-describedby": "set-lang-help" }, LANGUAGES.map(([v, l]) => h("option", { value: v }, t(l))));
   pick.value = I.lang();
   pick.addEventListener("change", (e) => setLanguage(e.target.value));
-  return h("section", { class: "option-group" }, h("h2", null, t("chrome.language")),
-    h("div", { class: "option" }, h("label", { for: "set-lang" }, t("chrome.language")), pick, h("p", { id: "set-lang-help", class: "option-help muted" }, t("set.lang.help"))));
+  const title = h("h2", { id: "set-lang-title" }, t("chrome.language")); // the heading names the control: no second visible label
+  return h("section", { class: "option-group" }, title,
+    h("div", { class: "option" }, pick, h("p", { id: "set-lang-help", class: "option-help muted" }, t("set.lang.help"))));
 }
 async function appearanceTab() { return [h("p", { class: "muted" }, t("theme.intro")), ...(await viewThemes()), languageSection()]; }
 

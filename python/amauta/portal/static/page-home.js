@@ -22,7 +22,7 @@ const feedTime = (i) => {
 };
 const feedTail = (i, day) => [i.what ? groupDigits(ts(i.what)) : "", startedBefore(i, day), feedTime(i)].filter(Boolean).join(", ");
 const dayBlock = (d) => h("section", { class: "page-section day" }, h("h3", null, d.day),
-  pagedList(d.items, DAY_ROWS, (i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${feedTail(i, d.day)}`))));
+  pagedList(d.items, DAY_ROWS, (i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` · ${feedTail(i, d.day)}`))));
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
   const all = localDays(days), box = h("div", null, all.slice(0, HOME_DAYS).map(dayBlock));

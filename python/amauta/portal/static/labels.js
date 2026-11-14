@@ -77,3 +77,10 @@ const HOOK_EVENTS = { SessionStart: 0, UserPromptSubmit: 1, PreToolUse: 2, Permi
   SubagentStart: 6, SubagentStop: 7, Notification: 8, PreCompact: 9, Stop: 10, SessionEnd: 11 };
 // Position of an event in a session's life; an event this list does not know sorts after the known ones.
 const hookEventOrder = (event) => (Object.hasOwn(HOOK_EVENTS, event) ? HOOK_EVENTS[event] : Object.keys(HOOK_EVENTS).length);
+
+// The heading of a session page: what it was about. The server's label is "project · first prompt (or model, count) · start date"; the
+// project and the start date are details the page shows (linked, labelled) in its rail, so the heading keeps the middle part (A7).
+function sessionHeading(title) {
+  const parts = String(title).split(" · ");
+  return parts.length === 3 ? parts[1] : title;
+}

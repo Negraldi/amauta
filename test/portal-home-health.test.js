@@ -44,7 +44,7 @@ test('a feed row says each fact once: no empty "what" leaves a stray comma (T11 
   await tick();
   const rows = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'li' && /repo/.test(e.textContent)).map((e) => e.textContent);
   assert.equal(rows.length, 2);
-  assert.match(rows[0], /11,699 messages · 2026-11-09 last active \d\d:\d\d$/);
+  assert.match(rows[0], /11,699 messages · 2026-11-09 · last active \d\d:\d\d$/);
   assert.equal(rows[0].match(/11,699/g).length, 1);
-  assert.match(rows[1], /Fix the build · 2026-11-09 12 messages, last active \d\d:\d\d$/);
+  assert.match(rows[1], /Fix the build · 2026-11-09 · 12 messages, last active \d\d:\d\d$/);
 });
