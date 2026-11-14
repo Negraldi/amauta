@@ -26,3 +26,14 @@ test('C2: sortable headers wrap and narrow columns get tighter cells, so a table
   assert.doesNotMatch(rule(css, 'th[data-key]') ?? '', /white-space:\s*nowrap/);
   assert.match(css, /@media \(width < 72rem\) \{[^@]*th, td \{[^}]*padding-inline: var\(--s2\)/);
 });
+
+test('M3: row buttons ("os", "re") are at least 24x24 and a checkbox with its label is one 24px target', async () => {
+  const css = (await read('style.css')).replace(/\/\*[\s\S]*?\*\//g, '');
+  const link = rule(css, '.row-link') ?? '';
+  assert.match(link, /min-inline-size:\s*var\(--hit\)/);
+  assert.match(link, /min-block-size:\s*var\(--hit\)/);
+  assert.match(rule(css, 'label.check') ?? '', /min-height:\s*var\(--hit\)/);
+  for (const f of ['page-harness.js', 'page-activity.js']) {
+    assert.match(await read(f), /h\("label", \{ class: "check"/, `${f}: the checkbox sits in label.check`);
+  }
+});
