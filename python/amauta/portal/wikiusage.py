@@ -246,3 +246,9 @@ def session_page(portal, ident, q):
         return pg
     finally:
         conn.close()
+
+
+def agent_ids(portal):
+    """The ids of the agents that have a page (a usage row for such a subagent type links to it)."""
+    from . import wikiharness
+    return {e["id"] for e in wikiharness.index(portal).values() if e["kind"] == "agent"}

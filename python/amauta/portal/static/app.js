@@ -190,9 +190,11 @@ const codeSpans = (text) => String(text).split("`").map((part, i) => (i % 2 ? h(
 const scrollBox = (el, label) => h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": label || t("table.label") }, el);
 // Sortable table: columns = [{key, label, num, render}], rows = array of objects.
 function table(id, columns, rows, onRow) {
-  const s = state.sort[id] || { key: columns.find((c) => c.num)?.key || columns[0].key, dir: -1 };
+  const first = columns.find((c) => c.num) || columns[0]; // numbers open largest first, words A to Z (class 11)
+  const s = state.sort[id] || { key: first.key, dir: first.num ? -1 : 1 };
+  const by = (columns.find((c) => c.key === s.key) || {}).sortBy || s.key; // a column may sort by another field (lifecycle order)
   const sorted = [...rows].sort((a, b) => {
-    const x = a[s.key], y = b[s.key];
+    const x = a[by], y = b[by];
     const c = typeof x === "number" && typeof y === "number" ? x - y : String(x ?? "").localeCompare(String(y ?? ""));
     return c * s.dir;
   });

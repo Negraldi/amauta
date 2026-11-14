@@ -454,6 +454,7 @@
  "usage.summary": "Se gastaron {input} tokens de entrada y {output} de salida en {messages} repartidos en {sessions}; la caché sirvió {hit} de la entrada.",
  "usage.summaryNoCache": "Se gastaron {input} tokens de entrada y {output} de salida en {messages} repartidos en {sessions}.",
  "usage.mcpTools": "Herramientas MCP",
+ "usage.toolsNote": "Solo herramientas integradas. Las herramientas MCP se cuentan en Herramientas MCP.",
  "usage.modelSplit": "Reparto por modelo",
  "usage.noSessionsRange": "No hay sesiones en este intervalo.",
  "usage.nodata": "Aún no hay datos de uso.",

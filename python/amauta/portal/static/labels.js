@@ -71,3 +71,9 @@ function clipText(text, max) {
   const space = head.lastIndexOf(" ");
   return `${(space > 0 ? head.slice(0, space) : head).replace(/[,;:\s]+$/, "")}…`;
 }
+
+// ---- hook events in lifecycle order (C3) ------------------------------------------------------------------------------------
+const HOOK_EVENTS = { SessionStart: 0, UserPromptSubmit: 1, PreToolUse: 2, PermissionRequest: 3, PostToolUse: 4, PostToolUseFailure: 5,
+  SubagentStart: 6, SubagentStop: 7, Notification: 8, PreCompact: 9, Stop: 10, SessionEnd: 11 };
+// Position of an event in a session's life; an event this list does not know sorts after the known ones.
+const hookEventOrder = (event) => (Object.hasOwn(HOOK_EVENTS, event) ? HOOK_EVENTS[event] : Object.keys(HOOK_EVENTS).length);

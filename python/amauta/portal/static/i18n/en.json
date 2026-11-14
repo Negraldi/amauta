@@ -454,6 +454,7 @@
  "usage.summary": "You spent {input} input and {output} output tokens in {messages} across {sessions}; the cache served {hit} of the input.",
  "usage.summaryNoCache": "You spent {input} input and {output} output tokens in {messages} across {sessions}.",
  "usage.mcpTools": "MCP tools",
+ "usage.toolsNote": "Built-in tools only. MCP tools are counted under MCP tools.",
  "usage.modelSplit": "Model split",
  "usage.noSessionsRange": "No sessions in this range.",
  "usage.nodata": "No usage data yet.",

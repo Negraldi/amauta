@@ -119,7 +119,9 @@ async function viewTools(route) {
     ["subagents", t("usage.subagents")]];
   const field = R.usageSegment(route), seg = kinds.find(([s]) => R.SEGMENTS[s] === field)[0];
   const linkKind = { skills: "skill", tools: "tool", mcp_servers: "mcp", mcp_tools: "tool" }[field];
-  const cols = [{ key: "name", label: t("col.name"), render: linkKind ? (v) => link(linkKind, v, v) : undefined },
+  const agentCell = (v, r) => (r.page ? link("agent", v, v) : v); // a subagent type links only where an agent page exists
+  const nameCell = field === "subagents" ? agentCell : linkKind ? (v) => link(linkKind, v, v) : undefined;
+  const cols = [{ key: "name", label: t("col.name"), render: nameCell },
     { key: "count", label: t("col.calls"), num: true }, { key: "sessions", label: t("nav.session"), num: true }, { key: "last_used", label: t("col.lastUsed") }];
   const count = (s) => fmt(tl[R.SEGMENTS[s]].length);
   const item = ([s, l]) => h("a", { href: R.segmentHash(s), "aria-current": s === seg ? "true" : false },
@@ -127,6 +129,7 @@ async function viewTools(route) {
   const none = t(filters().runtime === "codex" ? "usage.noCodexTools" : "usage.nothingRange"); // Codex tool calls are never recorded
   return [
     h("nav", { class: "segmented segmented-wrap", "aria-label": t("usage.segments") }, kinds.map(item)),
+    field === "tools" ? h("p", { class: "muted" }, t("usage.toolsNote")) : null,
     panel(null, tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(none)),
   ];
 }

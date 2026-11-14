@@ -191,6 +191,7 @@ class Portal:
         return out
 
     def tools(self, q):
+        from . import wikiusage
         self._range(q)
         out = {"available": False, "tools": [], "skills": [], "subagents": [], "mcp_servers": [], "mcp_tools": []}
         conn = self._usage_conn()
@@ -199,14 +200,13 @@ class Portal:
         try:
             where, args = self._range(q, conn)
             base = f"FROM tool_calls c JOIN usage_messages u ON u.message_id = c.message_id WHERE {where}"
-
             def table(col, extra="", cond="1=1"):
                 return [dict(r) for r in conn.execute(
                     f"SELECT {col} name, count(*) count, count(DISTINCT c.session_id) sessions, max(c.ts) last_used {base} AND {cond} GROUP BY {col} ORDER BY count DESC, name LIMIT 500", args)]
-
-            out["tools"] = table("c.tool")
+            out["tools"] = table("c.tool", cond="c.mcp_server IS NULL")  # MCP tools have their own segment: no double counting
             out["skills"] = table("c.skill", cond="c.skill IS NOT NULL")
-            out["subagents"] = table("c.subagent_type", cond="c.subagent_type IS NOT NULL")
+            out["subagents"] = [{**r, "page": r["name"] in wikiusage.agent_ids(self)}  # a row links only where an agent page exists
+                                for r in table("c.subagent_type", cond="c.subagent_type IS NOT NULL")]
             out["mcp_servers"] = table("c.mcp_server", cond="c.mcp_server IS NOT NULL")
             out["mcp_tools"] = table("c.tool", cond="c.mcp_server IS NOT NULL")
             out["available"] = True

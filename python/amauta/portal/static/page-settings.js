@@ -62,12 +62,36 @@ function settingLabel(key) {
   return labels[key] ? t(labels[key]) : key;
 }
 
+// A plan's result panel: its heading takes focus and is scrolled into view, so the buttons below it are reachable (T15 E3).
+function showPlanPanel(out, titleKey, plan, valid, buttons, confirmBox) {
+  const title = h("h2", { tabindex: -1 }, t(titleKey));
+  out.replaceChildren(h("section", { class: "panel" }, title, planBlock(plan), h("p", { class: "muted" }, valid),
+    h("div", { class: "actions" }, ...buttons), confirmBox));
+  title.focus();
+  if (title.scrollIntoView) title.scrollIntoView({ block: "start" });
+}
+
+// A request that failed: the reason, what to do next and, when a new preview can help, the button for it.
+function failNote(out, res, retry) {
+  const adv = R.settingsAdvice(res.status);
+  out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status })}`),
+    res.data && res.data.detail ? h("p", { class: "muted" }, h("code", null, res.data.detail)) : null, h("p", null, t(adv.key)),
+    adv.again ? (() => { const b = h("button", { type: "button" }, t("set.previewAgain")); b.addEventListener("click", () => retry()); return b; })() : null));
+}
+// A question with the accent button and Go back, in the row of the thing it confirms.
+function askConfirm(text, yes, onYes, onNo) {
+    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
+    ok.addEventListener("click", onYes); no.addEventListener("click", onNo);
+    return h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, text), h("div", { class: "actions" }, ok, no));
+}
+
+
 async function preferencesTab() {
   let info = await api("settings");
   let draft = null;
   const root = h("div", { class: "settings" });
   const formBox = h("div", null), out = h("div", { class: "settings-out", "aria-live": "polite" });
-  const marks = new Map();
+  const marks = new Map(), controls = new Map();
   let previewBtn = null, repairBtn = null;
   const copy = (c) => ({ ...c, modules: { ...c.modules } });
 
@@ -81,6 +105,7 @@ async function preferencesTab() {
     marks.set(key, mark);
     const select = h("select", { id, "aria-describedby": `${id}-help` }, choices.map(([v, l]) => h("option", { value: v, selected: v === value }, t(l))));
     select.value = value;
+    controls.set(key, select);
     select.addEventListener("change", (e) => {
       const v = e.target.value;
       if (key.startsWith("module:")) draft.modules[key.slice(7)] = v; else draft[key] = v;
@@ -95,7 +120,7 @@ async function preferencesTab() {
   };
   const buildForm = () => {
     draft = copy(info.current);
-    marks.clear();
+    marks.clear(); controls.clear();
     previewBtn = h("button", { type: "button", disabled: true }, t("set.preview"));
     previewBtn.addEventListener("click", () => runPreview(false));
     repairBtn = h("button", { type: "button" }, t("set.previewRepair"));
@@ -112,17 +137,7 @@ async function preferencesTab() {
   };
 
   const busy = (key) => { out.replaceChildren(h("p", { role: "status", class: "muted" }, t(key))); };
-  const fail = (res, retry) => {
-    const adv = R.settingsAdvice(res.status);
-    out.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("p", null, `▲ ${res.data && res.data.error ? ts(res.data.error) : t("common.requestFailed", { status: res.status })}`),
-      res.data && res.data.detail ? h("p", { class: "muted" }, h("code", null, res.data.detail)) : null, h("p", null, t(adv.key)),
-      adv.again ? (() => { const b = h("button", { type: "button" }, t("set.previewAgain")); b.addEventListener("click", () => retry()); return b; })() : null));
-  };
-  const askConfirm = (text, yes, onYes, onNo) => {
-    const ok = h("button", { type: "button", class: "primary" }, yes), no = h("button", { type: "button" }, t("common.goBack"));
-    ok.addEventListener("click", onYes); no.addEventListener("click", onNo);
-    return h("div", { class: "confirm", role: "group", "aria-label": t("common.confirm") }, h("p", null, text), h("div", { class: "actions" }, ok, no));
-  };
+  const fail = (res, retry) => failNote(out, res, retry);
 
   async function runPreview(repair) {
     const body = R.settingsBody(info.current, draft, repair);
@@ -142,8 +157,15 @@ async function preferencesTab() {
       confirmBox.replaceChildren(askConfirm(t("set.applyConfirm"), t("set.applyYes"), () => runApply(plan), () => { setDisabled(apply, false); confirmBox.replaceChildren(); }));
     });
     const cancel = h("button", { type: "button" }, t("set.discard"));
-    cancel.addEventListener("click", () => out.replaceChildren());
-    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.previewTitle")), planBlock(plan), h("p", { class: "muted" }, tn("set.validFor", minutesOf(plan), { n: fmt(minutesOf(plan)) })), h("div", { class: "actions" }, apply, cancel), confirmBox));
+    cancel.addEventListener("click", () => discardPreview(repair));
+    const valid = tn("set.validFor", minutesOf(plan), { n: fmt(minutesOf(plan)) });
+    showPlanPanel(out, "set.previewTitle", plan, valid, [apply, cancel], confirmBox);
+  }
+  // Discard drops the draft: the form goes back to the saved values and focus returns to the first control that had been changed.
+  function discardPreview(repair) {
+    const first = R.settingsChanges(info.current, draft)[0];
+    out.replaceChildren(); buildForm();
+    (repair || !first ? repairBtn : controls.get(first.key)).focus();
   }
   async function runApply(plan) {
     busy("set.applying");
@@ -173,9 +195,8 @@ async function preferencesTab() {
     });
     const cancel = h("button", { type: "button" }, t("set.discard"));
     cancel.addEventListener("click", () => out.replaceChildren());
-    out.replaceChildren(h("section", { class: "panel" }, h("h2", null, t("set.undoPreviewTitle")), planBlock(plan),
-      h("p", { class: "muted" }, tn("set.undoValid", minutesOf(plan), { n: fmt(minutesOf(plan)) })),
-      h("div", { class: "actions" }, revert, cancel), confirmBox));
+    const valid = tn("set.undoValid", minutesOf(plan), { n: fmt(minutesOf(plan)) });
+    showPlanPanel(out, "set.undoPreviewTitle", plan, valid, [revert, cancel], confirmBox);
   }
   async function runUndo(plan) {
     busy("set.undoing");

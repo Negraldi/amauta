@@ -331,3 +331,23 @@ class LintIdsTest(unittest.TestCase):
         text = "- [x] T3c first\n- [x] T3c again\n- [x] T4 other\n"
         checked, missing = wikilint._unevidenced(text)
         self.assertEqual((checked, missing), (3, ["T3c", "T4"]))
+
+
+class ToolSegmentsTest(unittest.TestCase):
+    """W3b D19: the Tools segment does not count the MCP tools that have their own segment; subagent rows say whether a page exists."""
+
+    def setUp(self):
+        from python.tests.test_portal import ApiBase
+        self.base = ApiBase()
+        self.base.setUp()
+        self.addCleanup(self.base.tmp.cleanup)
+
+    def test_mcp_tools_are_only_in_their_own_segment(self):
+        t = self.base.get("/api/tools", days=3650)
+        self.assertTrue(t["mcp_tools"])
+        self.assertFalse([r for r in t["tools"] if r["name"].startswith("mcp__")])
+
+    def test_subagent_rows_say_whether_an_agent_page_exists(self):
+        t = self.base.get("/api/tools", days=3650)
+        self.assertTrue(t["subagents"])
+        self.assertTrue(all(isinstance(r.get("page"), bool) for r in t["subagents"]))
