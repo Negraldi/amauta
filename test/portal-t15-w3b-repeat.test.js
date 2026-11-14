@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { boot, page, tree, view, text, ES } from './helpers/t15w3.js';
 
+process.env.TZ = 'UTC';
+
 const SESSION = page('session', { id: 'b9600f26-aaaa', title: 'amauta · Fix the portal bug · 2026-10-23',
   meta: [{ label: 'Project', value: 'amauta', kind: 'project' }, { label: 'Started', value: '2026-10-23T08:00:00Z' }] });
 test('A7: the session page heading is what the session was about, not its project and date again', async () => {
@@ -126,4 +128,10 @@ test('B7: a memory file page lists its frontmatter keys as details', async () =>
   const env = await boot('#/memfile/-a%2Fmemory%2Ffm.md', { '/api/wiki/page': pg });
   const dts = tree(view(env)).filter((e) => e.tagName === 'dt').map((e) => e.textContent);
   assert.deepEqual(dts, ['Project', 'Size', 'name']);
+});
+
+test('A15: Today says how fresh its data is, like Usage', async () => {
+  const item = { kind: 'memory', id: '1', title: 'A', ts: '2026-11-14T10:00:00Z', what: '' };
+  const env = await boot('#/', FEED([item, { ...item, id: '2', ts: '2026-11-14T12:30:00Z' }]));
+  assert.match(text(env), /Data as of 2026-11-14 12:30; Refresh imports newer activity\./);
 });

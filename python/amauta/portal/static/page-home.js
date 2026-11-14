@@ -78,7 +78,10 @@ function impactRankBlock(rk) {
 async function viewHome() {
   const [hm, pipes] = await Promise.all([api("wiki/home"), pipelinesRail()]);
   const status = await homeStatus(hm.health);
-  return [h("header", { class: "page-head" }, h("h1", null, t("home.title")), status), h("div", { class: "page home" },
+  const stamps = hm.activity.flatMap((d) => d.items.map((i) => i.ts)); // the filter bar, and its line, is not on Today
+  const newest = stamps.filter(Boolean).sort().at(-1);
+  const asOf = newest ? h("p", { class: "muted data-at" }, t("data.asOf", { at: R.fmtDateTime(newest) })) : null;
+  return [h("header", { class: "page-head" }, h("h1", null, t("home.title")), status, asOf), h("div", { class: "page home" },
     h("aside", { class: "rail", "aria-label": t("home.railLabel") }, railBlock(t("nav.pipelines"), pipes),
       railBlock(t("nav.spending"), spendingBlock(hm.spending)), railBlock(t("home.skillImpact"), impactRankBlock(hm.impact))),
     h("article", { class: "doc" }, h("h2", null, t("home.recent")), activityBlock(hm.activity)))];
