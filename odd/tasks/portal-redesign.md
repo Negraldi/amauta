@@ -27,7 +27,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T12 Memory keeps its spaces (user, 2026-11-13): mem_save refuses bodies whose spaces were stripped and tells the agent to resend; Memory > Quality flags the ones already stored; POSIX-only leftovers in settings.py
 - [x] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
 - [x] T14 Cross-page data agreement (2026-11-13, third independent critique scored 26/40; its P1s are data contradictions, not UI): session start time, model and project agree on every page; memory list says how many of N and pages; active folders that are not listed as projects are explained; session page in the UI language with formatted numbers; P2/P3 items
-- [ ] T15 Full-coverage critique (user, 2026-11-13: "learn from each critique; every view must be right; cover as much as possible"; lower-tier reviewers): docs/audits/portal-critique-checklist.md holds the coverage matrix and the learned classes; area reviewers fill the matrix; findings fixed and each new class added to the checklist with a guard test
+- [x] T15 Full-coverage critique (user, 2026-11-13: "learn from each critique; every view must be right; cover as much as possible"; lower-tier reviewers): docs/audits/portal-critique-checklist.md holds the coverage matrix and the learned classes; area reviewers fill the matrix; findings fixed and each new class added to the checklist with a guard test
 
 ## Acceptance criteria
 
@@ -335,6 +335,26 @@ Target after redesign: >= 32/40, no P1.
   test/*.test.js 1088/1088; structure 10/10; Python 1016 tests, only the known DeclaredScheduleTest failure. Not run:
   browser check (no server allowed in this run).
 
+- 2026-11-14 T15 (route: five read-only sonnet reviewers by area plus one haiku mechanical sweep, then four
+  delegated sonnet writers one at a time, strict TDD; coordinator checked each batch in the browser on real data,
+  read-only). Findings: docs/audits/portal-critique-t15-findings.md (78 items, no P0). Commits f240da4..d399e7d.
+  W1 caps and counts 0d97ddb cd807c7 c39a5ce df02fbb 6bca525 6edbd65 ed2a316 f46142f 59bb9e1. W2 diagrams, overflow,
+  graph explorer 4863917 8a4a668 b64368b 1e0eaa4 cee6d2f 5f2c382 cdf61bd. W3 raw values, language, voice dfeb4d1
+  a718bd0 32c47f0 9245f34. W3b focus, order, repetition, naming d7f0551 3bb8a0e eb57fff 3632a85 e22baa4 1a80cb6
+  159ec77 8c7c10f 6d0340d 90fb095 9b43548 d399e7d. Checklist gained classes 15 to 25 with their guards.
+  Checks (coordinator, head d399e7d): LANG=C node --test 1177/1177; Python 1069 tests, only the known
+  DeclaredScheduleTest failure. Browser, measured at 1280, 1024 and 375: diagram text never under 11 px, segmented
+  controls fully visible, scroll hint and Tab stop only on boxes that overflow, node explorer order, depth and crumb,
+  Settings preview focus (opened and discarded, nothing saved), hooks in lifecycle order, Security table by runtime.
+  Open: (1) Codex tool calls are still not recorded, only explained (no real Codex rollout sample with function
+  calls; tool_calls is keyed to Claude message ids). (2) Today reads the latest 100 feed items, so the oldest day
+  shown can be partial. (3) The Sessions list still scrolls sideways at 1280 (977 vs 1140), with the hint. (4) A12
+  "mil M" kept: pinned on purpose by portal-t13-numbers. (5) Feature pages lost the task grid in favour of one list
+  (writer's call, owner may reverse). (6) Sessions list: runtime and model moved into the first cell and are no longer
+  sortable. (7) Commits eb57fff and 3632a85 are not green alone (four Python tests fixed in 1a80cb6). (8) Not
+  covered: dark theme at 1024 and 375, loading and server-error states. (9) Some tests were written with their
+  change rather than before it: E6, part of W3 group 1, D19, C9.
+
 ### T8 close and T10 verification (coordinator, 2026-11-13)
 
 - Final independent impeccable re-critique: 30/40, no P0 or P1 (baseline 25/40; rounds 29, 30, 30). The 32/40 target
@@ -349,7 +369,7 @@ Target after redesign: >= 32/40, no P1.
 
 ## Next step
 
-All tasks checked (T14 closed by a delegated writer, not yet browser-checked). Push and PR are the owner's decision.
+All tasks checked. Open items are listed under the 2026-11-14 T15 entry. Push and PR are the owner's decision.
 Open, none started:
 - Browser pass at 1024, 1280 and 375px in light and dark after restarting the portal server (Python changed: session
   rule in SQL, memory paging, search module, graph counts): Today rows, Usage > Projects and the project filter, a
