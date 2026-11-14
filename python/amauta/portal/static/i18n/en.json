@@ -101,6 +101,7 @@
  "graph.lastRun": "{at} ({model})",
  "graph.mirroredProjects": "Projects with a loaded graph",
  "graph.nearest": "Showing the nearest {shown} of {total} nodes.",
+ "graph.nearestAtLeast": "Showing the nearest {shown} of at least {total} nodes.",
  "graph.neighborsOf": "Neighbors of {name}",
  "graph.neighborsOfSelected": "Neighbors of the selected graph node",
  "graph.noEdges": "No edges between these nodes.",

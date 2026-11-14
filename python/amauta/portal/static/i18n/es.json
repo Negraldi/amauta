@@ -101,6 +101,7 @@
  "graph.lastRun": "{at} ({model})",
  "graph.mirroredProjects": "Proyectos con grafo cargado",
  "graph.nearest": "Se muestran los {shown} nodos más cercanos de {total}.",
+ "graph.nearestAtLeast": "Se muestran los {shown} nodos más cercanos de al menos {total}.",
  "graph.neighborsOf": "Vecinos de {name}",
  "graph.neighborsOfSelected": "Vecinos del nodo seleccionado del grafo",
  "graph.noEdges": "No hay aristas entre estos nodos.",

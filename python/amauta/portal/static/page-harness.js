@@ -2,11 +2,13 @@
 // Harness page and the graph explorer: code graph blocks and the install architecture (#/harness, #/node).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
+// "Showing the nearest 30 of 45 nodes", or "of at least 200" when the server stopped walking at its cap (the count is a floor).
+const nearestNote = (shown, d) => h("p", { class: "muted" }, t(d.capped ? "graph.nearestAtLeast" : "graph.nearest", { shown, total: fmt(d.nodes) }));
 function graphDiagram(repo, node, depth) {
   const box = h("div", null, h("p", { class: "muted" }, t("common.rendering")));
   api("graph/diagram", { repo, node, depth }).then((d) => {
     if (!d.source) box.replaceChildren(empty(t("graph.nothing")));
-    else box.replaceChildren(diagramBox(d.source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? empty(t("graph.nearest", { shown: 30, total: fmt(d.nodes) })) : null);
+    else box.replaceChildren(diagramBox(d.source, t("graph.neighborsOfSelected")), d.truncated || d.nodes > 30 ? nearestNote(30, d) : null);
   }).catch((err) => box.replaceChildren(errorNote(err)));
   return box;
 }
@@ -29,10 +31,13 @@ function graphFilters(onChange) {
   return { query, el: [order, h("label", { class: "check", for: "graph-vendored" }, vendored, t("graph.vendored"))] };
 }
 // "Showing 50 of 1,234 nodes; 312 vendored ... hidden.": the toggle changes a number the reader can see, not only the rows.
-function nodeCount(g, query) {
+// While rows remain, Show more asks the server for the next page (`more`).
+function nodeCount(g, query, more) {
   if (g.matched == null || !g.items.length) return null;
   const n = { shown: fmt(g.items.length), total: fmt(g.matched - g.hidden), hidden: fmt(g.hidden) };
-  return h("p", { class: "muted" }, t(query.vendored ? "graph.showingAll" : g.hidden ? "graph.showing" : "graph.showingPlain", n));
+  const line = h("p", { class: "muted" }, t(query.vendored ? "graph.showingAll" : g.hidden ? "graph.showing" : "graph.showingPlain", n));
+  if (g.items.length >= g.matched - g.hidden) return line;
+  return h("div", null, line, h("button", { type: "button", class: "show-more", onclick: () => more(true) }, t("more.button")));
 }
 const KIND_COLUMN = () => ({ key: "kind", label: t("col.kind"), render: nodeKind });
 const NODE_COLUMNS = () => [{ key: "label", label: t("col.node"), link: true, attr: "data-graph" }, KIND_COLUMN(),
@@ -51,10 +56,14 @@ function graphRepo(r) {
       h("h3", null, t("graph.diagramTitle")), graphDiagram(r.path, node.id, depth.value),
       g.edges.length ? table("ge-" + r.path, [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation") }, { key: "dst", label: t("col.to") }], g.edges) : empty(t("graph.noEdges")));
   }, near);
-  const load = guarded(async () => {
-    const g = await api("graph/nodes", { repo: r.path, q: q.value, ...filters.query() });
-    const rows = g.items.length ? table("gnodes-" + r.path, NODE_COLUMNS(), g.items, show) : empty(t("graph.noMatch"));
-    list.replaceChildren(...[rows, nodeCount(g, filters.query())].filter(Boolean));
+  let items = [];
+  const load = guarded(async (more) => {
+    const g = await api("graph/nodes", { repo: r.path, q: q.value, ...filters.query(), offset: more === true ? items.length : 0 });
+    items = more === true ? [...items, ...g.items] : g.items;
+    const rows = items.length ? table("gnodes-" + r.path, NODE_COLUMNS(), items, show) : empty(t("graph.noMatch"));
+    list.replaceChildren(...[rows, nodeCount({ ...g, items }, filters.query(), load)].filter(Boolean));
+    const next = more === true && list.querySelector && list.querySelector("button.show-more");
+    if (next && next.focus) next.focus(); // focus stays on the control, never lost with the re-rendered list
   }, list);
   const filters = graphFilters(() => { // a server order by name must not be re-sorted by links in the table
     if (filters.query().order) state.sort["gnodes-" + r.path] = { key: "label", dir: 1 }; else delete state.sort["gnodes-" + r.path];

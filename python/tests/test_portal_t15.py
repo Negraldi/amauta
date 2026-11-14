@@ -38,3 +38,34 @@ class NodePageCountsTest(WikiBase):
 
     def test_nothing_is_said_when_every_edge_is_listed(self):
         self.assertNotIn("Edges listed", self.meta("repo::a"))
+
+
+class NodeListPagingTest(WikiBase):
+    def ids(self, **q):
+        return [n["id"] for n in self.get("/api/graph/nodes", repo=str(self.f["repo"].resolve()), vendored="1", order="name", **q)["items"]]
+
+    def test_offset_pages_through_the_same_order(self):
+        everything = self.ids()
+        self.assertGreater(len(everything), 4)
+        self.assertEqual(self.ids(limit=3), everything[:3])
+        self.assertEqual(self.ids(limit=3, offset=3), everything[3:6])
+        self.assertEqual(self.ids(limit=3, offset=len(everything)), [])
+
+
+class DiagramCapTest(WikiBase):
+    """D10: the node count of a neighbourhood that hit the server cap is a floor, and the API says so."""
+
+    def diagram(self, **q):
+        return self.get("/api/graph/diagram", repo=str(self.f["repo"].resolve()), node="a", **q)
+
+    def test_a_cut_neighbourhood_is_capped(self):
+        with mock.patch.object(graph_query, "NODE_LIMIT", 2):
+            d = self.diagram(depth=2)
+        self.assertEqual((d["nodes"], d["capped"]), (2, True))
+
+    def test_a_complete_neighbourhood_is_not(self):
+        self.assertFalse(self.diagram(depth=2)["capped"])
+
+    def test_the_node_page_diagram_says_the_same(self):
+        with mock.patch.object(graph_query, "NODE_LIMIT", 2):
+            self.assertTrue(self.page("node", "repo::a")["diagram"]["capped"])

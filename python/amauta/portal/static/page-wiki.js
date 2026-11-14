@@ -74,7 +74,7 @@ function commitsBlock(commits) {
 function nodeDiagramBlock(diagram) {
   if (!diagram || !diagram.source) return null;
   return h("section", { class: "page-section" }, h("h2", null, t("node.neighborhood")), diagramBox(diagram.source, t("node.neighborsOfThis")),
-    diagram.truncated ? h("p", { class: "muted" }, t("graph.nearest", { shown: R.NODE_CAP, total: fmt(diagram.nodes) })) : null);
+    diagram.truncated ? nearestNote(R.NODE_CAP, diagram) : null);
 }
 
 // ODD feature: tasks grouped by phase in a grid (shape + word + class carry the status); long documents are capped server-side.

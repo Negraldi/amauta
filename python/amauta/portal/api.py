@@ -405,14 +405,17 @@ class Portal:
     def graph_nodes(self, q):
         repo, limit, text = self._graph_repo(q), _int(q, "limit", 50, 1, 200), _str(q, "q", 200) or ""
         order, vendored = "name" if q.get("order") == "name" else "links", q.get("vendored") == "1"  # default: most connected, no vendored
-        return self._graph_call(lambda conn: graph_query.node_list(conn, repo, text, limit, vendored, order))
+        return self._graph_call(lambda c: graph_query.node_list(c, repo, text, limit, vendored, order, _int(q, "offset", 0, 0, 10**6)))
 
-    def graph_neighbors(self, q):
-        repo = self._graph_repo(q)
+    def _node_arg(self, q):
         node = _str(q, "node", 512)
         if not node:
             raise BadRequest("node is required")
-        depth = _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
+        return node
+
+    def graph_neighbors(self, q):
+        repo = self._graph_repo(q)
+        node, depth = self._node_arg(q), _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
         return self._graph_call(lambda conn: graph_query.neighbors(conn, repo, node, depth))
 
     # ---- harness --------------------------------------------------------------------------
@@ -491,14 +494,11 @@ class Portal:
 
     def graph_diagram(self, q):
         repo = self._graph_repo(q)
-        node = _str(q, "node", 512)
-        if not node:
-            raise BadRequest("node is required")
-        depth = _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
+        node, depth = self._node_arg(q), _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
 
         def build(conn):
             g = graph_query.neighbors(conn, repo, node, depth)
-            return {"source": diagrams.graph_neighborhood(g), "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": g["truncated"]}
+            return {"source": diagrams.graph_neighborhood(g), "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": g["truncated"], "capped": g["truncated"]}
         return self._graph_call(build)
 
     # ---- wiki (page schema, recent changes, search) live in wiki.py; imported lazily because wiki.py imports this module ----

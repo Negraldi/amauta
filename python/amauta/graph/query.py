@@ -167,19 +167,19 @@ _LINKS = ("(SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.src =
           " + (SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.dst = n.id)")
 
 
-def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None):
+def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None, offset=0):
     """Nodes whose label or id contains `text` (LIKE wildcards in `text` are literal), by label.
 
     order "links" (most connected first) or "name" adds each node's edge count as `links`; vendored=False leaves out
-    is_vendored files. The defaults keep the original shape and order."""
+    is_vendored files; `offset` skips that many rows of the same order (Show more). The defaults keep the original shape and order."""
     _check_repo(conn, repo)
-    limit = max(1, min(int(limit), 200))
+    limit, offset = max(1, min(int(limit), 200)), max(0, int(offset))
     pat = _like(text or "")
     conn.create_function("amauta_vendored", 1, vendored_rules.rule_for(repo), deterministic=True)
     rows = conn.execute(
         f"SELECT n.id, n.label, n.kind, n.file, {_LINKS if order else '0'} AS links FROM graph_nodes n WHERE n.repo = ? "
         "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\') AND (? OR NOT amauta_vendored(n.file)) "
-        f"ORDER BY {'links DESC, ' if order == 'links' else ''}n.label COLLATE NOCASE, n.id LIMIT ?", (repo, pat, pat, 1 if vendored else 0, limit))
+        f"ORDER BY {'links DESC, ' if order == 'links' else ''}n.label COLLATE NOCASE, n.id LIMIT ? OFFSET ?", (repo, pat, pat, 1 if vendored else 0, limit, offset))
     return [{**_node(r), "links": r["links"]} if order else _node(r) for r in rows]
 
 
@@ -193,9 +193,9 @@ def node_counts(conn, repo, text="", vendored=True):
     return {"matched": row["matched"], "hidden": 0 if vendored else row["vendored"]}
 
 
-def node_list(conn, repo, text="", limit=50, vendored=True, order=None):
+def node_list(conn, repo, text="", limit=50, vendored=True, order=None, offset=0):
     """The portal's node list: search_nodes() rows plus node_counts(), so the page can say how many it shows and hides."""
-    return {"items": search_nodes(conn, repo, text, limit, vendored, order), **node_counts(conn, repo, text, vendored)}
+    return {"items": search_nodes(conn, repo, text, limit, vendored, order, offset), **node_counts(conn, repo, text, vendored)}
 
 
 def stats(conn, repo):

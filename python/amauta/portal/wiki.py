@@ -276,7 +276,8 @@ def _node_page(portal, ident, q):
                         ("Edges listed", f"{listed} of {real}" if listed < real else None))
     pg["sections"] = _relation_groups(repo.name, out, "outgoing") + _relation_groups(repo.name, inc, "incoming")
     src = diagrams.graph_neighborhood(g)
-    pg["diagram"] = {"source": src, "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": bool(g["truncated"]) or len(g["nodes"]) > diagrams.MAX_GRAPH_NODES}
+    pg["diagram"] = {"source": src, "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": bool(g["truncated"]) or len(g["nodes"]) > diagrams.MAX_GRAPH_NODES,
+                    "capped": bool(g["truncated"])}  # capped: the server stopped walking, so the node count is a floor
     pg["truncated"] = bool(g["truncated"])
     return pg
 
