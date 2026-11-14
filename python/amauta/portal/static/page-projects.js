@@ -170,8 +170,9 @@ async function memoriesTab(pg) {
 function oddDiagramsBlock(pg) {
   if (!pg.odd_diagrams || !pg.odd_diagrams.length) return null;
   const cut = pg.odd_diagrams_total > pg.odd_diagrams.length;
-  return h("section", { class: "page-section" }, h("h2", null, t("project.taskProgress")),
-    cut ? h("p", { class: "muted" }, t("more.showing", { shown: fmt(pg.odd_diagrams.length), total: fmt(pg.odd_diagrams_total) })) : null, pg.odd_diagrams.map((d, i) => {
+  const counts = { shown: fmt(pg.odd_diagrams.length), total: fmt(pg.odd_diagrams_total) };
+  const note = cut ? h("p", { class: "muted" }, t("more.showing", counts)) : null;
+  return h("section", { class: "page-section" }, h("h2", null, t("project.taskProgress")), note, pg.odd_diagrams.map((d, i) => {
     const body = h("div", null);
     let drawn = false;
     const draw = () => {

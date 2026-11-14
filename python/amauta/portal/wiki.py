@@ -271,9 +271,9 @@ def _node_page(portal, ident, q):
     out = [(e, by_id[e["dst"]]) for e in g["edges"] if e["src"] == me["id"] and e["dst"] in by_id and e["dst"] != me["id"]]
     inc = [(e, by_id[e["src"]]) for e in g["edges"] if e["dst"] == me["id"] and e["src"] in by_id and e["src"] != me["id"]]
     pg["links"], pg["backlinks"] = _dedupe([ref(n) for _, n in out]), _dedupe([ref(n) for _, n in inc])
-    listed = len(out) + len(inc)
+    listed, real = len(out) + len(inc), counts["outgoing"] + counts["incoming"]
     pg["meta"] += _meta(("Outgoing edges", counts["outgoing"]), ("Incoming edges", counts["incoming"]),
-                        ("Edges listed", f"{listed} of {counts['outgoing'] + counts['incoming']}" if listed < counts["outgoing"] + counts["incoming"] else None))
+                        ("Edges listed", f"{listed} of {real}" if listed < real else None))
     pg["sections"] = _relation_groups(repo.name, out, "outgoing") + _relation_groups(repo.name, inc, "incoming")
     src = diagrams.graph_neighborhood(g)
     pg["diagram"] = {"source": src, "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": bool(g["truncated"]) or len(g["nodes"]) > diagrams.MAX_GRAPH_NODES}
