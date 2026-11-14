@@ -318,7 +318,6 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
   #view { padding: var(--s4) var(--s4) var(--s6); }
 }
 @media (max-width: 560px) {
-  .diagram svg { max-width: none; min-width: 40rem; } /* readable labels; the box scrolls sideways (plan N12h) */
   .topbar { flex-wrap: nowrap; gap: var(--s2); } .topbar-end { flex-wrap: nowrap; } /* one row on a phone */
   .search-trigger { min-width: 0; flex: 1 1 3rem; overflow: hidden; }
   .search-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

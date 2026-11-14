@@ -130,8 +130,7 @@ function loadMermaid() {
   return mermaidReady;
 }
 let mermaidSeq = 0;
-// natural: keep the drawing at its own width (the caller wraps it in a sideways scroller) instead of shrinking it to fit.
-async function drawMermaid(source, into, natural) {
+async function drawMermaid(source, into) {
   try {
     const mermaid = await loadMermaid();
     syncMermaidTheme(mermaid);
@@ -141,9 +140,8 @@ async function drawMermaid(source, into, natural) {
     const root = new DOMParser().parseFromString(svg, "text/html").body.querySelector("svg");
     if (!root) throw new Error(t("diagram.notSvg"));
     const drawn = document.importNode(root, true);
-    const w = natural && drawn.viewBox && drawn.viewBox.baseVal ? drawn.viewBox.baseVal.width : 0;
-    if (w) { drawn.style.maxWidth = "none"; drawn.style.setProperty("--natural-width", `${Math.ceil(w)}px`); } // CSS picks fit or natural
     into.replaceChildren(drawn);
+    fitDiagram(into); // sized by fit.js: fitted to the box, never under the text floor
   } catch (err) {
     into.replaceChildren(h("p", { class: "warn" }, t("diagram.error", { reason: plainReason(err).split("\n")[0] })), h("pre", { class: "text" }, source));
   }
@@ -152,11 +150,11 @@ async function drawMermaid(source, into, natural) {
 // only a drawn box that has left the page is dropped.
 let diagrams = [];
 const gone = (d) => d.drawn && d.box.isConnected === false;
-function diagramBox(source, caption, natural, onDrawn) {
+function diagramBox(source, caption, onDrawn) {
   const box = h("div", { class: "diagram scroll", role: "img", "aria-label": caption || t("diagram.label") }, h("p", { class: "muted" }, t("common.rendering")));
-  const entry = { box, source, natural, drawn: false };
+  const entry = { box, source, drawn: false };
   diagrams = diagrams.filter((d) => !gone(d)).concat(entry);
-  drawMermaid(source, box, natural).then(() => { entry.drawn = true; if (onDrawn) onDrawn(box); });
+  drawMermaid(source, box).then(() => { entry.drawn = true; if (onDrawn) onDrawn(box); });
   return box;
 }
 async function redrawDiagrams() {
@@ -164,7 +162,7 @@ async function redrawDiagrams() {
   const mermaid = await mermaidReady.catch(() => null);
   if (!mermaid || !syncMermaidTheme(mermaid)) return; // not loaded, or the same colors: nothing to draw again
   diagrams = diagrams.filter((d) => !gone(d));
-  for (const d of diagrams) drawMermaid(d.source, d.box, d.natural);
+  for (const d of diagrams) drawMermaid(d.source, d.box);
 }
 try { globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawDiagrams); } catch (_) { /* no matchMedia */ }
 

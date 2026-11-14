@@ -118,8 +118,8 @@ async function graphExplorer() {
 
 // Harness diagram (plan N12e): the session flow of the harness model in the portal's own Mermaid style. archify, when
 // installed, is only a link to its own route (/archify/<hash>.html, sandboxed by its own CSP); it is never framed here.
-// The diagram opens at its natural size in a keyboard-focusable sideways scroller, so its labels stay legible (fitting a wide
-// diagram to the column shrank 13px labels to under 5px); "Fit to width" (a pressed-state toggle) is the optional overview.
+// The diagram opens at its natural size in a sideways scroller (keyboard-focusable and hinted while it overflows, fit.js), so its
+// labels stay legible; "Fit to width" (a pressed-state toggle) is the optional overview and stops at the 11px text floor.
 // It is shown, not folded (T14 k), and once drawn it opens centred on its middle: the top-down flow starts at a centred root,
 // so the left edge of a wide drawing is mostly empty.
 function centerScroll(el) {
@@ -131,6 +131,7 @@ function archSizeToggle(scroller) {
     const fit = b.getAttribute("aria-pressed") !== "true";
     b.setAttribute("aria-pressed", String(fit));
     scroller.setAttribute("data-size", fit ? "fit" : "full");
+    syncOverflow(scroller.parentNode); // refit (fit stops at the text floor) and say whether the scroller now scrolls (fit.js)
   });
   return h("p", null, b);
 }
@@ -142,7 +143,7 @@ function archifyBlock(d) {
   const label = t("harness.installArch");
   const scroller = d.fallback
     ? h("div", { class: "arch-scroll", "data-size": "full", tabindex: 0, role: "region", "aria-label": label },
-      diagramBox(d.fallback, label, true, () => centerScroll(scroller))) : null;
+      diagramBox(d.fallback, label, (box) => { fitDiagram(box); centerScroll(scroller); })) : null;
   return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")),
     scroller ? archSizeToggle(scroller) : null, scroller, full);
 }

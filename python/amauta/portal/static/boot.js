@@ -145,6 +145,7 @@ try {
   const bar = document.querySelector(".topbar");
   new ResizeObserver(() => $("shell").style.setProperty("--topbar-h", `${Math.ceil(bar.offsetHeight)}px`)).observe(bar);
 } catch (_) { /* no ResizeObserver: the 3rem fallback */ }
+watchOverflow($("view")); // scroll hints and diagram sizes follow the page content and the window (fit.js)
 const navOpen = () => $("shell").getAttribute("data-nav") === "open";
 $("nav-toggle").addEventListener("click", () => setNav(!navOpen()));
 $("nav-scrim").addEventListener("click", () => setNav(false, true));

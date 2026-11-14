@@ -34,9 +34,10 @@ test('natural size by default, fit to width on demand, same scroll region', asyn
   assert.ok(region.getAttribute('aria-label'));
 });
 
-test('the CSS draws the fitted diagram at the column width and the full one at its natural width', async () => {
+test('the fitted diagram is sized by fit.js (down to the text floor), the full one stays at its natural width', async () => {
   const css = (await read('style-pages.css')).replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(css, /\.arch-scroll\[data-size="fit"\] \.diagram svg \{[^}]*width: 100%/);
-  assert.match(css, /\.arch-scroll \.diagram svg \{[^}]*width: var\(--natural-width/);
-  assert.match(await read('app.js'), /setProperty\("--natural-width"/);
+  assert.match(css, /\.arch-scroll \.diagram svg \{[^}]*max-width: none/);
+  assert.doesNotMatch(css, /natural-width/);
+  assert.match(await read('fit.js'), /diagramScale\(width, avail, natural\)/);
+  assert.match(await read('page-harness.js'), /syncOverflow\(scroller\.parentNode\)/);
 });

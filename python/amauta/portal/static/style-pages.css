@@ -135,7 +135,6 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s3); }
 .arch-scroll { overflow-x: auto; margin: var(--s3) 0 0; }
 .arch-scroll .diagram { width: max-content; min-width: 100%; margin: 0; overflow: visible; max-height: none; }
-.arch-scroll .diagram svg { max-width: none; width: var(--natural-width, auto); }
+.arch-scroll .diagram svg { max-width: none; } /* the width is set by fit.js: natural, or fitted down to the text floor */
 .arch-scroll[data-size="fit"] .diagram { width: auto; }
-.arch-scroll[data-size="fit"] .diagram svg { width: 100%; height: auto; }
 .doc pre.code { white-space: pre-wrap; overflow-wrap: break-word; }

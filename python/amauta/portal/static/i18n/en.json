@@ -380,6 +380,8 @@
  "summary.title": "What it does",
  "summary.trigger": "When it triggers:",
  "table.label": "Table, scrollable",
+ "scroll.moreColumns": "Scroll sideways for more columns.",
+ "scroll.moreDiagram": "Scroll sideways to see the whole diagram.",
  "theme.base": "Base",
  "theme.cannotSave": "This theme cannot be saved yet.",
  "theme.choose": "Choose a theme to edit, create a new one, or import a file.",

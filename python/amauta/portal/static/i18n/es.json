@@ -380,6 +380,8 @@
  "summary.title": "Qué hace",
  "summary.trigger": "Cuándo se activa:",
  "table.label": "Tabla desplazable",
+ "scroll.moreColumns": "Desplácese hacia los lados para ver más columnas.",
+ "scroll.moreDiagram": "Desplácese hacia los lados para ver todo el diagrama.",
  "theme.base": "Base",
  "theme.cannotSave": "Este tema aún no se puede guardar.",
  "theme.choose": "Elija un tema para editarlo, cree uno nuevo o importe un archivo.",
