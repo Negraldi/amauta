@@ -54,7 +54,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T13 Re-critique round (2026-11-13, independent run scored 28/40): Today and Usage agree on every figure, one project name per session, readable architecture diagram, every graph kind as a word, vendored assets hidden, confirm next to its row with focus restored, Projects lead, Catalog kinds at 1024px, Usage filters on a phone, Spanish number units, P3 items
 - [x] T14 Cross-page data agreement (2026-11-13, third independent critique scored 26/40; its P1s are data contradictions, not UI): session start time, model and project agree on every page; memory list says how many of N and pages; active folders that are not listed as projects are explained; session page in the UI language with formatted numbers; P2/P3 items
 - [x] T15 Full-coverage critique (user, 2026-11-13: "learn from each critique; every view must be right; cover as much as possible"; lower-tier reviewers): docs/audits/portal-critique-checklist.md holds the coverage matrix and the learned classes; area reviewers fill the matrix; findings fixed and each new class added to the checklist with a guard test
-- [ ] T16 Open items after T15 (user, 2026-11-14: "continue with what is left open"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer, then read-only reviewers):
+- [x] T16 Open items after T15 (user, 2026-11-14: "continue with what is left open"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer, then read-only reviewers):
   - [x] T16a Sessions list fits 1280 px without sideways scroll (2c9d774; title wraps anywhere, project clipped with title, tighter cells; pixel width not browser-measured)
   - [x] T16b Today feed never shows a partial oldest day without saying so (01599ec; server flag activity_cut, client note)
   - [x] T16c Settings > Appearance has a theme picker (same themes as the Display popover) (3e0cc00)
@@ -65,6 +65,17 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T17b Diagrams pick a layout for the width they get (direction, wrapped labels, spacing); a sequence that cannot fit a phone is shown as numbered steps (7f59991)
 - [x] T18 Adaptive diagrams on every view (user, 2026-11-14: "apply the diagram work to everything, not only the guide"; TDD on; route: one delegated sonnet writer, more than one non-trivial file):
   - [x] T18a Every diagram caller (harness architecture, graph neighbours on Graph and node pages, wiki page diagrams, project task progress) picks its layout for the width it gets; a sequence too wide for the box becomes numbered steps (commit 2838986)
+
+- [ ] T19 Every open item (user, 2026-11-14: "continue resolving all the open items"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer per subtask, one at a time; coordinator checks in the browser):
+  - [ ] T19a Errors read as the portal's words: the network message drops the browser's raw reason; part-level errors offer a retry; error pages keep a precise title, breadcrumb and the project tab bar
+  - [ ] T19b Today loads in one request wave
+  - [ ] T19c Checkbox targets are at least 24 px at 375 px
+  - [ ] T19d Diagrams: the adaptive layout also turns subgraph directions and BT/RL charts; a flowchart that cannot fit a narrow box is shown as an outline with a control to see the diagram; the harness architecture fits 1280 px with text of 11 px or more
+  - [ ] T19e Catalog: a runtime filter (Claude Code, Codex, both) and the instruction blocks as catalog entries
+  - [ ] T19f Personal skill links fall back to a marked copy where a symlink cannot be made, refreshed on each sync and removed like a link
+  - [ ] T19g Codex tool calls checked in the portal against a temporary state built from one real rollout (read-only use of `~/.codex`, authorized by the user on 2026-11-14)
+  - [ ] T19h Browser check of the T16d fixes covered by tests only, and a read-only review of the cells never seen (palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages); fix findings
+  Not doable here: a run on a real Windows machine; restarting the owner's memory MCP server (the owner restarts it from the client).
 
 ## Acceptance criteria
 
