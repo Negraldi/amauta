@@ -360,10 +360,9 @@ class Portal:
 
     def _graph_repo(self, q):
         """Only repositories given with --repo can be asked about; the value is matched, never used as a path."""
-        wanted = q.get("repo")
         for repo in self.repos():
-            if wanted == str(repo.resolve()):
-                return wanted
+            if q.get("repo") == str(repo.resolve()):
+                return q["repo"]
         raise BadRequest("repo must be one of the configured --repo paths (see /api/graphify)")
 
     def graphify(self, q):
@@ -404,8 +403,9 @@ class Portal:
 
     def graph_nodes(self, q):
         repo, limit, text = self._graph_repo(q), _int(q, "limit", 50, 1, 200), _str(q, "q", 200) or ""
-        order, vendored = "name" if q.get("order") == "name" else "links", q.get("vendored") == "1"  # default: most connected, no vendored
-        return self._graph_call(lambda c: graph_query.node_list(c, repo, text, limit, vendored, order, _int(q, "offset", 0, 0, 10**6)))
+        order, vendored, concepts = "name" if q.get("order") == "name" else "links", q.get("vendored") == "1", q.get("concepts") == "1"
+        offset = _int(q, "offset", 0, 0, 10**6)
+        return self._graph_call(lambda c: graph_query.node_list(c, repo, text, limit, vendored, order, offset, concepts))
 
     def _node_arg(self, q):
         node = _str(q, "node", 512)

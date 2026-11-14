@@ -61,6 +61,42 @@ class NodeListPagingTest(WikiBase):
         self.assertEqual(self.ids(limit=3, offset=len(everything)), [])
 
 
+class NodeListConceptsTest(WikiBase):
+    """D8 / B9: the node list opens on the project's own code (nodes with a source file); concept nodes stay one option away."""
+
+    def setUp(self):
+        super().setUp()
+        import sqlite3
+        self.key = str(self.f["repo"].resolve())
+        c = sqlite3.connect(self.f["state"] / "memory.db")
+        c.execute("INSERT INTO graph_nodes (repo, id, label, kind, file) VALUES (?, 'ref_os', 'os', 'concept', '')", (self.key,))
+        c.execute("INSERT INTO graph_nodes (repo, id, label, kind, file) VALUES (?, 'v1', 'vendored thing', 'code', 'web/lib.min.js')", (self.key,))
+        c.execute("INSERT INTO graph_nodes (repo, id, label, kind, file) VALUES (?, 'v2', 'vendored idea', 'concept', 'web/lib.min.js')", (self.key,))
+        c.commit()
+        c.close()
+
+    def nodes(self, **q):
+        return self.get("/api/graph/nodes", repo=self.key, **q)
+
+    def test_the_default_list_leaves_out_nodes_without_a_source_file_and_counts_them(self):
+        d = self.nodes()
+        self.assertNotIn("ref_os", [n["id"] for n in d["items"]])
+        self.assertTrue(all(n["file"] for n in d["items"]))
+        self.assertEqual(len(d["items"]), d["matched"] - d["hidden"])
+        self.assertEqual(d["hidden"], 3)  # the concept, the vendored code node, the vendored concept (counted once)
+
+    def test_concepts_one_brings_them_back_and_the_counts_stay_honest(self):
+        d = self.nodes(concepts="1")
+        self.assertIn("ref_os", [n["id"] for n in d["items"]])
+        self.assertEqual(d["hidden"], 2)  # only the two vendored ones
+        everything = self.nodes(concepts="1", vendored="1")
+        self.assertEqual((len(everything["items"]), everything["hidden"]), (everything["matched"], 0))
+
+    def test_search_still_finds_a_concept_only_with_the_option_on(self):
+        self.assertEqual(self.nodes(q="os")["items"], [])
+        self.assertEqual([n["id"] for n in self.nodes(q="os", concepts="1")["items"]], ["ref_os"])
+
+
 class DiagramCapTest(WikiBase):
     """D10: the node count of a neighbourhood that hit the server cap is a floor, and the API says so."""
 

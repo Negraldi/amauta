@@ -167,11 +167,16 @@ _LINKS = ("(SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.src =
           " + (SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.dst = n.id)")
 
 
-def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None, offset=0):
+# A concept or reference node has no source file ("os", "re", ref_node_path); the project's own code does.
+_NO_FILE = "coalesce(n.file, '') = ''"
+
+
+def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None, offset=0, concepts=True):
     """Nodes whose label or id contains `text` (LIKE wildcards in `text` are literal), by label.
 
     order "links" (most connected first) or "name" adds each node's edge count as `links`; vendored=False leaves out
-    is_vendored files; `offset` skips that many rows of the same order (Show more). The defaults keep the original shape and order."""
+    is_vendored files and concepts=False the nodes without a source file; `offset` skips that many rows of the same order
+    (Show more). The defaults keep the original shape and order."""
     _check_repo(conn, repo)
     limit, offset = max(1, min(int(limit), 200)), max(0, int(offset))
     pat = _like(text or "")
@@ -179,23 +184,30 @@ def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None, offse
     rows = conn.execute(
         f"SELECT n.id, n.label, n.kind, n.file, {_LINKS if order else '0'} AS links FROM graph_nodes n WHERE n.repo = ? "
         "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\') AND (? OR NOT amauta_vendored(n.file)) "
-        f"ORDER BY {'links DESC, ' if order == 'links' else ''}n.label COLLATE NOCASE, n.id LIMIT ? OFFSET ?", (repo, pat, pat, 1 if vendored else 0, limit, offset))
+        f"AND (? OR NOT ({_NO_FILE})) "
+        f"ORDER BY {'links DESC, ' if order == 'links' else ''}n.label COLLATE NOCASE, n.id LIMIT ? OFFSET ?",
+        (repo, pat, pat, 1 if vendored else 0, 1 if concepts else 0, limit, offset))
     return [{**_node(r), "links": r["links"]} if order else _node(r) for r in rows]
 
 
-def node_counts(conn, repo, text="", vendored=True):
-    """{"matched": nodes whose label or id contains `text`, "hidden": how many of them the list leaves out as vendored}."""
+def node_counts(conn, repo, text="", vendored=True, concepts=True):
+    """{"matched": nodes whose label or id contains `text`, "hidden": how many of them the list leaves out (vendored files,
+    and nodes without a source file when concepts is off; a node that is both counts once)}."""
     _check_repo(conn, repo)
     pat = _like(text or "")
     conn.create_function("amauta_vendored", 1, vendored_rules.rule_for(repo), deterministic=True)
-    row = conn.execute("SELECT count(*) matched, coalesce(sum(amauta_vendored(n.file)), 0) vendored FROM graph_nodes n WHERE n.repo = ? "
-                       "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\')", (repo, pat, pat)).fetchone()
-    return {"matched": row["matched"], "hidden": 0 if vendored else row["vendored"]}
+    row = conn.execute(
+        "SELECT count(*) matched, coalesce(sum(CASE WHEN (NOT ? AND amauta_vendored(n.file)) "
+        f"OR (NOT ? AND {_NO_FILE}) THEN 1 ELSE 0 END), 0) hidden FROM graph_nodes n WHERE n.repo = ? "
+        "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\')",
+        (1 if vendored else 0, 1 if concepts else 0, repo, pat, pat)).fetchone()
+    return {"matched": row["matched"], "hidden": row["hidden"]}
 
 
-def node_list(conn, repo, text="", limit=50, vendored=True, order=None, offset=0):
+def node_list(conn, repo, text="", limit=50, vendored=True, order=None, offset=0, concepts=True):
     """The portal's node list: search_nodes() rows plus node_counts(), so the page can say how many it shows and hides."""
-    return {"items": search_nodes(conn, repo, text, limit, vendored, order, offset), **node_counts(conn, repo, text, vendored)}
+    items = search_nodes(conn, repo, text, limit, vendored, order, offset, concepts)
+    return {"items": items, **node_counts(conn, repo, text, vendored, concepts)}
 
 
 def stats(conn, repo):
