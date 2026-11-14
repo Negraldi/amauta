@@ -18,3 +18,11 @@ test('class 6 guard: every segmented control in the portal wraps its segments (n
   }
   assert.ok(seen >= 4, `found ${seen} segmented controls`);
 });
+
+const rule = (css, sel) => new RegExp(`(?:^|\\n)${sel.replace(/[.[\]()*+?^$|]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
+
+test('C2: sortable headers wrap and narrow columns get tighter cells, so a table gives way before it scrolls', async () => {
+  const css = (await read('style.css')).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(rule(css, 'th[data-key]') ?? '', /white-space:\s*nowrap/);
+  assert.match(css, /@media \(width < 72rem\) \{[^@]*th, td \{[^}]*padding-inline: var\(--s2\)/);
+});

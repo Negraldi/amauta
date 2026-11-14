@@ -238,7 +238,7 @@ pre.text { white-space: pre-wrap; word-break: break-word; max-height: 26rem; }
 table { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
 thead th { position: sticky; top: 0; background: var(--surface); z-index: var(--z-dropdown); font-weight: 600; }
-th[data-key] { cursor: pointer; user-select: none; white-space: nowrap; }
+th[data-key] { cursor: pointer; user-select: none; }
 td.n, th.n { text-align: right; }
 td.n { white-space: nowrap; font-family: var(--mono); font-size: 0.95em; }
 svg { max-width: 100%; height: auto; display: block; }
@@ -302,6 +302,7 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 .nav-scrim { display: none; position: fixed; inset: 0; z-index: calc(var(--z-overlay) - 1); background: oklch(0 0 0 / 0.4); }
 /* ---- collapse rules ---- */
 @media (width < 72rem) {
+  th, td { padding-inline: var(--s2); } /* narrow column: tighter cells before any sideways scroll */
   .page { grid-template-columns: minmax(0, var(--measure)); gap: var(--s5); }
   .rail { border-top: 1px solid var(--line); padding-top: var(--s4); }
   .page.home > .rail, .page.home > .doc { grid-column: auto; grid-row: auto; }
