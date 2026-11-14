@@ -8,7 +8,7 @@ from .sessfacts import MAIN_MODEL
 from .api import NotFound, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref
 
-MAX_DIAGRAMS = 8
+MAX_DIAGRAMS = 40  # a repository with more features than this gets the first ones and odd_diagrams_total says how many there are
 
 
 def _repo(portal, ident):
@@ -86,5 +86,6 @@ def page(portal, ident, q):
         src = diagrams.odd_progress(f.name, ts)
         if src:
             pg["odd_diagrams"].append({"feature": f"{repo.name}/{f.stem}", "name": f.name, "done": sum(t["done"] for t in ts), "total": len(ts), "source": src})
+    pg["odd_diagrams_total"] = len(feats)
     pg["graph"] = graph
     return pg
