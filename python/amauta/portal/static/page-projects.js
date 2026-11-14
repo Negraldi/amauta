@@ -55,7 +55,8 @@ async function viewProjects() {
     { key: "last", label: t("col.lastActivity"), render: (v) => R.fmtDate(v || null) }];
   const count = tn(d.auto_discover ? "project.countAuto" : "project.count", d.projects.length, { n: fmt(d.projects.length) });
   const lead = [`${count} `, t("project.manage"), " ", link("settings", "", t("nav.settings")), "."];
-  return [pageHead(t("nav.project"), lead), table("projects", cols, rows), foldersBlock(d.folders), sibs].filter(Boolean);
+  const legend = h("p", { class: "muted" }, t("project.originLegend"));
+  return [pageHead(t("nav.project"), lead), table("projects", cols, rows), legend, foldersBlock(d.folders), sibs].filter(Boolean);
 }
 
 // ---- the hub ---------------------------------------------------------------------------------------------------
@@ -141,9 +142,9 @@ async function graphTab(pg) {
 async function pipelinesTab(pg) {
   const d = await api("pipelines");
   const all = h("p", { class: "muted" }, link("pipelines", "", t("project.allPipelines")));
-  if (!d.available) return [empty(t("pipe.notInstalled")), all];
+  if (!d.available) return [empty(t("pipe.notInstalled"))];
   const pr = d.projects.find((p) => p.path === hubFacts(pg).path || p.name === pg.id);
-  if (!pr || !pr.pipelines.length) return [empty(codeSpans(t("project.pipelinesEmpty"))), all];
+  if (!pr || !pr.pipelines.length) return [empty([t("project.pipelinesEmpty"), " ", link("guide", "pipelines", t("pipe.howTo"))])];
   return [pipeSummary([pr]), pr.error ? h("p", { class: "warn" }, `▲ ${ts(pr.error)}`) : null,
     pr.trusted ? null : h("p", { class: "muted" }, codeSpans(t("pipe.untrusted"))),
     h("div", { class: "pipe-cards" }, pr.pipelines.map((p) => pipelineCard(pr, p))), all];
@@ -173,12 +174,12 @@ function oddDiagramsBlock(pg) {
   const counts = { shown: fmt(pg.odd_diagrams.length), total: fmt(pg.odd_diagrams_total) };
   const note = cut ? h("p", { class: "muted" }, t("more.showing", counts)) : null;
   return h("section", { class: "page-section" }, h("h2", null, t("project.taskProgress")), note, pg.odd_diagrams.map((d, i) => {
-    const body = h("div", null);
+    const body = h("div", null), name = String(d.name).replace(/\.md$/, ""); // the feature, not its file
     let drawn = false;
     const draw = () => {
-      if (!drawn) { drawn = true; body.replaceChildren(diagramBox(d.source, t("project.progressOf", { name: d.name }))); }
+      if (!drawn) { drawn = true; body.replaceChildren(diagramBox(d.source, t("project.progressOf", { name }))); }
     };
-    const head = t("project.featureDone", { name: d.name, done: fmt(d.done), total: fmt(d.total) });
+    const head = t("project.featureDone", { name, done: fmt(d.done), total: fmt(d.total) });
     const det = h("details", { open: i === 0 }, h("summary", null, head), body);
     det.addEventListener("toggle", () => { if (det.open) draw(); });
     if (i === 0) draw();

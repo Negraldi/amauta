@@ -83,9 +83,9 @@ def page(portal, ident, q):
     pg["links"] = [_ref("feature", f"{repo.name}/{f.stem}", f.stem) for f, _ in feats][:LINK_CAP]
     pg["odd_diagrams"] = []
     for f, ts in feats[:MAX_DIAGRAMS]:
-        src = diagrams.odd_progress(f.name, ts)
+        src = diagrams.odd_progress(f.stem, ts)
         if src:
-            pg["odd_diagrams"].append({"feature": f"{repo.name}/{f.stem}", "name": f.name, "done": sum(t["done"] for t in ts), "total": len(ts), "source": src})
+            pg["odd_diagrams"].append({"feature": f"{repo.name}/{f.stem}", "name": f.stem, "done": sum(t["done"] for t in ts), "total": len(ts), "source": src})
     pg["odd_diagrams_total"] = len(feats)
     pg["graph"] = graph
     return pg

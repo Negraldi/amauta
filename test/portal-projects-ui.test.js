@@ -47,7 +47,7 @@ test('#/project lists every known project with progress, graph status and a link
   assert.match(v.textContent, /2 of 3 tasks \(67%\)/);
   assert.match(v.textContent, /Loaded 2026-10-14/);
   assert.match(v.textContent, /Not loaded yet/);
-  assert.match(v.textContent, /found in your sessions/);
+  assert.match(v.textContent, /Your sessions/);
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
 
@@ -77,7 +77,7 @@ test('a project page shows progress and the graph how-to on Overview; features a
   const odd = { '/api/odd': { repos: [{ repo: 'repo', documents: [{ id: 'repo/feat', name: 'feat.md', done: 2, total: 3, tasks: [] }] }] } };
   const feats = await boot('#/project/repo?tab=features', { '/api/wiki/page': PAGE, ...odd });
   assert.ok(hrefs(view(feats.env)).includes('#/feature/repo%2Ffeat'));
-  assert.match(view(feats.env).textContent, /feat\.md: 2\/3/);
+  assert.match(view(feats.env).textContent, /feat: 2\/3/);
 });
 
 test('a mirrored project page reports the sync instead of the how-to and links its Graph tab', async () => {

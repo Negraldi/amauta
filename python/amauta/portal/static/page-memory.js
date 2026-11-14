@@ -11,7 +11,7 @@ function memSourceSwitch(source) {
 }
 function memTable(r, source, query) {
   if (!r.available) return empty(source === "engram" ? t("mem.noEngram") : t("mem.noDb"));
-  if (!r.items.length) return query ? empty(t("mem.noMatch")) : h("div", { class: "teach" }, h("p", null, codeSpans(t("mem.teach"))));
+  if (!r.items.length) return query ? empty(t("mem.noMatch")) : h("div", { class: "teach" }, h("p", null, t("mem.teach")));
   // A title is a link to the memory's wiki page (keyboard and middle-click work); the source rides along for other stores.
   return table("mem", [{ key: "title", label: t("col.title"), href: (row) => R.formatHash("memory", String(row.id), { source }) },
     { key: "type", label: t("col.type"), render: memType },

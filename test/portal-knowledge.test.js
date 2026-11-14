@@ -75,9 +75,9 @@ test('the Memories tab shows only memories: no graph panel and no memory-files t
   assert.doesNotMatch(view(env).textContent, /Graph memory|n\.md/);
 });
 
-test('with no memories and no query the Memories tab teaches how memories are saved', async () => {
+test('with no memories and no query the Memories tab teaches how memories are saved (in words, not tool names)', async () => {
   const env = await boot('#/memory', { '/api/memories': { source: 'own', available: true, items: [], facets: { types: [] } } });
-  assert.match(view(env).textContent, /mem_save/);
+  assert.match(view(env).textContent, /An agent saves one/);
 });
 
 test('the Memory files tab shows only the memory-files table', async () => {

@@ -26,14 +26,14 @@ test('every row states its origin in a Found by column; the lead names none', as
   const v = await boot([project('a', ['flag']), project('b', ['flag']), project('c', ['discovered'], true)]);
   assert.ok(heads(v).includes('Found by'), heads(v).join(' | '));
   const rows = tree(v).filter((e) => e.tagName === 'tr').slice(1).map((e) => e.textContent);
-  assert.equal(rows.filter((r) => /added with --repo/.test(r)).length, 2);
-  assert.ok(rows.some((r) => /^c/.test(r) && /found in your sessions/.test(r)));
+  assert.equal(rows.filter((r) => /Command line/.test(r)).length, 2);
+  assert.ok(rows.some((r) => /^c/.test(r) && /Your sessions/.test(r)));
   assert.doesNotMatch(tree(v).find((e) => e.tagName === 'p').textContent, /--repo|unless a row says otherwise/);
 });
 
 test('one project says its origin in its row and nothing in the lead', async () => {
   const v = await boot([project('solo', ['config'])]);
-  assert.equal(v.textContent.match(/saved in Settings/g).length, 1);
+  assert.equal(tree(v).filter((e) => e.tagName === 'td' && e.textContent === 'Saved in Settings').length, 1);
   assert.doesNotMatch(v.textContent, /unless a row says otherwise/);
 });
 
@@ -49,7 +49,7 @@ test('graph status is said in plain words in both languages', async () => {
 test('a project found two ways names both in its row, and the old lead key is gone', async () => {
   const v = await boot([project('a', ['flag', 'config']), project('c', ['discovered']), project('e', ['config'])]);
   const rows = tree(v).filter((e) => e.tagName === 'tr').slice(1).map((e) => e.textContent);
-  assert.ok(rows.some((r) => /added with --repo, saved in Settings/.test(r)), rows.join(' | '));
+  assert.ok(rows.some((r) => /Command line, Saved in Settings/.test(r)), rows.join(' | '));
   const { en, es } = await readDicts();
   assert.ok(!('project.originCommon' in en) && !('project.originCommon' in es));
 });

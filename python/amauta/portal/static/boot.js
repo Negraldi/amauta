@@ -75,8 +75,8 @@ function paintResults(found, q) {
     g.items.map((it) => {
       const i = flat++;
       const node = h("div", { role: "option", id: `pal-${i}`, class: "pal-item", "aria-selected": "false", onclick: () => goResult(i) },
-        h("span", { class: "pal-title" }, itemTitle(it.kind, it.title)),
-        it.snippet ? h("span", { class: "pal-snip muted" }, it.snippet) : null);
+        h("span", { class: "pal-title" }, codeSpans(itemTitle(it.kind, it.title))),
+        it.snippet ? h("span", { class: "pal-snip muted" }, it.kind === "node" ? it.snippet : ts(it.snippet)) : null);
       palette.nodes.push(node);
       return node;
     }))));

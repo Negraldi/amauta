@@ -158,8 +158,8 @@ test('Pipelines: only this project\'s pipelines, and a link to all of them', asy
 
 test('Pipelines with none for this project teaches how to add one', async () => {
   const env = await boot('#/project/repo?tab=pipelines', { '/api/pipelines': { available: true, projects: [PIPELINES.projects[0]] } });
-  assert.match(view(env).textContent, /\.amauta\/pipelines\.json/);
-  assert.ok(hrefs(view(env)).includes('#/pipelines'));
+  assert.match(view(env).textContent, /defines no pipelines yet/);
+  assert.ok(hrefs(view(env)).includes('#/guide/pipelines') && !hrefs(view(env)).includes('#/pipelines'), 'the guide, not an orphan link');
 });
 
 test('Sessions: the project\'s sessions in the session table, newest first', async () => {
@@ -182,9 +182,9 @@ test('Memories: the project\'s memories with type, topic and date', async () => 
   assert.match(view(env).textContent, /Decision/); // T8: the type is shown with its label
 });
 
-test('Memories with none teaches mem_save', async () => {
+test('Memories with none teaches that an agent saves them', async () => {
   const env = await boot('#/project/repo?tab=memories', { '/api/memories': { ...MEMORIES, items: [] } });
-  assert.match(view(env).textContent, /mem_save/);
+  assert.match(view(env).textContent, /once an agent saves one/);
 });
 
 test('a tab that is still loading shows skeleton lines under the tabs', async () => {

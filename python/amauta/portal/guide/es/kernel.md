@@ -95,7 +95,7 @@ El servidor MCP `amauta` (`src/mcp/server.js`) es un servidor JSON-RPC hecho a m
 
 La instalación escribe un comando por evento de hook. El despachador (`src/hooks/dispatch.js`) lee una vez el JSON del hook desde stdin, ejecuta en orden los handlers indicados en `--with` e imprime como mucho una decisión combinada. Los handlers de Node se ejecutan en el mismo proceso; los handlers de Python (telemetría, uso, privacidad) se inician con `spawn`, sin shell, usando el intérprete elegido en la instalación. Cualquier error significa salida vacía y código de salida 0.
 
-| Evento | Handlers |
+| Evento | Manejadores |
 | --- | --- |
 | `UserPromptSubmit` | `skill-registry`, `privacy`, `telemetry` |
 | `SessionStart` | `review-stop`, `graphify-connect`, `sync-check`, `telemetry` |
@@ -104,14 +104,14 @@ La instalación escribe un comando por evento de hook. El despachador (`src/hook
 | `Stop` | `review-stop`, `checks`, `telemetry`, `usage` |
 | `SubagentStop` | `telemetry`, `usage` |
 
-Los handlers de telemetría y uso solo aparecen mientras la telemetría está activada. En Stop, las decisiones de `review-stop` y `checks` pasan por una sola política de Stop: un bloqueo combinado, como mucho dos bloqueos mientras el runtime sigue adelante por un hook de Stop (`<state dir>/stop-policy/<session>.json`).
+Los manejadores de telemetría y uso solo aparecen mientras la telemetría está activada. En Stop, las decisiones de `review-stop` y `checks` pasan por una sola política de Stop: un bloqueo combinado, como mucho dos bloqueos mientras el runtime sigue adelante por un hook de Stop (`<state dir>/stop-policy/<session>.json`).
 
 ```mermaid
 sequenceDiagram
   participant R as Runtime
   participant D as despachador
-  participant N as Handlers de Node
-  participant P as Handlers de Python
+  participant N as Manejadores de Node
+  participant P as Manejadores de Python
   R->>D: JSON del hook por stdin
   D->>N: ejecutar en el proceso
   D->>P: spawn python3 -P -m module

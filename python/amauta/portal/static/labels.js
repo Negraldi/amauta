@@ -45,3 +45,29 @@ const personaLabel = (v) => (v === "gentleman" || v === "neutral" ? t(`set.${v}`
 
 // A pipeline mode: "process" and "preview" are words; any other name is the user's own and stays as written (D16).
 const modeName = (m) => enumLabel("pipemode", m);
+
+// ---- explanation notes (C6) -----------------------------------------------------------------------------------------------
+// The agent writes a note in English with fixed headings. Those are shown in the UI language, and the first two get words of their own
+// so the page does not carry "What it does" twice (the portal's summary above already has it).
+const EXPLAIN_HEADINGS = { "what it does": "explain.h.what", "when it runs": "explain.h.when", "when claude uses it": "explain.h.when",
+  "worth knowing": "explain.h.worth" };
+function localizeExplain(md) {
+  const heading = (m, hashes, title) => {
+    const key = EXPLAIN_HEADINGS[title.toLowerCase()];
+    return key ? `${hashes} ${t(key)}` : m;
+  };
+  const basedOn = (m, mark) => `${mark || ""}${t("explain.basedOn")}`;
+  return String(md).replace(/^(#{1,6})[ \t]+(.+?)[ \t]*$/gm, heading).replace(/^(_|\*)?Based on:/gm, basedOn);
+}
+
+// ---- cutting long text (C12) ---------------------------------------------------------------------------------------------------
+// At most `max` characters, ending on a sentence when one ends in the second half of the cut, else on a word with an ellipsis.
+function clipText(text, max) {
+  const s = String(text);
+  if (s.length <= max) return s;
+  const head = s.slice(0, max - 1);
+  const stop = Math.max(head.lastIndexOf(". "), head.lastIndexOf("? "), head.lastIndexOf("! "));
+  if (stop >= max / 2) return head.slice(0, stop + 1);
+  const space = head.lastIndexOf(" ");
+  return `${(space > 0 ? head.slice(0, space) : head).replace(/[,;:\s]+$/, "")}…`;
+}

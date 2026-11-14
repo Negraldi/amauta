@@ -257,3 +257,12 @@ class McpToolOriginTest(tt.ToolsBase):
         self.assertIsNotNone(refresh)
         self.assertEqual(refresh["items"][0]["label"], "Tool list read from the server")
         self.assertRegex(refresh["items"][0]["value"], r"^\d{4}-\d{2}-\d{2}")
+
+
+class FeatureNameTest(tp.ProjectBase):
+    """W3 A9: task-progress summaries name the feature, not its file."""
+
+    def test_the_diagram_and_its_summary_carry_no_file_extension(self):
+        d = self.page("project", "repo")["odd_diagrams"][0]
+        self.assertFalse(d["name"].endswith(".md"), d["name"])
+        self.assertNotIn(".md", d["source"].splitlines()[1])

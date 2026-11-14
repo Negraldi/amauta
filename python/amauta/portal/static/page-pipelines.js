@@ -10,7 +10,7 @@ const pipeFilter = { category: "", query: "" };
 async function viewPipelines() {
   const d = await api("pipelines");
   if (!d.available) return [teach(t("nav.pipelines"), t("pipe.notInstalled"))];
-  if (!d.projects.length) return [pageHead(t("nav.pipelines")), empty(codeSpans(t("pipe.none")))];
+  if (!d.projects.length) return [pageHead(t("nav.pipelines")), empty([t("pipe.none"), " ", link("guide", "pipelines", t("pipe.howTo"))])];
   const sections = d.projects.map(projectPipelines);
   return [pageHead(t("nav.pipelines"), t("pipe.lead")), pipeSummary(d.projects), pipeControls(d.projects, sections), ...sections];
 }
@@ -128,17 +128,19 @@ function modePicker(p, apply) {
 // Recent runs as marks, oldest first; a mark replays that run in the console.
 function historyStrip(p, open) {
   if (!p.history || !p.history.length) return null;
+  const describe = (r) => t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
+    seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) })
+    + (r.mode ? ` · ${modeName(r.mode)}` : "");
   const marks = [...p.history].reverse().map((r) => {
-    const label = t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
-      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) })
-      + (r.mode ? ` · ${modeName(r.mode)}` : "");
+    const label = describe(r);
     const attrs = { type: "button", class: "hist-mark", "data-status": r.status, "aria-label": label, title: label };
     const b = h("button", attrs, STEP_MARK[r.status] || "?");
     b.addEventListener("click", () => open(r.run));
     return h("li", null, b);
   });
   return h("div", { class: "pipe-history" }, h("span", { class: "muted" }, `${t("pipe.history")}: `),
-    h("ol", { "aria-label": t("pipe.history") }, marks));
+    h("ol", { "aria-label": t("pipe.history") }, marks),
+    h("span", { class: "muted" }, ` ${t("pipe.histLatest", { run: describe(p.history[0]) })}`));
 }
 
 function lastDetails(p) {

@@ -232,7 +232,7 @@ function explainBlock(pg) {
   const parts = [];
   if (ex.note) {
     parts.push(h("p", { class: "muted" }, t("explain.written", { at: R.fmtDateTime(ex.note.written_at) })), ex.note.stale ? h("p", { class: "warn" }, t("explain.stale")) : null,
-      h("div", { class: "prose" }, bodyNodes(pg, ex.note.body_md)));
+      h("div", { class: "prose" }, bodyNodes(pg, localizeExplain(ex.note.body_md))));
   } else if (!ex.pending) parts.push(h("p", { class: "muted" }, t("explain.none")));
   if (ex.pending) parts.push(h("p", null, t("explain.requested", { at: R.fmtDateTime(ex.pending.requested_at) })), h("p", { class: "muted" }, t("explain.pendingHelp")));
   else {
@@ -252,7 +252,7 @@ function explainBlock(pg) {
   }
   return h("section", { class: "page-section explain" }, h("h2", null, t("explain.title")), ...parts, out);
 }
-const clip = (text) => (text.length > 220 ? `${text.slice(0, 217)}...` : text);
+const clip = (text) => clipText(text, 220);
 const CATALOG_CAP = 8; // items per kind in the All view; the kind link shows the rest
 const catalogHash = (kind) => R.routeHash({ kind: "component", id: "", query: kind ? { kind } : {} });
 // Skills join the component groups as one "Skills" group; each row keeps the label of where it comes from.
