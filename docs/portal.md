@@ -170,7 +170,8 @@ security, code security, the pipelines orchestrator, sibling projects, optional 
 what it is made of, how the parts relate, how you use it, scripts and commands, and how it works, with Mermaid
 diagrams. The pages are Markdown in `python/amauta/portal/guide/<lang>/<page>.md` (English and Spanish, English when
 a translation is missing), served read-only by `GET /api/guide` and `GET /api/guide/page?slug=&lang=` for known pages
-only. `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
+only. A page selector ("n. Title", with "n of m") sits above the page and previous / next links below it; there is no
+contents column. `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
 
 ### Sibling projects
 

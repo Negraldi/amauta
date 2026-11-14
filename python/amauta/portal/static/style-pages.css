@@ -121,14 +121,18 @@ button.link:disabled { color: var(--ink-muted); text-decoration: none; }
 .toast-bad { border-color: var(--warn); }
 .pipe-card .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
 
-.guide { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); gap: var(--s5, 2rem); align-items: start; }
-.guide-nav { position: sticky; top: var(--s3); font-size: 0.9375rem; }
-.guide-nav ol { padding-left: var(--s4); display: grid; gap: var(--s1); }
-.guide-nav a[aria-current="page"] { font-weight: 600; }
 /* The guide page takes the whole content area: diagrams and tables need the width; only running text keeps the reading measure. */
 .guide-page { min-width: 0; max-inline-size: none; }
 .guide-page > :where(p, ul, ol, blockquote, h2, h3, h4, h5, h6, pre, hr) { max-inline-size: var(--measure); }
-@media (max-width: 860px) { .guide { grid-template-columns: minmax(0, 1fr); } .guide-nav { position: static; } }
+.guide-pick { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: 0 0 var(--s4); font-size: 0.9375rem; }
+.guide-pick select { max-width: 100%; }
+.guide-pager { display: flex; justify-content: space-between; gap: var(--s4); margin-top: var(--s5); padding-top: var(--s3);
+  border-top: 1px solid var(--line); }
+.guide-pager a { display: grid; gap: 2px; }
+.guide-pager .next { text-align: right; margin-left: auto; }
+.guide-pager small { color: var(--ink-muted); }
+.guide-pager .prev small::before { content: "\2190  "; }
+.guide-pager .next small::after { content: "  \2192"; }
 
 /* Harness wiki (T6): install facts, status chips, the diagram at natural size in a sideways scroller, wrapped commands. */
 .facts { max-width: 40rem; margin: 0 0 var(--s4); }
