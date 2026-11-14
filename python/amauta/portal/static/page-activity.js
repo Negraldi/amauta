@@ -121,7 +121,7 @@ async function viewTools(route) {
     t("usage.segUsed", { label: l, n: count(s) })); // used in the range: not the Catalog's or the Overview's skill count
   const none = t(filters().runtime === "codex" ? "usage.noCodexTools" : "usage.nothingRange"); // Codex tool calls are never recorded
   return [
-    h("nav", { class: "segmented", "aria-label": t("usage.segments") }, kinds.map(item)),
+    h("nav", { class: "segmented segmented-wrap", "aria-label": t("usage.segments") }, kinds.map(item)),
     panel(null, tl[field].length ? table("usage-" + field, cols, tl[field]) : empty(none)),
   ];
 }

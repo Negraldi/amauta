@@ -59,7 +59,8 @@ function pipeControls(projects, sections) {
     }
   };
   queueMicrotask(apply);
-  const group = cats.length ? h("div", { class: "segmented", role: "group", "aria-label": t("pipe.category") }, pills) : null;
+  const group = cats.length ? h("div", { class: "segmented segmented-wrap", role: "group", "aria-label": t("pipe.category") },
+    pills) : null;
   const notify = typeof Notification !== "undefined" && Notification.permission === "default"
     ? h("button", { type: "button", onclick: (e) => { Notification.requestPermission(); e.target.hidden = true; } }, t("pipe.notify"))
     : null;

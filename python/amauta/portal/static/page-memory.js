@@ -7,7 +7,7 @@ const memSourceOf = (route) => (route && route.query && route.query.source === "
 function memSourceSwitch(source) {
   const item = ([k, l]) => h("a", { href: R.routeHash({ kind: "memory", id: "", query: k === "own" ? {} : { source: k } }),
     "aria-current": k === source ? "true" : false }, l);
-  return h("nav", { class: "segmented", "aria-label": t("mem.sourceLabel") }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(item));
+  return h("nav", { class: "segmented segmented-wrap", "aria-label": t("mem.sourceLabel") }, [["own", t("mem.own")], ["engram", t("mem.engram")]].map(item));
 }
 function memTable(r, source, query) {
   if (!r.available) return empty(source === "engram" ? t("mem.noEngram") : t("mem.noDb"));

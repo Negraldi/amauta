@@ -98,7 +98,7 @@ test('Sessions use the shared session columns and no longer carry a projects tab
 test('Tools and skills: the title matches the tab and the segments are links with aria-current, state in ?seg=', async () => {
   const env = await boot('#/tool?seg=skills');
   assert.equal(tree(view(env)).find((e) => e.tagName === 'h1').textContent, 'Tools and skills');
-  const seg = tree(view(env)).find((e) => e.tagName === 'nav' && e.className === 'segmented');
+  const seg = tree(view(env)).find((e) => e.tagName === 'nav' && /^segmented\b/.test(e.className));
   const links = tree(seg).filter((e) => e.tagName === 'a');
   assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/tool?seg=skills', '#/tool?seg=tools', '#/tool?seg=mcp', '#/tool?seg=mcptools', '#/tool?seg=subagents']);
   assert.deepEqual(links.filter((a) => a.getAttribute('aria-current') === 'true').map((a) => a.textContent), ['Skills (1 used)']);
