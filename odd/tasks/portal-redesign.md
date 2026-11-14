@@ -29,9 +29,9 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T14 Cross-page data agreement (2026-11-13, third independent critique scored 26/40; its P1s are data contradictions, not UI): session start time, model and project agree on every page; memory list says how many of N and pages; active folders that are not listed as projects are explained; session page in the UI language with formatted numbers; P2/P3 items
 - [x] T15 Full-coverage critique (user, 2026-11-13: "learn from each critique; every view must be right; cover as much as possible"; lower-tier reviewers): docs/audits/portal-critique-checklist.md holds the coverage matrix and the learned classes; area reviewers fill the matrix; findings fixed and each new class added to the checklist with a guard test
 - [ ] T16 Open items after T15 (user, 2026-11-14: "continue with what is left open"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer, then read-only reviewers):
-  - [ ] T16a Sessions list fits 1280 px without sideways scroll
-  - [ ] T16b Today feed never shows a partial oldest day without saying so
-  - [ ] T16c Settings > Appearance has a theme picker (same themes as the Display popover)
+  - [x] T16a Sessions list fits 1280 px without sideways scroll (title wraps anywhere, project clipped with title, tighter cells; pixel width not browser-measured)
+  - [x] T16b Today feed never shows a partial oldest day without saying so (01599ec; server flag activity_cut, client note)
+  - [x] T16c Settings > Appearance has a theme picker (same themes as the Display popover) (3e0cc00)
   - [ ] T16d Review of the cells T15 left out: dark theme at 1024 and 375 px, loading and server-error states; fix findings
   - [ ] T16e Codex tool calls recorded: BLOCKED, needs a Codex rollout sample the owner provides (reading the real `~/.codex` was denied on 2026-11-14)
 

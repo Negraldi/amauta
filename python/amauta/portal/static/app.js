@@ -189,6 +189,7 @@ const codeSpans = (text) => String(text).split("`").map((part, i) => (i % 2 ? h(
 // A wide element (a table) scrolls sideways in its own keyboard-reachable box; the page keeps the vertical scroll.
 const scrollBox = (el, label) => h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": label || t("table.label") }, el);
 // Sortable table: columns = [{key, label, num, render}], rows = array of objects.
+const cellClass = (c) => [c.num ? "n" : "", c.cls || ""].filter(Boolean).join(" ");
 function table(id, columns, rows, onRow) {
   const first = columns.find((c) => c.num) || columns[0]; // numbers open largest first, words A to Z (class 11)
   const s = state.sort[id] || { key: first.key, dir: first.num ? -1 : 1 };
@@ -199,14 +200,14 @@ function table(id, columns, rows, onRow) {
     return c * s.dir;
   });
   const head = h("tr", null, columns.map((c) => h("th", {
-    class: c.num ? "n" : "", "data-key": c.key, tabindex: 0, "aria-sort": s.key === c.key ? (s.dir > 0 ? "ascending" : "descending") : "none",
+    class: cellClass(c), "data-key": c.key, tabindex: 0, "aria-sort": s.key === c.key ? (s.dir > 0 ? "ascending" : "descending") : "none",
     onclick: () => { state.sort[id] = { key: c.key, dir: s.key === c.key ? -s.dir : -1 }; render(); },
     onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } },
   }, c.label, s.key === c.key ? (s.dir > 0 ? " ▲" : " ▼") : "")));
-  const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: c.num ? "n" : "" },
+  const body = sorted.map((r) => h("tr", null, columns.map((c) => h("td", { class: cellClass(c) },
     c.href ? h("a", { href: c.href(r) }, r[c.key]) : c.link && onRow ? h("button", { class: "row-link", type: "button", [c.attr || "data-row"]: "1", onclick: () => onRow(r) }, r[c.key]) : c.render ? c.render(r[c.key], r) : c.num ? fmt(r[c.key]) : R.fmtIso(r[c.key]) ?? "-"))));
   if (!rows.length) return empty(t("table.empty")); // a bare header row reads as a broken table (plan N12g)
-  return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": t("table.label") }, h("table", null, h("thead", null, head), h("tbody", null, body)));
+  return h("div", { class: "scroll", tabindex: 0, role: "region", "aria-label": t("table.label") }, h("table", { class: `tbl-${id}` }, h("thead", null, head), h("tbody", null, body)));
 }
 
 // A session's model: the one with the most messages, "+N" when others answered too (the session page lists them all).
@@ -215,15 +216,16 @@ const mainModel = (v, row) => (row.models > 1 ? `${modelName(v)} +${row.models -
 // the title, then runtime, main model and start date; so the table is narrow enough to read without sideways scrolling.
 function sessionCell(v, row) {
   const started = row.first_ts ? t("sess.startedOn", { date: R.fmtDate(row.first_ts) }) : null;
-  return [link("session", v, row.title || String(v).slice(0, 8)),
+  const title = row.title || String(v).slice(0, 8);
+  return [h("span", { class: "tok" }, link("session", v, title, { title })),
     h("div", { class: "muted sess-sub" }, [runtimeBadge(row.runtime), " ", mainModel(row.model, row), started ? ` · ${started}` : ""]),
     h("div", { class: "muted tok" }, String(v).slice(0, 8))];
 }
 function sessionColumns({ project = true } = {}) {
   const nums = [["messages", t("col.msgs")], ["input", t("tok.input")], ["output", t("tok.output")], ["cache_read", t("tok.cache_read")],
     ["cache_write", t("tok.cache_write")]].map(([key, label]) => ({ key, label, num: true }));
-  return [{ key: "title", label: t("kind.session"), render: (_v, row) => sessionCell(row.session_id, row) },
-    project ? { key: "project", label: t("kind.project") } : null,
+  return [{ key: "title", label: t("kind.session"), cls: "sess-main", render: (_v, row) => sessionCell(row.session_id, row) },
+    project ? { key: "project", label: t("kind.project"), render: (v) => h("span", { class: "clip", title: v }, v) } : null,
     { key: "last_ts", label: t("col.lastActivity") }, ...nums].filter(Boolean);
 }
 

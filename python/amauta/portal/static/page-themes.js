@@ -9,9 +9,9 @@ const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateT
 const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((th) => `custom:${th.slug}` === state.themeChoice) ? "system" : state.themeChoice);
 const onAppearance = (route) => route.kind === "settings" && R.settingsTab(route) === "appearance"; // the editor previews its draft here
 function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); redrawDiagrams(); }
-const themeOptions = () => [["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")], ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])]
-  .map(([v, l]) => h("option", { value: v }, l));
-// One list, one choice: the top-bar popover (#theme-picker) and the Appearance tab (#set-theme) are painted by the same code and both call chooseTheme.
+const BUILT_IN = () => [["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")]];
+const themeOptions = () => [...BUILT_IN(), ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])].map(([v, l]) => h("option", { value: v }, l));
+// One list, one choice: the top-bar popover (#theme-picker) and the Appearance tab (#set-theme) share this painting and chooseTheme.
 function paintPicker() {
   for (const id of ["theme-picker", "set-theme"]) {
     const pick = document.getElementById(id);

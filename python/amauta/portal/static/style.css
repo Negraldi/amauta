@@ -243,6 +243,10 @@ th, td { text-align: left; padding: var(--s2) var(--s3); border-bottom: 1px soli
 thead th { position: sticky; top: 0; background: var(--surface); z-index: var(--z-dropdown); font-weight: 600; }
 th[data-key] { cursor: pointer; user-select: none; }
 td.n, th.n { text-align: right; }
+/* Sessions list (T16a): the title wraps (long words too), the project clips: the numbers never push the table past its column. */
+.sess-main { max-inline-size: 24rem; } /* its title link is a .tok, so a long word breaks anywhere */
+.clip { display: block; max-inline-size: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl-sessions th, .tbl-sessions td, .tbl-psessions th, .tbl-psessions td { padding-inline: var(--s2); }
 td.n { white-space: nowrap; font-family: var(--mono); font-size: 0.95em; }
 svg { max-width: 100%; height: auto; display: block; }
 svg text { fill: var(--ink-muted); font-size: 11px; }

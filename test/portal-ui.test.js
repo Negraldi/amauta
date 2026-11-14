@@ -43,8 +43,9 @@ async function boot(hash = '') {
   await tick();
   return env;
 }
+// A title attribute shows hostile data as inert text (T16a: a clipped cell carries its full value), so only its name is checked.
 // Wiki links carry the percent-encoded id in href (e.g. %3Cimg%20onerror...): inert, and it must stay a wiki route.
-const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === 'href' ? v.startsWith('#/') : !v.includes('onerror')) && !k.startsWith('on'));
+const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === 'href' ? v.startsWith('#/') : k === 'title' || !v.includes('onerror')) && !k.startsWith('on'));
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 
 test('static files: no innerHTML-style sinks, no external URLs, no inline script or style', async () => {
