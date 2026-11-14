@@ -18,11 +18,11 @@ test('the count line says shown, matched and hidden, and follows the vendored to
   await runPortal(env, { DOMParser: class {}, queueMicrotask });
   await tick();
   const v = env.document.getElementById('view');
-  assert.match(v.textContent, /Showing 50 of 1,234 nodes; 312 vendored, minified or dependency nodes hidden\./);
+  assert.match(v.textContent, /Showing 50 of 1,234 nodes; 312 more hidden \(vendored, dependency or concept nodes without a source file\)\./);
   const all = []; v.walk((e) => all.push(e));
   const box = all.find((e) => e.tagName === 'input' && e.getAttribute('id') === 'graph-vendored');
-  box.checked = true;
-  for (const fn of box.listeners.change) fn({ target: box });
+  const concepts = all.find((e) => e.tagName === 'input' && e.getAttribute('id') === 'graph-concepts');
+  for (const b of [box, concepts]) { b.checked = true; for (const fn of b.listeners.change) fn({ target: b }); }
   await tick();
-  assert.match(v.textContent, /Showing 50 of 1,546 nodes, vendored ones included\./);
+  assert.match(v.textContent, /Showing 50 of 1,546 nodes, vendored, dependency and concept nodes included\./);
 });

@@ -22,20 +22,22 @@ function nodeKind(k) {
 // The node list opens on meaningful nodes (T11 b): most connected first, vendored, minified and dependency files hidden
 // behind a labelled toggle. Both choices go to the server, which ranks and filters before the 50-row cap.
 function graphFilters(onChange) {
-  const vendored = h("input", { type: "checkbox", id: "graph-vendored" });
+  const vendored = h("input", { type: "checkbox", id: "graph-vendored" }), concepts = h("input", { type: "checkbox", id: "graph-concepts" });
   const order = h("select", { "aria-label": t("graph.order") },
     h("option", { value: "links" }, t("graph.orderLinks")), h("option", { value: "name" }, t("graph.orderName")));
-  vendored.addEventListener("change", onChange);
-  order.addEventListener("change", onChange);
-  const query = () => ({ vendored: vendored.checked ? "1" : "", order: order.value === "name" ? "name" : "" });
-  return { query, el: [order, h("label", { class: "check", for: "graph-vendored" }, vendored, t("graph.vendored"))] };
+  for (const el of [vendored, concepts, order]) el.addEventListener("change", onChange);
+  // The list opens on the project's own code: concept and reference nodes (no source file) are one labelled option away (D8).
+  const flag = (box) => (box.checked ? "1" : "");
+  const query = () => ({ vendored: flag(vendored), concepts: flag(concepts), order: order.value === "name" ? "name" : "" });
+  const check = (box, id, key) => h("label", { class: "check", for: id }, box, t(key));
+  return { query, el: [order, check(vendored, "graph-vendored", "graph.vendored"), check(concepts, "graph-concepts", "graph.concepts")] };
 }
 // "Showing 50 of 1,234 nodes; 312 vendored ... hidden.": the toggle changes a number the reader can see, not only the rows.
 // While rows remain, Show more asks the server for the next page (`more`).
 function nodeCount(g, query, more) {
   if (g.matched == null || !g.items.length) return null;
   const n = { shown: fmt(g.items.length), total: fmt(g.matched - g.hidden), hidden: fmt(g.hidden) };
-  const line = h("p", { class: "muted" }, t(query.vendored ? "graph.showingAll" : g.hidden ? "graph.showing" : "graph.showingPlain", n));
+  const line = h("p", { class: "muted" }, t(query.vendored && query.concepts ? "graph.showingAll" : g.hidden ? "graph.showing" : "graph.showingPlain", n));
   if (g.items.length >= g.matched - g.hidden) return line;
   return h("div", null, line, h("button", { type: "button", class: "show-more", onclick: () => more(true) }, t("more.button")));
 }
@@ -43,19 +45,50 @@ const KIND_COLUMN = () => ({ key: "kind", label: t("col.kind"), render: nodeKind
 const NODE_COLUMNS = () => [{ key: "label", label: t("col.node"), link: true, attr: "data-graph" }, KIND_COLUMN(),
   { key: "links", label: t("col.links"), num: true }, { key: "file", label: t("col.file") }];
 
+// The neighbours of the selected node: its heading, depth select and a live status stay put while the content is redrawn, so
+// changing the depth re-renders at once and never loses focus. Choosing a row brings the panel into view (D2).
+const reducedMotion = () => Boolean(globalThis.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+function neighborsPanel(r) {
+  const depth = h("select", { "aria-label": t("graph.depth") }, [1, 2, 3].map((d) => h("option", { value: String(d) }, t("graph.depthN", { n: d }))));
+  depth.value = "1";
+  const title = h("h3", { tabindex: -1 }), status = h("p", { class: "visually-hidden", role: "status" }), body = h("div", null);
+  const el = h("section", { class: "near" }, h("div", { class: "controls" }, title, depth), status, body);
+  el.hidden = true;
+  let selected = null;
+  const show = guarded(async (node, reveal) => {
+    selected = node;
+    const name = node.label || node.id;
+    el.hidden = false;
+    title.textContent = t("graph.neighborsOf", { name });
+    const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
+    const nodeCols = [{ key: "depth", label: t("graph.depth"), num: true }, { key: "label", label: t("col.label") }, KIND_COLUMN(),
+      { key: "file", label: t("col.file") }];
+    const edgeCols = [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation") }, { key: "dst", label: t("col.to") }];
+    body.replaceChildren(h("p", null, link("node", `${r.name}::${node.id}`, t("graph.openPage"))), table("gn-" + r.path, nodeCols, g.nodes),
+      h("h3", null, t("graph.diagramTitle")), graphDiagram(r.path, node.id, depth.value),
+      g.edges.length ? table("ge-" + r.path, edgeCols, g.edges) : empty(t("graph.noEdges")));
+    status.textContent = t("graph.neighborsStatus", { name, depth: depth.value, n: fmt(g.nodes.length) });
+    if (!reveal) return;
+    if (el.scrollIntoView) el.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+    title.focus({ preventScroll: true });
+  }, body);
+  depth.addEventListener("change", () => { if (selected) show(selected, false); });
+  return { el, show: (node) => show(node, true) };
+}
+// "3 nodes, 1 edge (loaded ...; graph.json ..., 4 days old), 2 SQL tables"; one time when both copies agree (B11).
+function graphStats(r) {
+  const days = Math.floor((Date.now() - Date.parse(r.graph_mtime)) / 86400000);
+  const same = R.fmtDateTime(r.synced_at) === R.fmtDateTime(r.graph_mtime);
+  return t(same ? "graph.statsSame" : "graph.stats", { ...graphCounts(r.nodes, r.edges), mirrored: R.fmtDateTime(r.synced_at),
+    file: R.fmtDateTime(r.graph_mtime), age: days >= 1 ? `, ${tn("graph.age", days, { days: fmt(days) })}` : "",
+    sql: tn("graph.sqlTables", r.sql_tables || 0, { n: fmt(r.sql_tables || 0) }) });
+}
+
 function graphRepo(r) {
   if (!r.available) return { ready: null, el: h("div", null, h("h3", null, r.name), empty(r.reason ? codeSpans(ts(r.reason)) : t("graph.notAvailable"))) };
   const q = h("input", { type: "search", placeholder: t("graph.searchNodes"), "aria-label": t("graph.searchNodesLabel") });
-  const depth = h("select", { "aria-label": t("graph.depth") }, [1, 2, 3].map((d) => h("option", { value: String(d) }, t("graph.depthN", { n: d }))));
   const list = h("div", null);
-  const near = h("div", null);
-  const show = guarded(async (node) => {
-    const g = await api("graph/neighbors", { repo: r.path, node: node.id, depth: depth.value });
-    near.replaceChildren(h("h3", null, t("graph.neighborsOf", { name: node.label || node.id })), h("p", null, link("node", `${r.name}::${node.id}`, t("graph.openPage"))),
-      table("gn-" + r.path, [{ key: "depth", label: t("graph.depth"), num: true }, { key: "label", label: t("col.label") }, KIND_COLUMN(), { key: "file", label: t("col.file") }], g.nodes),
-      h("h3", null, t("graph.diagramTitle")), graphDiagram(r.path, node.id, depth.value),
-      g.edges.length ? table("ge-" + r.path, [{ key: "src", label: t("col.from") }, { key: "relation", label: t("col.relation") }, { key: "dst", label: t("col.to") }], g.edges) : empty(t("graph.noEdges")));
-  }, near);
+  const near = neighborsPanel(r), show = near.show;
   let items = [];
   const load = guarded(async (more) => {
     const g = await api("graph/nodes", { repo: r.path, q: q.value, ...filters.query(), offset: more === true ? items.length : 0 });
@@ -71,9 +104,9 @@ function graphRepo(r) {
   });
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
   const ready = load();
-  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, t("graph.stats", { ...graphCounts(r.nodes, r.edges), mirrored: R.fmtDateTime(r.synced_at), file: R.fmtDateTime(r.graph_mtime), sql: tn("graph.sqlTables", r.sql_tables || 0, { n: fmt(r.sql_tables || 0) }) })),
+  return { ready, el: h("div", null, h("h3", null, r.name), h("p", { class: "muted" }, graphStats(r)),
     h("p", { class: "muted" }, semanticLine(r)),
-    h("div", { class: "controls" }, q, depth, h("button", { type: "button", onclick: load }, t("graph.searchGraph")), ...filters.el), list, near) };
+    h("div", { class: "controls" }, q, h("button", { type: "button", onclick: load }, t("graph.searchGraph")), ...filters.el), list, near.el) };
 }
 
 // Whether a semantic pass is pending, as a sentence, and when the last one ran.
