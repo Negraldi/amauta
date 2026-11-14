@@ -21,8 +21,8 @@ the report says which cells were seen. Detail pages count as views of their own.
 | Global | sidebar, breadcrumb, Ctrl+K palette (empty, searching, results, no results), View menu, unknown address, an item that does not exist |
 | States | loading, empty (a project with no sessions, a filter with no rows), error (server answer missing), long values (long paths, long titles) |
 
-Not covered by the November 2026 round (T15), so the next critique starts here: the dark theme at 1024 and 375 px
-(only 1280 was checked), and the loading and server-error states of every view.
+The dark theme at 1024 and 375 px and the loading and error states were covered in T16d. Still not seen: the palette
+no-results state at 375 px, native select popups, and the error state of feature, node, memory file and Codex session pages.
 
 ## Learned classes
 
@@ -82,6 +82,18 @@ Each class names what to look for and the automated test that now guards it, whe
     informal-forms scan in `test_portal_t15.py`.
 25. **Titles that restate metadata.** A generated title repeating the model, count and date shown below it; use what
     identifies the thing (the first prompt of a session). Guard: `portal-t15-w3b-repeat`.
+26. **A part that fails silently and changes a figure.** A count built from several requests (components plus skills)
+    must not be shown as complete when one failed: name the missing part in an inline note and call the figure partial.
+    Guard: `portal-t16d-states` (F1).
+27. **A section that vanishes when its request fails.** The pipelines block, the lede, the architecture diagram: show the
+    inline error note in place of the section. Guard: `portal-t16d-states` (F2).
+28. **A failure shown as an empty state.** "No custom themes yet" after a failed request is false; an error is not
+    emptiness. Guard: `portal-t16d-states` (F3).
+29. **Raw transport errors and routes in copy.** "Failed to fetch", "HTTP 500" as a fragment and "Route: #/harness" are
+    the browser's or the router's words; say it in the portal's language, as a sentence, without the hash. Guard:
+    `portal-t16d-states` (F4, F8).
+30. **Loading and reloading without announcement.** A slow load says so once in the live region; a reload of the same
+    route sets `aria-busy` and dims the old content (reduced motion honoured). Guards: `portal-t16d-states` (F5, F6).
 
 ## Rules for the reviewer
 

@@ -63,8 +63,9 @@ function spendingBlock(sp) {
 async function homeStatus(health) {
   if (!health || !health.installed) return h("p", { class: "lead warn" }, "▲ ", link("harness", "", t("harness.notInstalled")));
   const [hs, comps, skills] = await Promise.all(["harness", "harness/components", "skills"].map((p) => api(p).catch(() => null)));
-  if (!hs || !hs.installed) return null; // the overview itself says how to install
-  return healthLine(hs, comps, skills);
+  if (!hs) return errorNote(null, t("part.harnessStatus")); // the lede is never dropped silently
+  if (!hs.installed) return null; // the overview itself says how to install
+  return [healthLine(hs, comps, skills), comps && !skills ? errorNote(null, t("part.skills")) : null];
 }
 function impactRankBlock(rk) {
   if (!rk || !rk.available) return null;

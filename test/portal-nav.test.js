@@ -198,12 +198,12 @@ test('the search palette closes on the first Escape and on every route change', 
   assert.equal(closed.length, 2);
 });
 
-test('a failing page shows a short message, the route and two actions: Retry and Go to Today', async () => {
+test('a failing page shows a short message, two actions: Retry and Go to Today', async () => {
   let fail = true;
   const { env } = await boot('#/lint', { '/api/wiki/lint': async () => (fail ? { __status: 500, error: 'boom' } : { scanned: {}, categories: [] }) });
   const v = view(env);
   assert.match(v.textContent, /could not load/i);
-  assert.match(v.textContent, /#\/lint/);
+  assert.doesNotMatch(v.textContent, /#\/lint/, 'the raw route is not shown (T16d F4)');
   const buttons = tree(v).filter((e) => e.tagName === 'button');
   const retry = buttons.find((b) => b.textContent === 'Retry');
   assert.ok(retry, 'Retry');

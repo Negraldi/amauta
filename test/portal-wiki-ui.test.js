@@ -430,7 +430,7 @@ const HOME = {
 
 test('home: recent activity grouped by day is the main column; spending sits in the rail, health is the lead sentence (T8)', async () => {
   const { env } = await boot('#/home', { '/api/wiki/home': HOME, '/api/harness': { installed: true, version: '0.1.0' },
-    '/api/harness/components': { total: 0, groups: [] } });
+    '/api/harness/components': { total: 0, groups: [] }, '/api/skills': { groups: [] } });
   const v = view(env);
   assert.ok(env.calls.some((c) => c.url === '/api/wiki/home'));
   assert.deepEqual(tree(v).filter((e) => e.tagName === 'h3' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);

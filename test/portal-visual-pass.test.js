@@ -88,7 +88,7 @@ test('the harness health sentence counts the same things as the Catalog (skills 
   const routes = { '/api/harness': hs, '/api/harness/components': comps, '/api/archify': { installed: false } };
   const lead = (env) => tree(view(env)).find((e) => cls(e) === 'lead').textContent;
   assert.match(lead((await boot('#/harness', { ...routes, '/api/skills': skills })).env), /; 5 components, nothing needs attention\.$/);
-  assert.match(lead((await boot('#/harness', { ...routes, '/api/skills': { __status: 500, error: 'x' } })).env), /; 2 components, nothing needs attention\.$/);
+  assert.match(lead((await boot('#/harness', { ...routes, '/api/skills': { __status: 500, error: 'x' } })).env), /; 2 components, not counting skills \(they could not be loaded\), nothing needs attention\.$/);
 });
 
 test('the siblings table shows the watched file with its age limit when the config sets one', async () => {

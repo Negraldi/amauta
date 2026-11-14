@@ -284,6 +284,9 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 .sk-title { height: 1.875rem; width: 55%; margin-bottom: var(--s5); }
 .sk-short { width: 35%; }
 @keyframes sk-pulse { from { opacity: 0.45; } to { opacity: 0.9; } }
+/* A reload of the same route keeps the old content on screen, dimmed, until the new one is ready (aria-busy is set too). */
+#view[data-reloading] { opacity: 0.55; transition: opacity var(--t) var(--ease); }
+@media (prefers-reduced-motion: reduce) { #view[data-reloading] { transition: none; } }
 
 /* ---- search palette ---- */
 .palette { z-index: var(--z-dialog); width: min(42rem, calc(100vw - 2rem)); max-height: 70vh; margin: 12vh auto 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); overflow: hidden; }

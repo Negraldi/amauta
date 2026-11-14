@@ -62,13 +62,15 @@ const enumLabel = (prefix, v) => (`${prefix}.${v}` in I.dict.en ? t(`${prefix}.$
 const memType = (v) => (v ? enumLabel("memtype", v) : "-");
 const plainReason = (e) => String((e && e.message) || e);
 // A request that never reached the server, in words; the browser's own text rides along as the detail.
-const netError = (err) => t("error.network", { reason: plainReason(err) });
-// A part of a page that failed (a diagram, a list): one translated line, the raw reason as a muted detail.
-const errorNote = (err) => h("p", { class: "warn", role: "alert" }, `▲ ${t("error.part")} `, h("span", { class: "muted tok" }, plainReason(err)));
+const netError = (err) => (err && err.net ? plainReason(err) : t("error.network", { reason: plainReason(err) })); // api() already said it
+// A part of a page that failed (a diagram, a list): one translated line naming it (`what`, when known), the raw reason as a muted detail.
+const errorNote = (err, what) => h("p", { class: "warn", role: "alert" },
+  `▲ ${what ? t("error.partNamed", { part: what }) : t("error.part")} `, err ? h("span", { class: "muted tok" }, plainReason(err)) : null);
 
 async function api(path, params = {}) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
-  const r = await fetch(`/api/${path}${q.toString() ? "?" + q : ""}`, { headers: { Accept: "application/json" } });
+  const r = await fetch(`/api/${path}${q.toString() ? "?" + q : ""}`, { headers: { Accept: "application/json" } })
+    .catch((err) => { throw Object.assign(new Error(netError(err)), { net: true }); }); // never the browser's own "Failed to fetch"
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error ? ts(body.error) : t("common.http", { status: r.status }));
   return body;
@@ -297,7 +299,7 @@ function errorPanel(route, err) {
   const retry = h("button", { type: "button", onclick: () => { state.shown = null; render(); } }, t("error.retry"));
   return h("section", { class: "panel error-panel", role: "alert" }, h("h2", null, t("common.error")),
     h("p", { class: "warn" }, t("error.lead")),
-    h("p", { class: "muted" }, t("error.route", { route: R.routeHash(route) }), " ", h("span", { class: "tok" }, plainReason(err))),
+    h("p", { class: "muted" }, h("span", { class: "tok" }, plainReason(err))),
     h("div", { class: "controls" }, retry, h("a", { href: "#/", class: "button" }, t("error.home"))));
 }
 
@@ -307,6 +309,14 @@ function dataAsOf(stamps) {
   $("data-at").textContent = at ? t("data.asOf", { at: R.fmtDateTime(at) }) : "";
 }
 
+// A load slower than 300 ms is said once in the live region (#status) and cleared when the page is drawn; a faster one is silent.
+let loadingTimer = null, loadingSaid = false;
+function announceLoading(on) {
+  clearTimeout(loadingTimer);
+  if (!on && loadingSaid) $("status").textContent = "";
+  loadingSaid = false;
+  if (on) loadingTimer = setTimeout(() => { loadingSaid = true; $("status").textContent = t("chrome.loading"); }, 300);
+}
 let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
@@ -320,7 +330,9 @@ async function render() {
   $("data-at").textContent = "";
   setNav(false); // navigating closes the phone menu (boot.js)
   document.title = `${R.KINDS[route.kind] ? t(`kind.${route.kind}`) : "amauta"} - amauta`;
-  if (changed) { $("view").setAttribute("aria-busy", "true"); $("view").replaceChildren(skeleton()); }
+  $("view").setAttribute("aria-busy", "true");
+  announceLoading(changed);
+  if (changed) $("view").replaceChildren(skeleton()); else $("view").setAttribute("data-reloading", "");
   state.pageTitle = null;
   try {
     const nodes = await renderRoute(route);
@@ -338,7 +350,7 @@ async function render() {
     $("view").replaceChildren(...[crumbBar(route), tabBar(route), errorPanel(route, err)].filter(Boolean)); // the tabs stay usable
     state.shown = key;
   } finally {
-    if (seq === renderSeq) $("view").setAttribute("aria-busy", "false");
+    if (seq === renderSeq) { $("view").setAttribute("aria-busy", "false"); $("view").removeAttribute("data-reloading"); announceLoading(false); }
   }
 }
 

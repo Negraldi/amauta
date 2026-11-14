@@ -97,7 +97,12 @@ async function runSearch() {
     const r = await api("wiki/search", { q });
     if (seq === palette.seq) { searchBusy(false); paintResults([...pageResults(q), ...r.groups], q); }
   } catch (err) {
-    if (seq === palette.seq) { searchBusy(false); paletteNote("warn", t("palette.failed", { reason: plainReason(err) })); }
+    if (seq !== palette.seq) return;
+    searchBusy(false);
+    const local = pageResults(q); // what needs no server stays; the note says the rest is missing
+    if (!local.length) { paletteNote("warn", t("palette.failed", { reason: plainReason(err) })); return; }
+    paintResults(local, q);
+    $("palette-results").append(h("p", { class: "warn", role: "alert" }, `▲ ${t("palette.failedLocal")}`));
   }
 }
 

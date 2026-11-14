@@ -173,6 +173,9 @@ function archSizeToggle(scroller) {
   return h("p", null, b);
 }
 function archifyBlock(d) {
+  if (d.failed) {
+    return h("section", { class: "page-section" }, h("h2", null, t("harness.architecture")), errorNote(d.failed, t("part.architecture")));
+  }
   if (!d.installed) return null;
   const full = d.available && /^\/archify\/[0-9a-f]{64}\.html$/.test(d.url)
     ? h("p", null, h("a", { href: d.url, target: "_blank", rel: "noopener" },
@@ -197,7 +200,9 @@ function healthParts(hs, comps, skills) {
   if (!comps || !Array.isArray(comps.groups)) return { head, parts: null, attention: null, off: 0 };
   const total = [...skillGroup(skills), ...comps.groups].reduce((n, g) => n + g.items.length, 0);
   const off = disabledCount(comps);
-  return { head, parts: tn("harness.health.components", total, { n: fmt(total) }), off,
+  // Without skills the total is partial and says so.
+  const said = skills ? tn("harness.health.components", total, { n: fmt(total) }) : t("harness.health.partial", { n: fmt(total) });
+  return { head, parts: said, off,
     attention: off ? tn("harness.health.attention", off, { n: fmt(off) }) : t("harness.health.fine") };
 }
 function healthSentence(hs, comps, skills) {
@@ -270,14 +275,15 @@ function runtimesSection(rt) {
 }
 
 async function viewHarness() {
-  const [hs, arch, comps, skills] = await Promise.all([api("harness"), api("archify").catch(() => ({ installed: false })),
+  const [hs, arch, comps, skills] = await Promise.all([api("harness"), api("archify").catch((err) => ({ failed: err })),
     api("harness/components").catch(() => null), api("skills").catch(() => null)]);
   const title = pageHead(t("nav.harnessPage"), hs.installed ? healthSentence(hs, comps, skills) : null);
   const how = h("div", { class: "teach" }, h("p", null, t("harness.notInstalled")), h("p", null, codeSpans(t("harness.howInstall"))));
   if (!hs.installed) return [title, how];
+  const skillsDown = comps && !skills ? errorNote(null, t("part.skills")) : null; // the count above is partial: say what is missing
   const pending = comps && comps.pending ? h("p", null, tn("harness.pending", comps.pending, { n: fmt(comps.pending) })) : null;
   const hooks = h("section", { class: "page-section" }, h("h2", null, t("harness.hooks")), hooksTable(hs, comps));
   const open = h("p", null, link("component", "", t("harness.openComponents")));
-  return [title, installFacts(hs), runtimesSection(comps && comps.runtimes), open, pending, archifyBlock(arch), hooks]
+  return [title, skillsDown, installFacts(hs), runtimesSection(comps && comps.runtimes), open, pending, archifyBlock(arch), hooks]
     .filter(Boolean); // archifyBlock is null without archify, runtimesSection without the catalog
 }

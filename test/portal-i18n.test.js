@@ -99,7 +99,7 @@ test('t fills {params} and leaves unknown placeholders visible', () => {
   assert.equal(I.t('progress.label', { done: 2, total: 5 }), '2 de 5 hechas');
   assert.equal(I.t('progress.label', { done: 2 }), '2 de {total} hechas');
   assert.equal(I.t('progress.label'), '{done} de {total} hechas');
-  assert.equal(I.t('common.http', { status: '<b>' }), 'HTTP <b>', 'values are inserted as text, never interpreted');
+  assert.equal(I.t('common.http', { status: '<b>' }), 'El servidor respondió con un error (HTTP <b>).', 'values are inserted as text, never interpreted');
 });
 
 test('tn picks the singular for exactly one and the plural otherwise', () => {

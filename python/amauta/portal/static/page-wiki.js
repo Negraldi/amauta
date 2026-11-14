@@ -52,7 +52,8 @@ function usageBlock(usage) {
   if (!total) return h("section", { class: "page-section" }, h("h2", null, t("uot.title")), h("p", { class: "muted" }, t("uot.none")));
   const W = 360, H = 60;
   const bars = R.dailyBars(usage.daily, W, H);
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": t("uot.aria", { days: fmt(usage.days), last: R.fmtDate(last) }) },
+  const aria = t("uot.aria", { days: fmt(usage.days), last: R.fmtDate(last) });
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H + 14}`, role: "img", "aria-label": aria },
     ...bars.map((b) => svg("g", null, svg("title", null, tn("uot.bar", b.value, { day: R.fmtDate(b.day), n: fmt(b.value) })), svg("rect", { x: b.x, y: b.y, width: b.width, height: b.height, class: "f-input" }))),
     svg("line", { x1: 0, x2: W, y1: H, y2: H, class: "axis" }), svg("text", { x: 0, y: H + 11 }, R.fmtDate(bars[0].day)), svg("text", { x: W, y: H + 11, "text-anchor": "end" }, R.fmtDate(last)));
   return h("section", { class: "page-section" }, h("h2", null, t("uot.title")), h("p", { class: "muted" }, tn("uot.summary", total, { n: fmt(total), days: fmt(usage.days), last: R.fmtDate(last) })), h("div", { class: "spark" }, root));
@@ -324,7 +325,9 @@ async function viewCatalog(route) {
   paint();
   const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
   const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
-  return [pageHead(t("nav.catalog"), tn("catalog.intro", total, { n: fmt(total) })), res.err ? errorPanel(route, res.err) : null,
+  const partial = res.err || sk ? null : errorNote(null, t("part.skills")); // without skills the total is partial: it is not said
+  const intro = sk || res.err ? tn("catalog.intro", total, { n: fmt(total) }) : null;
+  return [pageHead(t("nav.catalog"), intro), partial, res.err ? errorPanel(route, res.err) : null,
     noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box), refresh, list, teachWhere];
 }
 

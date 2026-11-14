@@ -45,7 +45,7 @@
  "common.confirm": "Confirmar",
  "common.error": "Error",
  "common.goBack": "Volver",
- "common.http": "HTTP {status}",
+ "common.http": "El servidor respondió con un error (HTTP {status}).",
  "common.na": "n/d",
  "common.never": "nunca",
  "common.no": "no",
@@ -682,7 +682,6 @@
  "nav.catalog": "Catálogo",
  "nav.breadcrumb": "Ruta de navegación",
  "error.lead": "No se pudo cargar esta página.",
- "error.route": "Ruta: {route}.",
  "error.retry": "Reintentar",
  "error.home": "Ir a Hoy",
  "chrome.display": "Vista",
@@ -982,5 +981,13 @@
  "pipe.histLatest": "Última: {run}",
  "project.originLegend": "Encontrado por: «Guardado en Configuración» significa que usted lo agregó en Configuración; «Sus sesiones», encontrado en las carpetas donde se ejecutaron sus sesiones; «Línea de comandos», agregado al iniciar el portal.",
  "impact.sessionsAround.one": "{when}: {before} sesión antes, {after} después",
- "impact.sessionsAround.other": "{when}: {before} sesiones antes, {after} después"
+ "impact.sessionsAround.other": "{when}: {before} sesiones antes, {after} después",
+ "error.partNamed": "{part} no se pudo cargar.",
+ "part.skills": "Las skills",
+ "part.pipelines": "Los pipelines",
+ "part.harnessStatus": "El estado del harness",
+ "part.architecture": "El diagrama de arquitectura",
+ "part.themes": "Los temas personalizados",
+ "harness.health.partial": "{n} componentes, sin contar las skills (no se pudieron cargar)",
+ "palette.failedLocal": "La búsqueda no pudo completarse. Solo se listan páginas."
 }

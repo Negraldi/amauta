@@ -45,7 +45,7 @@
  "common.confirm": "Confirm",
  "common.error": "Error",
  "common.goBack": "Go back",
- "common.http": "HTTP {status}",
+ "common.http": "The server answered with an error (HTTP {status}).",
  "common.na": "n/a",
  "common.never": "never",
  "common.no": "no",
@@ -682,7 +682,6 @@
  "nav.catalog": "Catalog",
  "nav.breadcrumb": "Breadcrumb",
  "error.lead": "This page could not load.",
- "error.route": "Route: {route}.",
  "error.retry": "Retry",
  "error.home": "Go to Today",
  "chrome.display": "Display",
@@ -982,5 +981,13 @@
  "pipe.histLatest": "Latest: {run}",
  "project.originLegend": "Found by: \"Saved in Settings\" means you added it in Settings; \"Your sessions\" means found in the folders your sessions ran in; \"Command line\" means added when the portal was started.",
  "impact.sessionsAround.one": "{when}: {before} session before, {after} after",
- "impact.sessionsAround.other": "{when}: {before} sessions before, {after} after"
+ "impact.sessionsAround.other": "{when}: {before} sessions before, {after} after",
+ "error.partNamed": "{part} could not be loaded.",
+ "part.skills": "The skills",
+ "part.pipelines": "The pipelines",
+ "part.harnessStatus": "The harness status",
+ "part.architecture": "The architecture diagram",
+ "part.themes": "The custom themes",
+ "harness.health.partial": "{n} components, not counting skills (they could not be loaded)",
+ "palette.failedLocal": "The search could not finish. Only pages are listed."
 }
