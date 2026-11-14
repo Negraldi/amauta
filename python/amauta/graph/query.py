@@ -119,11 +119,21 @@ def neighbors(conn, repo, node, depth=1):
     ordered = sorted(reached.items(), key=lambda kv: (kv[1], kv[0]))
     kept = dict(ordered[:NODE_LIMIT])
     ids = list(kept)
-    edges = [dict(r) for r in conn.execute(
-        "SELECT src, dst, relation FROM graph_edges WHERE repo = ? AND src IN (SELECT value FROM json_each(?)) AND dst IN (SELECT value FROM json_each(?)) "
-        "ORDER BY src, dst, relation LIMIT ?", (repo, json.dumps(ids), json.dumps(ids), EDGE_LIMIT))]
+    scope = "FROM graph_edges WHERE repo = ? AND src IN (SELECT value FROM json_each(?)) AND dst IN (SELECT value FROM json_each(?))"
+    args = (repo, json.dumps(ids), json.dumps(ids))
+    edges = [dict(r) for r in conn.execute(f"SELECT src, dst, relation {scope} ORDER BY src, dst, relation LIMIT ?", (*args, EDGE_LIMIT))]
+    edges_total = conn.execute(f"SELECT count(*) {scope}", args).fetchone()[0]  # real count: the list above is cut at EDGE_LIMIT
     nodes = sorted(_nodes(conn, repo, ids, kept), key=lambda n: (n["depth"], n["id"]))
-    return {"repo": repo, "start": seeds, "depth": depth, "nodes": nodes, "edges": edges, "truncated": walk_cut or len(ordered) > NODE_LIMIT}
+    return {"repo": repo, "start": seeds, "depth": depth, "nodes": nodes, "edges": edges, "edges_total": edges_total,
+            "truncated": walk_cut or len(ordered) > NODE_LIMIT}  # truncated is about nodes; edges_total > len(edges) says the edges are cut
+
+
+def edge_counts(conn, repo, node):
+    """Edges leaving and entering one node id, counted in SQL; self-loops are in neither (the page lists neither)."""
+    row = conn.execute(
+        "SELECT (SELECT count(*) FROM graph_edges WHERE repo = :r AND src = :n AND dst != :n) o, "
+        "(SELECT count(*) FROM graph_edges WHERE repo = :r AND dst = :n AND src != :n) i", {"r": repo, "n": node}).fetchone()
+    return {"outgoing": row["o"], "incoming": row["i"]}
 
 
 def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):

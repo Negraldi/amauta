@@ -352,6 +352,29 @@ class WalkBoundsTest(Base):
         self.assertFalse(r["truncated"])
 
 
+class EdgeCountTest(Base):
+    """T15 D1: edge counts are counted in SQL; a cut edge list says so instead of leaving truncated false."""
+
+    def setUp(self):
+        super().setUp()
+        data = {"nodes": [node("hub")] + [node(f"l{i}") for i in range(6)],
+                "links": [edge("hub", f"l{i}") for i in range(4)] + [edge(f"l{i}", "hub") for i in range(4, 6)]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+
+    def test_edge_counts_are_real_in_both_directions(self):
+        self.assertEqual(query.edge_counts(self.conn, self.key, "hub"), {"outgoing": 4, "incoming": 2})
+
+    def test_a_cut_edge_list_reports_its_real_total(self):
+        with mock.patch.object(query, "EDGE_LIMIT", 3):
+            r = query.neighbors(self.conn, self.key, "hub")
+        self.assertEqual((len(r["edges"]), r["edges_total"], r["truncated"]), (3, 6, False))  # nodes are all there; the edge list is the part that is cut
+
+    def test_an_uncut_edge_list_is_not_truncated(self):
+        r = query.neighbors(self.conn, self.key, "hub")
+        self.assertEqual((len(r["edges"]), r["edges_total"], r["truncated"]), (6, 6, False))
+
+
 class OldSqliteFallbackTest(Base):
     """SQLite < 3.34 cannot run two recursive terms; below the requirement a plain Python BFS answers instead."""
 
