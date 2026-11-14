@@ -37,6 +37,8 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T17 Guide layout and adaptive diagrams (user, 2026-11-14: the contents column splits the screen; diagrams should fit different widths; user chose the page selector above the article over a sidebar index; TDD on; route: one delegated sonnet writer from a browser-verified prototype):
   - [x] T17a Guide: page selector above the article plus previous/next links; the contents column is gone (f14249e)
   - [x] T17b Diagrams pick a layout for the width they get (direction, wrapped labels, spacing); a sequence that cannot fit a phone is shown as numbered steps (7f59991)
+- [ ] T18 Adaptive diagrams on every view (user, 2026-11-14: "apply the diagram work to everything, not only the guide"; TDD on; route: one delegated sonnet writer, more than one non-trivial file):
+  - [ ] T18a Every diagram caller (harness architecture, graph neighbours on Graph and node pages, wiki page diagrams, project task progress) picks its layout for the width it gets; a sequence too wide for the box becomes numbered steps
 
 ## Acceptance criteria
 
