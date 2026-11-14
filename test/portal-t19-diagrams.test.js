@@ -142,3 +142,34 @@ test('a sequence keeps its numbered steps', async () => {
   const { box } = await drawn('sequenceDiagram\n  A->>B: hi', { width: 200, svgWidth: 900 });
   assert.equal(box.children[0].tagName, 'ol');
 });
+
+// ---- stacked candidates: unconnected nodes and sibling subgraphs chained with invisible links ----
+const ARCH = [
+  'flowchart TB', '  n0["Root"]', '  subgraph hooks["Hook events"]', '    direction LR', '    H1["one"]', '    H2["two"]', '    H3["three"]', '    H1 --> H2', '  end',
+  '  subgraph mcp["MCP servers"]', '    direction TB', '    M1["a"]', '    M2["b"]', '    M3["c"]', '  end',
+  '  n0 --> hooks', '  n0 --> mcp',
+].join('\n');
+
+test('stacked candidates chain unconnected nodes of a TB subgraph and sibling subgraphs of one parent with invisible links', async () => {
+  const c = await ctx();
+  const list = call(c, 'diagramCandidates', ARCH);
+  const stacked = list.filter((s) => /~~~/.test(s));
+  assert.ok(stacked.length >= 1, 'a stacked candidate exists');
+  for (const s of stacked) {
+    assert.match(s, /M1 ~~~ M2/);
+    assert.match(s, /M2 ~~~ M3/);
+    assert.match(s, /hooks ~~~ mcp/, 'siblings of n0 stack');
+    assert.match(s, /H2 ~~~ H3/, 'hooks turns to TB, H2 and H3 are not connected');
+    assert.doesNotMatch(s, /H1 ~~~ H2/, 'connected nodes are not chained');
+    assert.doesNotMatch(s, /direction LR/, 'combined with the nested-TB turn');
+    assert.match(s, /^%%\{init:/);
+  }
+  assert.equal(list.indexOf(stacked[0]) > 4, true, 'after the plain candidates, so a larger layout that fits still wins');
+});
+
+test('a source with no unconnected pair and no sibling subgraphs gets no stacked candidate', async () => {
+  const c = await ctx();
+  for (const src of ['flowchart TB\n  A --> B\n  B --> C', 'flowchart LR\n  subgraph g\n    A\n    B\n  end', NESTED]) {
+    assert.ok(call(c, 'diagramCandidates', src).every((s) => !/~~~/.test(s)), src.split('\n')[0]);
+  }
+});

@@ -25,7 +25,38 @@ function diagramCandidates(src) {
   const nested = /^\s*direction\s+(?:LR|RL)\b/m.test(src);
   const column = (s) => s.replace(/^(\s*direction\s+)(?:LR|RL)\b/gm, "$1TB");
   const base = [src, tight(src, 160), tight(flip, 160), tight(flip, 120), tight(src, 110)];
-  return nested ? base.concat(tight(column(src), 160), tight(column(flip), 120), tight(column(src), 110)) : base;
+  const out = nested ? base.concat(tight(column(src), 160), tight(column(flip), 120), tight(column(src), 110)) : base;
+  const links = /^T[DB]$/.test(dir[2]) ? stackLinks(src) : "";
+  // Stacked: Mermaid lays unconnected nodes and sibling subgraphs side by side; invisible links put them in a column. Last,
+  // so a candidate that fits with more room as written still wins.
+  return links ? out.concat(tight(column(src) + links, 160), tight(column(src) + links, 120)) : out;
+}
+// Invisible links (`a ~~~ b` lines to append) for a top-level TB flowchart: consecutive nodes of a subgraph that is (or turns) TB
+// with no edge between them, and sibling subgraphs that hang off the same source node. "" when there is no such pair.
+function stackLinks(src) {
+  const edges = new Set(), seen = new Set(), subs = [], stack = [], parents = new Map();
+  for (const raw of src.split("\n")) {
+    const line = raw.trim(), sub = /^subgraph\s+([\w.-]+)/.exec(line);
+    if (sub) { const g = { id: sub[1], nodes: [] }; subs.push(g); stack.push(g); continue; }
+    if (line === "end") { stack.pop(); continue; }
+    if (!line || SKIP.test(line)) continue;
+    const first = new RegExp(`^${NODE}`).exec(line);
+    if (!first) continue;
+    let prev = first[1], rest = line.slice(first[0].length), m;
+    const add = (id) => { if (!seen.has(id)) { seen.add(id); if (stack.length) stack[stack.length - 1].nodes.push(id); } };
+    add(prev);
+    while ((m = new RegExp(`^${EDGE}${NODE}`).exec(rest))) {
+      edges.add(`${prev} ${m[4]}`); edges.add(`${m[4]} ${prev}`);
+      if (!stack.length) parents.set(prev, (parents.get(prev) || []).concat(m[4]));
+      add(m[4]); prev = m[4]; rest = rest.slice(m[0].length);
+    }
+  }
+  const chain = (ids, skipConnected) => ids.slice(1).map((id, i) => [ids[i], id])
+    .filter(([a, b]) => !(skipConnected && edges.has(`${a} ${b}`))).map(([a, b]) => `\n  ${a} ~~~ ${b}`);
+  const ids = new Set(subs.map((g) => g.id));
+  const lines = subs.flatMap((g) => chain(g.nodes, true));
+  for (const targets of parents.values()) lines.push(...chain(targets.filter((x) => ids.has(x)), false));
+  return lines.join("");
 }
 // measured: [{source, width}] in candidate order. The first that fits `avail`, else the narrowest; null when nothing was measured.
 function pickLayout(measured, avail) {
@@ -55,6 +86,7 @@ const needsOutline = (src, width, avail) => !isSequence(src) && /^\s*(?:flowchar
 const NODE = String.raw`([\w.-]+)(?:\s*(\[[^\]]*\]|\([^)]*\)|\{[^}]*\}))?`;
 const EDGE = String.raw`\s*(?:--\s*([^->=|][^>|]*?)\s*[-=]{2,}[>xo]?|-\.\s*([^.]+?)\s*\.->|[-=.]{2,}[>xo]?(?:\s*\|([^|]*)\|)?)\s*`;
 const clean = (s) => (s || "").replace(/^[[({/\\>]+|[\])}/\\]+$/g, "").replace(/<br\s*\/?>/gi, " ").replace(/^"|"$/g, "").trim();
+const SKIP = /^(?:flowchart|graph|direction|style|classDef|class|linkStyle|click|%%)\b/;
 function flowOutline(src) {
   const nodes = new Map(), groups = [], stack = [];
   const touch = (id, shape) => {
@@ -62,7 +94,6 @@ function flowOutline(src) {
     if (shape) nodes.get(id).label = clean(shape) || id;
     return nodes.get(id);
   };
-  const SKIP = /^(?:flowchart|graph|direction|style|classDef|class|linkStyle|click|%%)\b/;
   for (const raw of src.split("\n")) {
     const line = raw.trim();
     const sub = /^subgraph\s+(?:[\w.-]+\s*\[(.*)\]|(.+))$/.exec(line);
