@@ -271,7 +271,7 @@
  "Stop policy: one combined block, at most two per turn": "Política de Stop: un bloque combinado, como máximo dos por turno",
  "on Stop": "en Stop",
  "amauta kernel": "Núcleo de amauta",
- "Portal: reads memory.db only · {n} skills, {m} agents": "Portal: solo lee memory.db · skills: {n}, agentes: {m}",
+ "Portal: reads memory.db only · {n} skills and {m} agents installed by amauta": "Portal: solo lee memory.db · {n} skills y {m} agentes instalados por amauta",
  "1 hook of your own": "1 hook propio",
  "{n} hooks of your own": "{n} hooks propios",
  "{n} more nodes not shown": "Nodos sin mostrar: {n}",

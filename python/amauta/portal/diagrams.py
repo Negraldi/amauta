@@ -142,7 +142,8 @@ def workflow(hs: dict, state_dir) -> str | None:
     b.edge(runtime, mcp_group, "stdio")
     b.edge(hooks_group, kernel, "runs handlers")
     b.edge(mcp_group, kernel, "memory reads, writes")
-    portal = b.node(f"Portal: reads memory.db only · {int(hs.get('skills') or 0)} skills, {int(hs.get('agents') or 0)} agents", "group")
+    owned = f"{int(hs.get('skills') or 0)} skills and {int(hs.get('agents') or 0)} agents installed by amauta"  # its manifest
+    portal = b.node(f"Portal: reads memory.db only · {owned}", "group", limit=90)
     b.edge(kernel, portal, "read by")
     return b.render(_styles(b))
 

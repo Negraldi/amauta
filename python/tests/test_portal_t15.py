@@ -1,12 +1,15 @@
 """T15 W1: caps and counts. A list cut for length says how many there are and where the rest is; counts are real."""
+import json
 import os
 import time
+import unittest
 from unittest import mock
 
 from python.amauta.graph import query as graph_query
 
 from python.amauta.memory import store as mstore
-from python.amauta.portal import wikiproject, wikiusage
+from python.amauta.portal import diagrams, wikiproject, wikiusage
+from python.amauta.portal.server import STATIC
 from python.amauta.usage import ingest
 from python.tests import test_portal_projects as tp
 from python.tests import test_portal_wiki_tools as tt
@@ -113,3 +116,16 @@ class ToolPageCountsTest(tt.ToolsBase):
         daily = self.page("tool", "Glob")["usage"]["daily"]
         self.assertEqual(daily[-1], {"day": "2026-10-04", "value": 1})
         self.assertEqual(len(daily), 30)
+
+
+class HarnessDiagramCountTest(unittest.TestCase):
+    """C4/E4: the diagram counts the files amauta installed (its manifest), so it says so; the runtimes table and the Catalog count more."""
+
+    def test_the_portal_node_names_what_it_counts(self):
+        hs = {"installed": True, "version": "0.5.0", "skills": 32, "agents": 23, "hooks": [], "mcp_servers": []}
+        src = diagrams.workflow(hs, "/s")
+        self.assertIn("32 skills and 23 agents installed by amauta", src)
+
+    def test_the_label_is_translated_like_every_server_string(self):
+        catalog = json.loads((STATIC / "i18n" / "srv-es.json").read_text())
+        self.assertIn("Portal: reads memory.db only \u00b7 {n} skills and {m} agents installed by amauta", catalog)
