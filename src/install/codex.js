@@ -261,8 +261,8 @@ export async function installCodex(opts = {}) {
   const engine = manifest.impeccable?.engine.version;
   if (opts.dryRun) {
     const personal = await personalSkills(opts, t, managedNames, true);
-    const pending = personal.linked.length > 0 || personal.removed.length > 0;
-    const listed = [...files, ...personal.linked.map((n) => `skills/${n} (link)`)];
+    const pending = personal.linked.length + personal.copied.length + personal.removed.length > 0;
+    const listed = [...files, ...personal.linked.map((n) => `skills/${n} (link)`), ...personal.copied.map((n) => `skills/${n} (copy)`)];
     const dry = { dryRun: true, changed: touches || pending, files: listed, removed, skipped, legacy, backup: null, mirror, personal };
     if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === engine ? 'present' : 'would-install', version: engine };
     return dry;
@@ -277,7 +277,7 @@ export async function installCodex(opts = {}) {
   if (stateChanged) await writeFileAtomic(statePath, stateText);
   const recordText = toJson({ fingerprint: await sourceFingerprint(opts) }); // what the next SessionStart check compares with
   if (await needsWrite(syncRecordOf(t.stateDir), recordText)) await writeFileAtomic(syncRecordOf(t.stateDir), recordText);
-  const linkedAny = personal.linked.length > 0 || personal.removed.length > 0;
+  const linkedAny = personal.linked.length + personal.copied.length + personal.removed.length > 0;
   const result = { dryRun: false, changed: touches || stateChanged || !prev || linkedAny, files, removed, skipped, legacy, backup, mirror, personal };
   if (impeccable) {
     // The engine is one shared store: whichever runtime installs the module prepares it (after the state is written, so a failed run is retried).

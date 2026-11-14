@@ -13,7 +13,7 @@ import { linkType } from '../core/platform.js';
  * The amauta skill store: managed skills are rendered once into `<state dir>/skills/<name>`, and every runtime reaches
  * them through a symlink (`<claude home>/skills/<name>`, `<codex skills dir>/<name>`). Neither runtime owns the files.
  * Personal skills (real directories the user made in either runtime's skills dir) stay where they are and the other
- * runtime gets a symlink to them; nothing is ever copied or moved.
+ * runtime gets a symlink to them (a marked copy where links fail); nothing is ever moved.
  */
 export const storeDirOf = (stateDir) => path.join(stateDir, 'skills');
 /** Managed-file keys of skills look like `skills/<name>/<file>`; the store holds them at `<state dir>/<key>`. */
@@ -133,14 +133,21 @@ export async function planManagedLinks({ skillsDir, storeDir, names, prevLinks =
 /** Our link to `target`, or our marked copy of it. */
 export const isOurSkillDir = async (dest, target) => (await readlinkOrNull(dest)) === target || (await copyOrigin(dest)) === target;
 
-/** Link a skill directory; when the platform refuses (no junction on FAT, some network drives), copy it with a marker. */
+/** Replace `dest` with a copy of `target` carrying the marker. */
+async function copyWithMarker(target, dest) {
+  await rm(dest, { recursive: true, force: true });
+  await cp(target, dest, { recursive: true });
+  await writeFile(path.join(dest, COPY_MARKER), `${target}\n`);
+}
+
+/** Link a skill directory; when the platform refuses (no junction on FAT, some network drives), copy it with a marker. Returns 'link' or 'copy'. */
 async function linkOrCopy(target, dest, link) {
   try {
     await link(target, dest, linkType());
+    return 'link';
   } catch {
-    await rm(dest, { recursive: true, force: true });
-    await cp(target, dest, { recursive: true });
-    await writeFile(path.join(dest, COPY_MARKER), `${target}\n`);
+    await copyWithMarker(target, dest);
+    return 'copy';
   }
 }
 
@@ -173,13 +180,23 @@ export async function removeLinks(skillsDir, recorded = {}) {
 
 // ---- personal skills --------------------------------------------------------------------------------------------------
 const recordFile = (stateDir) => path.join(stateDir, 'personal-skills.json');
+const asMap = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
 
+/** `{links, copies}`, each {dest: target}; an old record has only `links`, so it still reads as links. */
 async function readRecord(stateDir) {
   try {
     const rec = JSON.parse(await readFile(recordFile(stateDir), 'utf8'));
-    return rec && typeof rec === 'object' && rec.links && typeof rec.links === 'object' ? rec.links : {};
+    return { links: asMap(rec?.links), copies: asMap(rec?.copies) };
   } catch {
-    return {};
+    return { links: {}, copies: {} };
+  }
+}
+
+async function writeRecord(stateDir, rec) {
+  if (Object.keys(rec.links).length === 0 && Object.keys(rec.copies).length === 0) await rm(recordFile(stateDir), { force: true });
+  else {
+    const out = Object.keys(rec.copies).length > 0 ? rec : { links: rec.links };
+    await writeFileAtomic(recordFile(stateDir), `${JSON.stringify(out, null, 2)}\n`);
   }
 }
 
@@ -193,30 +210,61 @@ async function personalIn(dir, managed) {
   const out = [];
   for (const e of entries) {
     if (!e.isDirectory() || e.name.startsWith('.') || e.name.startsWith('_') || managed.has(e.name)) continue; // real directories only
-    if ((await lstatOrNull(path.join(dir, e.name, 'SKILL.md'))) !== null) out.push(e.name);
+    const d = path.join(dir, e.name);
+    if ((await copyOrigin(d)) !== null) continue; // a copy we made, not a skill of the user's
+    if ((await lstatOrNull(path.join(d, 'SKILL.md'))) !== null) out.push(e.name);
   }
   return out.sort();
 }
 
-/**
- * Make personal skills visible in both runtimes: a real skill directory in one skills dir gets a symlink in the other.
- * `create: false` for a side means "do not create links there" (its runtime is absent). Records the links it made in
- * `<state dir>/personal-skills.json` and drops the ones whose real directory is gone. Returns { linked, removed, conflicts }.
- */
-export async function syncPersonalSkills({ stateDir, sides, managed = new Set(), dryRun = false }) {
-  const record = await readRecord(stateDir);
-  const linked = [];
-  const removed = [];
-  const conflicts = [];
-  const next = { ...record };
-  for (const [dest, target] of Object.entries(record)) {
-    if ((await readlinkOrNull(dest)) !== target) delete next[dest]; // gone or no longer ours
+/** True when `a` and `b` hold the same files with the same bytes (the copy marker aside). */
+async function sameTree(a, b) {
+  const list = async (d) => ((await filesUnder(d)) ?? []).map(posix).filter((f) => f !== COPY_MARKER).sort();
+  const [fa, fb] = [await list(a), await list(b)];
+  if (fa.length !== fb.length || fa.some((f, i) => f !== fb[i])) return false;
+  for (const f of fa) {
+    const [x, y] = await Promise.all([readFile(path.join(a, f)).catch(() => null), readFile(path.join(b, f)).catch(() => null)]);
+    if (x === null || y === null || !x.equals(y)) return false;
+  }
+  return true;
+}
+
+/** Drop recorded entries that are gone or no longer ours, remove those whose real directory is gone, refresh stale copies. */
+async function reconcileRecord(record, { dryRun, removed, copied }) {
+  const next = { links: { ...record.links }, copies: { ...record.copies } };
+  for (const [dest, target] of Object.entries(record.links)) {
+    if ((await readlinkOrNull(dest)) !== target) delete next.links[dest]; // gone or no longer ours
     else if ((await lstatOrNull(target)) === null) {
       removed.push(path.basename(dest));
       if (!dryRun) await rm(dest, { force: true });
-      delete next[dest];
+      delete next.links[dest];
     }
   }
+  for (const [dest, target] of Object.entries(record.copies)) {
+    if ((await copyOrigin(dest)) !== target) delete next.copies[dest]; // gone, or the marker is not ours any more
+    else if ((await lstatOrNull(target)) === null) {
+      removed.push(path.basename(dest));
+      if (!dryRun) await rm(dest, { recursive: true, force: true });
+      delete next.copies[dest];
+    } else if (!(await sameTree(target, dest))) {
+      copied.push(path.basename(dest));
+      if (!dryRun) await copyWithMarker(target, dest);
+    }
+  }
+  return next;
+}
+
+/**
+ * Make personal skills visible in both runtimes: a real skill directory in one skills dir gets a symlink in the other,
+ * or, when the platform refuses the link, a copy marked with `COPY_MARKER` that later syncs keep fresh.
+ * `create: false` for a side means "do not create links there" (its runtime is absent). Records what it made in
+ * `<state dir>/personal-skills.json` and drops what is gone. A dry run cannot know whether a link would be refused
+ * and reports new entries as `linked`. Returns { linked, copied, removed, conflicts }.
+ */
+export async function syncPersonalSkills({ stateDir, sides, managed = new Set(), dryRun = false, symlink: linkFn = symlink }) {
+  const record = await readRecord(stateDir);
+  const [linked, copied, removed, conflicts] = [[], [], [], []];
+  const next = await reconcileRecord(record, { dryRun, removed, copied });
   for (const from of sides) {
     for (const name of await personalIn(from.dir, managed)) {
       for (const to of sides) {
@@ -225,33 +273,40 @@ export async function syncPersonalSkills({ stateDir, sides, managed = new Set(),
         const target = path.join(from.dir, name);
         const st = await lstatOrNull(dest);
         if (st === null) {
-          linked.push(name);
+          let kind = 'link';
           if (!dryRun) {
             await mkdir(to.dir, { recursive: true });
-            await symlink(target, dest, linkType());
+            kind = await linkOrCopy(target, dest, linkFn);
           }
-          next[dest] = target;
-        } else if (!(st.isSymbolicLink() && (await readlinkOrNull(dest)) === target)) conflicts.push(name); // something else already lives there
+          if (kind === 'copy') {
+            copied.push(name);
+            next.copies[dest] = target;
+          } else {
+            linked.push(name);
+            next.links[dest] = target;
+          }
+        } else if (st.isSymbolicLink() ? (await readlinkOrNull(dest)) !== target : next.copies[dest] !== target || (await copyOrigin(dest)) !== target) {
+          conflicts.push(name); // something else already lives there
+        }
       }
     }
   }
-  if (!dryRun && JSON.stringify(next) !== JSON.stringify(record)) await writeFileAtomic(recordFile(stateDir), `${JSON.stringify({ links: next }, null, 2)}\n`);
-  return { linked, removed, conflicts: [...new Set(conflicts)].sort() };
+  if (!dryRun && JSON.stringify(next) !== JSON.stringify(record)) await writeRecord(stateDir, next);
+  return { linked, copied: [...new Set(copied)], removed, conflicts: [...new Set(conflicts)].sort() };
 }
 
-/** Remove the personal links this tool made inside `skillsDir`. */
+/** Remove the personal links and copies this tool made inside `skillsDir` (a copy only while its marker still names the target). */
 export async function removePersonalLinks({ stateDir, skillsDir }) {
   const record = await readRecord(stateDir);
-  const next = {};
-  for (const [dest, target] of Object.entries(record)) {
-    if (path.dirname(dest) === skillsDir) {
-      if ((await readlinkOrNull(dest)) === target) await rm(dest, { force: true });
-    } else next[dest] = target;
+  const next = { links: {}, copies: {} };
+  const ours = { links: async (d, t) => (await readlinkOrNull(d)) === t, copies: async (d, t) => (await copyOrigin(d)) === t };
+  for (const kind of ['links', 'copies']) {
+    for (const [dest, target] of Object.entries(record[kind])) {
+      if (path.dirname(dest) !== skillsDir) next[kind][dest] = target;
+      else if (await ours[kind](dest, target)) await rm(dest, { recursive: true, force: true });
+    }
   }
-  if (JSON.stringify(next) !== JSON.stringify(record)) {
-    if (Object.keys(next).length === 0) await rm(recordFile(stateDir), { force: true });
-    else await writeFileAtomic(recordFile(stateDir), `${JSON.stringify({ links: next }, null, 2)}\n`);
-  }
+  if (JSON.stringify(next) !== JSON.stringify(record)) await writeRecord(stateDir, next);
 }
 
 export async function readJsonFile(file) {

@@ -348,7 +348,7 @@ export async function install(opts = {}) {
   if ((await statOrNull(path.join(t.stateDir, 'codex-state.json'))) !== null) {
     const sides = [{ dir: abs(t.claudeHome, 'skills') }, { dir: resolveCodexTargets(opts).codexSkillsDir }];
     const personal = await syncPersonalSkills({ stateDir: t.stateDir, managed: managedNames, sides });
-    if (personal.linked.length > 0 || personal.removed.length > 0) result.changed = true;
+    if (personal.linked.length + personal.copied.length + personal.removed.length > 0) result.changed = true;
     result.personal = personal;
   }
   if (p.impeccableWas && !impeccable) await removeEngine(t.stateDir);
