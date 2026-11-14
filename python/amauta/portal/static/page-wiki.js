@@ -289,11 +289,12 @@ function catalogGroup(g, capped) {
 }
 // The kind links: All plus one per kind present, each with its count; the current one is marked, the choice lives in ?kind=.
 // Up to a dozen kinds: the group wraps onto rows (segmented-wrap) instead of hiding kinds behind a sideways scroll.
-function kindLinks(groups, current) {
-  const total = groups.reduce((n, g) => n + g.items.length, 0);
+function kindLinks(groups, current, counts) {
+  const count = (g) => (counts ? counts.get(g.kind) || 0 : g.items.length); // the counts follow the text filter
+  const total = groups.reduce((n, g) => n + count(g), 0);
   const one = (kind, label, n) => h("a", { href: catalogHash(kind), "aria-current": kind === current ? "true" : false }, `${label} (${fmt(n)})`);
   return h("nav", { class: "segmented segmented-wrap", "aria-label": t("catalog.kinds") }, one("", t("catalog.all"), total),
-    ...groups.map((g) => one(g.kind, ts(g.label), g.items.length)));
+    ...groups.map((g) => one(g.kind, ts(g.label), count(g))));
 }
 // Catalog (#/component): every harness component and skill, grouped by kind; ?kind= keeps one kind, the box filters what is loaded.
 // When only one of the two lists loads, the page shows it with the error panel for the other.
@@ -305,20 +306,23 @@ async function viewCatalog(route) {
   const asked = route.query && route.query.kind;
   const kind = asked && groups.some((g) => g.kind === asked) ? asked : "";
   const total = groups.reduce((n, g) => n + g.items.length, 0);
-  const list = h("div", null);
+  const list = h("div", { "aria-live": "polite" }); // an empty result is announced
+  const kinds = kindLinks(groups, kind);
   const box = h("input", { type: "search", placeholder: t("components.filter"), "aria-label": t("components.filter"), value: state.componentQuery || "" });
   const paint = () => {
     state.componentQuery = box.value;
     const found = R.filterComponents(kind ? groups.filter((g) => g.kind === kind) : groups, box.value);
     const none = empty(total ? t("components.noMatch") : t("components.none"));
     list.replaceChildren(...(found.length ? found.map((g) => catalogGroup(g, !kind && !box.value.trim())) : [none]));
+    const counts = new Map(R.filterComponents(groups, box.value).map((g) => [g.kind, g.items.length]));
+    kinds.replaceChildren(...kindLinks(groups, kind, counts).children);
   };
   box.addEventListener("input", paint);
   paint();
   const teachWhere = total ? null : h("div", { class: "teach" }, h("p", null, t("components.where")), h("p", null, t("skills.where")));
   const refresh = cat.refresh && cat.refresh.servers ? refreshControl(null) : null;
   return [pageHead(t("nav.catalog"), tn("catalog.intro", total, { n: fmt(total) })), res.err ? errorPanel(route, res.err) : null,
-    noCodexNote(cat.runtimes), kindLinks(groups, kind), h("div", { class: "controls" }, box), refresh, list, teachWhere];
+    noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box), refresh, list, teachWhere];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.

@@ -365,7 +365,7 @@ const STATIC_TEXT = [["skip", "chrome.skip"], ["view-loading", "chrome.loading"]
   ["range-label", "filters.range"], ["opt-7", "filters.d7"], ["opt-30", "filters.d30"], ["opt-90", "filters.d90"], ["opt-365", "filters.d365"], ["opt-3650", "filters.d3650"], ["opt-all-projects", "filters.allProjects"], ["project-label", "filters.project"],
   ["runtime-label", "filters.runtime"], ["opt-all-runtimes", "filters.allRuntimes"], ["opt-claude", "filters.claude"], ["opt-codex", "filters.codex"],
   ["refresh", "chrome.refresh"], ["theme-label", "chrome.theme"], ["theme-edit", "chrome.editThemes"], ["lang-label", "chrome.language"], ["palette-hint", "palette.hint"]];
-const STATIC_ATTR = [["sidebar", "aria-label", "chrome.wiki"], ["filters", "aria-label", "chrome.filters"], ["prefs", "aria-label", "chrome.appearance"], ["palette", "aria-label", "chrome.search"],
+const STATIC_ATTR = [["search-open", "aria-label", "chrome.search"], ["sidebar", "aria-label", "chrome.wiki"], ["filters", "aria-label", "chrome.filters"], ["prefs", "aria-label", "chrome.appearance"], ["palette", "aria-label", "chrome.search"],
   ["palette-input", "placeholder", "palette.placeholder"], ["palette-input", "aria-label", "palette.label"], ["palette-results", "aria-label", "palette.results"]];
 function applyStatic() {
   for (const [id, key] of STATIC_TEXT) { const el = $(id); if (el) el.textContent = t(key); }

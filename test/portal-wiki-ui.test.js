@@ -478,7 +478,7 @@ test('home teaches when there is no activity, no usage data and no install', asy
   const { env } = await boot('#/home', { '/api/wiki/home': empty });
   const t = view(env).textContent;
   assert.match(t, /appear here/);
-  assert.match(t, /Refresh usage/);
+  assert.match(t, /press Refresh|choose Refresh/);
   assert.match(t, /not installed/);
 });
 

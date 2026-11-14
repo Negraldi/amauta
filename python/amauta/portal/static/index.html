@@ -22,11 +22,11 @@
   <div class="main-col">
     <header class="topbar">
       <button id="nav-toggle" class="nav-toggle" type="button" aria-controls="sidebar" aria-expanded="false">Menu</button>
-      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /"><span id="search-text">Search the wiki</span> <kbd>Ctrl K</kbd></button>
+      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /"><svg class="search-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span id="search-text">Search the wiki</span> <kbd>Ctrl K</kbd></button>
       <div class="topbar-end" id="topbar-end">
         <span id="status" role="status"></span>
         <button id="refresh" type="button">Refresh</button>
-        <button id="display-open" type="button" popovertarget="prefs">Display</button>
+        <button id="display-open" type="button" popovertarget="prefs" aria-expanded="false">Display</button>
       </div>
       <div class="prefs" id="prefs" popover role="group" aria-label="Appearance">
         <label><span id="theme-label">Theme</span> <select id="theme-picker"></select></label>

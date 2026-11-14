@@ -91,6 +91,7 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--line); border-radius: 4
 .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s2) var(--s5);
   border-bottom: 1px solid var(--line);
   background: var(--bg); position: sticky; top: 0; z-index: var(--z-sticky); }
+.search-trigger .search-icon { display: none; } /* narrow screens swap the words for it (see the collapse rules) */
 .search-trigger { display: inline-flex; align-items: center; gap: var(--s3); min-width: 16rem; justify-content: space-between;
   color: var(--ink-muted); }
 .topbar-end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-left: auto; }
@@ -154,7 +155,7 @@ input[type="search"] { min-width: 14rem; }
   cursor: pointer; color: var(--accent); background: none; border: 0; padding: 0; text-align: left; }
 .row-link:hover { text-decoration: underline; border: 0; }
 /* Inline links in tables and lists grow their box with block padding (no line shift), so each row link is >= 24px high. */
-td a, .refs a, .items a { padding-block: 0.25rem; }
+td a, .refs a, .items a { padding-block: 0.25rem; display: inline-block; min-inline-size: 1.5rem; } /* and >= 24px wide, even for "rea" */
 /* A page that failed to load: a bordered panel, a warning triangle with the text (never color alone). */
 .error-panel { border: 1px solid var(--line); border-radius: 6px; padding: var(--s3) var(--s4); background: var(--surface);
   max-width: 52rem; }
@@ -323,8 +324,10 @@ details > summary { cursor: pointer; margin: var(--s2) 0; }
 }
 @media (max-width: 560px) {
   .topbar { flex-wrap: nowrap; gap: var(--s2); } .topbar-end { flex-wrap: nowrap; } /* one row on a phone */
-  .search-trigger { min-width: 0; flex: 1 1 3rem; overflow: hidden; }
-  .search-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search-trigger { min-width: 0; flex: 0 0 auto; justify-content: center; min-inline-size: var(--hit); }
+  /* the name stays (aria-label too); no clipped text */
+  .search-trigger #search-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .search-trigger .search-icon { display: block; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* still announced, not shown */
   .search-trigger kbd { display: none; } /* no keyboard shortcut to show on a phone */
   .tabs a { white-space: nowrap; } /* tabs wrap onto a second row (T14 l): a sideways scroll hid the last ones */

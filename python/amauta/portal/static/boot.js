@@ -195,6 +195,9 @@ function readRoute() {
   if (fix && globalThis.history && history.replaceState) history.replaceState(null, "", want);
   state.route = route;
 }
+// The Display button says whether its popover is open (the popover attribute alone does not set aria-expanded everywhere).
+$("display-open").setAttribute("aria-expanded", "false");
+$("prefs").addEventListener("toggle", (e) => $("display-open").setAttribute("aria-expanded", String(e.newState === "open")));
 // A route change closes the search palette and the Display popover (its Edit themes link navigates).
 function closeDisplay() { const p = $("prefs"); if (typeof p.hidePopover === "function" && p.matches(":popover-open")) p.hidePopover(); }
 window.addEventListener("hashchange", () => { closePalette(); closeDisplay(); readRoute(); render(); });
