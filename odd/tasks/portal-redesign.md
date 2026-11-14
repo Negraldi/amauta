@@ -404,10 +404,16 @@ Target after redesign: >= 32/40, no P1.
 
 ## Next step
 
-T17 done and verified. Push and PR are the owner's decision. Open:
+T16, T17 and T18 done and verified. Push and PR are the owner's decision. Open (kept together by the owner's decision, 2026-11-14):
 - T16d leftovers (P3, not fixed): part-level errors have no retry; error-page titles and breadcrumbs are less precise; `#/` loads in two request waves; 18 px checkboxes at 375 px (labels are the larger target); the network message still carries the browser's own reason in brackets. Not seen: palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages.
 - Phone flowcharts still scroll sideways (11 on 10 guide pages); two diagrams scroll at 1024 px.
-- Adaptive layout covers the guide only; other diagram callers keep fit-to-width.
+- The harness architecture diagram scrolls at every width (1342 px wide); BT and RL flowcharts are not flipped.
+- Fixed in T16d but covered by tests only, not seen in the browser: busy state on a same-route reload, palette search
+  failure, history mark border in the dark theme, sparkline text at 375 px.
+- Codex tool calls (T16e) not seen in the portal: the owner's usage database gains them after the next backfill
+  (`python3 -P -m amauta.usage backfill --runtime codex` forces it); check a Codex session page and Tools under the
+  Codex filter afterwards.
+- Catalog: runtime filter and instruction blocks.
 - Restart the amauta memory MCP server so mem_save refuses unspaced bodies.
 - T10 leftovers: personal-skill links have no copy fallback where symlinks fail; nothing was run on a real Windows
   machine.
