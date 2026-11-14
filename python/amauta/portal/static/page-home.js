@@ -8,7 +8,7 @@ function localDays(days) {
   return [...by.entries()].filter(([day]) => day !== "-").sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([day, items]) => ({ day, items: items.sort((a, b) => (String(a.ts) < String(b.ts) ? 1 : -1)) }));
 }
 // The feed shows the HOME_DAYS most recent days; Show more adds as many again (client side, the server sends them all).
-const HOME_DAYS = 5;
+const HOME_DAYS = 5, DAY_ROWS = 20; // a day opens on DAY_ROWS rows, then "Showing 20 of 31" and Show more
 // "12 messages, 21:10", or only the time when the title already says the rest (the server leaves `what` empty then). The
 // day heading carries the date. A session's time is its last message, so it says so; one that began on an earlier day also
 // gives its full start ("started 2026-11-09 06:26, last active 15:40"), never the start date next to the end time.
@@ -22,7 +22,7 @@ const feedTime = (i) => {
 };
 const feedTail = (i, day) => [i.what ? groupDigits(ts(i.what)) : "", startedBefore(i, day), feedTime(i)].filter(Boolean).join(", ");
 const dayBlock = (d) => h("section", { class: "page-section day" }, h("h3", null, d.day),
-  h("ul", { class: "items" }, d.items.map((i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${feedTail(i, d.day)}`)))));
+  pagedList(d.items, DAY_ROWS, (i) => h("li", null, h("span", { class: "muted" }, `${kindLabel(i.kind)} `), link(i.kind, i.id, i.title), h("span", { class: "muted" }, ` ${feedTail(i, d.day)}`))));
 function activityBlock(days) {
   if (!days.length) return h("p", { class: "muted" }, t("home.empty"));
   const all = localDays(days), box = h("div", null, all.slice(0, HOME_DAYS).map(dayBlock));

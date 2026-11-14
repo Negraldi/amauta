@@ -49,14 +49,14 @@ class HomeTest(WikiBase):
             for n in set(__import__("re").findall(r"\d+ messages?", line)):
                 self.assertEqual(line.count(n), 1, line)
 
-    def test_activity_is_capped_per_day_and_in_days(self):
+    def test_activity_keeps_every_item_of_a_day_and_caps_the_days(self):
         st = mstore.Store(self.f["state"] / "memory.db")
         for n in range(40):
             st.save(f"note {n}", "x", type="note", project="alpha")
         st.close()
         days = self.home()["activity"]
-        self.assertTrue(all(len(d["items"]) <= wikihome.PER_DAY for d in days))
         self.assertLessEqual(len(days), wikihome.DAYS_SHOWN)
+        self.assertGreater(max(len(d["items"]) for d in days), 20)  # a busy day is sent whole: the page shows N of M and the rest
 
     def test_spending_windows_cache_ratio_and_top_models(self):
         self.add_old_session()

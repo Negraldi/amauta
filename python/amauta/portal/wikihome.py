@@ -4,7 +4,6 @@ from __future__ import annotations
 from .. import extensions
 from . import wiki
 
-PER_DAY = 20
 DAYS_SHOWN = 14
 FETCH = 100
 WINDOWS = (7, 30)
@@ -18,7 +17,7 @@ def activity(portal):
         day = item["ts"][:10]
         if day:
             days.setdefault(day, []).append(item)
-    return [{"day": d, "items": days[d][:PER_DAY]} for d in sorted(days, reverse=True)[:DAYS_SHOWN]]
+    return [{"day": d, "items": days[d]} for d in sorted(days, reverse=True)[:DAYS_SHOWN]]
 
 
 def _window(portal, days):
