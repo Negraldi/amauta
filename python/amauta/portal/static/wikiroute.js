@@ -43,7 +43,7 @@
     return NAV_ITEMS.find((i) => i.kind === list || (i.tabs || []).some((t) => t.kind === list)) || null;
   };
   const kindOf = (r) => (typeof r === "string" ? r : (r && r.kind) || "");
-  // A route object for an item that belongs to one project (a feature, a graph node) lights the Projects hub.
+  // A route object for an item that belongs to one project (a feature) lights the Projects hub.
   function hubOf(route) {
     if (route && typeof route === "object" && ownerOf(route)) return "project";
     if (catalogItem(route)) return "component";
@@ -63,12 +63,11 @@
     pipelines: "project.tab.pipelines", sessions: "project.tab.sessions", memories: "project.tab.memories" };
   function projectTab(route) { const v = route && route.query && route.query.tab; return PROJECT_TABS.includes(v) ? v : "overview"; }
   const projectHash = (name, tab) => routeHash({ kind: "project", id: name, query: tab && tab !== "overview" ? { tab } : {} });
-  // Items that live in one project: an ODD feature ("<project>/<name>") and a graph node ("<repo>::<id>").
+  // An item that lives in one project: an ODD feature ("<project>/<name>"). A graph node ("<repo>::<id>") stays under Knowledge / Graph
+  // like the #/node explorer it is opened from (D13).
   function ownerOf(r) {
-    const id = String(r.id || ""), cut = r.kind === "feature" ? id.lastIndexOf("/") : r.kind === "node" ? id.indexOf("::") : -1;
-    if (cut <= 0) return null;
-    const feature = r.kind === "feature";
-    return { project: id.slice(0, cut), rest: id.slice(cut + (feature ? 1 : 2)), tab: feature ? "features" : "graph" };
+    const id = String(r.id || ""), cut = r.kind === "feature" ? id.lastIndexOf("/") : -1;
+    return cut > 0 ? { project: id.slice(0, cut), rest: id.slice(cut + 1), tab: "features" } : null;
   }
   // Settings: preferences (default, never written), projects and siblings, appearance; carried as ?tab= like the project hub.
   const SETTINGS_TABS = ["preferences", "projects", "appearance"];
@@ -82,7 +81,7 @@
 
   // The trail from the group to the page: [{key | text, hash?}]. List pages stop at their hub, never naming the open tab
   // (the tab bar does); item pages go through the list that shows them (a tab), then the item. Project pages and items
-  // of a project go through the project hub (Work / Projects / <project> / <item>).
+  // of a project (features) go through the project hub (Work / Projects / <project> / <item>).
   function crumbs(route) {
     const r = route || {}, item = itemOf(r.kind);
     if (!item || r.kind === "unknown") return [];

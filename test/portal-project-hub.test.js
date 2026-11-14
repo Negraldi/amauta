@@ -33,13 +33,13 @@ test('?tab= is a validated query param of the project hub; overview is the defau
   assert.equal(R.projectTab({ kind: 'project', id: 'x', query: { tab: 'nope' } }), 'overview');
 });
 
-test('crumbs: the hub ends at the project, whatever its tab; features and graph nodes pass through their project', () => {
+test('crumbs: the hub ends at the project, whatever its tab; features pass through their project, graph nodes through Knowledge / Graph (D13)', () => {
   const base = [{ key: 'nav.group.work' }, { key: 'nav.project', hash: '#/project' }];
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/project/amauta'))), [...base, { text: 'amauta' }]);
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/project/amauta?tab=sessions'))), [...base, { text: 'amauta' }], 'the tab bar names the tab');
   assert.deepEqual(plain(R.crumbs(R.parseHash('#/feature/proj/name'))), [...base, { text: 'proj', hash: '#/project/proj?tab=features' }, { text: 'name' }]);
-  assert.deepEqual(plain(R.crumbs(R.parseHash('#/node/repo%3A%3Asrc%2Fa.js'))), [...base, { text: 'repo', hash: '#/project/repo?tab=graph' }, { text: 'src/a.js' }]);
-  assert.equal(R.hubOf(R.parseHash('#/node/repo::x')), 'project', 'a node page lights Projects in the sidebar');
+  assert.deepEqual(plain(R.crumbs(R.parseHash('#/node/repo%3A%3Asrc%2Fa.js'))), [{ key: 'nav.group.knowledge' }, { key: 'nav.node', hash: '#/node' }, { text: 'repo::src/a.js' }]);
+  assert.equal(R.hubOf(R.parseHash('#/node/repo::x')), 'graph', 'a node page lights Graph in the sidebar, like #/node');
   assert.equal(R.hubOf('node'), 'graph', 'the cross-repo explorer stays under Knowledge');
 });
 
@@ -210,11 +210,11 @@ test('an unknown project teaches instead of failing', async () => {
   assert.match(view(env).textContent, /Project not found/);
 });
 
-test('a graph node page breadcrumb passes through its project hub', async () => {
+test('a graph node page breadcrumb and sidebar say Knowledge / Graph, like #/node (D13)', async () => {
   const env = await boot('#/node/repo%3A%3An1', { '/api/wiki/page': { kind: 'node', id: 'repo::n1', title: 'main()', meta: [], links: [], backlinks: [], missing: [], sections: [] } });
-  assert.deepEqual(hrefs(crumbNav(env)), ['#/project', '#/project/repo?tab=graph']);
+  assert.deepEqual(hrefs(crumbNav(env)), ['#/node']);
   const nav = env.document.getElementById('nav');
-  assert.deepEqual(tree(nav).filter((e) => e.getAttribute && e.getAttribute('aria-current') === 'page').map((e) => e.getAttribute('href')), ['#/project']);
+  assert.deepEqual(tree(nav).filter((e) => e.getAttribute && e.getAttribute('aria-current') === 'page').map((e) => e.getAttribute('href')), ['#/node']);
 });
 
 // ---- the list -------------------------------------------------------------------------------------------------------
