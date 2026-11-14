@@ -401,3 +401,30 @@ class FeatureBodyTasksTest(unittest.TestCase):
         res = unittest.TestResult()
         Case().run(res)
         self.assertEqual((res.errors, res.failures), ([], []), res.errors + res.failures)
+
+
+class SessionPageRepeatsTest(unittest.TestCase):
+    """W3b A4, A8: the session page's Links are not a second copy of its Skills, MCP servers and saved-memory lists; its project links."""
+
+    def page(self, sid="s1"):
+        from python.tests.test_portal_wiki_sessions import SessionBase
+
+        class Case(SessionBase):
+            def runTest(self):
+                if sid == "s60":
+                    self.add_session("s60", str(self.f["repo"]), prompts=["hello"])
+                self.pg = self.page("session", sid)
+        case = Case()
+        res = unittest.TestResult()
+        case.run(res)
+        self.assertEqual((res.errors, res.failures), ([], []))
+        return case.pg
+
+    def test_links_do_not_repeat_the_sections(self):
+        pg = self.page()
+        self.assertTrue([s for s in pg["sections"] if s["heading"] in ("Skills", "MCP servers")])
+        self.assertEqual(pg["links"], [])
+
+    def test_the_project_detail_says_which_page_it_opens(self):
+        project = next(m for m in self.page("s60")["meta"] if m["label"] == "Project")
+        self.assertEqual(project.get("kind"), "project")

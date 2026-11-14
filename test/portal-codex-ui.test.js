@@ -50,10 +50,12 @@ test('the overview shows the install state of both runtimes, or says that no Cod
   assert.match(view(await boot('#/harness', { '/api/harness/components': NO_CODEX })).textContent, /No Codex home was found, so only Claude Code is listed\./);
 });
 
-test('Security lists the Codex switches and what differs there, or says the page covers Claude Code only', async () => {
+test('Security is one table of protections by runtime: Claude Code and Codex side by side, or says the page covers Claude Code only', async () => {
   const text = view(await boot('#/security')).textContent;
-  assert.match(text, /Codex: privacy hook on, checks off\./);
-  assert.match(text, /prompts only/);
+  assert.match(text, /Protections by runtime/);
+  assert.match(text, /Privacy hook[^]*Checks prompts and asks before a data file is read[^]*Checks prompts only/);
+  assert.match(text, /Run when Codex stops/);
+  assert.ok((text.match(/Codex/g) || []).length <= 4, 'Codex is named where it differs, not three times in a row');
   const none = view(await boot('#/security', { '/api/security': { ...SEC, codex: { found: false } } })).textContent;
   assert.match(none, /No Codex home was found, so these protections cover Claude Code only\./);
 });

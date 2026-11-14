@@ -20,15 +20,23 @@ function securitySummary(r) {
   const found = r.checkers.filter((c) => c.installed).length;
   return t("sec.summary", { on: fmt(on), total: fmt(PROTECTIONS.length), found: fmt(found), checkers: fmt(r.checkers.length) });
 }
-const protectionChip = (p) => ([k, key]) => stateChip(p[k] === "on", t(p[k] === "on" ? "sec.chipOn" : "sec.chipOff", { name: t(key) }));
-const protectionChips = (p) => h("p", { class: "chips" }, PROTECTIONS.map(protectionChip(p)));
-
-// The Codex side (T10): the same two switches from its own install, and what they do differently there.
-function codexPanel(c) {
-  if (!c || !c.found) return h("p", { class: "muted" }, t("sec.noCodex"));
-  const word = (v) => t(v === "on" ? "common.on" : "common.off");
-  return panel(t("sec.codex"), c.installed ? h("p", null, t("sec.codexLine", { privacy: word(c.privacy), checks: word(c.checks) }))
-    : h("p", null, t("sec.codexNotInstalled")), h("p", { class: "muted" }, t("sec.codexNote")));
+// The three protections side by side for the two runtimes (T15 E12): the state of each, and where Codex does less and why.
+const RUNTIME_ROWS = [["memory_guard", "sec.memoryGuard", "sec.note.memory", "sec.note.memory"],
+  ["privacy", "sec.privacy", "sec.note.privacy.claude", "sec.note.privacy.codex"],
+  ["checks", "sec.checks", "sec.note.checks.claude", "sec.note.checks.codex"]];
+function runtimeCell(on, note) {
+  return h("td", null, stateChip(on, t(on ? "common.on" : "common.off")), h("div", { class: "muted" }, t(note)));
+}
+function runtimesPanel(r) {
+  const p = r.protections, c = r.codex && r.codex.found && r.codex.installed ? r.codex : null;
+  const codexCell = (key, note) => (c ? runtimeCell((key === "memory_guard" ? "on" : c[key]) === "on", note)
+    : h("td", { class: "muted" }, t("sec.notThere")));
+  const rows = RUNTIME_ROWS.map(([key, label, claudeNote, codexNote]) => h("tr", null, h("th", { scope: "row" }, t(label)),
+    runtimeCell(p[key] === "on", claudeNote), codexCell(key, codexNote)));
+  const head = h("tr", null, [t("sec.protection"), t("runtime.claude"), t("runtime.codex")].map((x) => h("th", null, x)));
+  const why = !r.codex || !r.codex.found ? t("sec.noCodex") : !r.codex.installed ? t("sec.codexNotInstalled") : t("sec.why");
+  const grid = scrollBox(h("table", null, h("thead", null, head), h("tbody", null, rows)));
+  return panel(t("sec.byRuntime"), grid, h("p", { class: "muted" }, why));
 }
 
 async function viewSecurity() {
@@ -40,9 +48,9 @@ async function viewSecurity() {
   for (const [id, key] of [["sec-checkers", "name"], ["sec-trusted", "name"], ["sec-profiles", "project"]]) sortOnce(id, key, 1); // A to Z
   const trusted = r.trusted.length ? table("sec-trusted", SEC_COLUMNS.trusted(), r.trusted) : empty(codeSpans(t("sec.noTrusted")));
   return [
-    pageHead(t("nav.security"), securitySummary(r)), protectionChips(p), h("p", { class: "muted" }, t("sec.lead")),
+    pageHead(t("nav.security"), securitySummary(r)), h("p", { class: "muted" }, t("sec.lead")),
     p.installed ? null : h("p", { class: "notice" }, t("set.notInstalled")),
-    codexPanel(r.codex),
+    runtimesPanel(r),
     panel(t("sec.checkers"), h("p", { class: "muted" }, t("sec.checkersHelp")), table("sec-checkers", SEC_COLUMNS.checkers(), r.checkers)),
     panel(t("sec.trusted"), trusted),
     panel(t("sec.profiles"), h("p", null, `${pr.names.join(", ")}.`, drafts),

@@ -234,15 +234,14 @@ def session_page(portal, ident, q):
         pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", sessname.project_of(portal, cwd, t["project"])), ("Repository", getattr(sessname.repo_root(portal, cwd), "name", None)), ("Working directory", cwd),
                            ("Started", t["first_ts"]), ("Last activity", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
                            ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
-        sections, links = wikisesstools.tool_sections(conn, ident)
-        pg["sections"] += sections
-        pg["links"] += links
+        known = {r.name for r in portal.repos()}  # the project value opens its page only when the portal has that project
+        pg["meta"] = [{**m, "kind": "project"} if m["label"] == "Project" and m["value"] in known else m for m in pg["meta"]]
+        pg["sections"] += wikisesstools.tool_sections(conn, ident)[0]  # the lists are the page's own sections: no second "Links" copy
         if runtime == "codex" and not any(s["heading"] == "Tools" for s in pg["sections"]):
             pg["sections"].append({"heading": "Tool calls", "items": [_item(CODEX_NOTE)]})
         saved = session_memories(portal, ident)
         if saved:
             pg["sections"].append({"heading": "Memories saved in this session", "items": [_item(r["title"], None, "memory", r["id"]) for r in saved]})
-            pg["links"] += saved
         return pg
     finally:
         conn.close()

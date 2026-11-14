@@ -17,11 +17,11 @@ test('Security name columns open A to Z', async () => {
   env.location.hash = '#/security';
   await runPortal(env, { DOMParser: class {}, queueMicrotask });
   await tick();
-  const tables = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'tbody');
+  const tables = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'tbody').slice(1); // the first table is protections by runtime
   const firstCells = (tb) => tb.children.map((tr) => tr.children[0].textContent);
   assert.deepEqual(firstCells(tables[0]), ['eslint', 'ruff', 'tsc']);
   assert.deepEqual(firstCells(tables[1]), ['alpha', 'zeta']);
   assert.deepEqual(firstCells(tables[2]), ['api', 'web']);
-  const sorted = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'th' && e.getAttribute('aria-sort') !== 'none');
+  const sorted = tree(env.document.getElementById('view')).filter((e) => e.tagName === 'th' && e.getAttribute('aria-sort') && e.getAttribute('aria-sort') !== 'none');
   assert.ok(sorted.length >= 3 && sorted.every((th) => th.getAttribute('aria-sort') === 'ascending'));
 });

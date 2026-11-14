@@ -592,7 +592,7 @@ test('the Security page shows protections, checkers, trusted projects, profiles 
   const { env } = await boot('#/security', { '/api/security': report });
   const text = view(env).textContent;
   assert.match(text, /Security/);
-  assert.match(text, /○ Privacy hook: off/); // T6: the protection chips (shape plus words) replace the lead sentence
+  assert.match(text, /Privacy hook[^]*○ off/); // the protections table: shape plus words
   for (const needle of ['tsc', 'gitleaks', '/work/app', 'acme', 'National ID (cédula)']) // T8: redaction kinds have labels
     assert.ok(text.includes(needle), needle);
   assert.match(text, /1 draft/);

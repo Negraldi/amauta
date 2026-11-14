@@ -211,7 +211,7 @@ const SEC = { protections: { memory_guard: 'on', privacy: 'on', checks: 'off', i
   checkers: [{ name: 'node', installed: true, needs_trust: false }, { name: 'tsc', installed: false, needs_trust: true }],
   trusted: [], profiles: { names: ['default'], drafts: 0, selected: [] }, redacted: {} };
 
-test('Security opens with one summary sentence and protection chips, then the tables use the same chip vocabulary', async () => {
+test('Security opens with one summary sentence and chips in the protections table, then the tables use the same chip vocabulary', async () => {
   const env = await boot('#/security', { '/api/security': SEC });
   const v = view(env);
   const lead = tree(v).find((e) => e.tagName === 'p' && cls(e) === 'lead');
@@ -219,7 +219,7 @@ test('Security opens with one summary sentence and protection chips, then the ta
   const all = tree(v);
   assert.ok(all.indexOf(lead) < all.findIndex((e) => e.tagName === 'table'), 'the sentence comes before the tables');
   const chips = all.filter((e) => /\bchip\b/.test(cls(e))).map((e) => e.textContent);
-  for (const c of ['● Memory guard: on', '● Privacy hook: on', '○ Checks: off', '● yes', '○ no']) assert.ok(chips.includes(c), `${c} in ${chips}`);
+  for (const c of ['● on', '○ off', '● yes', '○ no']) assert.ok(chips.includes(c), `${c} in ${chips}`);
 });
 
 test('the browser tab title follows the page heading on every hub', async () => {
