@@ -33,7 +33,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T16b Today feed never shows a partial oldest day without saying so (01599ec; server flag activity_cut, client note)
   - [x] T16c Settings > Appearance has a theme picker (same themes as the Display popover) (3e0cc00)
   - [ ] T16d Review of the cells T15 left out: dark theme at 1024 and 375 px, loading and server-error states; fix findings
-  - [ ] T16e Codex tool calls recorded: BLOCKED, needs a Codex rollout sample the owner provides (reading the real `~/.codex` was denied on 2026-11-14)
+  - [x] T16e Codex tool calls recorded (03dfb0e): Codex rollouts feed `tool_calls` (name only; `namespace.name`, MCP as `mcp__server__tool`); old rollouts rescan once; portal copy now says none were found only when true
 - [x] T17 Guide layout and adaptive diagrams (user, 2026-11-14: the contents column splits the screen; diagrams should fit different widths; user chose the page selector above the article over a sidebar index; TDD on; route: one delegated sonnet writer from a browser-verified prototype):
   - [x] T17a Guide: page selector above the article plus previous/next links; the contents column is gone (f14249e)
   - [x] T17b Diagrams pick a layout for the width they get (direction, wrapped labels, spacing); a sequence that cannot fit a phone is shown as numbered steps (7f59991)
@@ -396,7 +396,6 @@ Target after redesign: >= 32/40, no P1.
 
 T17 done and verified. Push and PR are the owner's decision. Open:
 - T16d: review of the dark theme at 1024 and 375 px and of loading and server-error states; fix findings.
-- T16e: blocked until the owner provides a Codex rollout sample.
 - Phone flowcharts still scroll sideways (11 on 10 guide pages); two diagrams scroll at 1024 px.
 - Adaptive layout covers the guide only; other diagram callers keep fit-to-width.
 - Restart the amauta memory MCP server so mem_save refuses unspaced bodies.
