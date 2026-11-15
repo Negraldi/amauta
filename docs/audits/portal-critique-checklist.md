@@ -101,6 +101,19 @@ Each class names what to look for and the automated test that now guards it, whe
     however the top-level direction turns (one real source stayed 1342 px in a 977 px box); the layout candidates must
     turn the subgraph direction too, and a flowchart that still cannot be legible in a narrow box becomes an outline.
     Guard: `portal-t19-diagrams`.
+33. **An outline or fallback built from untranslated source or raw ids.** The narrow-box outline of a diagram showed the
+    English source (and subgraph ids such as `g1`, entity codes) beside a Spanish drawing; an error page titled itself
+    with a raw node id, a session UUID or a file path. Build the fallback from the same translated, decoded labels, name
+    a subgraph by its title and derive a readable name from an id. Guard: `portal-t19h` (F1, F6).
+34. **Focus lost on a toggle that re-renders itself.** A button that swaps the content around it (diagram or list)
+    leaves focus on `body` when it is replaced; focus must move to the new toggle. Guard: `portal-t19h` (F2).
+35. **Palette or search state kept after clearing or closing.** Old results or a failure note stayed after the input was
+    cleared, and the palette reopened with the old query; a late answer must not repaint. Clearing returns to the empty
+    state at once and a closed palette starts empty. Guard: `portal-t19h` (F3).
+36. **A page intro count that ignores the active filter.** The Catalog intro said "422 things installed" under a Codex
+    filter that listed 239; the intro says how many of the total apply. Guard: `portal-t19h` (F4).
+37. **Pickers in no visible order.** Repo and project selects follow the server's order; sort names A to Z
+    (case-insensitive) with "All" first. Guard: `portal-t19h` (F7).
 
 ## Rules for the reviewer
 

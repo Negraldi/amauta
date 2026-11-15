@@ -138,7 +138,7 @@ async function graphExplorer() {
   if (!g.repos.length) return [graphEmptyState(pr && pr.projects)];
   const first = g.repos.find((r) => r.available) || g.repos[0];
   if (!g.repos.some((r) => r.path === state.graphRepo)) state.graphRepo = first.path;
-  const picker = h("select", { "aria-label": t("graph.repo") }, g.repos.map((r) => h("option", { value: r.path }, r.name)));
+  const picker = h("select", { "aria-label": t("graph.repo") }, byName(g.repos, (r) => r.name).map((r) => h("option", { value: r.path }, r.name)));
   picker.value = state.graphRepo;
   const box = h("div", null);
   const show = async () => {

@@ -175,3 +175,40 @@ test('F5: the summary lists each origin and the Configured in section does not r
   assert.match(t, /Your Codex home/);
   assert.doesNotMatch(t, /Configured in/);
 });
+
+// ---- F6: a failed detail page names itself from its id, never the raw id ----
+const HTTP500 = { __status: 500, error: 'boom' };
+async function failed(id, kind, extra) {
+  const env = await boot(`#/${kind}/${encodeURIComponent(id)}`, { '/api/wiki/page': HTTP500 }, extra);
+  const h1 = tree(view(env)).find((e) => e.tagName === 'h1').textContent;
+  const crumb = tree(view(env)).filter((e) => e.className === 'crumbs')[0].textContent;
+  return { h1, crumb, title: env.document.title };
+}
+test('F6: a node falls back to the part after ::, a session to its short id, a memory file to its file name', async () => {
+  const node = await failed('amauta::src_install_installer', 'node');
+  assert.equal(node.h1, 'src_install_installer');
+  assert.match(node.crumb, /src_install_installer/);
+  assert.doesNotMatch(node.crumb + node.title, /amauta::/);
+  const sess = await failed('01a1c00f-1234-4abc-8def-0123456789ab', 'session');
+  assert.equal(sess.h1, 'Session 01a1c00f');
+  assert.doesNotMatch(sess.crumb + sess.title, /1234/);
+  assert.equal((await failed('01a1c00f-1234-4abc-8def-0123456789ab', 'session', { navigator: { language: 'es-ES' } })).h1, 'Sesión 01a1c00f');
+  const file = await failed('-home-negraldi/memory/ge66-rgb-lightbar.md', 'memfile');
+  assert.equal(file.h1, 'ge66-rgb-lightbar.md');
+  assert.doesNotMatch(file.crumb + file.title, /-home-negraldi/);
+});
+
+// ---- F7: pickers of names are sorted A to Z, the "all" option first ----
+test('F7: the project select lists the projects A to Z (case-insensitive) after "All projects"', async () => {
+  const env = await boot('#/usage', { '/api/sessions': { available: true, sessions: [], projects: [{ project: 'zeta' }, { project: 'Beta' }, { project: 'alpha' }] },
+    '/api/overview': { available: false, totals: {}, daily: [], models: [], runtimes: [] }, '/api/costs': { enabled: false }, '/api/projects': { projects: [] } });
+  const opts = tree(env.document.getElementById('project')).filter((e) => e.tagName === 'option').map((e) => e.textContent);
+  assert.deepEqual(opts, ['All projects', 'alpha', 'Beta', 'zeta']);
+});
+test('F7: the repo select of the graph explorer lists the repos A to Z', async () => {
+  const repo = (name) => ({ name, path: `/r/${name}`, available: true, nodes: 1, edges: 0, synced_at: null, stale: false });
+  const env = await boot('#/node', { '/api/graphify': { repos: [repo('zeta'), repo('Beta'), repo('alpha')] }, '/api/projects': { projects: [] } });
+  const sel = tree(view(env)).find((e) => e.tagName === 'select' && e.getAttribute('aria-label') === 'Repository');
+  assert.ok(sel, 'the picker exists');
+  assert.deepEqual(tree(sel).filter((e) => e.tagName === 'option').map((e) => e.textContent), ['alpha', 'Beta', 'zeta']);
+});

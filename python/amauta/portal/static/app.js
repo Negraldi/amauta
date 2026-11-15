@@ -340,9 +340,11 @@ async function render() {
   }
 }
 
+// Names in a picker: A to Z, case-insensitive, by the locale.
+const byName = (list, key = (x) => x) => [...list].sort((a, b) => String(key(a)).localeCompare(String(key(b)), undefined, { sensitivity: "base" }));
 function paintProjectSelect() {
   const cur = $("project").value;
-  $("project").replaceChildren(h("option", { value: "" }, t("filters.allProjects")), ...state.projectNames.map((name) => h("option", { value: name }, name)));
+  $("project").replaceChildren(h("option", { value: "" }, t("filters.allProjects")), ...byName(state.projectNames).map((name) => h("option", { value: name }, name)));
   $("project").value = cur;
 }
 async function loadProjects() {

@@ -31,10 +31,17 @@ function errorPanel(route, err) {
     h("p", { class: "muted" }, h("span", { class: "tok" }, plainReason(err))),
     h("div", { class: "controls" }, retry, h("a", { href: "#/", class: "button" }, t("error.home"))));
 }
+// A readable name from an id, for a detail page that failed: a node is the part after "::", a session its short id, a file its name.
+function readableId(kind, id) {
+  if (kind === "node") return id.split("::").pop() || id;
+  if (kind === "session") return `${kindLabel("session")} ${id.replace(/^.*:/, "").slice(0, 8)}`;
+  if (kind === "memfile") return id.split("/").pop() || id;
+  return id;
+}
 // The name a page has when its data is unknown: a project says its id, a guide page the Guide, a list page its own title.
 function failedName(route) {
   if (route.id && route.kind === "project") return route.id;
-  if (route.id) return route.kind === "guide" ? t("nav.guide") : state.pageTitle || route.id;
+  if (route.id) return route.kind === "guide" ? t("nav.guide") : state.pageTitle || readableId(route.kind, route.id);
   return t(PAGE_TITLES[route.kind] ?? `nav.${route.kind}`);
 }
 // The page-level failure: the same heading, browser title and tabs the page would have had, with the error where its content goes.

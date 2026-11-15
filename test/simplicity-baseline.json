@@ -78,7 +78,7 @@
    "long": 10
   },
   "python/amauta/portal/static/app.js": {
-   "long": 20
+   "long": 21
   },
   "python/amauta/portal/static/boot.js": {
    "long": 1
@@ -98,7 +98,7 @@
    "long": 7
   },
   "python/amauta/portal/static/page-harness.js": {
-   "long": 9
+   "long": 10
   },
   "python/amauta/portal/static/page-home.js": {
    "long": 6

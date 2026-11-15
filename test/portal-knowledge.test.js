@@ -99,7 +99,7 @@ test('the Graph page is one explorer: a repo picker, then search, neighbours and
   const env = await boot('#/node');
   const picker = tree(view(env)).find((e) => e.tagName === 'select' && e.attrs['aria-label'] === 'Repository');
   assert.ok(picker, 'repo picker');
-  assert.deepEqual(picker.options.map((o) => o.textContent), ['one', 'two', 'three']);
+  assert.deepEqual(picker.options.map((o) => o.textContent), ['one', 'three', 'two']); // A to Z (T19h F7), not the server's order
   assert.match(view(env).textContent, /OneNode/);
   assert.doesNotMatch(view(env).textContent, /TwoNode/, 'one repo at a time');
   picker.value = '/r/two';

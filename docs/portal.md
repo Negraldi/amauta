@@ -23,7 +23,7 @@ with "Data as of <time>", the newest message, session or tool use the page's API
 Refresh and **Display**, a popover with the theme (System, Light, Dark, your custom themes), Edit themes (Settings > Appearance) and the
 English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). Below 52rem the sidebar is
 an off-canvas phone menu behind the Menu button: focus moves into it and the page behind is inert until Esc, a tap on the scrim or
-navigating closes it. The search palette has a Pages group that jumps to any page or tab by name, then memories, skills, tools, sessions,
+navigating closes it. The search palette (Ctrl+K) starts empty each time it opens, returns to its hint when the input is cleared, and has a Pages group that jumps to any page or tab by name, then memories, skills, tools, sessions,
 features, tasks and graph nodes (nodes last, at most 5; a node row names its file, and two nodes of one file with one title are one row).
 The Range, Project and Runtime filters live only on the Activity pages (Usage, Sessions, Tools and skills), in the filter bar above the
 page. An unknown `?tab=` value is dropped from the address. Usage days are this machine's local date. The
@@ -106,11 +106,11 @@ row per runtime (home, amauta installed, instruction blocks, hooks, MCP servers,
 switches. The Codex home is the one the portal was given or the installer's rule; without one, a sentence says only Claude Code is listed.
 The Catalog filters by runtime with a segmented control (All, Claude Code, Codex; `#/component?runtime=codex`, combined with `?kind=`). An entry for
 both runtimes shows under either, an entry with no runtime field counts as Claude Code's, the kind links keep their kinds and count what the filter
-leaves, and a kind with nothing for that runtime says so.
+leaves, and a kind with nothing for that runtime says so. Under a runtime filter the intro says how many of the installed things apply to it.
 The instruction blocks amauta writes to `CLAUDE.md` and `AGENTS.md` are the catalog kind `instructions` ("Instruction blocks", `wikiblocks.py`,
 `#/instructions/<id>`). A block is the text between its `<!-- amauta:ID -->` markers (both needed; only regular files, never a link, of the Claude
 home and the Codex home the portal was given). Its row and page give what it is for (its first paragraph, else its first heading), the runtimes
-that carry it, each file it is written to and its size in characters in each; the page shows the block text. The Overview runtimes table links each
+that carry it, each file it is written to (all of them in "What it does") and its size in characters in each; the page shows the block text without the paragraph that "What it does" already says (a list is described by its heading, else its first item). The Overview runtimes table links each
 block to its page.
 Refresh descriptions probes only servers configured for Claude Code.
 
@@ -185,8 +185,8 @@ through one entry point, `adaptiveDiagram(source, caption, onDrawn)`, and picks 
 labels, subgraph `direction LR`/`RL` turned to `TB`; sequences with wrapped messages) and draws it again when the window is
 resized. A sequence that cannot fit a narrow screen even at the 11 px text floor is shown as an ordered list of steps. A
 flowchart in that case in a box under 480 px is shown as an outline (nodes in source order, each with its outgoing edges as
-"→ target (label)", subgraphs as headings) with a "Show the diagram" button that swaps in the scrollable diagram and a "Show as
-a list" button back; a wider box returns to the diagram. Other kinds (pie, gantt, state) keep one layout.
+"→ target (label)", subgraphs as headings, in the same translated words as the drawn diagram; an edge to a subgraph names its title) with a "Show the diagram" button that swaps in the scrollable diagram and a "Show as
+a list" button back (focus moves to the new button); a wider box returns to the diagram. Other kinds (pie, gantt, state) keep one layout.
 `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
 
 ### Sibling projects
