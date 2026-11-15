@@ -3,8 +3,9 @@
 
 A block is the text between `<!-- amauta:ID -->` and `<!-- /amauta:ID -->` (both markers needed). Read-only and bounded:
 only regular files (never a link) of the Claude home and of the Codex home the portal was given are read, so a sandboxed
-portal never reads the real ones. The entry says what the block is for (its first paragraph, else its first heading),
-which files and runtimes carry it and how many characters it has in each.
+portal never reads the real ones. The entry says what the block is for (its first paragraph of prose, when it has one),
+which files and runtimes carry it and how many characters it has in each. A block that opens with a heading or a list has no
+stated purpose.
 """
 from __future__ import annotations
 
@@ -50,36 +51,33 @@ _LIST_ITEM = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 
 
 def _first_paragraph(lines: list) -> tuple:
-    """(start, end, heading) of the first paragraph that is not a heading (end exclusive), or None, and the first heading's text."""
-    start, heading = None, None
+    """(start, end) of the first paragraph that is not a heading (end exclusive), or None."""
+    start = None
     for i, line in enumerate([*lines, ""]):
         s = line.strip()
         if s.startswith("#"):
-            heading = heading or s.lstrip("#").strip()
-        elif s and start is None:
+            continue
+        if s and start is None:
             start = i
         elif not s and start is not None:
-            return (start, i), heading
-    return None, heading
+            return (start, i)
+    return None
 
 
 def purpose(text: str) -> str | None:
-    """What the block is for: its first paragraph, else its first heading. A list is not glued into a sentence: the heading,
-    else the first item."""
+    """What the block is for: its first paragraph of prose. A heading or a list is not a description: a block that opens with
+    one has none, and the page leaves the line out."""
     lines = text.splitlines()
-    span, heading = _first_paragraph(lines)
-    if span is None:
-        return (heading or "")[:MAX_DESCRIPTION] or None
-    first = [x.strip() for x in lines[span[0]:span[1]]]
-    if _LIST_ITEM.match(first[0]):
-        return (heading or _LIST_ITEM.sub("", first[0]))[:MAX_DESCRIPTION] or None
-    return " ".join(first)[:MAX_DESCRIPTION] or None
+    span = _first_paragraph(lines)
+    if span is None or _LIST_ITEM.match(lines[span[0]].strip()):
+        return None
+    return " ".join(x.strip() for x in lines[span[0]:span[1]])[:MAX_DESCRIPTION] or None
 
 
 def without_purpose(text: str, description: str | None) -> str:
     """The body minus its first paragraph when that paragraph is the description ("What it does" already says it)."""
     lines = text.splitlines()
-    span, _ = _first_paragraph(lines)
+    span = _first_paragraph(lines)
     if span is None or _LIST_ITEM.match(lines[span[0]].strip()):
         return text
     if " ".join(x.strip() for x in lines[span[0]:span[1]])[:MAX_DESCRIPTION] != description:

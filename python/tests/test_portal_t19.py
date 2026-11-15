@@ -32,11 +32,11 @@ class InstructionBlocksCatalogTest(BlocksBase):
         self.assertNotIn("half", runtimes, "a block without its closing marker is not listed")
         self.assertEqual(cat["total"], sum(len(g["items"]) for g in cat["groups"]))
 
-    def test_the_description_is_the_first_paragraph_or_else_the_heading(self):
+    def test_the_description_is_the_first_paragraph_and_never_a_heading(self):
         items = self.items("instructions")
         self.assertEqual(items["codegraph-guidance"]["description"], "For structural questions use CodeGraph first.")
         self.assertEqual(items["persona"]["description"], "Persona text, no heading.")
-        self.assertEqual(items["tiny"]["description"], "Only heading")
+        self.assertIsNone(items["tiny"]["description"], "a heading is not a description")
 
     def test_the_item_page_says_where_it_is_written_and_how_big_it_is(self):
         pg = self.page("instructions", "codegraph-guidance")
@@ -105,10 +105,11 @@ class InstructionBlocksReviewTest(BlocksBase):
         for ident in ("codegraph-guidance", "persona", "tiny", "orchestrator", "listy", "headed"):
             self.assertIn("Runtime", self.meta(self.page("instructions", ident)), ident)
 
-    def test_a_list_is_not_glued_into_the_description(self):
+    def test_a_block_without_prose_has_no_description_and_the_page_omits_it(self):
         items = self.items("instructions")
-        self.assertEqual(items["listy"]["description"], "Never add a thing.", "the first item when there is no heading")
-        self.assertEqual(items["headed"]["description"], "Rules", "the heading when there is one")
+        self.assertIsNone(items["listy"]["description"])
+        self.assertIsNone(items["headed"]["description"], "never the bare heading")
+        self.assertIsNone(self.page("instructions", "headed")["summary"]["description"])
         self.assertEqual(self.page("instructions", "listy")["body_md"], LISTY, "a list description is not a paragraph to drop")
 
     def test_the_description_paragraph_leaves_the_body_only_when_it_is_the_description(self):
