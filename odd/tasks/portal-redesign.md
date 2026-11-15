@@ -80,7 +80,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T20a Instruction block page: "What it does" never shows a bare section heading such as "Rules" (c208427; browser: the persona page has no description line, "Rules" stays as a body heading)
   - [x] T20b A guide page that fails to load keeps its own title, not "Guide" (452fd31; browser, page request failed in page: title and h1 "El núcleo", error note with Retry)
   - [x] T20c Catalog under the Codex filter lists the Codex tools seen in recorded use, marked as such (f4c4809; browser on real data: 249 of 452 apply to Codex, 10 Codex tools with the "not official, may be incomplete" note, `#/tool/exec` opens)
-  - [x] T20d Harness architecture diagram: no change, recorded in Progress (the chooser only measures width; a shorter layout cannot be verified by the tests and a two-column stack would put text near the 12 px floor); it stays about 2100 px tall
+  - [x] T20d Harness architecture diagram: a light stacked candidate (only the nodes of an edge-free subgraph go in a column) is tried before the full stack. Headless Chrome on real data: 1280 px gives 952 x 1088 px at scale 1 (was 487 x 2108); 1600 px gives 1192 x 1283; 800 and 1024 px keep the full stack (487 x 2105), where the lighter one does not fit
 
 ## Acceptance criteria
 
@@ -466,5 +466,5 @@ merging and releasing are the owner's decisions. Still open, none of it blocking
 - Codex tool calls were checked through the portal API on a scratch state, not in a browser: after the owner's next
   backfill (`python3 -P -m amauta.usage backfill --runtime codex`), open a Codex session page and Tools under the
   Codex filter.
-- P3 polish: T20 resolved the persona description, the failed guide title and the Codex tools in the Catalog. Left: the
-  harness architecture diagram is about 2100 px tall at 1280 px (T20d explains why it was not changed).
+- P3 polish: T20 resolved all four items. At 800 to about 1200 px wide the harness architecture diagram still uses the
+  full stack and is about 2100 px tall.

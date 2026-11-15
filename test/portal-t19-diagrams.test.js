@@ -155,7 +155,7 @@ test('stacked candidates chain unconnected nodes of a TB subgraph and sibling su
   const list = call(c, 'diagramCandidates', ARCH);
   const stacked = list.filter((s) => /~~~/.test(s));
   assert.ok(stacked.length >= 1, 'a stacked candidate exists');
-  for (const s of stacked) {
+  for (const s of stacked.slice(-2)) { // the full stack; lighter stacked candidates come first (T20d)
     assert.match(s, /M1 ~~~ M2/);
     assert.match(s, /M2 ~~~ M3/);
     assert.match(s, /hooks ~~~ mcp/, 'siblings of n0 stack');
