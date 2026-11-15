@@ -38,10 +38,10 @@ function readableId(kind, id) {
   if (kind === "memfile") return id.split("/").pop() || id;
   return id;
 }
-// The name a page has when its data is unknown: a project says its id, a guide page the Guide, a list page its own title.
+// The name a page has when its data is unknown: a project says its id, a guide page its own title (else the Guide), a list page its own.
 function failedName(route) {
   if (route.id && route.kind === "project") return route.id;
-  if (route.id) return route.kind === "guide" ? t("nav.guide") : state.pageTitle || readableId(route.kind, route.id);
+  if (route.id) return state.pageTitle || (route.kind === "guide" ? t("nav.guide") : readableId(route.kind, route.id));
   return t(PAGE_TITLES[route.kind] ?? `nav.${route.kind}`);
 }
 // The page-level failure: the same heading, browser title and tabs the page would have had, with the error where its content goes.

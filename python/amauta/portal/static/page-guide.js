@@ -26,7 +26,17 @@ function pager(index, page) {
 async function viewGuide(route) {
   const lang = I.lang();
   const slug = (route && route.id) || "overview";
-  const [index, page] = await Promise.all([api("guide", { lang }), api("guide/page", { slug, lang })]);
+  const listed = api("guide", { lang });
+  listed.catch(() => {}); // read below; this only keeps a failure that arrives early from being reported as unhandled
+  let page;
+  try {
+    page = await api("guide/page", { slug, lang });
+  } catch (err) { // the page failed: it still goes by its own title when the list of pages names it
+    const known = await listed.then((x) => x.pages.find((p) => p.slug === slug), () => null);
+    if (known) state.pageTitle = known.title;
+    throw err;
+  }
+  const index = await listed;
   state.pageTitle = page.title; // the breadcrumb ends with the page's title, not its slug
   let drawn = 0;
   const mermaid = (src) => (++drawn <= GUIDE_DIAGRAMS ? adaptiveDiagram(src, t("diagram.mermaid"))
