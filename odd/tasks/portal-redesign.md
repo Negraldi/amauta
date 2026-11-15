@@ -76,6 +76,11 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T19g Codex tool calls checked in the portal against a temporary state built from one real rollout (read-only use of `~/.codex`, authorized by the user on 2026-11-14). Checked through `api.Portal.get` in process on a scratch state backfilled from a copy of the newest rollout (3310 tool rows): `/api/tools?runtime=codex` lists exec 1963, collaboration.send_message 470, ...; the session page has Tools, MCP tools and MCP servers sections. Not seen in a browser: a second portal on that state needs a launch entry in the owner's `~/.claude/launch.json`, which was denied.
   - [x] T19h Browser check of the T16d fixes covered by tests only, and a read-only review of the cells never seen (palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages); fix findings (sonnet reviewer: the four test-only T16d fixes OK in the browser; findings fixed in 9558b43, 3db84e4, 3bc7458, 57e5d22; coordinator browser check: harness outline at 375 px is Spanish, uses group titles, wraps 343/343, focus lands on the new toggle; catalog intro says "239 de 423 elementos ... se aplican a Codex" and names instruction blocks; block pages list both origins)
   Not doable here: a run on a real Windows machine; restarting the owner's memory MCP server (the owner restarts it from the client).
+- [ ] T20 P3 polish left by T19 (user, 2026-11-15: "resolve the remaining minor details"). TDD on; route: one sonnet writer, coordinator browser check
+  - [ ] T20a Instruction block page: "What it does" never shows a bare section heading such as "Rules"
+  - [ ] T20b A guide page that fails to load keeps its own title, not "Guide"
+  - [ ] T20c Catalog under the Codex filter lists the Codex tools seen in recorded use, marked as such
+  - [ ] T20d Harness architecture diagram: a shorter layout at 1280 px if one stays legible; otherwise record why not
 
 ## Acceptance criteria
 
