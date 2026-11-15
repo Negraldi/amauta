@@ -449,7 +449,7 @@ Target after redesign: >= 32/40, no P1.
 - T20a (`c208427`): an instruction block's description is its first paragraph of prose; a block that opens with a heading or a list has none and the page omits the line
   (persona blocks no longer say "Rules"). Tests changed: `test_portal_t19` expected the heading or the first list item as the description; they now expect none.
 - T20b (`452fd31`): a guide page that fails keeps its own title (from the guide's page list) in the h1 and the document title; a page the list does not name, or a failed list, keeps "Guide".
-- T20c (see the commit after `452fd31`): `wikitools._usage` now reads the runtime of each call; names seen only in Codex use are tool entries marked Codex, source "Seen in recorded Codex sessions",
+- T20c (`f4c4809`): `wikitools._usage` now reads the runtime of each call; names seen only in Codex use are tool entries marked Codex, source "Seen in recorded Codex sessions",
   description saying they are not an official list; a name seen in both runtimes belongs to both; Claude Code tools seen only in Claude use stay Claude's (before, Codex names showed as Claude Code tools).
   `/api/harness/components` carries `runtimes.codex.tools`; the Catalog under the Codex filter (all kinds or Tools) says how many were found, or that none are recorded. Not browser-checked.
 - T20d: no code change. The chooser measures only the rendered width of each candidate (`layoutWidth` reads the viewBox width), so a "shortest that fits" rule needs heights, more renders per diagram and a legibility
