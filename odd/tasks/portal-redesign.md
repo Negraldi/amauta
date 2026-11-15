@@ -461,10 +461,13 @@ Target after redesign: >= 32/40, no P1.
 
 T1 to T19 done and verified (T19, 2026-11-14, resolved every item the earlier list held). Opening a pull request,
 merging and releasing are the owner's decisions. Still open, none of it blocking:
-- Needs the owner: restart the amauta memory MCP server from the client so mem_save refuses unspaced bodies; run
-  amauta on a real Windows machine (personal-skill copies and links are tested with an injected refused symlink only).
-- Codex tool calls were checked through the portal API on a scratch state, not in a browser: after the owner's next
-  backfill (`python3 -P -m amauta.usage backfill --runtime codex`), open a Codex session page and Tools under the
-  Codex filter.
-- P3 polish: T20 resolved all four items. At 800 to about 1200 px wide the harness architecture diagram still uses the
-  full stack and is about 2100 px tall.
+- Needs the owner: run amauta on a real Windows machine (personal-skill copies and links are tested with an injected
+  refused symlink only). The memory MCP server was restarted on 2026-11-15 and refuses unspaced bodies.
+- Codex tool calls, checked on the owner's data (2026-11-15, read-only): the 308 rollouts still on disk were reread with
+  their tool calls and belong to 2 root sessions, because a subagent rollout carries its parent's session id. Older
+  rollouts no longer exist on disk, so their tool calls cannot be recovered; their token usage stays.
+- P3 polish: T20 resolved all four items. Measured in headless Chrome on 2026-11-15: 375 px shows the outline; 800 to
+  about 1100 px still uses the full stack (487 by 2108 px); 1200 px is 845 by 1224; 1280 px and wider 952 by 1089.
+- `test_a_missing_scheduled_run_is_noticed` depended on the machine's time zone (it passed in UTC and failed at
+  UTC-05): it gave `schedule.state()` UTC datetimes while the function compares local wall-clock times. The test now
+  uses zone-free values; no production code changed. Python: 1096 run, 0 failures, 2 skipped.

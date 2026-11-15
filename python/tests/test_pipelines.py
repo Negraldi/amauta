@@ -333,13 +333,15 @@ class DeclaredScheduleTest(Base):
         weekly = {"at": "07:30", "days": ["mon"]}
         self.assertEqual(schedule.expected_before(weekly, now), datetime(2026, 11, 9, 7, 30, tzinfo=timezone.utc))
         self.assertEqual(schedule.expected_before({"at": "10:00", "day_of_month": 1}, now), datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc))
-        self.assertEqual(schedule.state(weekly, None, now), "never")
-        self.assertEqual(schedule.state(weekly, "2026-11-09T07:30:05+00:00", now), "ok")
-        self.assertEqual(schedule.state(weekly, "2026-11-02T07:30:05+00:00", now), "missed")
-        self.assertEqual(schedule.state(weekly, "2026-11-02T07:30:05+00:00", datetime(2026, 11, 9, 7, 40, tzinfo=timezone.utc)), "ok",
+        # state() reads a schedule in local wall-clock time: zone-free values keep this independent of the machine's time zone
+        local = datetime(2026, 11, 9, 9, 0)
+        self.assertEqual(schedule.state(weekly, None, local), "never")
+        self.assertEqual(schedule.state(weekly, "2026-11-09T07:30:05", local), "ok")
+        self.assertEqual(schedule.state(weekly, "2026-11-02T07:30:05", local), "missed")
+        self.assertEqual(schedule.state(weekly, "2026-11-02T07:30:05", datetime(2026, 11, 9, 7, 40)), "ok",
                          "a grace period while the run starts")
-        self.assertEqual(schedule.state({"every_minutes": 30}, "2026-11-09T08:10:00+00:00", now), "ok")
-        self.assertEqual(schedule.state({"every_minutes": 30}, "2026-11-09T07:00:00+00:00", now), "missed")
+        self.assertEqual(schedule.state({"every_minutes": 30}, "2026-11-09T08:10:00", local), "ok")
+        self.assertEqual(schedule.state({"every_minutes": 30}, "2026-11-09T07:00:00", local), "missed")
 
 
 class HistoryTest(Base):
