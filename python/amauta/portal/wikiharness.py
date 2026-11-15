@@ -444,8 +444,7 @@ def _ref_of(entries, key):
 
 def summary_of(e):
     out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "generic": bool(e.get("generic")), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
-    if e.get("i18n"):
-        out["i18n"] = e["i18n"]
+    out.update({k: e[k] for k in ("i18n", "origins") if e.get(k)})  # origins: every file an instruction block is written to
     if e.get("disabled"):
         out["disabled"], out["status"] = True, PLUGIN_DISABLED
     return out

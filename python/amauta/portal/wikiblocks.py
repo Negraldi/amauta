@@ -46,23 +46,52 @@ def read_blocks(path: Path) -> list:
     return out[:MAX_BLOCKS]
 
 
-def purpose(text: str) -> str | None:
-    """What the block is for: its first paragraph that is not a heading, else its first heading."""
-    paragraph, heading = [], None
-    for line in [*text.splitlines(), ""]:
+_LIST_ITEM = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
+
+
+def _first_paragraph(lines: list) -> tuple:
+    """(start, end, heading) of the first paragraph that is not a heading (end exclusive), or None, and the first heading's text."""
+    start, heading = None, None
+    for i, line in enumerate([*lines, ""]):
         s = line.strip()
         if s.startswith("#"):
             heading = heading or s.lstrip("#").strip()
-        elif s:
-            paragraph.append(s)
-        elif paragraph:
-            break
-    return (" ".join(paragraph) or heading or "")[:MAX_DESCRIPTION] or None
+        elif s and start is None:
+            start = i
+        elif not s and start is not None:
+            return (start, i), heading
+    return None, heading
+
+
+def purpose(text: str) -> str | None:
+    """What the block is for: its first paragraph, else its first heading. A list is not glued into a sentence: the heading,
+    else the first item."""
+    lines = text.splitlines()
+    span, heading = _first_paragraph(lines)
+    if span is None:
+        return (heading or "")[:MAX_DESCRIPTION] or None
+    first = [x.strip() for x in lines[span[0]:span[1]]]
+    if _LIST_ITEM.match(first[0]):
+        return (heading or _LIST_ITEM.sub("", first[0]))[:MAX_DESCRIPTION] or None
+    return " ".join(first)[:MAX_DESCRIPTION] or None
+
+
+def without_purpose(text: str, description: str | None) -> str:
+    """The body minus its first paragraph when that paragraph is the description ("What it does" already says it)."""
+    lines = text.splitlines()
+    span, _ = _first_paragraph(lines)
+    if span is None or _LIST_ITEM.match(lines[span[0]].strip()):
+        return text
+    if " ".join(x.strip() for x in lines[span[0]:span[1]])[:MAX_DESCRIPTION] != description:
+        return text
+    rest = lines[:span[0]] + lines[span[1] + 1:]
+    return "\n".join(rest).strip("\n")
 
 
 def _entry(ident, text, label, path) -> dict:
-    return {"kind": "instructions", "id": ident, "title": ident, "description": purpose(text), "when": WHEN, "source": label,
-            "path": str(path), "body": text, "configs": [], "runtimes": [], "sizes": []}
+    desc = purpose(text)
+    return {"kind": "instructions", "id": ident, "title": ident, "description": desc, "when": WHEN, "source": label,
+            "path": str(path), "body": without_purpose(text, desc), "configs": [], "runtimes": [], "sizes": [], "origins": []}
 
 
 def collect(portal) -> list:
@@ -79,6 +108,7 @@ def collect(portal) -> list:
         for ident, text in read_blocks(home / name):
             e = entries.setdefault(ident, _entry(ident, text, label, home / name))
             e["configs"].append({"source": label, "path": str(home / name)})
+            e["origins"].append({"source": label, "path": str(home / name)})
             e["runtimes"].append(runtime)
             e["sizes"].append((f"Size in {name} (characters)", len(text)))
     for e in entries.values():

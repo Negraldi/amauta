@@ -160,3 +160,18 @@ test('F4: the intro count follows the runtime filter and says so, and the kinds 
   assert.match(text(esAll), /bloques de instrucciones/);
   void view;
 });
+
+// ---- F5: a block's summary names every file, once ----
+test('F5: the summary lists each origin and the Configured in section does not repeat them', async () => {
+  const page = { kind: 'instructions', id: 'g', title: 'g', body_md: 'Body.', links: [], backlinks: [], missing: [],
+    meta: [{ label: 'Runtime', value: 'Claude Code, Codex' }],
+    sections: [{ heading: 'Configured in', items: [{ label: '/h/.claude/CLAUDE.md', value: 'Your Claude home', kind: null, id: null },
+      { label: '/h/.codex/AGENTS.md', value: 'Your Codex home', kind: null, id: null }] }],
+    summary: { description: 'D.', trigger: null, when: 'W.', source: 'Your Claude home', path: '/h/.claude/CLAUDE.md', builtin: false, note: null,
+      origins: [{ source: 'Your Claude home', path: '/h/.claude/CLAUDE.md' }, { source: 'Your Codex home', path: '/h/.codex/AGENTS.md' }] } };
+  const env = await boot('#/instructions/g', { '/api/wiki/page': page });
+  const t = text(env);
+  for (const p of ['/h/.claude/CLAUDE.md', '/h/.codex/AGENTS.md']) assert.equal(t.split(p).length - 1, 1, `${p} once in: ${t}`);
+  assert.match(t, /Your Codex home/);
+  assert.doesNotMatch(t, /Configured in/);
+});

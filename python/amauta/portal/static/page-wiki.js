@@ -176,7 +176,8 @@ function metaList(pg, keep) {
 // A long mono command reads as a code block in the main column, never squeezed into the rail.
 const isOrigin = (s) => s.heading === "Source of these facts";
 // "Configured in" with the one file the summary already names (T15 C10): the same fact twice.
-const isSameConfig = (s, sm) => s.heading === "Configured in" && s.items.length === 1 && s.items[0].label === sm.path;
+const isSameConfig = (s, sm) => s.heading === "Configured in" && (sm.origins || [{ path: sm.path }]).length === s.items.length
+  && s.items.every((i) => (sm.origins || [{ path: sm.path }]).some((o) => o.path === i.label));
 const isCommand = (m) => m.label === "Command";
 function commandBlock(pg) {
   const cmd = pg.meta.find((m) => isCommand(m) && m.value);
@@ -367,5 +368,6 @@ function summaryBlock(sm) {
     sm.trigger ? h("p", null, h("strong", null, t("summary.trigger") + " "), sm.trigger) : null,
     sm.when ? h("p", null, h("strong", null, t("summary.when") + " "), localized(sm, "when")) : null,
     sm.generic ? h("p", null, h("a", { href: catalogHash("mcp") }, t("summary.mcpAll"))) : null, // what a server is: said once, on the list
-    h("p", { class: "muted" }, t("summary.source", { source: ts(sm.source) }), sm.path ? [" · ", h("code", { class: "tok" }, sm.path)] : null));
+    ...(sm.origins || [sm]).map((o) => h("p", { class: "muted" }, t("summary.source", { source: ts(o.source) }),
+      o.path ? [" · ", h("code", { class: "tok" }, o.path)] : null)));
 }

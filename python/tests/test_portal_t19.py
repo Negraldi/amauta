@@ -41,7 +41,7 @@ class InstructionBlocksCatalogTest(BlocksBase):
     def test_the_item_page_says_where_it_is_written_and_how_big_it_is(self):
         pg = self.page("instructions", "codegraph-guidance")
         self.assertEqual(pg["title"], "codegraph-guidance")
-        self.assertEqual(pg["body_md"], GUIDANCE)
+        self.assertEqual(pg["body_md"], "## CodeGraph\n\nSecond paragraph.", "the paragraph that is the description is not said twice")
         m = self.meta(pg)
         self.assertEqual(m["Runtime"], "Claude Code, Codex")
         self.assertEqual(m["Size in CLAUDE.md (characters)"], str(len(GUIDANCE)))
@@ -81,6 +81,39 @@ class InstructionBlocksCatalogTest(BlocksBase):
         texts = ["Instruction blocks"] + [m["label"] for m in pg["meta"]] + [pg["summary"]["source"], pg["summary"]["when"]]
         self.assertEqual(sorted(t for t in texts if t and not covered(t, keys)), [])
         json.dumps(pg)
+
+
+LISTY = "- Never add a thing.\n- Never agree with a claim.\n\nAfter."
+HEADED = "## Rules\n\n- First rule.\n- Second rule."
+
+
+class InstructionBlocksReviewTest(BlocksBase):
+    """T19h F5: Runtime row, every file as an origin, no repeated paragraph, no glued bullets."""
+
+    def setUp(self):
+        super().setUp()
+        write(self.f["home"] / "CLAUDE.md", CLAUDE_MD + f"<!-- amauta:listy -->\n{LISTY}\n<!-- /amauta:listy -->\n"
+              f"<!-- amauta:headed -->\n{HEADED}\n<!-- /amauta:headed -->\n")
+
+    def test_the_summary_names_every_file_the_block_is_written_to(self):
+        both = self.page("instructions", "codegraph-guidance")["summary"]["origins"]
+        self.assertEqual(both, [{"source": "Your Claude home", "path": str(self.f["home"] / "CLAUDE.md")},
+                                {"source": "Your Codex home", "path": str(self.codex / "AGENTS.md")}])
+        self.assertEqual(len(self.page("instructions", "persona")["summary"]["origins"]), 1)
+
+    def test_every_page_has_a_runtime_row(self):
+        for ident in ("codegraph-guidance", "persona", "tiny", "orchestrator", "listy", "headed"):
+            self.assertIn("Runtime", self.meta(self.page("instructions", ident)), ident)
+
+    def test_a_list_is_not_glued_into_the_description(self):
+        items = self.items("instructions")
+        self.assertEqual(items["listy"]["description"], "Never add a thing.", "the first item when there is no heading")
+        self.assertEqual(items["headed"]["description"], "Rules", "the heading when there is one")
+        self.assertEqual(self.page("instructions", "listy")["body_md"], LISTY, "a list description is not a paragraph to drop")
+
+    def test_the_description_paragraph_leaves_the_body_only_when_it_is_the_description(self):
+        self.assertEqual(self.page("instructions", "persona")["body_md"], "More.")
+        self.assertEqual(self.page("instructions", "tiny")["body_md"], "## Only heading")
 
 
 class NoCodexBlocksTest(HarnessBase):
