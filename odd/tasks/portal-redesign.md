@@ -4,12 +4,12 @@
 
 Read this first; it is written for any agent (Claude Code or Codex) picking the work up.
 
-- State (2026-11-14): tasks T1 to T18 are checked. Branch `feat/portal-redesign` is pushed; no pull request is open.
+- State (2026-11-14): tasks T1 to T19 are checked. Branch `feat/portal-redesign` is pushed; no pull request is open.
   Opening one, merging and releasing are the owner's decisions.
 - What is left: the list under "Next step" at the end of this file. Nothing there blocks a merge; all of it is
   polish or a check that could not be made.
-- Checks at the pushed head: `LANG=C node --test` (no directory argument) 1227 of 1227; from the repository root
-  `python3 -P -m unittest discover -s python/tests -t .` runs 1077 with one known failure
+- Checks at the pushed head: `LANG=C node --test` (no directory argument) 1288 of 1288; from the repository root
+  `python3 -P -m unittest discover -s python/tests -t .` runs 1090 with one known failure
   (`test_pipelines DeclaredScheduleTest.test_a_missing_scheduled_run_is_noticed`, it depends on the date) and 2 skipped.
 - How the work is done here: strict TDD (see the test fail first), one Conventional Commit per task with its tests
   and docs, no AI attribution lines, English artifacts, the rules in `AGENTS.md` (simplicity ratchet, `MODULES.json`,
@@ -22,7 +22,7 @@ Read this first; it is written for any agent (Claude Code or Codex) picking the 
 - Seeing it in a browser: `PYTHONPATH=python python3 -P -m amauta.portal --port 8790` from the repository root. It
   shows the owner's real data: look only. Do not save settings or themes, run or check pipelines, add or remove
   projects, sync or refresh descriptions. A failure can be simulated by wrapping `fetch` in the page.
-- Design reviews: give the reviewer `docs/audits/portal-critique-checklist.md` (coverage matrix and 31 learned
+- Design reviews: give the reviewer `docs/audits/portal-critique-checklist.md` (coverage matrix and 37 learned
   classes) and verify each finding in the browser before fixing it; one reviewer finding in T16d did not reproduce.
 - Memory, when the engram MCP server is available: project `amauta`, topic `odd/portal-redesign/tasks`.
 
@@ -66,7 +66,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
 - [x] T18 Adaptive diagrams on every view (user, 2026-11-14: "apply the diagram work to everything, not only the guide"; TDD on; route: one delegated sonnet writer, more than one non-trivial file):
   - [x] T18a Every diagram caller (harness architecture, graph neighbours on Graph and node pages, wiki page diagrams, project task progress) picks its layout for the width it gets; a sequence too wide for the box becomes numbered steps (commit 2838986)
 
-- [ ] T19 Every open item (user, 2026-11-14: "continue resolving all the open items"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer per subtask, one at a time; coordinator checks in the browser):
+- [x] T19 Every open item (user, 2026-11-14: "continue resolving all the open items"; TDD on, runners `LANG=C node --test` and `python3 -P -m unittest discover -s python/tests -t .`; route: one delegated sonnet writer per subtask, one at a time; coordinator checks in the browser):
   - [x] T19a Errors read as the portal's words: the network message drops the browser's raw reason; part-level errors offer a retry; error pages keep a precise title, breadcrumb and the project tab bar (04a0409, with T19b; helpers moved to new `errors.js`; browser-checked: architecture Retry redraws the diagram, failed project keeps its tabs; a failed guide page says "Guía" since its title is unknown without the fetch)
   - [x] T19b Today loads in one request wave (04a0409)
   - [x] T19c Checkbox targets are at least 24 px at 375 px (6e7fd2f)
@@ -74,7 +74,7 @@ TDD: on. Runners: `npm test` (node:test, portal UI tests) and `PYTHONPATH=python
   - [x] T19e Catalog: a runtime filter (Claude Code, Codex, both) and the instruction blocks as catalog entries (20f3b5f, 2e093a5; browser: `?runtime=codex` gives Todo 239 of 422, `#/instructions/codegraph-guidance` opens. Left for T19h: the intro sentence keeps "422 elementos" under the filter and does not name instruction blocks)
   - [x] T19f Personal skill links fall back to a marked copy where a symlink cannot be made, refreshed on each sync and removed like a link (f9f8d19; tests inject a refused symlink; still not run on a real Windows machine)
   - [x] T19g Codex tool calls checked in the portal against a temporary state built from one real rollout (read-only use of `~/.codex`, authorized by the user on 2026-11-14). Checked through `api.Portal.get` in process on a scratch state backfilled from a copy of the newest rollout (3310 tool rows): `/api/tools?runtime=codex` lists exec 1963, collaboration.send_message 470, ...; the session page has Tools, MCP tools and MCP servers sections. Not seen in a browser: a second portal on that state needs a launch entry in the owner's `~/.claude/launch.json`, which was denied.
-  - [ ] T19h Browser check of the T16d fixes covered by tests only, and a read-only review of the cells never seen (palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages); fix findings
+  - [x] T19h Browser check of the T16d fixes covered by tests only, and a read-only review of the cells never seen (palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages); fix findings (sonnet reviewer: the four test-only T16d fixes OK in the browser; findings fixed in 9558b43, 3db84e4, 3bc7458, 57e5d22; coordinator browser check: harness outline at 375 px is Spanish, uses group titles, wraps 343/343, focus lands on the new toggle; catalog intro says "239 de 423 elementos ... se aplican a Codex" and names instruction blocks; block pages list both origins)
   Not doable here: a run on a real Windows machine; restarting the owner's memory MCP server (the owner restarts it from the client).
 
 ## Acceptance criteria
@@ -441,16 +441,13 @@ Target after redesign: >= 32/40, no P1.
 
 ## Next step
 
-T16, T17 and T18 done and verified. Push and PR are the owner's decision. Open (kept together by the owner's decision, 2026-11-14):
-- T16d leftovers (P3, not fixed): part-level errors have no retry; error-page titles and breadcrumbs are less precise; `#/` loads in two request waves; 18 px checkboxes at 375 px (labels are the larger target); the network message still carries the browser's own reason in brackets. Not seen: palette no-results at 375 px, native select popups, error state of feature, node, memory file and Codex session pages.
-- Phone flowcharts still scroll sideways (11 on 10 guide pages); two diagrams scroll at 1024 px.
-- The harness architecture diagram scrolls at every width (1342 px wide); BT and RL flowcharts are not flipped.
-- Fixed in T16d but covered by tests only, not seen in the browser: busy state on a same-route reload, palette search
-  failure, history mark border in the dark theme, sparkline text at 375 px.
-- Codex tool calls (T16e) not seen in the portal: the owner's usage database gains them after the next backfill
-  (`python3 -P -m amauta.usage backfill --runtime codex` forces it); check a Codex session page and Tools under the
-  Codex filter afterwards.
-- Catalog: runtime filter and instruction blocks.
-- Restart the amauta memory MCP server so mem_save refuses unspaced bodies.
-- T10 leftovers: personal-skill links have no copy fallback where symlinks fail; nothing was run on a real Windows
-  machine.
+T1 to T19 done and verified (T19, 2026-11-14, resolved every item the earlier list held). Opening a pull request,
+merging and releasing are the owner's decisions. Still open, none of it blocking:
+- Needs the owner: restart the amauta memory MCP server from the client so mem_save refuses unspaced bodies; run
+  amauta on a real Windows machine (personal-skill copies and links are tested with an injected refused symlink only).
+- Codex tool calls were checked through the portal API on a scratch state, not in a browser: after the owner's next
+  backfill (`python3 -P -m amauta.usage backfill --runtime codex`), open a Codex session page and Tools under the
+  Codex filter.
+- P3 polish: the persona block page says "Qué hace: Rules" (its heading); the harness architecture diagram fits 1280 px
+  by stacking and is about 2100 px tall; under the Codex filter the Catalog has no built-in tools (Codex tool names
+  are known from usage but not inventoried); a failed guide page is titled "Guía", not its own title.
