@@ -87,8 +87,9 @@ def _hook_count(data) -> int:
 
 
 def overview(portal) -> dict:
-    """Install state per runtime for the Harness overview: blocks, hooks, MCP servers and skills, as counts and ids."""
-    from .wikiharness import claude_json_path, read_json
+    """Install state per runtime for the Harness overview: blocks, hooks, MCP servers and skills, as counts and ids. The Codex side
+    also counts its `tools`: no inventory names Codex's tools, so these are the ones found in recorded use."""
+    from .wikiharness import claude_json_path, index, read_json
     home, state_dir = portal.cfg.claude_home, portal.cfg.state_dir
     claude_state = read_json(state_dir / "state.json")
     claude = {"found": home.is_dir(), "home": str(home), "installed": bool(claude_state), "version": claude_state.get("version"),
@@ -98,10 +99,12 @@ def overview(portal) -> dict:
     if found is None:
         return {"claude": claude, "codex": {"found": False}}
     chome, skills = found
+    entries = index(portal).values()
+    tools = sum(1 for e in entries if e["kind"] == "tool" and "codex" in e.get("runtimes", ()))
     cstate = read_json(state_dir / "codex-state.json")
     codex = {"found": True, "home": str(chome), "skills_dir": str(skills), "installed": bool(cstate), "version": cstate.get("version"),
              "blocks": blocks(chome / "AGENTS.md"), "hooks": _hook_count(read_json(chome / "hooks.json")),
-             "mcp_servers": len(toml_servers(chome)), "skills": len(skill_names(skills))}
+             "mcp_servers": len(toml_servers(chome)), "skills": len(skill_names(skills)), "tools": tools}
     return {"claude": claude, "codex": codex}
 
 

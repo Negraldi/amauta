@@ -318,6 +318,12 @@ function emptyCatalog(total, runtime, kind, shown) {
   if (runtime && !shown) return t(kind ? "catalog.noRuntimeKind" : "catalog.noRuntime", { runtime: runtimeNames([runtime]) });
   return t("components.noMatch");
 }
+// Codex's tools are not inventoried anywhere: those listed come from recorded use. Under the Codex filter (Tools or all kinds) the page
+// says so, or says that none were recorded; `n` is the server's count of them (runtimes.codex.tools), absent from an older server.
+function codexToolsNote(n, runtime, kind) {
+  if (runtime !== "codex" || typeof n !== "number" || (kind && kind !== "tool")) return null;
+  return h("p", { class: "muted" }, n ? tn("catalog.codexTools", n, { n: fmt(n) }) : t("catalog.codexToolsNone"));
+}
 // Under a runtime filter the intro says how many of the installed things apply to it.
 function catalogIntro(total, pool, runtime) {
   const n = pool.reduce((sum, g) => sum + g.items.length, 0);
@@ -355,7 +361,8 @@ async function viewCatalog(route) {
   const partial = res.err || sk ? null : errorNote(null, t("part.skills"), true); // without skills the total is partial: it is not said
   const intro = sk || res.err ? catalogIntro(total, pool, runtime) : null;
   return [pageHead(t("nav.catalog"), intro), partial, res.err ? errorPanel(route, res.err) : null,
-    noCodexNote(cat.runtimes), kinds, h("div", { class: "controls" }, box, runtimeLinks(kind, runtime)), refresh, list, teachWhere];
+    noCodexNote(cat.runtimes), codexToolsNote(cat.runtimes && cat.runtimes.codex && cat.runtimes.codex.tools, runtime, kind), kinds,
+    h("div", { class: "controls" }, box, runtimeLinks(kind, runtime)), refresh, list, teachWhere];
 }
 
 // "What it does": the skill's own description, when it triggers, where it comes from. Built-ins have no file and say so.

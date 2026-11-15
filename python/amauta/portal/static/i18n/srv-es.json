@@ -154,6 +154,7 @@
  "Size in CLAUDE.md (characters)": "Tamaño en CLAUDE.md (caracteres)",
  "Size in AGENTS.md (characters)": "Tamaño en AGENTS.md (caracteres)",
  "Usage only": "Solo uso",
+ "Seen in recorded Codex sessions": "Visto en las sesiones de Codex registradas",
  "Event": "Evento",
  "Matcher": "Filtro (matcher)",
  "(all)": "(todos)",

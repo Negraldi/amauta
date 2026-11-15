@@ -444,6 +444,19 @@ Target after redesign: >= 32/40, no P1.
   Not browser-checked: same-route busy state, palette failure, history mark border, sparkline text (covered by tests only).
 - Checks at head: Node 1227/1227; Python 1077 run, 1 known failure (`test_a_missing_scheduled_run_is_noticed`), 2 skipped.
 
+### T20 polish (writer, 2026-11-15; checkboxes left for the coordinator's browser check)
+
+- T20a (`c208427`): an instruction block's description is its first paragraph of prose; a block that opens with a heading or a list has none and the page omits the line
+  (persona blocks no longer say "Rules"). Tests changed: `test_portal_t19` expected the heading or the first list item as the description; they now expect none.
+- T20b (`452fd31`): a guide page that fails keeps its own title (from the guide's page list) in the h1 and the document title; a page the list does not name, or a failed list, keeps "Guide".
+- T20c (see the commit after `452fd31`): `wikitools._usage` now reads the runtime of each call; names seen only in Codex use are tool entries marked Codex, source "Seen in recorded Codex sessions",
+  description saying they are not an official list; a name seen in both runtimes belongs to both; Claude Code tools seen only in Claude use stay Claude's (before, Codex names showed as Claude Code tools).
+  `/api/harness/components` carries `runtimes.codex.tools`; the Catalog under the Codex filter (all kinds or Tools) says how many were found, or that none are recorded. Not browser-checked.
+- T20d: no code change. The chooser measures only the rendered width of each candidate (`layoutWidth` reads the viewBox width), so a "shortest that fits" rule needs heights, more renders per diagram and a legibility
+  check that no test can run (the tests fake the SVG width). A two-column stack would also need the architecture source regrouped, and Mermaid ignores a subgraph's own direction when edges cross its border,
+  which this diagram has. An unverifiable layout change could break the 1280 px fit; left as is (2108 px tall, 13 px text).
+- Checks: Node 1296 of 1296; Python 1096 run, 1 known failure (`test_a_missing_scheduled_run_is_noticed`), 2 skipped.
+
 ## Next step
 
 T1 to T19 done and verified (T19, 2026-11-14, resolved every item the earlier list held). Opening a pull request,

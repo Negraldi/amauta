@@ -22,6 +22,11 @@ CONNECTOR_WHAT = ("A claude.ai connector (or a server the Claude app provides it
 CONNECTOR_WHEN = "When Claude calls one of its tools during a session."
 MCPTOOL_WHEN = "When the agent decides the tool fits the task, subject to your permission rules."
 USAGE_ONLY_NOTE = "Seen in your sessions but not in the built-in catalog shipped with amauta."
+CODEX_SEEN_LABEL = "Seen in recorded Codex sessions"
+CODEX_TOOL_WHAT = ("A tool found in recorded Codex sessions on this machine. This is not an official or complete list of Codex's "
+                   "tools: it only holds the ones your sessions called.")
+CODEX_TOOL_WHAT_ES = ("Una herramienta que aparece en las sesiones de Codex registradas en este equipo. No es una lista oficial ni "
+                      "completa de las herramientas de Codex: solo incluye las que sus sesiones usaron.")
 TOOL_USAGE_NOTE = "Known only from your sessions: no description was reported. Use Refresh descriptions on the Components page for local servers."
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 
@@ -118,24 +123,41 @@ def read_cache(portal) -> dict:
     return out
 
 
+def _merge(into, key, stats):
+    """Add one runtime's numbers for a name to what the others already gave."""
+    have = into.get(key)
+    if have is None:
+        into[key] = {**stats, "runtimes": {stats["runtime"]}}
+        return
+    have["uses"] += stats["uses"]
+    have["sessions"] += stats["sessions"]
+    have["first"] = min(filter(None, (have["first"], stats["first"])), default=None)
+    have["last"] = max(filter(None, (have["last"], stats["last"])), default=None)
+    have["runtimes"].add(stats["runtime"])
+
+
 def _usage(portal):
-    """({(server, tool name): stats} for MCP calls, {tool: stats} for the others)."""
+    """({(server, tool name): stats} for MCP calls, {tool: stats} for the others); each carries the runtimes that called it."""
     conn = portal._usage_conn()
     if conn is None:
         return {}, {}
     try:
-        rows = conn.execute("SELECT c.mcp_server server, c.tool tool, count(*) n, count(DISTINCT c.session_id) sessions, min(c.ts) first_ts, max(c.ts) last_ts FROM tool_calls c "
-                            "WHERE c.tool IS NOT NULL AND c.skill IS NULL GROUP BY c.mcp_server, c.tool").fetchall()
+        rt = f"coalesce({portal._rt(conn)}, 'claude')"
+        rows = conn.execute(f"SELECT c.mcp_server server, c.tool tool, {rt} runtime, count(*) n, count(DISTINCT c.session_id) sessions, "
+                            "min(c.ts) first_ts, max(c.ts) last_ts FROM tool_calls c "
+                            "LEFT JOIN usage_messages u ON u.message_id = c.message_id "
+                            "WHERE c.tool IS NOT NULL AND c.skill IS NULL GROUP BY c.mcp_server, c.tool, runtime").fetchall()
     finally:
         conn.close()
     mcp, plain = {}, {}
     for r in rows:
-        stats = {"uses": r["n"], "sessions": r["sessions"], "first": r["first_ts"], "last": r["last_ts"], "name": r["tool"]}
+        stats = {"uses": r["n"], "sessions": r["sessions"], "first": r["first_ts"], "last": r["last_ts"], "name": r["tool"],
+                 "runtime": r["runtime"]}
         if r["server"]:
             prefix = f"mcp__{r['server']}__"
-            mcp[(r["server"], r["tool"][len(prefix):] if r["tool"].startswith(prefix) else r["tool"])] = stats
+            _merge(mcp, (r["server"], r["tool"][len(prefix):] if r["tool"].startswith(prefix) else r["tool"]), stats)
         else:
-            plain[r["tool"]] = stats
+            _merge(plain, r["tool"], stats)
     return mcp, plain
 
 
@@ -145,9 +167,15 @@ def _usage_meta(u):
 
 def _tool_entry(name, u):
     cat = BUILTIN.get(name)
-    base = {"kind": "tool", "id": name, "title": name, "uses": u["uses"] if u else 0, "meta": [], "material": {"tool": name, "catalog": cat}, "usage_col": "c.tool", "usage_name": name}
+    seen = (u or {}).get("runtimes", set())
+    runtimes = [r for r in ("claude", "codex") if r in seen or (r == "claude" and (cat or not seen))]
+    base = {"kind": "tool", "id": name, "title": name, "uses": u["uses"] if u else 0, "meta": [], "runtimes": runtimes,
+            "material": {"tool": name, "catalog": cat}, "usage_col": "c.tool", "usage_name": name}
     if cat:
         return {**base, "description": cat["en"]["what"], "when": cat["en"]["when"], "i18n": {"es": {"description": cat["es"]["what"], "when": cat["es"]["when"]}}, "source": BUILTIN_LABEL, "path": None}
+    if runtimes == ["codex"]:  # no inventory lists Codex's tools: only the recorded calls say these exist
+        return {**base, "description": CODEX_TOOL_WHAT, "when": None, "source": CODEX_SEEN_LABEL, "path": None,
+                "i18n": {"es": {"description": CODEX_TOOL_WHAT_ES}}}
     return {**base, "description": None, "when": None, "source": USAGE_LABEL, "path": None, "note": USAGE_ONLY_NOTE}
 
 
