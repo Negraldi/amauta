@@ -74,7 +74,7 @@ class KillTreeTest(unittest.TestCase):
     def test_posix_kills_the_whole_group(self):
         proc, groups = FakeProc(), []
         oscompat.kill_tree(proc, platform="linux", killpg=lambda pid, sig: groups.append((pid, sig)))
-        self.assertEqual(groups, [(4321, signal.SIGKILL)])
+        self.assertEqual(groups, [(4321, getattr(signal, "SIGKILL", signal.SIGTERM))])  # Windows has no SIGKILL
         self.assertEqual(proc.killed, 0)
 
     def test_posix_falls_back_to_the_child_when_the_group_is_gone(self):
