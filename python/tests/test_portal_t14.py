@@ -113,7 +113,7 @@ class ActiveFoldersTest(SessionBase):
         projects = self.get("/api/projects")
         self.assertNotIn("data", [p["name"] for p in projects["projects"]])
         folder = next(f for f in projects["folders"] if f["name"] == "data")
-        self.assertEqual((folder["path"], folder["sessions"]), (str(self.plain), 1))
+        self.assertEqual((folder["path"], folder["sessions"]), (str(self.plain.resolve()), 1))  # resolved: macOS temp dirs are symlinks
         self.assertTrue(folder["last"].startswith("2026-10-05"))
         self.assertIn("data", {p["project"] for p in self.get("/api/sessions", days=3650)["projects"]})
 

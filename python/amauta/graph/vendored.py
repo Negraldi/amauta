@@ -72,6 +72,8 @@ def rule_for(repo):
         if not path:
             return False
         rel = str(path)
+        if os.path.isabs(rel) and not rel.startswith(prefix):
+            rel = os.path.realpath(rel)  # the repository key is resolved: a path through a symlink still belongs to it
         rel = (rel[len(prefix):] if rel.startswith(prefix) else rel).replace("\\", "/").removeprefix("./")
         verdict = None
         for pattern, value in attrs:
