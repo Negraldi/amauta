@@ -1,6 +1,6 @@
 # Seguridad de código
 
-El pilar de seguridad de código le da al agente una retroalimentación al estilo de un compilador: después de una edición ve líneas `file:line:col: error: message [checker]` y las corrige en el mismo turno, y en Stop se vuelven a comprobar los archivos cambiados del repositorio (ADR 0006). Solo cuentan los errores que añadió el cambio, porque cada archivo se compara con su última versión confirmada. Los checkers que ejecutan código del repositorio solo se ejecutan en un proyecto en el que confiaste.
+El pilar de seguridad de código le da al agente una retroalimentación al estilo de un compilador: después de una edición ve líneas `file:line:col: error: message [checker]` y las corrige en el mismo turno, y en Stop se vuelven a comprobar los archivos cambiados del repositorio (ADR 0006). Solo cuentan los errores que agregó el cambio, porque cada archivo se compara con su última versión confirmada. Los checkers que ejecutan código del repositorio solo se ejecutan en un proyecto en el que usted confió.
 
 ## De qué está hecho
 
@@ -35,11 +35,11 @@ flowchart LR
 
 ## Flujo de uso y de trabajo
 
-Casi siempre no haces nada: la instalación activa las comprobaciones (`amauta install --no-checks` las desactiva).
+Casi siempre no tiene que hacer nada: la instalación activa las comprobaciones (`amauta install --no-checks` las desactiva).
 
 - **Después de una edición** en Claude Code (`PostToolUse` en `Edit`, `Write`, `MultiEdit`, `NotebookEdit`), se ejecutan los checkers seguros para el tipo del archivo. Los errores nuevos vuelven como un bloque de líneas de hallazgo, así que el agente los corrige en el mismo turno. Un checker que no puede arrancar o que tarda más de 10 segundos se omite.
 - **En Stop** (ambos runtimes), los mismos checkers seguros se ejecutan sobre cada archivo cambiado del repositorio según `git status`, lo que incluye las ediciones hechas a través del shell o por Codex. En un proyecto de confianza también se ejecutan los checkers de proyecto, si están configurados e instalados, y los escáneres de seguridad se ejecutan si están instalados.
-- **Confía en un proyecto** cuando estés de acuerdo con que se ejecuten sus propias herramientas:
+- **Confíe en un proyecto** cuando esté de acuerdo con que se ejecuten sus propias herramientas:
 
 ```bash
 cd ~/code/weekly-sales
@@ -48,7 +48,7 @@ amauta check trust       # permite tsc, eslint, mypy y cargo en Stop, y las ejec
 amauta check untrust
 ```
 
-- **Comprueba los diagramas** de la documentación tú mismo:
+- **Compruebe los diagramas** de la documentación usted mismo:
 
 ```bash
 amauta mermaid check docs/architecture.md README.md
@@ -78,7 +78,7 @@ amauta mermaid check docs/architecture.md README.md
 
 ### La línea base
 
-Para cada archivo, el motor ejecuta los checkers sobre el texto actual y sobre la última versión confirmada (`git show HEAD:<file>`, en un directorio temporal), y luego conserva solo los hallazgos que añadió la edición, emparejados por checker y mensaje para que las líneas movidas no cuenten como nuevas. Un archivo nuevo no tiene línea base: cuenta cada error. No se guarda nada en caché a nivel de proyecto.
+Para cada archivo, el motor ejecuta los checkers sobre el texto actual y sobre la última versión confirmada (`git show HEAD:<file>`, en un directorio temporal), y luego conserva solo los hallazgos que agregó la edición, emparejados por checker y mensaje para que las líneas movidas no cuenten como nuevas. Un archivo nuevo no tiene línea base: cuenta cada error. No se guarda nada en caché a nivel de proyecto.
 
 ### Confianza
 
@@ -107,7 +107,7 @@ Los checkers de proyecto comparten un presupuesto de 40 segundos dentro del úni
 
 ### La regla de marcado de ODD
 
-Cuando una edición de `odd/tasks/*.md` marca un ítem como hecho (comparada con la versión confirmada) mientras los archivos cambiados del repositorio tienen errores, la comprobación de edición responde con un bloqueo que nombra los ids de las tareas y los errores: corrígelos o deja la tarea abierta. Consulta [[guide:odd|ODD y revisión]].
+Cuando una edición de `odd/tasks/*.md` marca un ítem como hecho (comparada con la versión confirmada) mientras los archivos cambiados del repositorio tienen errores, la comprobación de edición responde con un bloqueo que nombra los ids de las tareas y los errores: corríjalos o deje la tarea abierta. Consulte [[guide:odd|ODD y revisión]].
 
 ### Secretos y Mermaid
 

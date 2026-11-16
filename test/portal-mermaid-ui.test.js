@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeEnv, Element } from './helpers/fakedom.js';
+import { makeEnv, Element, giveLayout } from './helpers/fakedom.js';
+giveLayout();
 import { runPortal, readApp } from './helpers/portalboot.js';
 
 const STATIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'python', 'amauta', 'portal', 'static');
@@ -63,7 +64,7 @@ test('the Harness page draws the architecture diagram and loads mermaid once', a
   assert.equal(log.init.length, 1);
   assert.equal(log.init[0].securityLevel, 'strict');
   assert.equal(log.init[0].startOnLoad, false);
-  assert.deepEqual(log.render, [ARCH]);
+  assert.equal(log.render[0], ARCH, 'the source as written is the first layout measured');
   assert.equal(log.parsedAs, 'text/html');
   assert.match(env.document.getElementById('view').textContent, /How a session flows through the harness/);
 });
@@ -89,14 +90,14 @@ test('a failed render shows a one-line warning and the source as text, never as 
 test('mermaid fences in a memory file page are drawn; other fences and prose are not', async () => {
   const { env, log } = await boot('#/memfile/a%2Fmemory%2Fn.md', { page: { kind: 'memfile', id: 'a/memory/n.md', title: 'n.md', body_md: `# T\n\n\`\`\`mermaid\n${FENCE}\n\`\`\`\n\n\`\`\`js\nnot mermaid\n\`\`\`\n${HOSTILE}\n`, meta: [], links: [], backlinks: [], sections: [], missing: [] } });
   assert.ok(env.calls.some((c) => String(c.url).startsWith('/api/wiki/page?kind=memfile')));
-  assert.deepEqual(log.render, [FENCE]);
+  assert.deepEqual([...new Set(log.render)], [FENCE], 'a kind without layouts is measured and drawn as written');
   let imgs = 0;
   env.document.getElementById('view').walk((e) => { if (e.tagName === 'img') imgs += 1; });
   assert.equal(imgs, 0);
 });
 
 test('selecting a graph node also draws its neighborhood diagram', async () => {
-  const { env, log } = await boot('#memories');
+  const { env, log } = await boot('#/node');
   let node;
   env.document.getElementById('view').walk((e) => { if (e.attrs && e.attrs['data-graph'] !== undefined) node = e; });
   assert.ok(node, 'graph node row not found');

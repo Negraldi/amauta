@@ -16,10 +16,11 @@ from ..telemetry import housekeeping
 from ..usage import codex, ingest
 from .. import extensions
 from .wikihooks import hook_handlers as _hook_handlers, hook_kind as _hook_kind
-from . import archify, diagrams, guide, security, siblings, wikifeature
+from . import archify, diagrams, guide, security, sessfacts, sessname, siblings, wikifeature
 
 MAX_TEXT = 200_000
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
+LOCAL_DAY = "coalesce(date(u.ts, 'localtime'), substr(u.ts, 1, 10))"  # usage day keys: this machine's local date (a local-only tool)
 
 
 class BadRequest(Exception):
@@ -119,7 +120,7 @@ class Portal:
         if conn is not None and not has_table(conn, "usage_messages"):
             conn.close()
             return None
-        return conn
+        return sessname.register(self, conn) if conn is not None else None
 
     @staticmethod
     def _range(q, conn=None):
@@ -127,18 +128,17 @@ class Portal:
         With `conn`, a database that predates the runtime column counts every row as Claude."""
         frm, to = _day(q, "from"), _day(q, "to")
         if frm is None and to is None:
-            days = _int(q, "days", 30, 1, 3650)
-            frm = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+            frm = (datetime.now() - timedelta(days=_int(q, "days", 30, 1, 3650))).strftime("%Y-%m-%d")  # a local day, like LOCAL_DAY
         where, args = [], []
         if frm:
-            where.append("substr(u.ts, 1, 10) >= ?")
+            where.append(f"{LOCAL_DAY} >= ?")
             args.append(frm)
         if to:
-            where.append("substr(u.ts, 1, 10) <= ?")
+            where.append(f"{LOCAL_DAY} <= ?")
             args.append(to)
         project = _str(q, "project")
         if project:
-            where.append("u.project = ?")
+            where.append(sessname.PROJECT_FILTER)
             args.append(project)
         runtime = _str(q, "runtime")
         if runtime:
@@ -168,13 +168,13 @@ class Portal:
             cw = "u.cache_write_5m + u.cache_write_1h"
             t = conn.execute(
                 f"SELECT count(*) messages, count(DISTINCT u.session_id) sessions, coalesce(sum(u.input),0) input, coalesce(sum(u.output),0) output, "
-                f"coalesce(sum(u.cache_read),0) cache_read, coalesce(sum({cw}),0) cache_write, coalesce(sum(u.thinking),0) thinking FROM usage_messages u WHERE {where}", args,
+                f"coalesce(sum(u.cache_read),0) cache_read, coalesce(sum({cw}),0) cache_write, coalesce(sum(u.thinking),0) thinking, max(u.ts) latest FROM usage_messages u WHERE {where}", args,
             ).fetchone()
             out["totals"] = dict(t)
             denom = t["input"] + t["cache_read"] + t["cache_write"]
             out["cache_hit_ratio"] = t["cache_read"] / denom if denom else None
             out["daily"] = [dict(r) for r in conn.execute(
-                f"SELECT substr(u.ts,1,10) day, count(*) messages, count(DISTINCT u.session_id) sessions, sum(u.input) input, sum(u.output) output, "
+                f"SELECT {LOCAL_DAY} day, count(*) messages, count(DISTINCT u.session_id) sessions, sum(u.input) input, sum(u.output) output, "
                 f"sum(u.cache_read) cache_read, sum({cw}) cache_write FROM usage_messages u WHERE {where} AND u.ts IS NOT NULL GROUP BY day ORDER BY day", args)]
             out["models"] = [dict(r) for r in conn.execute(
                 f"SELECT coalesce(u.model,'unknown') model, count(*) messages, sum(u.input) input, sum(u.output) output, sum(u.cache_read) cache_read, "
@@ -191,6 +191,7 @@ class Portal:
         return out
 
     def tools(self, q):
+        from . import wikiusage
         self._range(q)
         out = {"available": False, "tools": [], "skills": [], "subagents": [], "mcp_servers": [], "mcp_tools": []}
         conn = self._usage_conn()
@@ -199,14 +200,13 @@ class Portal:
         try:
             where, args = self._range(q, conn)
             base = f"FROM tool_calls c JOIN usage_messages u ON u.message_id = c.message_id WHERE {where}"
-
             def table(col, extra="", cond="1=1"):
                 return [dict(r) for r in conn.execute(
                     f"SELECT {col} name, count(*) count, count(DISTINCT c.session_id) sessions, max(c.ts) last_used {base} AND {cond} GROUP BY {col} ORDER BY count DESC, name LIMIT 500", args)]
-
-            out["tools"] = table("c.tool")
+            out["tools"] = table("c.tool", cond="c.mcp_server IS NULL")  # MCP tools have their own segment: no double counting
             out["skills"] = table("c.skill", cond="c.skill IS NOT NULL")
-            out["subagents"] = table("c.subagent_type", cond="c.subagent_type IS NOT NULL")
+            out["subagents"] = [{**r, "page": r["name"] in wikiusage.agent_ids(self)}  # a row links only where an agent page exists
+                                for r in table("c.subagent_type", cond="c.subagent_type IS NOT NULL")]
             out["mcp_servers"] = table("c.mcp_server", cond="c.mcp_server IS NOT NULL")
             out["mcp_tools"] = table("c.tool", cond="c.mcp_server IS NOT NULL")
             out["available"] = True
@@ -225,12 +225,10 @@ class Portal:
         try:
             where, args = self._range(q, conn)
             rt = self._rt(conn)
-            out["sessions"] = [dict(r) for r in conn.execute(
-                f"SELECT u.session_id session_id, max({rt}) runtime, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, count(*) messages, sum(u.input) input, sum(u.output) output, "
-                f"sum(u.cache_read) cache_read, sum({cw}) cache_write, max(u.model) model FROM usage_messages u WHERE {where} GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", [*args, limit])]
-            out["projects"] = [dict(r) for r in conn.execute(
-                f"SELECT u.project project, count(DISTINCT u.session_id) sessions, count(*) messages, sum(u.input) input, sum(u.output) output, sum(u.cache_read) cache_read, "
-                f"sum({cw}) cache_write FROM usage_messages u WHERE {where} GROUP BY u.project ORDER BY sum(u.input+u.output+u.cache_read+{cw}) DESC", args)]
+            out["sessions"] = sessname.titled(self, [dict(r) for r in conn.execute(
+                f"SELECT u.session_id session_id, max({rt}) runtime, session_project(u.session_id, max(u.project)) project, min(u.ts) first_ts, max(u.ts) last_ts, count(*) messages, sum(u.input) input, sum(u.output) output, "
+                f"sum(u.cache_read) cache_read, sum({cw}) cache_write, {sessfacts.MAIN_MODEL} model, {sessfacts.MODEL_COUNT} models FROM usage_messages u WHERE {where} GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", [*args, limit])])
+            out["projects"] = sessname.project_totals(conn, where, args)
             out["available"] = True
         finally:
             conn.close()
@@ -286,54 +284,8 @@ class Portal:
         return "revision" if "revision" in cols else ("revision_count" if "revision_count" in cols else None)
 
     def memories(self, q):
-        source, conn = self._memory_conn(q)
-        out = {"source": source, "available": False, "items": [], "facets": {"projects": [], "types": []}}
-        if conn is None:
-            return out
-        try:
-            if not has_table(conn, "observations") or not _OBS_COLUMNS <= set(columns(conn, "observations")):
-                return out  # not an engram-compatible schema
-            rev = self._revision_column(conn)
-            rev_expr = f"o.{rev}" if rev else "1"
-            live = "o.deleted_at IS NULL" if "deleted_at" in columns(conn, "observations") else "1=1"
-            limit = _int(q, "limit", 50, 1, 200)
-            project, typ, text = _str(q, "project"), _str(q, "type"), _str(q, "q", 300)
-            filt, fargs = "", []
-            if project:
-                filt += " AND o.project = ?"
-                fargs.append(project)
-            if typ:
-                filt += " AND o.type = ?"
-                fargs.append(typ)
-            cols = f"o.id, o.title, o.type, o.project, o.topic_key, o.updated_at, {rev_expr} AS revision"
-            rows = None
-            if text:
-                match = mstore.fts_query(text)
-                if not match:
-                    rows = []
-                elif has_table(conn, "observations_fts"):
-                    try:
-                        rows = conn.execute(
-                            f"SELECT {cols}, snippet(observations_fts, 1, '', '', '...', 24) AS snippet FROM observations_fts JOIN observations o ON o.id = observations_fts.rowid "
-                            f"WHERE observations_fts MATCH ? AND {live}{filt} ORDER BY bm25(observations_fts) LIMIT ?", [match, *fargs, limit]).fetchall()
-                    except sqlite3.Error:
-                        rows = None
-                if rows is None:
-                    like = "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-                    rows = conn.execute(
-                        f"SELECT {cols}, substr(o.content, 1, 160) AS snippet FROM observations o WHERE (o.title LIKE ? ESCAPE '\\' OR o.content LIKE ? ESCAPE '\\') AND {live}{filt} "
-                        f"ORDER BY o.updated_at DESC LIMIT ?", [like, like, *fargs, limit]).fetchall()
-            else:
-                rows = conn.execute(f"SELECT {cols}, substr(o.content, 1, 160) AS snippet FROM observations o WHERE {live}{filt} ORDER BY o.updated_at DESC, o.id DESC LIMIT ?", [*fargs, limit]).fetchall()
-            out["items"] = [dict(r) for r in rows]
-            out["facets"] = {
-                "projects": [r[0] for r in conn.execute(f"SELECT DISTINCT o.project FROM observations o WHERE {live} AND o.project IS NOT NULL ORDER BY 1 LIMIT 200")],
-                "types": [r[0] for r in conn.execute(f"SELECT DISTINCT o.type FROM observations o WHERE {live} AND o.type IS NOT NULL ORDER BY 1 LIMIT 100")],
-            }
-            out["available"] = True
-        finally:
-            conn.close()
-        return out
+        from . import memlist
+        return memlist.memories(self, q)
 
     def memory(self, q):
         source, conn = self._memory_conn(q)
@@ -385,8 +337,8 @@ class Portal:
         items = []
         for p in self._memory_files():
             st = p.stat()
-            items.append({"id": p.relative_to(root).as_posix(), "name": p.name, "project": p.parent.parent.name, "size": st.st_size,
-                          "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+            items.append({"id": p.relative_to(root).as_posix(), "name": p.name, "project": p.parent.parent.name.lstrip("-"),
+                          "size": st.st_size, "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
         return {"items": items}
 
     def memory_file(self, q):
@@ -408,10 +360,9 @@ class Portal:
 
     def _graph_repo(self, q):
         """Only repositories given with --repo can be asked about; the value is matched, never used as a path."""
-        wanted = q.get("repo")
         for repo in self.repos():
-            if wanted == str(repo.resolve()):
-                return wanted
+            if q.get("repo") == str(repo.resolve()):
+                return q["repo"]
         raise BadRequest("repo must be one of the configured --repo paths (see /api/graphify)")
 
     def graphify(self, q):
@@ -451,16 +402,20 @@ class Portal:
             conn.close()
 
     def graph_nodes(self, q):
-        repo = self._graph_repo(q)
-        limit = _int(q, "limit", 50, 1, 200)
-        return self._graph_call(lambda conn: {"items": graph_query.search_nodes(conn, repo, _str(q, "q", 200) or "", limit)})
+        repo, limit, text = self._graph_repo(q), _int(q, "limit", 50, 1, 200), _str(q, "q", 200) or ""
+        order, vendored, concepts = "name" if q.get("order") == "name" else "links", q.get("vendored") == "1", q.get("concepts") == "1"
+        offset = _int(q, "offset", 0, 0, 10**6)
+        return self._graph_call(lambda c: graph_query.node_list(c, repo, text, limit, vendored, order, offset, concepts))
 
-    def graph_neighbors(self, q):
-        repo = self._graph_repo(q)
+    def _node_arg(self, q):
         node = _str(q, "node", 512)
         if not node:
             raise BadRequest("node is required")
-        depth = _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
+        return node
+
+    def graph_neighbors(self, q):
+        repo = self._graph_repo(q)
+        node, depth = self._node_arg(q), _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
         return self._graph_call(lambda conn: graph_query.neighbors(conn, repo, node, depth))
 
     # ---- harness --------------------------------------------------------------------------
@@ -539,14 +494,11 @@ class Portal:
 
     def graph_diagram(self, q):
         repo = self._graph_repo(q)
-        node = _str(q, "node", 512)
-        if not node:
-            raise BadRequest("node is required")
-        depth = _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
+        node, depth = self._node_arg(q), _int(q, "depth", 1, 1, graph_query.MAX_DEPTH)
 
         def build(conn):
             g = graph_query.neighbors(conn, repo, node, depth)
-            return {"source": diagrams.graph_neighborhood(g), "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": g["truncated"]}
+            return {"source": diagrams.graph_neighborhood(g), "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": g["truncated"], "capped": g["truncated"]}
         return self._graph_call(build)
 
     # ---- wiki (page schema, recent changes, search) live in wiki.py; imported lazily because wiki.py imports this module ----
@@ -559,8 +511,8 @@ class Portal:
         return wiki.recent(self, q)
 
     def wiki_search(self, q):
-        from . import wiki
-        return wiki.search(self, q)
+        from . import wikisearch
+        return wikisearch.search(self, q)
 
     def skills(self, q):
         from . import wikiskills

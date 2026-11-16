@@ -101,7 +101,7 @@ test('a wiki page asks /api/wiki/page for the route, shows title, kind label, me
   assert.equal(h1[0].textContent, XSS); // hostile title is text
   assert.match(v.textContent, /Memory/);
   assert.match(v.textContent, /Type/);
-  assert.match(v.textContent, /decision/);
+  assert.match(v.textContent, /Decision/);
   const links = hrefs(v);
   assert.ok(links.includes('#/skill/work-unit-commits'));
   assert.ok(links.includes('#/session/s1'));
@@ -138,7 +138,7 @@ test('sections render as lists with links, and task status uses a label plus a s
 test('an unknown page shows a teaching not-found state, not an error panel', async () => {
   const { env } = await boot('#/skill/ghost', { '/api/wiki/page': undefined });
   const v = view(env);
-  assert.match(v.textContent, /No skill page/);
+  assert.match(v.textContent, /Skill not found/);
   assert.match(v.textContent, /ghost/);
   assert.ok(hrefs(v).includes('#/home'));
   assert.ok(!/^Error/.test(v.textContent));
@@ -179,41 +179,25 @@ test('existing views stay reachable as pages: legacy hashes, list routes and usa
 test('a page that belongs to a group shows the group tabs and the sidebar marks the group (plan N12d)', async () => {
   const { env } = await boot('#/tool');
   const byHref = Object.fromEntries(tree(env.document.getElementById('nav')).filter((e) => e.tagName === 'a').map((a) => [a.getAttribute('href'), a]));
-  assert.equal(byHref['#/activity'].getAttribute('aria-current'), 'page');
-  const tabs = tree(view(env)).find((e) => e.tagName === 'nav');
+  assert.equal(byHref['#/usage'].getAttribute('aria-current'), 'page');
+  const tabs = tree(view(env)).find((e) => e.tagName === 'nav' && e.className === 'tabs');
   assert.ok(tabs, 'tab bar');
-  assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool', '#/mcp']);
+  assert.deepEqual(hrefs(tabs), ['#/usage', '#/session', '#/tool']);
   assert.equal(tree(tabs).find((e) => e.attrs.href === '#/tool').getAttribute('aria-current'), 'page');
   const mem = await boot('#/memory');
-  assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav')), ['#/memory', '#/lint']);
+  assert.deepEqual(hrefs(tree(view(mem.env)).find((e) => e.tagName === 'nav' && e.className === 'tabs')), ['#/memory', '#/memfile', '#/lint']);
 });
 
-test('the sidebar lists the 6+1 pages, marks the current one and shows recent changes as links (plan N12d)', async () => {
+test('the sidebar lists the job-based pages and marks the current one; it has no recent list (portal redesign T1, T2)', async () => {
   const { env } = await boot('#/memory');
   const nav = env.document.getElementById('nav');
   const links = tree(nav).filter((e) => e.tagName === 'a');
   const byHref = Object.fromEntries(links.map((a) => [a.getAttribute('href'), a]));
-  assert.deepEqual(links.map((a) => a.getAttribute('href')), ['#/home', '#/project', '#/memory', '#/activity', '#/harness', '#/security', '#/settings']);
+  assert.deepEqual(links.map((a) => a.getAttribute('href')),
+    ['#/', '#/project', '#/pipelines', '#/memory', '#/node', '#/usage', '#/harness', '#/component', '#/security', '#/guide', '#/settings']);
   assert.equal(byHref['#/memory'].getAttribute('aria-current'), 'page');
-  assert.equal(byHref['#/home'].getAttribute('aria-current'), undefined);
-  const recent = env.document.getElementById('recent');
-  assert.ok(hrefs(recent).includes('#/memory/7'));
-  assert.ok(hrefs(recent).includes('#/session/s1'));
-  assert.match(recent.textContent, /memory saved/);
-  assert.equal(tree(recent).filter((e) => e.tagName === 'img').length, 0);
-});
-
-test('recent changes degrade to a teaching message, never to an error or an unhandled rejection', async () => {
-  const seen = [];
-  const on = (r) => seen.push(r);
-  process.on('unhandledRejection', on);
-  try {
-    let { env } = await boot('#/settings', { '/api/wiki/recent': undefined });
-    assert.match(env.document.getElementById('recent').textContent, /unavailable/);
-    ({ env } = await boot('#/settings', { '/api/wiki/recent': { items: [] } }));
-    assert.match(env.document.getElementById('recent').textContent, /appear here/);
-  } finally { process.off('unhandledRejection', on); }
-  assert.deepEqual(seen, []);
+  assert.equal(byHref['#/'].getAttribute('aria-current'), undefined);
+  assert.ok(!env.calls.some((c) => String(c.url).includes('/api/wiki/recent')), 'Home has the activity feed; the sidebar does not repeat it');
 });
 
 test('Ctrl+K and / open the search palette; / is ignored while typing in a field', async () => {
@@ -248,12 +232,12 @@ test('typing searches (debounced), shows grouped results with text kind labels a
   assert.equal(searches[0].url, '/api/wiki/search?q=wid');
   const results = env.document.getElementById('palette-results');
   const text = results.textContent;
-  assert.match(text, /skill \(1\)/);
-  assert.match(text, /memory \(2\)/);
+  assert.match(text, /Skills \(1\)/);
+  assert.match(text, /Memories \(2\)/);
   assert.ok(text.includes(XSS));
   const options = tree(results).filter((e) => e.attrs.role === 'option');
   assert.equal(options.length, 3);
-  assert.ok(options.every((o) => /^(skill|memory)/.test(o.children[0].textContent)), 'each option starts with its kind label');
+  assert.ok(options.every((o) => /pal-title/.test(o.children[0].className)), 'T8 n: the group heading names the kind once; rows start with the title');
   assert.equal(tree(results).filter((e) => e.tagName === 'img').length, 0);
   assert.ok(tree(results).every((e) => Object.keys(e.attrs).every((k) => !k.startsWith('on'))));
 });
@@ -295,7 +279,7 @@ test('clicking a result navigates; stale responses and empty or failing searches
 
 test('static: dialog, scripts in order, fonts, tokens, reduced motion, and none of the banned patterns', async () => {
   const html = await read('index.html');
-  const css = await read('style.css');
+  const css = (await read('style.css') + await read('style-pages.css'));
   assert.match(html, /<dialog id="palette"/);
   const order = [...html.matchAll(/<script src="\/static\/([\w.-]+)"><\/script>/g)].map((m) => m[1]);
   assert.deepEqual(order, ['i18n.js', 'theme.js', 'markdown.js', 'wikiroute.js', ...APP_SCRIPTS]);
@@ -360,7 +344,7 @@ test('a skill page draws usage over time as bars with a text summary, or says no
   let { env } = await boot('#/skill/work-unit-commits', { '/api/wiki/page': { ...PAGE, kind: 'skill', id: 'work-unit-commits', usage: { daily, days: 30 } } });
   const v = view(env);
   assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Usage over time'));
-  assert.match(v.textContent, /3 calls in the 30 days up to 2026-09-30/);
+  assert.match(v.textContent, /3 calls in the last 30 days \(up to 2026-09-30\)/);
   const rects = tree(v).filter((e) => e.tagName === 'rect');
   assert.equal(rects.length, 30);
   assert.ok(rects.every((r) => Number.isFinite(Number(r.getAttribute('height')))));
@@ -388,17 +372,17 @@ test('a feature page shows progress with a bar, a count and shape-labelled chips
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0);
 });
 
-test('a feature page draws the task grid once and notes a capped document; a node page keeps its own diagram', async () => {
-  const pg = { ...PAGE, sections: [], kind: 'feature', id: 'feat', title: 'Feature', body_md: 'text', progress: { done: 1, total: 90, percent: 1 }, commits: [],
+test('a feature page lists its tasks once and counts them once; a node page keeps its own diagram', async () => {
+  const pg = { ...PAGE, sections: [{ heading: 'Tasks', items: [{ label: 'T1 one', value: 'done' }] }], kind: 'feature', id: 'feat', title: 'Feature', body_md: 'text',
+    progress: { done: 1, total: 90, percent: 1 }, commits: [], meta: [{ label: 'Tasks done', value: '1 of 90' }, { label: 'Repository', value: 'amauta' }],
     diagram: { source: 'flowchart TB\n  s0(["x"])', tasks: 90, shown: 60 } };
-  let { env } = await boot('#/feature/feat', { '/api/wiki/page': pg });
+  const { env } = await boot('#/feature/feat', { '/api/wiki/page': pg });
   const v = view(env);
-  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
-  assert.equal(tree(v).filter((e) => /diagram/.test(cls(e))).length, 1);
-  assert.match(v.textContent, /Showing the first 60 of 90 tasks/);
-  assert.ok(!tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Neighborhood'));
-  ({ env } = await boot('#/feature/feat', { '/api/wiki/page': { ...pg, diagram: null } }));
-  assert.ok(!tree(view(env)).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'));
+  assert.ok(!tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Task grid'), 'the grid repeats the list: not drawn here');
+  assert.equal(tree(v).filter((e) => /diagram/.test(cls(e))).length, 0);
+  assert.ok(tree(v).some((e) => e.tagName === 'h2' && e.textContent === 'Tasks'));
+  assert.equal((v.textContent.match(/1 of 90/g) || []).length, 1, 'one count');
+  assert.match(v.textContent, /Repository/);
 });
 
 test('the Harness page shows the session flow in Mermaid and links archify, never frames it (plan N12e)', async () => {
@@ -444,11 +428,12 @@ const HOME = {
   health: { installed: true, version: '0.1.0', hooks: 3, mcp_servers: 2, skills: 12, agents: 4, telemetry: true },
 };
 
-test('home: recent activity grouped by day is the main column; spending and health sit in the rail without metric tiles', async () => {
-  const { env } = await boot('#/home', { '/api/wiki/home': HOME });
+test('home: recent activity grouped by day is the main column; spending sits in the rail, health is the lead sentence (T8)', async () => {
+  const { env } = await boot('#/home', { '/api/wiki/home': HOME, '/api/harness': { installed: true, version: '0.1.0' },
+    '/api/harness/components': { total: 0, groups: [] }, '/api/skills': { groups: [] } });
   const v = view(env);
   assert.ok(env.calls.some((c) => c.url === '/api/wiki/home'));
-  assert.deepEqual(tree(v).filter((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);
+  assert.deepEqual(tree(v).filter((e) => e.tagName === 'h3' && /^\d{4}-/.test(e.textContent)).map((e) => e.textContent), ['2026-10-02', '2026-10-01']);
   const links = hrefs(v);
   for (const h of ['#/memory/7', '#/session/s1', '#/feature/feat', '#/usage', '#/harness']) assert.ok(links.includes(h), h);
   assert.ok(v.textContent.includes(XSS));
@@ -459,8 +444,8 @@ test('home: recent activity grouped by day is the main column; spending and heal
   assert.match(rail.textContent, /7 days/);
   assert.match(rail.textContent, /30 days/);
   assert.match(rail.textContent, /75\.0%/);
-  assert.match(rail.textContent, /Harness health/);
-  assert.match(rail.textContent, /Hooks/);
+  assert.match(tree(v).find((e) => cls(e) === 'lead').textContent, /^amauta 0\.1\.0 is installed; 0 components, nothing needs attention\.$/); // T8 m: one status line
+  assert.doesNotMatch(rail.textContent, /Harness health/);
   assert.ok(!tree(rail).some((e) => e.tagName === 'h2' && /^\d{4}-/.test(e.textContent)), 'activity is not in the rail');
   assert.equal(env.document.getElementById('filters').hidden, true);
 });
@@ -478,7 +463,7 @@ test('every page opens with its title (impeccable critique P1: one page skeleton
     '/api/graphify': { repos: [] }, '/api/projects': { projects: [] }, '/api/sessions': { available: true, projects: [], sessions: [] },
     '/api/harness': { installed: false }, '/api/archify': { installed: false }, '/api/harness/components': null,
   };
-  for (const [hash, title] of [['#/memory', 'Memory'], ['#/usage', 'Usage'], ['#/session', 'Sessions'], ['#/harness', 'Harness'], ['#/home', null]]) {
+  for (const [hash, title] of [['#/memory', 'Memory'], ['#/usage', 'Usage'], ['#/session', 'Sessions'], ['#/harness', 'Harness overview'], ['#/home', null]]) {
     const { env } = await boot(hash, stubs);
     assert.doesNotMatch(view(env).textContent, /^Error/, `${hash} rendered the error panel`);
     const first = tree(view(env)).find((e) => /^h[1-6]$/.test(e.tagName)); // the first heading in reading order
@@ -493,7 +478,7 @@ test('home teaches when there is no activity, no usage data and no install', asy
   const { env } = await boot('#/home', { '/api/wiki/home': empty });
   const t = view(env).textContent;
   assert.match(t, /appear here/);
-  assert.match(t, /Refresh usage/);
+  assert.match(t, /press Refresh|choose Refresh/);
   assert.match(t, /not installed/);
 });
 
@@ -607,8 +592,9 @@ test('the Security page shows protections, checkers, trusted projects, profiles 
   const { env } = await boot('#/security', { '/api/security': report });
   const text = view(env).textContent;
   assert.match(text, /Security/);
-  assert.match(text, /privacy hook is off/i);
-  for (const needle of ['tsc', 'gitleaks', '/work/app', 'acme', 'cedula']) assert.ok(text.includes(needle), needle);
+  assert.match(text, /Privacy hook[^]*○ off/); // the protections table: shape plus words
+  for (const needle of ['tsc', 'gitleaks', '/work/app', 'acme', 'National ID (cédula)']) // T8: redaction kinds have labels
+    assert.ok(text.includes(needle), needle);
   assert.match(text, /1 draft/);
   const nav = tree(env.document.getElementById('nav')).find((e) => e.attrs.href === '#/security');
   assert.equal(nav.getAttribute('aria-current'), 'page');

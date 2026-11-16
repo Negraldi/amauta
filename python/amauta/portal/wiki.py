@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import re
 from ..graph import query as graph_query
-from .api import MAX_TEXT, BadRequest, NotFound, _int, _str, has_table, columns
-from . import diagrams, wikifeature, wikiharness, wikimem, wikiproject, wikisess, wikiusage
-from .wikiusage import USAGE_COLUMN as _USAGE_COLUMN
+from .api import MAX_TEXT, BadRequest, NotFound, _int, has_table, columns
+from . import diagrams, sessfacts, wikifeature, wikiharness, wikimem, wikiproject, wikisess, wikiusage
 from .wikibase import LINK_CAP, _blank, _iso, _item, _like, _live, _meta, _mtime, _ref, strip_title_h1
 
 MAX_ID = 512
@@ -134,8 +133,10 @@ def _memfile_page(portal, ident, q):
         text = found.read_bytes()[:MAX_TEXT].decode("utf-8", "replace")
     except OSError:
         raise NotFound() from None
-    pg = _blank("memfile", ident, found.name, text)
-    pg["meta"] = _meta(("Project", found.parent.parent.name), ("Size", st.st_size), ("Modified", _mtime(found)), ("Truncated", "yes" if st.st_size > MAX_TEXT else None))
+    front, body = wikiusage.parse_frontmatter(text)  # the file's own header is a list of details, not a paragraph of its text
+    pg = _blank("memfile", ident, found.name, body)
+    pg["meta"] = _meta(("Project", found.parent.parent.name.lstrip("-")), ("Size", st.st_size), ("Modified", _mtime(found)),
+                       ("Truncated", "yes" if st.st_size > MAX_TEXT else None), *front.items())
     pg["links"], pg["missing"] = _wikilink_links(portal, text)
     return pg
 
@@ -216,7 +217,7 @@ def _feature_page(portal, ident, q):
     tasks = [(t["done"], t["title"]) for t in parsed]
     title = next((m.group(1).strip() for m in re.finditer(r"^# (.+)$", text, re.M)), ident)
     ident = feature_id(repo, f)
-    pg = _blank("feature", ident, title, strip_title_h1(text, title))
+    pg = _blank("feature", ident, title, strip_title_h1(wikifeature.strip_tasks(text), title))
     pg["meta"] = _meta(("Repository", repo.name), ("File", f.name), ("Tasks done", f"{sum(d for d, _ in tasks)} of {len(tasks)}"), ("Modified", _mtime(f)))
     pg["sections"] = [{"heading": "Tasks", "items": [_item(t, "done" if d else "pending") for d, t in tasks]}] if tasks else []
     pg["progress"] = wikifeature.progress(tasks)
@@ -259,6 +260,7 @@ def _node_page(portal, ident, q):
     try:
         try:
             g = graph_query.neighbors(conn, key, node, 1)
+            counts = graph_query.edge_counts(conn, key, g["start"][0])  # real counts: the lists below are cut at EDGE_LIMIT
         except graph_query.QueryError:
             raise NotFound() from None
     finally:
@@ -271,10 +273,13 @@ def _node_page(portal, ident, q):
     out = [(e, by_id[e["dst"]]) for e in g["edges"] if e["src"] == me["id"] and e["dst"] in by_id and e["dst"] != me["id"]]
     inc = [(e, by_id[e["src"]]) for e in g["edges"] if e["dst"] == me["id"] and e["src"] in by_id and e["src"] != me["id"]]
     pg["links"], pg["backlinks"] = _dedupe([ref(n) for _, n in out]), _dedupe([ref(n) for _, n in inc])
-    pg["meta"] += _meta(("Outgoing edges", len(out)), ("Incoming edges", len(inc)))
+    listed, real = len(out) + len(inc), counts["outgoing"] + counts["incoming"]
+    pg["meta"] += _meta(("Outgoing edges", counts["outgoing"]), ("Incoming edges", counts["incoming"]),
+                        ("Edges listed", f"{listed} of {real}" if listed < real else None))
     pg["sections"] = _relation_groups(repo.name, out, "outgoing") + _relation_groups(repo.name, inc, "incoming")
     src = diagrams.graph_neighborhood(g)
-    pg["diagram"] = {"source": src, "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": bool(g["truncated"]) or len(g["nodes"]) > diagrams.MAX_GRAPH_NODES}
+    pg["diagram"] = {"source": src, "nodes": len(g["nodes"]), "edges": len(g["edges"]), "truncated": bool(g["truncated"]) or len(g["nodes"]) > diagrams.MAX_GRAPH_NODES,
+                    "capped": bool(g["truncated"])}  # capped: the server stopped walking, so the node count is a floor
     pg["truncated"] = bool(g["truncated"])
     return pg
 
@@ -284,7 +289,7 @@ def _relation_groups(repo_name, pairs, direction):
     groups: dict = {}
     for e, n in pairs:
         groups.setdefault(e["relation"] or "related", []).append(_item(n["label"] or n["id"], n["kind"], "node", f"{repo_name}::{n['id']}"))
-    return [{"heading": f"{rel} ({direction})", "items": items} for rel, items in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
+    return [{"heading": f"{rel} ({direction})", "relation": rel, "direction": direction, "items": items} for rel, items in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
 
 
 # ---- light existence checks (wikilink targets, search) --------------------------------------------------------
@@ -341,111 +346,13 @@ def _recent_sessions(portal, limit):
     if conn is None:
         return []
     try:
-        rows = conn.execute("SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u WHERE u.ts IS NOT NULL "
+        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, {sessfacts.MAIN_MODEL} model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u WHERE u.ts IS NOT NULL "
                             "GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", (limit,)).fetchall()
-        return [{"kind": "session", "id": r["session_id"], "title": wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"]), "ts": _iso(r["last_ts"]),
-                 "what": wikisess.what(r["n"])} for r in rows]
+        return [{"kind": "session", "id": r["session_id"], "title": (tl := wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"], dated=False)),
+                 "ts": _iso(r["last_ts"]), "what": wikisess.feed_what(r["n"], tl), "started": _iso(r["first_ts"])} for r in rows]
     finally:
         conn.close()
 
 
 def _recent_features(portal):
     return [{"kind": "feature", "id": feature_id(repo, f), "title": f.stem, "ts": _mtime(f), "what": "ODD document updated"} for repo, f in _feature_docs(portal)]
-
-
-# ---- global search --------------------------------------------------------------------------------------------
-PER_KIND = 8
-FETCH_CAP = 50
-
-
-def search(portal, q):
-    text = (_str(q, "q", 200) or "").replace("\x00", " ").strip()
-    per_kind = _int(q, "limit", PER_KIND, 1, 25)
-    out = {"q": text, "groups": []}
-    if not text:
-        return out
-    for label, fn in (("memory", _search_memories), ("skill", _search_usage("skill")), ("tool", wikiharness.merged_search("tool", _search_usage("tool"))), ("mcp", wikiharness.merged_search("mcp", _search_usage("mcp"))),
-                      *[(k, wikiharness.search(k)) for k in wikiharness.NEW_KINDS],
-                      ("session", _search_sessions), ("project", _search_projects), ("feature", _search_features), ("task", _search_tasks), ("node", _search_nodes)):
-        rows = fn(portal, text)
-        if rows:
-            out["groups"].append({"kind": label, "count": len(rows), "items": rows[:per_kind]})
-    return out
-
-
-def _hit(kind, ident, title, snippet=None):
-    return {"kind": kind, "id": str(ident), "title": str(title), "snippet": snippet}
-
-
-def _search_memories(portal, text):
-    res = portal.memories({"q": text, "limit": str(FETCH_CAP)})
-    return [_hit("memory", i["id"], i["title"], (i.get("snippet") or "")[:160]) for i in res.get("items", [])] if res.get("available") else []
-
-
-def _search_usage(kind):
-    col = _USAGE_COLUMN[kind]
-
-    def run(portal, text):
-        conn = portal._usage_conn()
-        if conn is None:
-            return []
-        try:
-            rows = conn.execute(f"SELECT {col} name, count(*) n FROM tool_calls c WHERE {col} LIKE ? ESCAPE '\\' GROUP BY name ORDER BY n DESC, name LIMIT {FETCH_CAP}", (_like(text),)).fetchall()
-            return [_hit(kind, r["name"], r["name"], f"{r['n']} calls") for r in rows]
-        finally:
-            conn.close()
-    return run
-
-
-def _search_sessions(portal, text):
-    conn = portal._usage_conn()
-    if conn is None:
-        return []
-    try:
-        rows = conn.execute("SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u GROUP BY u.session_id "
-                            "HAVING u.session_id LIKE ? ESCAPE '\\' OR max(u.project) LIKE ? ESCAPE '\\' ORDER BY last_ts DESC LIMIT ?", (_like(text), _like(text), FETCH_CAP)).fetchall()
-        return [_hit("session", r["session_id"], wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"]), r["last_ts"]) for r in rows]
-    finally:
-        conn.close()
-
-
-def _search_projects(portal, text):
-    needle = text.lower()
-    return [_hit("project", r.name, r.name, str(r)) for r in portal.repos() if needle in r.name.lower()][:FETCH_CAP]
-
-
-def _search_features(portal, text):
-    needle = text.lower()
-    return [_hit("feature", feature_id(repo, f), f.stem, repo.name) for repo, f in _feature_docs(portal) if needle in f.stem.lower()][:FETCH_CAP]
-
-
-def _search_tasks(portal, text):
-    needle, out = text.lower(), []
-    for repo, f in _feature_docs(portal):
-        try:
-            body = f.read_text(errors="replace")[:MAX_TEXT]
-        except OSError:
-            continue
-        for m in re.finditer(r"^- \[( |x|X)\] (.+)$", body, re.M):
-            if needle in m.group(2).lower():
-                out.append(_hit("feature", feature_id(repo, f), m.group(2).strip()[:160], f"{f.stem}, {'done' if m.group(1).lower() == 'x' else 'pending'}"))
-                if len(out) >= FETCH_CAP:
-                    return out
-    return out
-
-
-def _search_nodes(portal, text):
-    conn = portal._graph_conn()
-    if conn is None:
-        return []
-    out = []
-    try:
-        for repo in portal.repos():
-            try:
-                nodes = graph_query.search_nodes(conn, str(repo.resolve()), text, FETCH_CAP)
-            except graph_query.QueryError:
-                continue
-            out += [_hit("node", f"{repo.name}::{n['id']}", n["label"] or n["id"], n["file"]) for n in nodes]
-    finally:
-        conn.close()
-    return out[:FETCH_CAP]

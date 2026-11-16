@@ -173,7 +173,7 @@ class McpPageTest(HarnessBase):
         self.assertIn("node srv.js --api-key ***", m["Command"])
         self.assertEqual(m["Environment variables (names only)"], "X_TOKEN")
         self.assertEqual(pg["summary"]["source"], "Project repo")
-        self.assertTrue(pg["summary"]["description"])
+        self.assertTrue(pg["summary"]["generic"])  # the generic MCP sentence is the catalog group lead, not repeated here (T15 C7)
 
     def test_http_server_masks_url_query_and_shows_header_names(self):
         pg = self.page("mcp", "remote")
@@ -194,7 +194,7 @@ class McpPageTest(HarnessBase):
     def test_usage_page_of_a_used_server_gains_the_configuration_summary(self):
         pg = self.page("mcp", "engram")
         self.assertIn("usage", pg)
-        self.assertTrue(pg["summary"]["description"])
+        self.assertTrue(pg["summary"]["generic"])
         self.assertEqual(self.meta(pg)["Type"], "stdio")
         self.assertEqual(self.meta(pg)["Environment variables (names only)"], "TOKEN")
         self.assertNotIn("SECRET-ENV", json.dumps(pg))

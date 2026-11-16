@@ -1,6 +1,6 @@
 # amauta de un vistazo
 
-amauta es un pequeño arnés para Claude Code y Codex, escrito en Node.js simple (22 o posterior) y Python (3.11 o posterior, solo la biblioteca estándar). Instala instrucciones, hooks, skills, agentes y servidores MCP en ambos runtimes, mantiene una sola memoria local y te da un portal local para ver lo que el arnés sabe. No tiene código compilado propio, ni dependencias de npm, ni código de red en sus hooks o servidores.
+amauta es un pequeño harness para Claude Code y Codex, escrito en Node.js simple (22 o posterior) y Python (3.11 o posterior, solo la biblioteca estándar). Instala instrucciones, hooks, skills, agentes y servidores MCP en ambos runtimes, mantiene una sola memoria local y le da un portal local para ver lo que el harness sabe. No tiene código compilado propio, ni dependencias de npm, ni código de red en sus hooks o servidores.
 
 Esta página es el mapa. Cada una de las demás páginas de la guía profundiza en una parte.
 
@@ -18,7 +18,7 @@ amauta se organiza en capas (ADR 0001). Cada archivo bajo `bin/`, `src/`, `pytho
 | Extras | `python/amauta/extras/`: pipelines, impacto de skills, explicaciones de la wiki, editor de temas, pasada semántica de graphify, herramientas PBIR | [[guide:pipelines|El orquestador de pipelines]], [[guide:extras|Módulos opcionales y extras]] |
 | Herramientas | `scripts/` (migración desde gentle-ai, sondeo de runtimes, comprobaciones de desarrollo) | esta página |
 
-Fuera del repositorio están los **proyectos hermanos**: proyectos que viven junto a amauta, que el portal enlaza y cuya salud comprueba, pero que nunca ejecuta. Consulta [[guide:siblings|Proyectos hermanos]].
+Fuera del repositorio están los **proyectos hermanos**: proyectos que viven junto a amauta, que el portal enlaza y cuya salud comprueba, pero que nunca ejecuta. Consulte [[guide:siblings|Proyectos hermanos]].
 
 Los cuatro pilares responden a cuatro necesidades:
 
@@ -59,11 +59,11 @@ Las reglas de importación las hace cumplir `test/architecture.test.js`:
 
 Un día típico con amauta se ve así:
 
-1. **Instala una vez**: `amauta install` escribe los bloques, hooks, skills, agentes y servidores MCP en Claude Code, y en Codex cuando existe `~/.codex`. Consulta [[guide:install|Instalación y runtimes]].
-2. **Trabaja en una sesión**: el bloque orquestador hace de ODD el flujo de trabajo por defecto. El trabajo sustancial recibe un archivo de tareas en `odd/tasks/<feature>.md`, reflejado en la memoria. Consulta [[guide:odd|ODD y revisión]].
-3. **Deja que los hooks ayuden**: después de una edición, las comprobaciones informan los errores nuevos; en Stop se vuelven a comprobar los archivos cambiados y puede saltar el recordatorio de revisión; el hook de privacidad pregunta antes de leer un archivo de datos.
-4. **Míralo**: `amauta portal` (o `amauta portal launch`) muestra memorias, sesiones, uso, features, el grafo, el estado de seguridad, los pipelines y esta guía.
-5. **Ejecuta procesos**: el `.amauta/pipelines.json` de un proyecto define trabajos recurrentes que ejecutas desde la terminal o el portal. Consulta [[guide:pipelines|El orquestador de pipelines]].
+1. **Instale una vez**: `amauta install` escribe los bloques, hooks, skills y servidores MCP en Claude Code, y en Codex cuando existe un directorio de Codex (`~/.codex`, o `CODEX_HOME`); los agentes y el estilo de salida van solo a Claude Code. Consulte [[guide:install|Instalación y runtimes]].
+2. **Trabaje en una sesión**: el bloque orquestador hace de ODD el flujo de trabajo por defecto. El trabajo sustancial recibe un archivo de tareas en `odd/tasks/<feature>.md`, reflejado en la memoria. Consulte [[guide:odd|ODD y revisión]].
+3. **Deje que los hooks ayuden**: después de una edición, las comprobaciones informan los errores nuevos; en Stop se vuelven a comprobar los archivos cambiados y puede saltar el recordatorio de revisión; el hook de privacidad pregunta antes de leer un archivo de datos.
+4. **Mírelo**: `amauta portal` (o `amauta portal launch`) muestra memorias, sesiones, uso, features, el grafo, el estado de seguridad, los pipelines y esta guía.
+5. **Ejecute procesos**: el `.amauta/pipelines.json` de un proyecto define trabajos recurrentes que usted ejecuta desde la terminal o el portal. Consulte [[guide:pipelines|El orquestador de pipelines]].
 
 ## Scripts y comandos
 
@@ -93,12 +93,12 @@ Una sesión pasa por amauta en unos pocos puntos fijos. Los hooks se ejecutan me
 
 ```mermaid
 sequenceDiagram
-  participant U as Tú
+  participant U as Usted
   participant R as Runtime
   participant H as Hooks de amauta
   participant M as Servidor de memoria
   participant DB as memory.db
-  U->>R: inicias una sesión
+  U->>R: iniciar una sesión
   R->>H: SessionStart
   H->>H: línea base de revisión, conexión de graphify, comprobación de sync
   U->>R: un prompt
@@ -124,4 +124,4 @@ Hacia dónde seguir:
 - [[guide:data-security|Seguridad de datos]] y [[guide:code-security|Seguridad de código]]: los dos pilares de seguridad.
 - [[guide:pipelines|El orquestador de pipelines]]: ejecutar los procesos de un proyecto.
 - [[guide:siblings|Proyectos hermanos]]: proyectos junto a amauta.
-- [[guide:extras|Módulos opcionales y extras]]: lo que puedes añadir o quitar.
+- [[guide:extras|Módulos opcionales y extras]]: lo que puede agregar o quitar.

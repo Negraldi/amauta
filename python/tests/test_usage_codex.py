@@ -153,6 +153,90 @@ class ParseTest(Base):
         self.assertEqual(rows(self.state, "SELECT runtime FROM usage_messages")[0]["runtime"], "claude")
 
 
+def fcall(name, ns=None, cid="c1", ts="2026-10-20T09:00:04.000Z", arguments=SECRET):
+    payload = {"type": "function_call", "name": name, "arguments": arguments, "call_id": cid, "id": "fc_" + str(cid), "status": "completed"}
+    if ns is not None:
+        payload["namespace"] = ns
+    return {"ordinal": 1, "timestamp": ts, "type": "response_item", "payload": payload}
+
+
+def ccall(name, cid, ts="2026-10-20T09:00:04.000Z"):
+    return {"timestamp": ts, "type": "response_item", "payload": {"type": "custom_tool_call", "name": name, "input": SECRET, "call_id": cid, "status": "completed"}}
+
+
+class ToolCallsTest(Base):
+    def calls(self):
+        return rows(self.state, "SELECT * FROM tool_calls ORDER BY call_id")
+
+    def test_calls_are_stored_like_claude_ones_without_content_and_joined_to_the_response(self):
+        write_jsonl(self.rollout, [
+            meta(), turn("t1", "gpt-x"),
+            fcall("send_message", "collaboration", "c1"), ccall("exec", "c2"), fcall("sleep", "clock", "c3"), fcall("shell", None, "c4"),
+            {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c1", "output": SECRET}},
+            {"type": "response_item", "payload": {"type": "custom_tool_call_output", "call_id": "c2", "output": SECRET}},
+            record("resp_1", "t1", u(10, 0, 0, 1, 0)),
+            fcall("wait_agent", "collaboration", "c5", ts="2026-10-20T09:02:00.000Z"),
+            record("resp_2", "t1", u(10, 0, 0, 1, 0), ts="2026-10-20T09:02:05.000Z"),
+        ])
+        stats = codex.ingest_file(self.conn(), self.rollout)
+        self.assertEqual(stats["tools"], 5)
+        got = {r["call_id"]: r for r in self.calls()}
+        self.assertEqual({k: v["tool"] for k, v in got.items()},
+                         {"c1": "collaboration.send_message", "c2": "exec", "c3": "clock.sleep", "c4": "shell", "c5": "collaboration.wait_agent"})
+        self.assertEqual([got[k]["message_id"] for k in ("c1", "c2", "c3", "c4", "c5")], ["resp_1"] * 4 + ["resp_2"])
+        self.assertEqual((got["c1"]["session_id"], got["c1"]["ts"], got["c1"]["mcp_server"], got["c1"]["skill"]), (SID, "2026-10-20T09:00:04.000Z", None, None))
+        raw = b"".join(p.read_bytes() for p in self.state.glob("memory.db*"))
+        self.assertNotIn(SECRET.encode(), raw)
+
+    def test_mcp_namespaces_are_stored_like_claude_mcp_tools(self):
+        write_jsonl(self.rollout, [meta(), turn("t1", "g"), fcall("search", "mcp__docs__", "c1"), fcall("mcp__docs__fetch", None, "c2"),
+                                   record("r1", "t1", u(1, 0, 0, 1, 0))])
+        codex.ingest_file(self.conn(), self.rollout)
+        got = {r["call_id"]: (r["tool"], r["mcp_server"]) for r in self.calls()}
+        self.assertEqual(got, {"c1": ("mcp__docs__search", "docs"), "c2": ("mcp__docs__fetch", "docs")})
+
+    def test_a_rescan_does_not_duplicate_and_appended_calls_are_added(self):
+        write_jsonl(self.rollout, [meta(), turn("t1", "g"), fcall("a", "x", "c1"), record("r1", "t1", u(1, 0, 0, 1, 0))])
+        c = self.conn()
+        self.assertEqual(codex.ingest_file(c, self.rollout)["tools"], 1)
+        write_jsonl(self.rollout, [fcall("b", "x", "c2"), record("r2", "t1", u(1, 0, 0, 1, 0))], mode="a")
+        self.assertEqual(codex.ingest_file(c, self.rollout)["tools"], 1)
+        self.assertEqual([r["call_id"] for r in self.calls()], ["c1", "c2"])
+
+    def test_old_and_odd_shapes_are_tolerated(self):
+        write_jsonl(self.rollout, [
+            meta(), turn("t1", "g"),
+            {"type": "response_item", "payload": {"type": "local_shell_call", "call_id": "c1", "action": {"command": [SECRET]}}},
+            {"type": "response_item", "payload": {"type": "function_call", "call_id": "c2"}},  # no name
+            {"type": "response_item", "payload": {"type": "function_call", "name": 7, "namespace": ["x"], "call_id": "c3"}},
+            {"type": "response_item", "payload": {"type": "web_search_call", "status": "completed"}},  # unknown type
+            {"type": "response_item", "payload": "function_call"}, '{"type": "response_item", "payload": {"type": "function_call", "name": "cut',
+            fcall("ok", None, "c4"), fcall("noid", None, None),
+            record("r1", "t1", u(1, 0, 0, 1, 0)),
+        ])
+        codex.ingest_file(self.conn(), self.rollout)
+        tools = sorted(r["tool"] for r in self.calls())
+        self.assertEqual(tools, ["local_shell", "noid", "ok"])
+
+    def test_calls_in_a_rollout_with_only_token_count_events_join_the_nearest_row(self):
+        tc = {"timestamp": "2026-10-20T09:00:09.000Z", "type": "event_msg", "payload": {"type": "token_count", "info": {
+            "total_token_usage": u(100, 0, 0, 10, 0), "last_token_usage": u(100, 0, 0, 10, 0)}}}
+        write_jsonl(self.rollout, [meta(), turn("t1", "g"), fcall("a", "x", "c1"), tc, fcall("b", "x", "c2")])
+        codex.ingest_file(self.conn(), self.rollout)
+        ids = {r["message_id"] for r in self.usage_rows()}
+        self.assertEqual({r["message_id"] for r in self.calls()}, ids)
+
+    def test_a_rollout_ingested_before_tool_calls_were_read_is_rescanned_once(self):
+        write_jsonl(self.rollout, [meta(), turn("t1", "g"), fcall("a", "x", "c1"), record("r1", "t1", u(1, 0, 0, 1, 0))])
+        c = self.conn()
+        st = self.rollout.stat()  # the state an older amauta left: offset == size
+        c.execute('INSERT INTO ingest_state (path, size, mtime, "offset") VALUES (?,?,?,?)', (str(self.rollout), st.st_size, st.st_mtime, st.st_size))
+        c.commit()
+        self.assertEqual(codex.ingest_file(c, self.rollout)["tools"], 1)
+        self.assertEqual(codex.ingest_file(c, self.rollout)["tools"], 0)
+        self.assertEqual(len(self.calls()), 1)
+
+
 class BackfillHookTest(Base):
     def make(self):
         write_jsonl(self.rollout, [meta(), turn("t1", "gpt-x"), record("r1", "t1", u(10, 2, 0, 3, 1))])
@@ -164,7 +248,7 @@ class BackfillHookTest(Base):
         total = codex.backfill(self.conn(), self.codex_home)
         self.assertEqual((total["files"], total["messages"]), (1, 1))
         self.assertEqual(codex.backfill(self.conn(), self.codex_home)["messages"], 0)
-        self.assertEqual(codex.backfill(self.conn(), self.root / "missing"), {"files": 0, "messages": 0, "errors": 0})
+        self.assertEqual(codex.backfill(self.conn(), self.root / "missing"), {"files": 0, "messages": 0, "tools": 0, "errors": 0})
 
     def run_cli(self, *args, stdin="", env=None):
         e = {**os.environ, "PYTHONPATH": str(ROOT / "python"), "AMAUTA_STATE_DIR": str(self.state), "AMAUTA_CLAUDE_HOME": str(self.root / "no-claude"), **(env or {})}
@@ -174,7 +258,7 @@ class BackfillHookTest(Base):
         self.make()
         r = self.run_cli("backfill", "--runtime", "codex", "--codex-home", str(self.codex_home))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout), {"codex": {"files": 1, "messages": 1, "errors": 0}})
+        self.assertEqual(json.loads(r.stdout), {"codex": {"files": 1, "messages": 1, "tools": 0, "errors": 0}})
         r = self.run_cli("backfill", "--runtime", "all", "--codex-home", str(self.codex_home))
         out = json.loads(r.stdout)
         self.assertEqual(set(out), {"files", "messages", "tools", "errors", "codex"})

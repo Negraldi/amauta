@@ -1,6 +1,6 @@
 # Seguridad de datos
 
-El pilar de seguridad de datos evita que los datos sensibles y los secretos lleguen por accidente al modelo, a la memoria o a un repositorio. Es fricción, no aislamiento (ADR 0007): amauta no tiene sandbox y no pretende tenerlo. Pregunta antes de leer un archivo de datos, avisa cuando un prompt contiene un secreto, rechaza secretos en la memoria y te da herramientas locales para escanear, redactar y seudonimizar datos. El conocimiento de la organización vive en perfiles privados en tu máquina, nunca en un repositorio.
+El pilar de seguridad de datos evita que los datos sensibles y los secretos lleguen por accidente al modelo, a la memoria o a un repositorio. Es fricción, no aislamiento (ADR 0007): amauta no tiene sandbox y no pretende tenerlo. Pregunta antes de leer un archivo de datos, avisa cuando un prompt contiene un secreto, rechaza secretos en la memoria y le da herramientas locales para escanear, redactar y seudonimizar datos. El conocimiento de la organización vive en perfiles privados en su máquina, nunca en un repositorio.
 
 ## De qué está hecho
 
@@ -10,7 +10,7 @@ El pilar de seguridad de datos evita que los datos sensibles y los secretos lleg
 | Guarda de memoria | `python/amauta/memory/guard.py` (núcleo) | Siempre activa: rechaza el texto que parece un secreto, reemplaza los identificadores por `[REDACTED_<KIND>]` |
 | Hook de privacidad | `python/amauta/privacy/hook.py` | Pregunta antes de leer un archivo de datos; avisa de un secreto en un prompt; nunca deniega |
 | CLI de privacidad | `python/amauta/privacy/__main__.py`, `columns.py`, `pseudonymize.py` | `amauta privacy scan\|redact\|pseudonymize` |
-| Reglas de archivos de datos | `python/amauta/privacy/paths.py` | Qué archivos cuentan como archivos de datos, más tus propias rutas |
+| Reglas de archivos de datos | `python/amauta/privacy/paths.py` | Qué archivos cuentan como archivos de datos, más sus propias rutas |
 | Perfiles | `python/amauta/privacy/profiles.py`, `profile_import.py`, `assets/profiles/default/` | El perfil neutro por defecto y los perfiles privados de organización |
 
 El mismo catálogo sirve también a la seguridad de código (secretos en archivos editados) y a los pipelines (redacción de líneas de salida).
@@ -34,17 +34,17 @@ flowchart TD
 
 ### El hook de privacidad
 
-En Claude Code, el hook se ejecuta en `PreToolUse` para `Read`, `NotebookRead` y `NotebookEdit`. Cuando el archivo parece un archivo de datos responde **ask**: el runtime te muestra el motivo y tú decides. Los archivos de datos son archivos CSV, TSV, Excel, Parquet, SPSS, Stata, SAS, datos de R, JSON Lines, SQLite y Access fuera de las carpetas `test`, `fixture`, `example` y `sample`, más todo lo que esté bajo las rutas que listes en `<state dir>/privacy.json`:
+En Claude Code, el hook se ejecuta en `PreToolUse` para `Read`, `NotebookRead` y `NotebookEdit`. Cuando el archivo parece un archivo de datos responde **ask**: el runtime le muestra el motivo y usted decide. Los archivos de datos son archivos CSV, TSV, Excel, Parquet, SPSS, Stata, SAS, datos de R, JSON Lines, SQLite y Access fuera de las carpetas `test`, `fixture`, `example` y `sample`, más todo lo que esté bajo las rutas que liste en `<state dir>/privacy.json`:
 
 ```json
 { "paths": ["/data/exports"] }
 ```
 
-En `UserPromptSubmit` (ambos runtimes) escanea el prompt en busca de secretos y muestra un aviso con un conteo; el prompt ya se envió, así que rota una clave real. Nunca deniega y nunca repite el texto que encontró. Codex lee archivos a través de su shell, así que solo recibe la comprobación del prompt. Desactiva el hook con `amauta install --no-privacy`.
+En `UserPromptSubmit` (ambos runtimes) escanea el prompt en busca de secretos y muestra un aviso con un conteo; el prompt ya se envió, así que rote una clave real. Nunca deniega y nunca repite el texto que encontró. Codex lee archivos a través de su shell, así que solo recibe la comprobación del prompt. Desactive el hook con `amauta install --no-privacy`.
 
 ### La guarda de memoria
 
-No la llamas tú. Cada título, contenido, prompt y resumen de sesión que escribe la memoria pasa por ella. El texto que parece un secreto (claves de API, tokens bearer, claves privadas, claves de la nube, `password=...`) se rechaza con la respuesta fija `rejected: secret-like content` y no se escribe nada. Los identificadores se reemplazan por marcadores, y la respuesta de la herramienta dice cuántos hay de cada tipo, nunca cuáles. La página de Seguridad del portal muestra cuántos valores se redactaron.
+Usted no la llama. Cada título, contenido, prompt y resumen de sesión que escribe la memoria pasa por ella. El texto que parece un secreto (claves de API, tokens bearer, claves privadas, claves de la nube, `password=...`) se rechaza con la respuesta fija `rejected: secret-like content` y no se escribe nada. Los identificadores se reemplazan por marcadores, y la respuesta de la herramienta dice cuántos hay de cada tipo, nunca cuáles. La página de Seguridad del portal muestra cuántos valores se redactaron.
 
 ### Trabajar con un archivo de datos
 
@@ -83,7 +83,7 @@ Capas, por archivo gana la primera coincidencia: el proyecto (`<repo>/.amauta/pr
 | `amauta profile show [--cwd D]` | Qué archivo viene de qué capa |
 | `amauta profile check <name>` | La guarda de privacidad sobre un perfil: secretos, identificadores, contactos, nombres en `people/`; sale con 1 ante un hallazgo |
 | `amauta profile import <name> <archive>` | Un borrador a partir de un archivo de un agente |
-| `amauta profile harvest <name> --from DIR` | Un borrador a partir de tus proyectos: temas de Power BI, medidas de modelos, guías de contribución y de estilo |
+| `amauta profile harvest <name> --from DIR` | Un borrador a partir de sus proyectos: temas de Power BI, medidas de modelos, guías de contribución y de estilo |
 | `amauta profile accept <name>` | Instala el borrador revisado; se rechaza mientras la guarda encuentre algo |
 
 ## Cómo trabaja
@@ -92,7 +92,7 @@ Capas, por archivo gana la primera coincidencia: el proyecto (`<repo>/.amauta/pr
 sequenceDiagram
   participant A as Agente
   participant H as hook de privacidad
-  participant U as Tú
+  participant U as Usted
   participant D as detectores
   A->>H: Read sales_2026.parquet
   H->>H: ¿archivo de datos fuera de carpetas de test?
@@ -110,9 +110,9 @@ Los perfiles pasan primero por un borrador:
 
 ```mermaid
 flowchart LR
-  SRC["archivo o tus proyectos"] --> DR["carpeta name.draft"]
+  SRC["archivo o sus proyectos"] --> DR["carpeta name.draft"]
   DR --> RV["REVIEW.md con fuentes y hallazgos"]
-  RV --> ED["editas el borrador"]
+  RV --> ED["usted edita el borrador"]
   ED --> CK["profile check"]
   CK --> AC["profile accept"]
   AC --> PR["profiles/name"]

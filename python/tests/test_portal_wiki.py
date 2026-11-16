@@ -9,7 +9,7 @@ from python.amauta.portal.config import Config
 from python.tests import portal_fixtures as fx
 from python.tests.test_portal import ApiBase
 
-EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary"}, "tool": {"usage", "summary", "explain"}, "mcp": {"usage", "summary", "refresh", "explain"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
+EXTRA_KEYS = {"memory": {"history"}, "skill": {"usage", "impact", "summary", "backlinks_more"}, "tool": {"usage", "summary", "explain", "backlinks_more"}, "mcp": {"usage", "summary", "refresh", "explain", "backlinks_more"}, "feature": {"progress", "commits", "diagram"}, "node": {"truncated", "diagram"}}
 PAGE_KEYS = {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"}
 
 
@@ -95,8 +95,7 @@ class UsagePagesTest(WikiBase):
         self.assertIn(("skill", "work-unit-commits"), [(i["kind"], i["id"]) for i in headings["Skills"]["items"]])
         self.assertIn(("tool", "Bash"), [(i["kind"], i["id"]) for i in headings["Tools"]["items"]])
         self.assertIn("sdd-apply", [i["label"] for i in headings["Subagent types"]["items"]])
-        self.assertIn(("skill", "work-unit-commits"), [(x["kind"], x["id"]) for x in pg["links"]])
-        self.assertIn(("mcp", "engram"), [(x["kind"], x["id"]) for x in pg["links"]])
+        self.assertEqual(pg["links"], [])  # the sections above are the list: no second "Links" copy (T15 A4)
 
     def test_usage_pages_404_without_a_database(self):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
@@ -109,7 +108,7 @@ class FeatureAndNodePagesTest(WikiBase):
     def test_feature_page_has_the_document_and_task_progress(self):
         pg = self.page("feature", "feat")
         self.assertEqual(pg["title"], "Feature")
-        self.assertIn("T2 Open thing", pg["body_md"])
+        self.assertNotIn("T2 Open thing", pg["body_md"])  # the Tasks section lists it once
         self.assertEqual(self.meta(pg)["Tasks done"], "2 of 3")
         (tasks,) = pg["sections"]
         self.assertEqual([(i["label"], i["value"]) for i in tasks["items"]][:2], [("T1 Done thing", "done"), ("T2 Open thing", "pending")])
@@ -136,7 +135,7 @@ class RecentTest(WikiBase):
         self.assertEqual({i["kind"] for i in items}, {"memory", "session", "feature"})
         self.assertEqual([i["ts"] for i in items], sorted((i["ts"] for i in items), reverse=True))
         for i in items:
-            self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"})
+            self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"} | ({"started"} if i["kind"] == "session" else set()))
         self.assertIn("memory revised (revision 2)", [i["what"] for i in items])
 
     def test_limit_is_validated_and_applied(self):
@@ -151,7 +150,7 @@ class SearchTest(WikiBase):
 
     def test_finds_every_kind_grouped_with_counts(self):
         self.assertEqual(self.groups("widgets")["memory"]["count"], 1)
-        self.assertEqual(self.groups("work-unit")["skill"]["items"][0], {"kind": "skill", "id": "work-unit-commits", "title": "work-unit-commits", "snippet": "1 calls"})
+        self.assertEqual(self.groups("work-unit")["skill"]["items"][0], {"kind": "skill", "id": "work-unit-commits", "title": "work-unit-commits", "snippet": "1 call"})
         self.assertEqual(self.groups("Bash")["tool"]["items"][0]["id"], "Bash")
         self.assertEqual(self.groups("engram")["mcp"]["items"][0]["id"], "engram")
         self.assertEqual(self.groups("alpha")["session"]["items"][0]["id"], "s1")

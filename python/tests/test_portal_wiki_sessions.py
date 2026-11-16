@@ -9,7 +9,7 @@ from python.tests.test_portal_wiki import WikiBase
 from python.tests.test_usage import assistant, write_jsonl
 
 
-class SessionLabelTest(WikiBase):
+class SessionBase(WikiBase):
     def add_session(self, sid, cwd, prompts=(), n=1, model="claude-z", slug="-x-proj"):
         lines = [{"type": "user", "sessionId": sid, "timestamp": "2026-10-05T08:00:00.000Z", "cwd": cwd, "message": {"role": "user", "content": p}} for p in prompts]
         lines += [assistant(f"{sid}-m{i}", session=sid, ts="2026-10-05T09:00:00.000Z", cwd=cwd, model=model) for i in range(n)]
@@ -18,6 +18,8 @@ class SessionLabelTest(WikiBase):
         ingest.backfill(c, self.f["home"])
         c.close()
 
+
+class SessionLabelTest(SessionBase):
     def test_label_has_repo_prompt_snippet_and_date(self):
         pg = self.page("session", "s1")
         self.assertEqual(pg["title"], "alpha · Fix the portal wiki bug please · 2026-10-01")
@@ -43,10 +45,10 @@ class SessionLabelTest(WikiBase):
 
     def test_recent_changes_and_skill_backlinks_use_the_same_label(self):
         items = {i["id"]: i for i in self.get("/api/wiki/recent", limit=100)["items"] if i["kind"] == "session"}
-        self.assertEqual(items["s1"]["title"], "alpha · Fix the portal wiki bug please · 2026-10-01")
+        self.assertEqual(items["s1"]["title"], "alpha · Fix the portal wiki bug please")  # the feed's day heading carries the date
         self.assertNotIn("static", items["s2"]["title"])
         skill = self.page("skill", "work-unit-commits")
-        self.assertEqual(skill["backlinks"][0]["title"], items["s1"]["title"])
+        self.assertEqual(skill["backlinks"][0]["title"], self.page("session", "s1")["title"])
 
     def test_hostile_ids_never_leave_the_projects_directory(self):
         outside = self.f["home"] / "secret.jsonl"
@@ -57,4 +59,51 @@ class SessionLabelTest(WikiBase):
     def test_missing_transcript_falls_back_to_project_name(self):
         (self.f["home"] / "projects" / "-work-alpha" / "s1.jsonl").unlink()
         self.assertEqual(wikisess.session_info(self.portal, "s1"), {})
-        self.assertEqual(self.page("session", "s1")["title"], "alpha · claude-y, 2 messages · 2026-10-01")
+        self.assertEqual(self.page("session", "s1")["title"], "alpha · claude-x, 2 messages · 2026-10-01")  # one message each: the tie goes to the first name, like the Models list
+
+
+class OneProjectNameTest(SessionBase):
+    """One rule names a session's project on every page: the configured project owning its cwd, else the repository root
+    (a linked worktree counts as its main repository, a $HOME dotfiles repository never does), else the folder name."""
+
+    def worktree_session(self):
+        home = self.root / "home"
+        (home / ".git").mkdir(parents=True)  # a dotfiles repository in $HOME is not the session's project
+        main = home / "amauta"
+        (main / ".git" / "worktrees" / "wt").mkdir(parents=True)
+        wt = home / "amauta-wt"
+        (wt / "python" / "static").mkdir(parents=True)
+        (wt / ".git").write_text(f"gitdir: {main / '.git' / 'worktrees' / 'wt'}\n")
+        self.cfg.home = home
+        self.add_session("s8", str(wt / "python" / "static"), prompts=["deep work"])
+        return main
+
+    def test_a_worktree_session_is_named_after_its_main_repository_everywhere(self):
+        self.worktree_session()
+        self.assertTrue(self.page("session", "s8")["title"].startswith("amauta · deep work"), self.page("session", "s8")["title"])
+        self.assertEqual(self.meta(self.page("session", "s8"))["Project"], "amauta")
+        row = next(r for r in self.get("/api/sessions", days=3650)["sessions"] if r["session_id"] == "s8")
+        self.assertEqual(row["project"], "amauta")
+        item = next(i for i in self.get("/api/wiki/recent", limit=100)["items"] if i["id"] == "s8")
+        self.assertTrue(item["title"].startswith("amauta · "), item)
+
+    def test_a_configured_project_owns_its_folders_even_without_a_git_entry(self):
+        proj = self.root / "home" / "plain"
+        (proj / "src").mkdir(parents=True)
+        self.cfg.home = self.root / "home"
+        self.cfg.repos.append(proj)
+        self.add_session("s9", str(proj / "src"), prompts=["plain work"])
+        self.assertTrue(self.page("session", "s9")["title"].startswith("plain · plain work"), self.page("session", "s9")["title"])
+
+    def test_the_home_dotfiles_repository_is_never_the_project(self):
+        home = self.root / "home"
+        (home / ".git").mkdir(parents=True)
+        (home / "notes" / "x").mkdir(parents=True)
+        self.cfg.home = home
+        self.add_session("s10", str(home / "notes" / "x"), prompts=["notes"])
+        self.assertTrue(self.page("session", "s10")["title"].startswith("x · notes"), self.page("session", "s10")["title"])
+
+    def test_the_feed_title_has_no_date_and_names_the_start_separately(self):
+        item = next(i for i in self.get("/api/wiki/recent", limit=100)["items"] if i["id"] == "s1")
+        self.assertEqual(item["title"], "alpha · Fix the portal wiki bug please")
+        self.assertEqual(item["started"], "2026-10-01T10:00:00Z")

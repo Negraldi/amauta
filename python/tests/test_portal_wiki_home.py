@@ -1,9 +1,11 @@
+import os
+import time
 import unittest
 from datetime import date
 from unittest import mock
 
 from python.amauta.memory import store as mstore
-from python.amauta.portal import wikihome
+from python.amauta.portal import api, wikihome
 from python.amauta.usage import ingest
 from python.tests import portal_fixtures as fx
 from python.tests.portal_fixtures import usage_blob
@@ -13,7 +15,7 @@ from python.tests.test_usage import assistant, write_jsonl
 
 class HomeTest(WikiBase):
     def home(self, today=date(2026, 10, 5)):
-        with mock.patch.object(wikihome, "_today", return_value=today):
+        with mock.patch.object(api, "datetime", fx.fixed_now(today)):
             return self.get("/api/wiki/home")
 
     def add_old_session(self):
@@ -25,7 +27,7 @@ class HomeTest(WikiBase):
 
     def test_shape(self):
         h = self.home()
-        self.assertEqual(set(h), {"activity", "spending", "health", "impact"})
+        self.assertEqual(set(h), {"activity", "activity_cut", "spending", "health", "impact"})
 
     def test_activity_is_grouped_by_day_newest_first_with_links_data(self):
         days = self.home()["activity"]
@@ -34,18 +36,32 @@ class HomeTest(WikiBase):
         self.assertEqual({i["kind"] for i in items}, {"memory", "session", "feature"})
         for d in days:
             for i in d["items"]:
-                self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"})
+                self.assertEqual(set(i), {"kind", "id", "title", "ts", "what"} | ({"started"} if i["kind"] == "session" else set()))
                 self.assertTrue(i["ts"].startswith(d["day"]))
         self.assertIn("memory revised (revision 2)", [i["what"] for i in items])
 
-    def test_activity_is_capped_per_day_and_in_days(self):
+    def test_a_session_row_says_each_fact_once(self):
+        items = [i for d in self.home()["activity"] for i in d["items"] if i["kind"] == "session"]
+        self.assertTrue(items)
+        for i in items:
+            self.assertFalse(i["what"].startswith("session"), i)
+            line = f"{i['title']} {i['what']}"
+            for n in set(__import__("re").findall(r"\d+ messages?", line)):
+                self.assertEqual(line.count(n), 1, line)
+
+    def test_activity_keeps_every_item_of_a_day_and_caps_the_days(self):
         st = mstore.Store(self.f["state"] / "memory.db")
         for n in range(40):
             st.save(f"note {n}", "x", type="note", project="alpha")
         st.close()
         days = self.home()["activity"]
-        self.assertTrue(all(len(d["items"]) <= wikihome.PER_DAY for d in days))
         self.assertLessEqual(len(days), wikihome.DAYS_SHOWN)
+        self.assertGreater(max(len(d["items"]) for d in days), 20)  # a busy day is sent whole: the page shows N of M and the rest
+
+    def test_the_feed_says_when_the_newest_hundred_items_cut_off_older_activity(self):
+        self.assertFalse(self.home()["activity_cut"])  # the fixture has far fewer than FETCH items: nothing is missing
+        with mock.patch.object(wikihome, "FETCH", 2):
+            self.assertTrue(self.home()["activity_cut"])  # the read filled the window: the oldest day may be partial
 
     def test_spending_windows_cache_ratio_and_top_models(self):
         self.add_old_session()
@@ -75,8 +91,39 @@ class HomeTest(WikiBase):
         self.assertNotIn("SECRET", str(h))
 
 
+class SpendingAgreesWithUsageTest(WikiBase):
+    """Today's spending and Usage read one function: a message near midnight UTC used to count in one window and not the other."""
+
+    def setUp(self):
+        super().setUp()
+        self._tz = os.environ.get("TZ")
+        os.environ["TZ"] = "America/Bogota"  # UTC-5: 2026-09-05T02:00Z is still 2026-09-04 here
+        time.tzset()
+        write_jsonl(self.f["home"] / "projects" / "-edge" / "s8.jsonl",
+                    [assistant("e1", usage=usage_blob(1000, 500, 0), session="s8", ts="2026-09-05T02:00:00.000Z", cwd="/work/edge")])
+        c = mstore.connect(self.f["state"] / "memory.db")
+        ingest.backfill(c, self.f["home"])
+        c.close()
+
+    def tearDown(self):
+        if self._tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = self._tz
+        time.tzset()
+        super().tearDown()
+
+    def test_every_window_matches_the_overview_for_the_same_days(self):
+        with mock.patch.object(api, "datetime", fx.FixedNow):
+            s = self.get("/api/wiki/home")["spending"]
+            for w in s["windows"]:
+                t = self.get("/api/overview", days=w["days"])["totals"]
+                self.assertEqual({k: w[k] for k in ("input", "output", "cache_read", "cache_write")},
+                                 {k: t[k] for k in ("input", "output", "cache_read", "cache_write")}, w["days"])
+
+
 class SessionWhatTest(unittest.TestCase):
     def test_one_message_is_singular(self):
         from python.amauta.portal import wikisess
-        self.assertEqual(wikisess.what(1), "session, 1 message")
-        self.assertEqual(wikisess.what(2), "session, 2 messages")
+        self.assertEqual(wikisess.what(1), "1 message")  # the row's kind label already says "Session" (T11 f)
+        self.assertEqual(wikisess.what(2), "2 messages")

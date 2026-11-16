@@ -2,7 +2,7 @@
 
 The local wiki portal: pages, routes, the settings editor, the launcher and its security model (ADR 0005).
 
-A local wiki over everything the harness knows: memories, skills, tools, MCP servers, sessions, ODD features and code-graph nodes,
+A local wiki over everything the harness knows: memories, skills, tools, MCP servers, sessions, ODD features, pipelines and code-graph nodes,
 each a linked page with backlinks. Stdlib Python server plus a vanilla JS single-page UI; no CDN, no network, binds `127.0.0.1` only.
 
 ```
@@ -13,55 +13,84 @@ amauta portal install-launcher [--remove]  # desktop entry (Linux) or Start menu
 
 (`PYTHONPATH=python python3 -P -m amauta.portal ...` is the same server without the CLI wrapper.)
 
-Seven pages in the sidebar (ADR 0005): Home, Projects (tabs: ODD features, Graph), Memory (Lint), Activity (Usage,
-Sessions, Tools, MCP servers), Harness (Skills, Components), Security and Settings (Themes). The top bar holds only search. Range, Project and
-Runtime filters sit above the pages that use them. The foot of the sidebar has a theme picker (System, Light, Dark, your custom
-themes) and an English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). The
+### Shell
+
+The sidebar is grouped by job (ADR 0005): **Today**, **Work**, **Knowledge**, **Activity**, **Harness wiki**, and a foot group
+(Guide, Settings) pinned under a hairline. A page with several views shows them as tabs under its title; the tab lives in the hash
+(`?tab=`, `?seg=`, `?kind=`) so a reload or a shared link keeps it. Item pages open with a breadcrumb to their hub
+(for example Work / Projects / name / Features). On the Activity routes the filter bar sticks under the top bar from 52rem up and ends
+with "Data as of <time>", the newest message, session or tool use the page's API returned (no polling). The top bar holds the Menu button (narrow screens), the search trigger (`Ctrl+K` or `/`),
+Refresh and **Display**, a popover with the theme (System, Light, Dark, your custom themes), Edit themes (Settings > Appearance) and the
+English/Spanish switch for the interface (your own text stays as written; dates are always `YYYY-MM-DD`). Below 52rem the sidebar is
+an off-canvas phone menu behind the Menu button: focus moves into it and the page behind is inert until Esc, a tap on the scrim or
+navigating closes it. The search palette (Ctrl+K) starts empty each time it opens, returns to its hint when the input is cleared, and has a Pages group that jumps to any page or tab by name, then memories, skills, tools, sessions,
+features, tasks and graph nodes (nodes last, at most 5; a node row names its file, and two nodes of one file with one title are one row).
+The Range, Project and Runtime filters live only on the Activity pages (Usage, Sessions, Tools and skills), in the filter bar above the
+page. An unknown `?tab=` value is dropped from the address. Usage days are this machine's local date. The
 dictionaries are `static/i18n/{en,es,srv-es}.json`.
-Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true, "siblings": [...]}`, also editable in Settings > Projects) and from the git roots of your sessions. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory and skips linked git worktrees (`git worktree add`; their `.git` is a file), which are checkouts of a project rather than projects, while a worktree you configure yourself is kept; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
+Projects come from `--repo`, from `<state>/portal.json` (`{"repos": [...], "auto_discover": true, "siblings": [...]}`, also editable in Settings > Projects and siblings) and from the git roots of your sessions (Claude Code transcripts and Codex rollouts). Folders that sessions ran in but that are not projects (no git repository, or past the discovery caps) are listed under "Active folders that are not projects" on Projects (the newest 10), with how to add one, so a folder Today and Usage name is never silently missing. Configured paths may live anywhere (for example a data disk), except `/`, your home directory itself and system directories (`/etc`, `/usr`, `/var`, `/tmp`, ...); auto-discovery only looks inside your home directory and skips linked git worktrees (`git worktree add`; their `.git` is a file), which are checkouts of a project rather than projects, while a worktree you configure yourself is kept; `amauta portal launch` passes the configured ones. Custom themes live in `<state>/themes/*.json`.
+
+A session's project is named by one rule on every page (Today, Usage > Sessions, search, project and session pages; `sessname.py`): the configured or discovered project whose folder holds the session's cwd, else the root of its git repository (a linked worktree counts as its main repository; a repository in your home directory itself, such as dotfiles, never does), else the folder name. The same rule decides membership: the Projects list (session count and last activity), a project page and its Sessions tab (no Project column there), the Usage > Project filter, Usage > Projects and search all read it (SQL calls `session_project()`, registered on every usage connection). The cwd comes from the Claude transcript or the Codex rollout's first line (`sesswhere.py`: transcript folders listed at most every 15 s, a cwd cached once found); a session with neither keeps the name the usage import stored. A session's model is the one with the most messages, shown as "claude-opus-5-5 +1" when others answered too (`sessfacts.py`; the session page lists every model with its count). A session page also opens from the short id the tables show (`#/session/b9600f26`, the first 8 or more characters of one session id); its breadcrumb ends with that short id, its details say Started and Last activity like the session tables, and every count on it is grouped like the rest of the portal. The Today feed leaves the date out of a session's title (the day heading says it) and labels the row's time as the last activity ("last active 15:40"); a session that began on an earlier day also gives its full start ("started 2026-11-09 06:26").
 
 ### Routes
 
-| Route | Page |
+| Group | Page | Hash | Tabs and query | What it shows |
+|---|---|---|---|---|
+| Today | Today | `#/` | | One harness health sentence, recent activity by day (five days, then Show more); rail with pipelines, spending and skill impact (above the feed under 72rem) |
+| Work | Projects | `#/project` | | Table of projects (Found by: how each was found, ODD progress, graph status, last activity), active folders that are not projects, and the sibling cards |
+| Work | Project hub | `#/project/<name>` | `?tab=` `overview` (default, not written), `features`, `graph`, `pipelines`, `sessions`, `memories` | One project in one place; graph sync and connect; features (`#/feature/<project>/<name>`) and graph nodes crumb through the hub |
+| Work | Pipelines | `#/pipelines` | | Every project's pipelines, runs and schedules |
+| Knowledge | Memory | `#/memory[/id-or-topic_key]` | `?source=engram` for the Engram store; tabs Memory `#/memory`, Memory files `#/memfile[/id]`, Quality `#/lint` | Memory text, derived links, backlinks, same-topic rows, related graph nodes; Claude file memories (read-only); review candidates |
+| Knowledge | Graph | `#/node[/repo::id]` | | One cross-repo explorer: repo picker, search, neighbours and diagram. The node list opens most connected first (Links column) with dependency, vendored and minified files hidden behind a labelled toggle (generic folder names such as node_modules, vendor, third-party, Pods; `*.min.js`/`*-min.css` names; plus what the repository declares: `.gitattributes` linguist-vendored lines, last match wins, and existing folders its NOTICE names) (`GET /api/graph/nodes?order=links|name&vendored=1`, which also returns `matched` and `hidden` so a line under the list says "Showing 50 of 1,234 nodes; 312 vendored, minified or dependency nodes hidden."); kinds read as words (Code, Document, Concept; an unknown kind shows as sent) |
+| Activity | Usage | `#/usage` | filters | One summary sentence, token chart (cache behind a checkbox), model split, cost estimate |
+| Activity | Sessions | `#/session[/id]` | filters | Sessions; one session's skills, tools, subagents, tokens and memories |
+| Activity | Tools and skills | `#/tool` | `?seg=` `tools` (default), `skills`, `mcp`, `mcptools`, `subagents`; filters | One table per segment; items open `#/tool\|skill\|mcp/<name>` pages (usage over time, sessions, tokens, impact; skills render `SKILL.md`) |
+| Harness wiki | Overview (titled Harness overview) | `#/harness` | | Health sentence, install facts, hooks table, architecture diagram shown at natural size in a sideways scroller that opens centred on its middle (labels stay legible; Fit to width is the optional overview) |
+| Harness wiki | Catalog | `#/component` | `?kind=` `skill`, `hook`, `mcp`, `mcptool`, `connector`, `tool`, `agent`, `command`, `plugin`, `outputstyle`, `instructions` | Every component, with a text filter and a Runtime filter (`?runtime=claude\|codex`, kept next to `?kind=`; the kind counts follow it); item pages `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle\|instructions\|skill/<id>` crumb through Catalog / kind |
+| Harness wiki | Security | `#/security` | | Protections, checkers, trusted projects, profiles, memory guard redaction counts (counts and names only) |
+| Foot | Guide | `#/guide[/page]` | | The guide pages |
+| Foot | Settings | `#/settings` | `?tab=` `preferences` (default, not written), `projects`, `appearance` | Guarded settings editor, projects and siblings, theme editor and language |
+
+`#/feature` without a project (a plain list of ODD documents) still resolves but is not in the sidebar; the hub's Features tab is the way in.
+
+Old links keep working: they resolve to the new page and the address bar is rewritten (`history.replaceState`).
+
+| Old hash | Redirects to |
 |---|---|
-| `#/` | Home: recent activity by day; rail with spending, skill-impact ranking, harness health |
-| `#/memory[/id-or-topic_key]` | Memory: text, derived links and backlinks, same-topic rows, related graph nodes |
-| `#/skill` | Catalog of every skill (installed, plugin, project, built into Claude Code), filterable |
-| `#/skill\|tool\|mcp[/name]` | What a skill does, rendered `SKILL.md`, usage over time, sessions, attributed tokens, impact |
-| `#/component` | Harness wiki catalog: hooks, MCP servers and tools, connectors, built-in tools, agents, commands, plugins, output styles |
-| `#/hook\|mcp\|mcptool\|connector\|tool\|agent\|command\|plugin\|outputstyle/id` | What a component does and when it runs, with the source of each fact (see below) |
-| `#/session[/id]` | Skills, tools, subagents, tokens and memories of one session |
-| `#/feature[/project/name]` | ODD document, progress, resolved commits, status-grouped task diagram |
-| `#/node[/repo::id]` | Graph node, grouped neighbours, neighbourhood diagram |
-| `#/usage` (`#/activity`) | One summary sentence, token charts, model split, cost estimate (Range, Project and Runtime filters live here) |
-| `#/harness` | Install state and architecture diagram (`#/diagrams` redirects here) |
-| `#/project[/name]` | Projects (`--repo`, `portal.json`, git roots of your sessions): ODD features with progress, sessions, memories, graph status |
-| `#/themes` | Theme editor: custom light/dark themes with live preview, contrast warnings, import and export |
-| `#/memfile/id` | A Claude file memory (`projects/*/memory/*.md`), read-only |
-| `#/lint` | Review candidates (see below) |
-| `#/security` | Protections (memory guard, privacy hook, checks), installed checkers, trusted projects, profiles and how many values the memory guard redacted; counts and names only |
-| `#/settings` | Guarded settings editor (see below) |
+| `#overview` | `#/` |
+| `#usage`, `#/activity` | `#/usage` |
+| `#sessions`, `#/activity/sessions` | `#/session` |
+| `#memories` | `#/memory` |
+| `#harness`, `#diagrams`, `#/diagrams` | `#/harness` |
+| `#/activity/tools` | `#/tool` |
+| `#/mcp`, `#/activity/mcp` | `#/tool?seg=mcp` |
+| `#/skill` (no name) | `#/component?kind=skill` |
+| `#/themes` | `#/settings?tab=appearance` |
+
+An unknown path, or an extra path after a page that has no item pages, shows a "not a page" panel.
 
 Search with `Ctrl+K` or `/`: one query across memories (FTS5), skills, tools, MCP servers, sessions, features, tasks and graph nodes.
+Each kind stops at 50 matches; a group that did says so ("Sessions (50+)", or "Memories (first 50 of 728)" since memories also report their total, `wikisearch.py`). The Memory list shows 50 rows with "Showing 50 of 728." and Show more, which fetches the next page (`/api/memories?offset=`, `total` in the answer; `memlist.py`).
 Memory links are derived, because the store keeps no relation table: `[[wikilinks]]` (`[[topic]]`, `[[kind:id|label]]`), the `topic_key`
 hierarchy, whole-word mentions (12+ characters) and graph labels. The store keeps only the latest revision of a memory; the page says so.
 All text from memories, repos and graphs is rendered through text nodes by a small markdown subset (no raw HTML), under a strict CSP.
 
-### Lint (`#/lint`, `GET /api/wiki/lint?days=30`)
+### Quality (`#/lint`, Memory > Quality, `GET /api/wiki/lint?days=30`)
 
-Counts and links for seven checks, all capped and read-only. They are prompts to review, never verdicts.
+Counts and links for eight checks, all capped and read-only. They are prompts to review, never verdicts.
 
 | Check | Meaning |
 |---|---|
-| Orphan memories | No wikilink, topic neighbour or mention connects them to another page |
+| Orphan memories | No wikilink, topic neighbour or mention connects them to another page (said once in the category note; rows list titles only) |
 | Possible duplicates | Same or near-identical title under different `topic_key`s (same project) |
 | Possibly superseded | Same type and topic prefix, similar title, a newer save |
 | Installed skills never used | No load in the window (needs usage data) |
 | ODD tasks checked without a commit | No commit hash on the task line or in a progress line naming its id |
 | Wikilinks to missing pages | Target is not a memory, skill, tool, MCP server, session, feature or node |
+| Notes saved without spaces | The body was stored with almost no spaces between words (`memory/spacing.py`); shown as stored, never repaired automatically |
 | Stale explanations | A harness component changed after its explanation note was written, or no longer exists |
 
-### Harness wiki (`#/component`)
+### Harness wiki (`#/harness`, `#/component`, `#/security`)
 
 Every component of the harness has a page that opens with "What it does" and "When it runs" and names where each fact came from (a file path,
 "Built into Claude Code" or "Usage only"). Facts are rebuilt from the real files on each request (cached for a couple of seconds): hooks from user,
@@ -69,7 +98,23 @@ project and plugin settings, MCP servers from `.claude.json`, `.mcp.json` and pl
 plugins from their manifests, built-in tools from a curated English and Spanish catalog, connectors from the server names your sessions called that no local
 config explains. Components of a plugin that `settings.json` disables (`enabledPlugins: false`) stay listed and are labelled "Plugin disabled: does not run". MCP configs show type, command and arguments with secrets masked, and the NAMES of env variables and headers, never their values.
 
-- **Graph sync** (project page, `#/project/<name>`): shows when the graph was last mirrored and, for git projects, whether it is older than the last commit. **Sync graph now** (`POST /api/projects/graph-sync`, `{"project": name}`) starts one background refresh for that project, git or not, and answers 202 at once: `python3 -P -m amauta.graph.refresh --repo DIR` takes the repo's graphify lock (the hooks' lock in a git repo, `graphify-out/.amauta-graphify.lock` otherwise), runs `graphify update .` and `graphify check-update .`, and mirrors the graph into `memory.db`. It answers 409 when `graphify` is not on the portal's `PATH`. **Connect** (`POST /api/projects/graph-connect`, same body) appears for a git project without amauta's hooks and runs `amauta graphify hook install --cwd DIR --state-dir STATE`. Both use the same guard as the other writes, accept only a project name the portal already lists (never a path) and a closed one-key body.
+Codex is the second runtime of the same inventory (read-only, `wikicodex.py`): `[mcp_servers.*]` tables of `<codex home>/config.toml` (same
+masked facts), `<codex home>/hooks.json`, the amauta blocks of `AGENTS.md` and the Codex skills dir. A component found in both runtimes is one
+entry (an amauta hook matches its Claude twin once `--runtime codex` is ignored); every catalog row and item page says "Runtime: Claude Code",
+"Codex" or "Claude Code, Codex", and agents, commands, plugins and output styles say "Claude Code (Codex has no equivalent)". The Overview has one
+row per runtime (home, amauta installed, instruction blocks, hooks, MCP servers, "Skills in its folder": the skill folders of that runtime's skills directory, which is not the Catalog's count of every known skill nor Tools and skills' "N used" in the range) and Security shows the Codex privacy and checks
+switches. The Codex home is the one the portal was given or the installer's rule; without one, a sentence says only Claude Code is listed.
+The Catalog filters by runtime with a segmented control (All, Claude Code, Codex; `#/component?runtime=codex`, combined with `?kind=`). An entry for
+both runtimes shows under either, an entry with no runtime field counts as Claude Code's, the kind links keep their kinds and count what the filter
+leaves, and a kind with nothing for that runtime says so. Under a runtime filter the intro says how many of the installed things apply to it.
+The instruction blocks amauta writes to `CLAUDE.md` and `AGENTS.md` are the catalog kind `instructions` ("Instruction blocks", `wikiblocks.py`,
+`#/instructions/<id>`). A block is the text between its `<!-- amauta:ID -->` markers (both needed; only regular files, never a link, of the Claude
+home and the Codex home the portal was given). Its row and page give what it is for (its first paragraph, else its first heading), the runtimes
+that carry it, each file it is written to (all of them in "What it does") and its size in characters in each; the page shows the block text without the paragraph that "What it does" already says (a list is described by its heading, else its first item). The Overview runtimes table links each
+block to its page.
+Refresh descriptions probes only servers configured for Claude Code.
+
+- **Graph sync** (project hub, `#/project/<name>`): shows when the graph was last mirrored and, for git projects, whether it is older than the last commit. **Sync graph now** (`POST /api/projects/graph-sync`, `{"project": name}`) starts one background refresh for that project, git or not, and answers 202 at once: `python3 -P -m amauta.graph.refresh --repo DIR` takes the repo's graphify lock (the hooks' lock in a git repo, `graphify-out/.amauta-graphify.lock` otherwise), runs `graphify update .` and `graphify check-update .`, and mirrors the graph into `memory.db`. It answers 409 when `graphify` is not on the portal's `PATH`. **Connect** (`POST /api/projects/graph-connect`, same body) appears for a git project without amauta's hooks and runs `amauta graphify hook install --cwd DIR --state-dir STATE`. Both use the same guard as the other writes, accept only a project name the portal already lists (never a path) and a closed one-key body.
 - **Refresh descriptions** (`POST /api/harness/refresh`, optional `{"server": name}`): same guard as the other writes. It starts each configured command-based
   MCP server (never http, sse or connectors), asks `tools/list` over JSON-RPC (10 s per server, process group killed afterwards, no shell) and caches names,
   descriptions and parameter names in `<state>/wiki/mcp-tools.json`. Env goes to the process only.
@@ -78,16 +123,21 @@ config explains. Components of a plugin that `settings.json` disables (`enabledP
   `python3 -P -m amauta.extras.wiki_explain list` and `... write --kind K --id I --file note.md`. Notes live in `<state>/wiki/notes/<kind>/` with the
   hash of the source they were written from; the lint flags notes whose component changed.
 
-### Settings editor (`#/settings`)
+### Settings editor (`#/settings`, Preferences tab)
+
+The Settings page has three tabs (`?tab=`): Preferences (this editor), Projects and siblings (saved project paths, auto-discover and the sibling list) and Appearance (the theme editor and the language).
 
 Changes a closed list of options, and nothing else: persona (`gentleman`/`neutral`), review mode, telemetry, the optional modules
 (`sdd`, `rea`, `context7`, `impeccable`, `archify`) and "reinstall / repair". The portal never edits a harness file itself; every change
-goes through `amauta install`.
+goes through `amauta install`. Both runtimes are targets: when a Codex home directory exists, every preview, apply and undo
+also passes `--codex-home` and `--codex-skills-dir`, and the preview lists the Codex files apart (no Codex home: one sentence says the
+change reaches Claude Code only). The Codex paths follow the installer's rule: a custom Claude home keeps them inside it unless a Codex
+home was given explicitly (`--codex-home` or `AMAUTA_CODEX_HOME`), so a sandboxed portal never names the real `~/.codex` or `~/.agents`.
 
 1. **Preview** runs `amauta install --dry-run --json` and shows the files that would be written, removed or kept (edited files are kept).
 2. **Apply** needs the one-time token from that preview (valid 5 minutes, bound to the chosen options and the `state.json` hash, one apply
    at a time) plus an explicit confirmation. The installer backs up first and reports the backup id.
-3. **Undo** previews and re-runs the same install with the settings that were in place before the newest portal change (its own token, lock and fresh backup); it never restores file snapshots, so edits made since to `~/.claude.json`, `settings.json` or `CLAUDE.md` survive, and it is refused when the settings changed since. `amauta restore --backup <id>` stays a CLI-only expert tool.
+3. **Undo** previews and re-runs the same install with the settings that were in place before the newest portal change (its own token, lock and fresh backup); it never restores file snapshots, so edits made since to `~/.claude.json`, `settings.json` or `CLAUDE.md` survive, and it is refused when the settings changed since. Undo covers Codex when a Codex home exists at undo time (the Codex backup id is logged as `codex_backup`); if the Codex home is gone by then, only Claude Code is undone. `amauta restore --backup <id>` stays a CLI-only expert tool.
 
 Guards: POST only, JSON only (4 KB cap), per-process token header, `Host` and `Origin` checks, closed schema (unknown keys and values are
 rejected), options reach the installer as argv entries (no shell). Limit: undoing a change that turned `impeccable` off does not bring its
@@ -95,7 +145,7 @@ npm engine back; run reinstall / repair.
 
 ### Skill impact (comparative, not causal)
 
-Skill pages and the Home rail compare sessions that loaded a skill with sessions that did not: tool error rate, retries (same tool within
+Skill pages and the Today rail (skill impact) compare sessions that loaded a skill with sessions that did not: tool error rate, retries (same tool within
 3 calls after an error), output tokens per turn after the load, test-command failure rate and loaded-but-unused. Every number carries
 `n` and the sessions behind it; a side with fewer than 5 sessions is suppressed ("not enough data"); small differences read "no clear
 difference". **Correlation caveat:** skills are loaded for harder or different tasks, so a worse number is not proof the skill hurts. A per-skill change
@@ -123,27 +173,41 @@ on Windows it writes the Start menu shortcut `amauta.lnk` through PowerShell.
 
 ### Guide (`#/guide[/page]`)
 
-Harness > Guide explains each part of amauta (overview, kernel, install and runtimes, ODD and review, the portal, data
+The Guide (sidebar foot) explains each part of amauta (overview, kernel, install and runtimes, ODD and review, the portal, data
 security, code security, the pipelines orchestrator, sibling projects, optional modules and extras), each page with
 what it is made of, how the parts relate, how you use it, scripts and commands, and how it works, with Mermaid
 diagrams. The pages are Markdown in `python/amauta/portal/guide/<lang>/<page>.md` (English and Spanish, English when
 a translation is missing), served read-only by `GET /api/guide` and `GET /api/guide/page?slug=&lang=` for known pages
-only. `node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
+only. A page selector ("n. Title", with "n of m") sits above the page and previous / next links below it; there is no
+contents column. Every diagram in the portal (guide, Graph, wiki and node pages, Harness architecture, project progress) is drawn
+through one entry point, `adaptiveDiagram(source, caption, onDrawn)`, and picks the layout that fits the width it gets
+(`static/diagram-layout.js`: as written, tighter spacing, flipped flowchart direction (TD/TB with LR, BT with RL) with wrapped
+labels, subgraph `direction LR`/`RL` turned to `TB`; sequences with wrapped messages) and draws it again when the window is
+resized. A sequence that cannot fit a narrow screen even at the 11 px text floor is shown as an ordered list of steps. A
+flowchart in that case in a box under 480 px is shown as an outline (nodes in source order, each with its outgoing edges as
+"→ target (label)", subgraphs as headings, in the same translated words as the drawn diagram; an edge to a subgraph names its title) with a "Show the diagram" button that swaps in the scrollable diagram and a "Show as
+a list" button back (focus moves to the new button); a wider box returns to the diagram. Other kinds (pie, gantt, state) keep one layout.
+`node scripts/dev/check-guide.mjs en|es` and `test/portal-guide-content.test.js` check their structure and diagrams.
 
 ### Sibling projects
 
 Projects that live beside amauta (a data catalog, an ETL repository) are listed in `portal.json` under `siblings`
-and edited in Settings > Sibling projects:
+and edited in Settings > Projects and siblings:
 
 ```json
 { "siblings": [ { "name": "Data catalog", "path": "/home/you/code/catalog", "mcp": "oga-catalog",
                   "watch": "cuts/ACTIVE", "max_age_days": 35 } ] }
 ```
 
-The Projects page shows a card for each (`GET /api/siblings`): its last commit and uncommitted changes, whether its
+The Projects page shows a card for each, below the table, (`GET /api/siblings`): its last commit and uncommitted changes, whether its
 MCP server (`mcp`) is registered for Claude (`.claude.json`) and Codex (`config.toml`), and the age of a watched file
 (`watch`, stale after `max_age_days`). A mark says what needs attention: ✓ fine, ▲ attention, ✗ the folder is
 missing. The portal reads the folder and those two files only; it never runs a sibling's code (ADR 0001).
+
+Remove (a saved project path or a sibling) asks first with the usual confirm group, naming what the portal forgets (a
+sibling's MCP server, watched file and age limit) and saying the folder is not touched; the status line after it offers Undo,
+which puts the same entry back in its place. The confirm group opens inside the row it concerns, in place of its Remove
+button; Go back returns focus to that button, a removal moves it to Undo, and Undo moves it to the restored row's Remove.
 
 ### Security
 
@@ -164,8 +228,8 @@ The portal ships a vendored, unmodified Mermaid build (`python/amauta/portal/sta
 (`python/amauta/portal/diagrams.py`): node ids are generated, and every label that comes from a repo, a graph or the install state is quoted and
 entity-escaped (quotes, brackets, backticks, `<`, `>`, newlines, `#`, `;`) and truncated, so a hostile label cannot add nodes or `click` directives. Where it shows:
 
-- Harness page: the install architecture. Feature and project pages: one task-progress flowchart per `odd/tasks/*.md` (green done, orange pending, capped at 40 tasks). The old Diagrams page is gone; `#/diagrams` redirects to Harness.
-- Memories, graph memory: selecting a node also draws its neighborhood (nearest 30 nodes and up to 30 edges; `GET /api/graph/diagram`).
+- Harness page: the install architecture. The project hub Features tab and feature pages: one task-progress flowchart per `odd/tasks/*.md` (done, pending, capped at 40 tasks). Diagrams follow the theme (Mermaid gets the current tokens and is redrawn when the theme changes). The old Diagrams page is gone; `#/diagrams` redirects to the Harness overview.
+- Graph (`#/node`): selecting a node also draws its neighborhood (nearest 30 nodes and up to 30 edges; `GET /api/graph/diagram`).
 - Memories: the portal shows markdown as plain text, and now also draws the first five ```` ```mermaid ```` fences of the selected file or memory below it.
 
 The Content-Security-Policy had to loosen one directive for this: `style-src 'self' 'unsafe-inline'` (verified in Chromium: Mermaid applies inline `<style>`

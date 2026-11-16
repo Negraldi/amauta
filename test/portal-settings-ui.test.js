@@ -191,3 +191,30 @@ test('the privacy hook and the checks are switches like telemetry (plan D14)', (
   assert.deepEqual(plain(R.settingsChanges(CURRENT, d)).map((c) => [c.key, c.from, c.to]), [['privacy', 'on', 'off'], ['checks', 'on', 'off']]);
   assert.deepEqual(plain(R.settingsBody(CURRENT, d, false)), { privacy: 'off', checks: 'off' });
 });
+
+// ---- the Codex target (T10) ----------------------------------------------------------------------------------
+const CODEX_PLAN = { ...PLAN, plan: { ...PLAN.plan, codex: { changed: true, files: ['AGENTS.md', 'hooks.json'], removed: [], skipped: [] } } };
+
+test('the preview shows the Codex changes when Codex is a target, and says so plainly when it is not', async () => {
+  const withCodex = await boot({ '/api/settings/preview': async () => CODEX_PLAN });
+  choose(withCodex.env, 'set-persona', 'neutral');
+  button(withCodex.env, 'Preview changes').click(); await tick();
+  assert.match(view(withCodex.env).textContent, /Codex: files written: 2\. Removed: 0\. Kept because you edited them: 0\./);
+  assert.match(view(withCodex.env).textContent, /AGENTS\.md/);
+  const without = await boot();
+  choose(without.env, 'set-persona', 'neutral');
+  button(without.env, 'Preview changes').click(); await tick();
+  assert.match(view(without.env).textContent, /No Codex home was found, so this change reaches Claude Code only\./);
+});
+
+test('after apply the Codex files and backup are listed next to the Claude ones', async () => {
+  const applied = { ok: true, backup: '20261016T101500Z', changed: true, files: ['settings.json'], removed: [], skipped: [], state_changes: {}, undo_available: true,
+    codex: { changed: true, files: ['AGENTS.md'], removed: [], backup: '20261016T101500Z-001' } };
+  const { env } = await boot({ '/api/settings/preview': async () => CODEX_PLAN, '/api/settings/apply': async () => applied });
+  choose(env, 'set-persona', 'neutral');
+  button(env, 'Preview changes').click(); await tick();
+  button(env, 'Apply changes').click(); await tick();
+  button(env, 'Yes, apply now').click(); await tick();
+  assert.match(view(env).textContent, /Codex: files written: 1\. Removed: 0\./);
+  assert.match(view(env).textContent, /Codex backup: 20261016T101500Z-001/);
+});

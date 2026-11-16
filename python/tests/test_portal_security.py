@@ -69,3 +69,25 @@ class SecurityTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CodexSecurityTest(unittest.TestCase):
+    """The Codex side of the protections (T10): the same switches from codex-state.json, or a plain 'no Codex home'."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve()
+        self.state = self.root / "state"
+        self.state.mkdir()
+        self.cfg = Config(state_dir=self.state, claude_home=self.root / "home", engram_db=self.root / "none.db")
+
+    def test_no_codex_home(self):
+        self.assertEqual(security.report(self.cfg, search_path="")["codex"], {"found": False})
+
+    def test_codex_switches_come_from_its_own_state(self):
+        (self.root / "codex").mkdir()
+        self.cfg.codex_home = self.root / "codex"
+        self.assertEqual(security.report(self.cfg, search_path="")["codex"], {"found": True, "installed": False, "privacy": "on", "checks": "on"})
+        (self.state / "codex-state.json").write_text(json.dumps({"privacy": False, "checks": True}))
+        self.assertEqual(security.report(self.cfg, search_path="")["codex"], {"found": True, "installed": True, "privacy": "off", "checks": "on"})

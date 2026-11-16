@@ -6,7 +6,7 @@ import path from 'node:path';
 import { STATIC, readApp } from './helpers/portalboot.js';
 
 const read = (f) => readFile(path.join(STATIC, f), 'utf8');
-const css = await read('style.css');
+const css = (await read('style.css') + await read('style-pages.css'));
 const html = await read('index.html');
 const app = await readApp();
 const design = await readFile(path.join(STATIC, '..', '..', '..', '..', 'docs', 'DESIGN.md'), 'utf8');
@@ -54,6 +54,11 @@ for (const scheme of ['light', 'dark']) {
     }
   });
 }
+
+test('no rule puts a status color (warn, ok) on the selection tint or the sidebar layer; the run console sits on the surface', () => {
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*background: var\(--(?:accent-soft|sidebar)\)[^{}]*)\}/g)) assert.doesNotMatch(m[2], /var\(--(warn|ok)\)/, m[1].trim());
+  assert.match(css, /\.console \{[^}]*background: var\(--surface\)/);
+});
 
 test('the primary button text (surface on accent) is readable in both schemes', () => {
   for (const scheme of ['light', 'dark']) assert.ok(contrast(SCHEMES[scheme].surface, SCHEMES[scheme].accent) >= 4.5, scheme);
@@ -124,13 +129,13 @@ test('the shell hides the filter bar through showsFilters, not a hard-coded list
   assert.doesNotMatch(app, /FILTERED/);
 });
 
-// ---- themes: whatever tokens a theme sets, diagrams stay light and focus stays visible ---------------------------------
-test('diagram cards pin their own light tokens, so a dark or custom theme cannot make Mermaid text unreadable', () => {
+// ---- themes: diagrams follow the page tokens (T8), so they are as readable as the text around them -------------------------
+test('diagram cards take the page tokens and Mermaid is drawn from them, in every scheme', () => {
   const rule = css.match(/\n\.diagram \{([^}]*)\}/)[1];
-  const pinned = tokensIn(rule);
-  for (const name of ['bg', 'surface', 'ink', 'ink-muted', 'line']) assert.deepEqual(pinned[name], SCHEMES.light[name], `--${name} is pinned to the light value`);
-  assert.match(css, /\.archify-frame \{[^}]*background: oklch\(1 0 0\)/);
-  assert.ok(contrast(pinned.ink, pinned.bg) >= 4.5 && contrast(pinned['ink-muted'], pinned.surface) >= 4.5);
+  assert.match(rule, /background: var\(--bg\)/);
+  assert.match(rule, /color: var\(--ink\)/);
+  assert.match(app, /getPropertyValue\(`--\$\{name\}`\)/);
+  for (const scheme of ['light', 'dark']) assert.ok(contrast(SCHEMES[scheme].ink, SCHEMES[scheme].bg) >= 4.5 && contrast(SCHEMES[scheme]['ink-muted'], SCHEMES[scheme].surface) >= 4.5, scheme);
 });
 
 test('forced schemes also set color-scheme so native controls follow the portal theme', () => {

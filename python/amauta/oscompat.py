@@ -5,6 +5,8 @@
 - `start_token(pid)`: boot id and start time from /proc on Linux, creation time on Windows, '' when unknown; a pid
   reused after a reboot or crash then no longer matches a recorded token.
 - `exit_signals()`: the termination signals this platform has (no SIGHUP on Windows).
+- `kill_tree(proc)`: SIGKILL to the child's process group on POSIX (no `os.killpg` on Windows: the child alone).
+- `child_env(environ, keep)`: the scrubbed environment for a child; Windows adds the variables node and npm need.
 
 No side effects; every function fails closed to "unknown" (False or '').
 """
@@ -81,3 +83,24 @@ def start_token(pid: int, platform: str = sys.platform) -> str:
 def exit_signals(signal_module=_signal) -> list:
     """SIGTERM, plus SIGHUP where the platform has it."""
     return [getattr(signal_module, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal_module, name)]
+
+
+WINDOWS_ENV_KEEP = ("USERPROFILE", "SYSTEMROOT", "APPDATA", "LOCALAPPDATA", "PATHEXT", "COMSPEC", "TEMP", "TMP")
+
+
+def kill_tree(proc, platform: str = sys.platform, killpg=None) -> None:
+    """Kill a child started with start_new_session=True and, on POSIX, everything in its process group."""
+    killpg = killpg or getattr(os, "killpg", None)
+    if platform != "win32" and killpg is not None:
+        try:
+            killpg(proc.pid, getattr(_signal, "SIGKILL", _signal.SIGTERM))
+            return
+        except OSError:
+            pass
+    proc.kill()
+
+
+def child_env(environ, keep, platform: str = sys.platform) -> dict:
+    """Only the listed variables, plus the Windows ones without which node, npm and Python cannot start there."""
+    names = (*keep, *WINDOWS_ENV_KEEP) if platform == "win32" else tuple(keep)
+    return {k: environ[k] for k in names if k in environ}

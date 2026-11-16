@@ -57,6 +57,13 @@ class SkillPageTest(SkillBase):
         self.assertLessEqual(len(pg["body_md"]), 100000)
         self.assertEqual(self.labels(pg)["Truncated"], "yes")
 
+    def test_a_cut_frontmatter_value_ends_with_an_ellipsis_at_a_word(self):
+        self.skill_file("long-skill", "---\nname: long-skill\ndescription: " + "alpha beta " * 60 + "\n---\nBody\n")
+        text = self.page("skill", "long-skill")["summary"]["description"]
+        self.assertTrue(text.endswith("\u2026"), text[-20:])
+        self.assertLessEqual(len(text), 300)
+        self.assertRegex(text, r"(alpha|beta)\u2026$")
+
     def test_malformed_frontmatter_is_just_text(self):
         self.skill_file("odd-skill", "---\nno closing fence\nbody")
         pg = self.page("skill", "odd-skill")
@@ -80,7 +87,7 @@ class SkillPageTest(SkillBase):
         mcp = self.page("mcp", "engram")
         self.assertEqual(mcp["usage"]["daily"][-1], {"day": "2026-10-02", "value": 1})
         (tools,) = [s for s in mcp["sections"] if s["heading"] == "Tools of this server"]
-        self.assertEqual([(i["label"], i["value"], i["id"]) for i in tools["items"]], [("mcp__engram__mem_save", "1 calls", "mcp__engram__mem_save")])
+        self.assertEqual([(i["label"], i["value"], i["id"]) for i in tools["items"]], [("mcp__engram__mem_save", "1 call", "mcp__engram__mem_save")])
         tool = self.page("tool", "Bash")
         self.assertEqual(tool["usage"]["daily"][-1]["value"], 1)
         self.assertNotIn("Installed", self.labels(tool))
@@ -93,13 +100,13 @@ class SessionPageTest(SkillBase):
         st.close()
         pg = self.page("session", "s1")
         m = self.labels(pg)
-        self.assertEqual((m["Started"], m["Ended"]), ("2026-10-01T10:00:00.000Z", "2026-10-02T10:00:00.000Z"))
+        self.assertEqual((m["Started"], m["Last activity"]), ("2026-10-01T10:00:00.000Z", "2026-10-02T10:00:00.000Z"))
         self.assertEqual(m["Models"], "claude-x (1), claude-y (1)")
         self.assertEqual((m["Input tokens"], m["Output tokens"], m["Cache read tokens"], m["Cache write tokens"]), ("150", "75", "900", "150"))
         self.assertEqual(m["Working directory"], "/work/alpha")
         sec = {s["heading"]: s for s in pg["sections"]}
         self.assertEqual([(i["kind"], i["label"]) for i in sec["Memories saved in this session"]["items"]], [("memory", "Saved in s1")])
-        self.assertIn(("memory", "Saved in s1"), [(x["kind"], x["title"]) for x in pg["links"]])
+        self.assertEqual(pg["links"], [])
         self.assertIn(("skill", "work-unit-commits"), [(i["kind"], i["id"]) for i in sec["Skills"]["items"]])
         self.assertIn(("mcp", "engram"), [(i["kind"], i["id"]) for i in sec["MCP servers"]["items"]])
         self.assertIn("sdd-apply", [i["label"] for i in sec["Subagent types"]["items"]])

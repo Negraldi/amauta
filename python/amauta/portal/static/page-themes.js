@@ -1,5 +1,5 @@
 "use strict";
-// Themes: the sidebar picker and the theme editor (#/themes).
+// Themes: the display picker and the theme editor (Settings > Appearance, #/settings?tab=appearance).
 // Part of the portal UI split by page (plan N11); shares the globals of app.js, loaded before boot.js.
 
 // ---- Themes: picker in the sidebar, and the editor page (list, live preview, save, import, export) ----------------------------------
@@ -7,14 +7,33 @@
 // browser storage through TH.storage() (try/catch: the page works without it); the theme files themselves are stored by the server through guarded writes.
 const usableThemes = () => state.themes.filter((th) => !th.error && TH.validateTheme({ name: th.name, base: th.base, tokens: th.tokens }).ok);
 const effectiveChoice = () => (state.themeChoice.startsWith("custom:") && !usableThemes().some((th) => `custom:${th.slug}` === state.themeChoice) ? "system" : state.themeChoice);
-function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); }
+const onAppearance = (route) => route.kind === "settings" && R.settingsTab(route) === "appearance"; // the editor previews its draft here
+function applyTheme() { TH.applyChoice(document.documentElement, state.themeChoice, state.themes); redrawDiagrams(); }
+const BUILT_IN = () => [["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")]];
+const themeOptions = () => [...BUILT_IN(), ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])].map(([v, l]) => h("option", { value: v }, l));
+// One list, one choice: the top-bar popover (#theme-picker) and the Appearance tab (#set-theme) share this painting and chooseTheme.
 function paintPicker() {
-  const pick = $("theme-picker");
-  pick.replaceChildren(...[["system", t("theme.system")], ["light", t("theme.light")], ["dark", t("theme.dark")], ...usableThemes().map((th) => [`custom:${th.slug}`, th.name])].map(([v, l]) => h("option", { value: v }, l)));
+  for (const id of ["theme-picker", "set-theme"]) {
+    const pick = document.getElementById(id);
+    if (!pick) continue;
+    pick.replaceChildren(...themeOptions());
+    pick.value = effectiveChoice();
+  }
+}
+function themeSelect() {
+  const pick = h("select", { id: "set-theme", "aria-labelledby": "set-theme-title", "aria-describedby": "set-theme-help" });
+  pick.addEventListener("change", (e) => chooseTheme(e.target.value));
+  pick.replaceChildren(...themeOptions());
   pick.value = effectiveChoice();
+  return pick;
+}
+function themeSection() {
+  return h("section", { class: "option-group" }, h("h2", { id: "set-theme-title" }, t("chrome.theme")),
+    h("div", { class: "option" }, themeSelect(), h("p", { id: "set-theme-help", class: "option-help muted" }, t("set.theme.help"))));
 }
 async function loadThemes() {
-  try { state.themes = (await api("themes")).themes || []; } catch (_) { state.themes = []; }
+  state.themesError = null;
+  try { state.themes = (await api("themes")).themes || []; } catch (err) { state.themes = []; state.themesError = err; }
   paintPicker();
   applyTheme();
 }
@@ -95,7 +114,7 @@ async function viewThemes() {
     const slug = d.isNew ? freeSlug(TH.slugify(d.name)) : d.slug;
     say(h("p", { role: "status", class: "muted" }, t("common.saving")));
     let res;
-    try { res = await postJson("/api/themes", { slug, ...v.theme }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/themes", { slug, ...v.theme }); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return failed(res);
     d.slug = slug; d.isNew = false;
     saved(res.data, "✓ " + t("common.saved"));
@@ -105,7 +124,7 @@ async function viewThemes() {
     const d = draft();
     say(h("p", { role: "status", class: "muted" }, t("theme.deleting")));
     let res;
-    try { res = await postJson("/api/themes/delete", { slug: d.slug }); } catch (err) { res = { ok: false, status: 0, data: { error: String(err.message || err) } }; }
+    try { res = await postJson("/api/themes/delete", { slug: d.slug }); } catch (err) { res = { ok: false, status: 0, data: { error: netError(err) } }; }
     if (!res.ok) return failed(res);
     if (state.themeChoice === `custom:${d.slug}`) chooseTheme("system");
     state.themeDraft = null; state.preview = null;
@@ -177,12 +196,12 @@ async function viewThemes() {
       state.themes.length ? h("ul", { class: "items" }, state.themes.map((th) => th.error
         ? h("li", null, h("code", null, th.slug), h("p", { class: "warn" }, "▲ " + t("theme.invalidFile", { reason: themeMsg(th) })))
         : h("li", null, editButton(th), h("span", { class: "muted" }, ` ${t(th.base === "dark" ? "theme.dark" : "theme.light")}${state.themeChoice === `custom:${th.slug}` ? ", " + t("theme.inUse") : ""}`))))
-        : h("p", { class: "muted" }, t("theme.noneYet")),
+        : state.themesError ? errorNote(state.themesError, t("part.themes"), () => loadThemes().then(paintList)) : h("p", { class: "muted" }, t("theme.noneYet")),
       h("div", { class: "actions" }, create, importButton, input));
   }
   paintList();
   paintForm();
-  root.append(h("h1", null, t("nav.themes")), h("p", { class: "muted" }, t("theme.intro")), listBox, formBox, out);
+  root.append(h("h2", null, t("nav.themes")), listBox, formBox, out);
   return [root];
 }
 

@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Portal critique follow-ups: Remove in Settings > Projects and siblings asks first and offers Undo; the Graph node
+  list opens most connected first with vendored, minified and dependency files behind a toggle, and node kinds read as
+  words; Activity pages say "Data as of <time>" under Refresh and keep the filter bar under the top bar on wide screens;
+  the architecture diagram opens at its natural size in a sideways scroller, with a Fit to width toggle.
+- Memory refuses text saved without spaces between words: amauta's memory MCP server (`mem_save`, `mem_update`,
+  `mem_save_prompt`, `mem_session_summary`, `mem_session_end`) replies with an error asking the agent to resend the body
+  as prose, and Memory > Quality lists notes already stored that way. The external engram server is not covered.
+- Harness wiki inventories Codex too: MCP servers from `config.toml`, hooks from `hooks.json`, the `AGENTS.md` blocks and
+  the Codex skills dir. One entry per component with its runtimes ("Runtime: Claude Code, Codex") in the Catalog and on
+  item pages; the Overview has one row per runtime; Security shows the Codex privacy and checks switches.
+- Portal redesign. The sidebar is grouped by job (Today, Work, Knowledge, Activity, Harness wiki, then Guide and Settings)
+  with a breadcrumb on item pages and tabs kept in the address. Each project is one hub (`#/project/<name>`: overview,
+  features, graph, pipelines, sessions, memories); memory has Memory, Memory files and Quality tabs and one cross-repo
+  Graph page; Activity holds Usage, Sessions and one Tools and skills table, and the Range, Project and Runtime filters
+  live only there; the harness wiki has an overview, one Catalog of every component (`?kind=`) and Security; Settings has
+  Preferences, Projects and siblings, and Appearance tabs. Display in the top bar sets theme and language; Ctrl+K also
+  jumps to pages. New identity: cochineal-red accent for links, selection and focus, neutral surfaces, monospace titles
+  and figures, reworked data colors and dark-aware diagrams. Accessibility: AA contrast checked in tests, 24px targets,
+  visible control borders, a phone menu closed by Esc or a tap outside, one date and number format. Old links
+  (`#/activity`, `#/mcp`, `#/themes`, `#sessions` and the like) redirect to the new pages. No new endpoints or dependencies.
 - PBIR tools: `refs REPORT MODEL` lists the fields, filters and sorts of a report that its model lacks (report only,
   never repaired); `theme --name N (--colors | --brand FILE | --profile) --out FILE.json` writes a report theme from a
   palette, warns on low text contrast and never replaces a file without `--force`.
@@ -19,6 +39,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Portal names and wording: the home page is Today / Hoy everywhere (nav group, item, title, error action) and the
+  harness overview is titled Harness overview; a graph copied into memory is Loaded / Not loaded yet (Cargado / Aún sin
+  cargar) instead of Mirrored / Sin reflejar; the Projects lead names the usual origin once; Today's session rows say
+  each fact once; the health sentence is plain text with a link on the component count, warning tone only when needed.
+- Portal controls: one segmented-control look for links and buttons that scrolls instead of wrapping (DESIGN.md states
+  when to use tabs and when a segmented control); checkboxes are 24px targets with an 18px box.
+- Portal copy is runtime-agnostic: where a statement holds for Claude Code and Codex it says "the agent" (persona,
+  privacy, checks, module help, explanation requests, hook and MCP texts), and Claude Code-only parts say so (output
+  style, the data-file ask, the per-edit check, agents, commands, plugins). Spanish catalog lead uses "usted" throughout.
+- Portal: usage day keys (the Usage chart and the date range filters) are this machine's local date instead of UTC; a
+  single call reads "1 call"; a SKILL.md front-matter value cut at 300 characters ends at a word with an ellipsis.
+  Spanish server text and diagram labels are translated on the client (catalog `srv-es.json`).
 - `pbir lint` DAX001 no longer flags a division by a nonzero numeric constant.
 - `amauta upgrade` prints the UPGRADING.md notes of every version in the jump (read from the target, without the
   single-step commands); `--dry-run` fetches and previews the target's own installer from a temporary worktree (files
@@ -27,6 +59,40 @@ All notable changes to this project are documented here. The format follows [Kee
   The upgrade passes `--no-telemetry`, `--no-privacy`, `--no-checks` and `--persona` again from the last install
   (install does not keep them by itself). `AMAUTA_INSTALL_ROOT` (internal) tells a previewing installer the real
   install's checkout.
+
+### Fixed
+
+- Portal cross-page agreement (T14): a session's start time, model and project read the same on every page. Today labels
+  a row's time "last active" and gives an earlier start in full; a session's model is the one with the most messages
+  ("claude-opus-5-5 +1"); one project rule decides membership, the name, last activity, the Usage > Project filter,
+  Usage > Projects and search (Codex rollouts now give their cwd too), and a project's Sessions tab drops its Project
+  column. Projects lists active folders that are not projects, and every row says how it was found in a Found by column.
+  Memory says "Showing 50 of 728." with Show more, and a capped search group says "first 50 of 728" or "50+". The session
+  page is in the UI language with grouped counts, a short-id crumb, and opens from the short id the tables show. Each
+  skill count says what it counts; references name sidebar sections; daily and session tables open newest first; the
+  architecture diagram is shown and centred; orphan memories say why once; the graph list counts shown and hidden nodes;
+  Settings lists On before Off; phone tabs wrap; a page title and its lead sit one spacing step apart.
+- Portal re-critique round (T13): Today's spending reads the same overview as Usage (it summed by UTC day and drifted
+  from Usage near midnight); one rule names a session's project on every page (configured project owning the cwd, else
+  the repository root, worktrees as their main repository and never a dotfiles repository in $HOME, else the folder),
+  and the Today feed says "started <date>" instead of repeating the day; every graph kind is a short word (Concept
+  included); the graph's vendored toggle also hides `.gitattributes` linguist-vendored paths and folders the
+  repository's NOTICE names; the Remove confirm opens in its row and focus returns to it; the Projects lead names an
+  origin only when most rows share it; the Catalog kind filter wraps instead of scrolling; the Usage filters fold under
+  one summary line on a phone; Spanish writes "2,4 mil M", never "B"; one breadcrumb rule (no tab crumb, items by
+  title); Security tables open A to Z; the siblings intro is said once; the search palette says "Searching." while a
+  request is pending.
+- Portal Settings on Windows: a timed-out install called `os.killpg` (POSIX only) and the installer's environment
+  dropped `USERPROFILE`, `SYSTEMROOT` and the other variables node and npm need there.
+- Portal Settings reached only Claude Code: an explicit Claude home made the installer look for Codex inside it. Preview,
+  apply and undo now pass the Codex home and skills dir whenever a Codex home exists (kept inside a sandboxed Claude home),
+  list the Codex changes and backup, and undo re-runs the previous values for both runtimes.
+- Codex home discovery agrees between the installer and the portal: `AMAUTA_CODEX_HOME`, then `<claude home>/.codex`
+  for a custom Claude home, then `CODEX_HOME`, then `~/.codex` (`%USERPROFILE%\.codex` on Windows). The portal and
+  `amauta.usage` ignored `CODEX_HOME`, and an empty `CODEX_HOME` made the installer use the current directory (Codex
+  itself treats it as unset).
+- Windows: with no `--python` or `AMAUTA_PYTHON`, hooks and the memory server use `python` instead of `python3`, which a
+  python.org install does not provide.
 
 ## [0.7.0] - 2026-11-09
 

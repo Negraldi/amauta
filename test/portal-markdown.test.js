@@ -78,6 +78,18 @@ test('tables with alignment, escaped pipes and ragged rows', () => {
   assert.deepEqual(parse('just | a pipe in text').map((b) => b.type), ['paragraph']);
 });
 
+test('a pipe inside a wikilink or inline code does not split a table cell (critique C1)', () => {
+  const t = parse('| Page | Use |\n|--|--|\n| [[guide:install|Install]] | run `a | b` now |\n| `x|y` | [[skill:z]] |');
+  assert.equal(t[0].type, 'table');
+  assert.equal(t[0].rows[0].length, 2);
+  assert.deepEqual(t[0].rows[0][0].map((n) => n.type), ['wikilink']);
+  assert.equal(t[0].rows[0][0][0].label, 'Install');
+  assert.equal(t[0].rows[0][1].find((n) => n.type === 'code').text, 'a | b');
+  assert.equal(t[0].rows[1][0][0].text, 'x|y');
+  assert.equal(t[0].rows[1][1][0].type, 'wikilink');
+  assert.equal(parse('| a | `open\n|--|--|\n| 1 | 2 |')[0].head.length, 2, 'an unclosed backtick still splits');
+});
+
 test('blockquotes nest and hold blocks', () => {
   const t = parse('> quote **b**\n> - item\n>\n> > inner');
   assert.equal(t[0].type, 'quote');

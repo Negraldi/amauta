@@ -50,7 +50,7 @@ test('the Projects page shows each sibling\'s health and what needs attention', 
 });
 
 test('Settings adds and removes a sibling through the projects config', async () => {
-  const { view, posts } = await boot('#/settings');
+  const { view, posts } = await boot('#/settings?tab=projects');
   const field = (id) => tree(view).find((e) => e.attrs?.id === id);
   field('sibling-name').value = 'ETL';
   field('sibling-path').value = '/home/u/etl';
@@ -60,6 +60,8 @@ test('Settings adds and removes a sibling through the projects config', async ()
   await tick();
   assert.deepEqual(posts[0], { siblings: [...SIBS, { name: 'ETL', path: '/home/u/etl', watch: 'out/last.csv', max_age_days: 7 }] });
   tree(view).find((e) => e.tagName === 'button' && e.attrs['aria-label'] === 'Remove Data catalog').click();
+  await tick();
+  tree(view).find((e) => e.tagName === 'button' && e.textContent === 'Remove sibling').click(); // T11 a: Remove asks first
   await tick();
   assert.deepEqual(posts.at(-1).siblings.map((s) => s.name), ['ETL']);
 });

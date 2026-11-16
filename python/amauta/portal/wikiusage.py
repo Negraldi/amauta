@@ -5,7 +5,8 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from .. import extensions
-from . import wikisess
+from . import sessname, sesswhere, wikisess, wikisesstools
+from .sessfacts import MAIN_MODEL
 from .api import NotFound, columns, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref, strip_title_h1
 
@@ -16,11 +17,19 @@ FRONT_KEYS = 12
 FRONT_VALUE = 300
 DAYS = 30
 RUNTIME_NAMES = {"claude": "Claude Code", "codex": "Codex"}
+SESSION_REFS = 100  # sessions listed under "Linked from"; the page carries backlinks_more, how many were left out
+CODEX_NOTE = "No tool calls were found in this Codex session."
+SHORT_ID = 8  # the session tables show the first 8 characters of an id
 
 
 # ---- session labels -----------------------------------------------------------------------------------------------
+def calls(n) -> str:
+    """A call count in words: one call is singular (the client translates both forms through the server catalog)."""
+    return "1 call" if n == 1 else f"{n} calls"
+
+
 def session_label(conn, portal, session_id):
-    r = conn.execute("SELECT count(*) n, max(u.project) project, max(u.model) model, min(u.ts) first_ts FROM usage_messages u WHERE u.session_id = ?", (session_id,)).fetchone()
+    r = conn.execute(f"SELECT count(*) n, max(u.project) project, {MAIN_MODEL} model, min(u.ts) first_ts FROM usage_messages u WHERE u.session_id = ?", (session_id,)).fetchone()
     return wikisess.label(portal, session_id, r["project"], r["model"], r["n"], r["first_ts"])
 
 
@@ -36,8 +45,17 @@ def session_title(portal, session_id):
 
 
 def _session_refs(conn, portal, where, args):
-    rows = conn.execute(f"SELECT c.session_id, max(c.ts) last_ts FROM tool_calls c WHERE {where} GROUP BY c.session_id ORDER BY last_ts DESC LIMIT {LINK_CAP}", args).fetchall()
+    rows = conn.execute(f"SELECT c.session_id, max(c.ts) last_ts FROM tool_calls c WHERE {where} GROUP BY c.session_id ORDER BY last_ts DESC LIMIT {SESSION_REFS}", args).fetchall()
     return [_ref("session", r["session_id"], session_label(conn, portal, r["session_id"])) for r in rows]
+
+
+def add_sessions(conn, portal, pg, col, name):
+    """Add the sessions that used `name` to the backlinks (once each); backlinks_more counts the sessions left out."""
+    have = {(r["kind"], r["id"]) for r in pg["backlinks"]}
+    refs = _session_refs(conn, portal, f"{col} = ?", (name,))
+    pg["backlinks"] += [r for r in refs if (r["kind"], r["id"]) not in have]
+    total = conn.execute(f"SELECT count(DISTINCT c.session_id) FROM tool_calls c WHERE {col} = ?", (name,)).fetchone()[0]
+    pg["backlinks_more"] = max(0, total - len(refs))
 
 
 # ---- installed SKILL.md -------------------------------------------------------------------------------------------
@@ -61,19 +79,24 @@ def parse_frontmatter(text):
     for k, v in list(meta.items())[:FRONT_KEYS]:
         if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
             v = v[1:-1]
-        clean[k] = v[:FRONT_VALUE]
+        if len(v) > FRONT_VALUE:  # cut at a word and said so with an ellipsis, never mid-word and silent
+            v = v[:FRONT_VALUE - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "\u2026"
+        clean[k] = v
     return clean, "\n".join(lines[end + 1:]).lstrip("\n")
 
 
 # ---- usage numbers ------------------------------------------------------------------------------------------------
 def _daily(conn, col, ident, last_ts):
+    local = conn.execute("SELECT coalesce(date(?, 'localtime'), substr(?, 1, 10))", (last_ts, last_ts)).fetchone()[0]  # local day
     try:
-        end = datetime.strptime((last_ts or "")[:10], "%Y-%m-%d").date()
+        end = datetime.strptime((local or "")[:10], "%Y-%m-%d").date()
     except ValueError:
-        end = datetime.now(timezone.utc).date()
+        end = datetime.now().date()
     days = [(end - timedelta(days=i)).isoformat() for i in range(DAYS - 1, -1, -1)]
+    day = "coalesce(date(c.ts, 'localtime'), substr(c.ts, 1, 10))"
     counts = {r["day"]: r["n"] for r in conn.execute(
-        f"SELECT substr(c.ts, 1, 10) day, count(*) n FROM tool_calls c WHERE {col} = ? AND substr(c.ts, 1, 10) BETWEEN ? AND ? GROUP BY day", (ident, days[0], days[-1]))}
+        f"SELECT {day} day, count(*) n FROM tool_calls c WHERE {col} = ? AND {day} BETWEEN ? AND ? GROUP BY day",
+        (ident, days[0], days[-1]))}
     return [{"day": d, "value": counts.get(d, 0)} for d in days]
 
 
@@ -130,13 +153,14 @@ def usage_page(kind):
             if used:
                 pg["usage"] = {"daily": _daily(conn, col, ident, t["last_ts"]), "days": DAYS}
                 pg["backlinks"] = _session_refs(conn, portal, f"{col} = ?", (ident,))
+                pg["backlinks_more"] = max(0, t["sessions"] - len(pg["backlinks"]))
                 pg["sections"].append({"heading": "Tokens in the sessions that used it", "items": _token_items(conn, col, ident)})
             else:
                 pg["usage"] = {"daily": [], "days": DAYS}
             if used and kind == "mcp":
                 tools = conn.execute("SELECT c.tool name, count(*) n FROM tool_calls c WHERE c.mcp_server = ? GROUP BY c.tool ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
                 pg["links"] = [_ref("tool", r["name"]) for r in tools]
-                pg["sections"].insert(0, {"heading": "Tools of this server", "items": [_item(r["name"], f"{r['n']} calls", "tool", r["name"]) for r in tools]})
+                pg["sections"].insert(0, {"heading": "Tools of this server", "items": [_item(r["name"], calls(r["n"]), "tool", r["name"]) for r in tools]})
             if used and kind == "tool":
                 server = conn.execute("SELECT c.mcp_server FROM tool_calls c WHERE c.tool = ? AND c.mcp_server IS NOT NULL LIMIT 1", (ident,)).fetchone()
                 if server:
@@ -182,35 +206,48 @@ def session_memories(portal, session_id):
         conn.close()
 
 
+def _full_session_id(conn, ident):
+    """A short id as the session tables show it (its first 8+ characters) opens the one session it starts; else itself."""
+    if len(ident) < SHORT_ID or conn.execute("SELECT 1 FROM usage_messages WHERE session_id = ? LIMIT 1", (ident,)).fetchone():
+        return ident
+    like = ident.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    found = conn.execute("SELECT DISTINCT session_id FROM usage_messages WHERE session_id LIKE ? ESCAPE '\\' LIMIT 2", (like,)).fetchall()
+    return found[0][0] if len(found) == 1 else ident
+
+
 def session_page(portal, ident, q):
     conn = portal._usage_conn()
     if conn is None:
         raise NotFound()
     try:
+        ident = _full_session_id(conn, ident)
         cw = "u.cache_write_5m + u.cache_write_1h"
         t = conn.execute(
-            f"SELECT count(*) messages, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, max(u.model) model, sum(u.input) input, sum(u.output) output, "
+            f"SELECT count(*) messages, max(u.project) project, min(u.ts) first_ts, max(u.ts) last_ts, {MAIN_MODEL} model, sum(u.input) input, sum(u.output) output, "
             f"sum(u.cache_read) cache_read, sum({cw}) cache_write FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()
         if not t["messages"]:
             raise NotFound()
-        info = wikisess.session_info(portal, ident)
+        cwd = sesswhere.cwd(portal, ident)
         runtime = conn.execute(f"SELECT max({'u.runtime' if 'runtime' in columns(conn, 'usage_messages') else repr('claude')}) FROM usage_messages u WHERE u.session_id = ?", (ident,)).fetchone()[0]
         pg = _blank("session", ident, wikisess.label(portal, ident, t["project"], t["model"], t["messages"], t["first_ts"]))
         models = conn.execute("SELECT coalesce(u.model, 'unknown') model, count(*) n FROM usage_messages u WHERE u.session_id = ? GROUP BY model ORDER BY n DESC, model LIMIT 10", (ident,)).fetchall()
-        pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", t["project"]), ("Repository", wikisess.repo_name(info.get("cwd")) or None), ("Working directory", info.get("cwd")),
-                           ("Started", t["first_ts"]), ("Ended", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
+        pg["meta"] = _meta(("Runtime", RUNTIME_NAMES.get(runtime, runtime)), ("Project", sessname.project_of(portal, cwd, t["project"])), ("Repository", getattr(sessname.repo_root(portal, cwd), "name", None)), ("Working directory", cwd),
+                           ("Started", t["first_ts"]), ("Last activity", t["last_ts"]), ("Messages", t["messages"]), ("Models", ", ".join(f"{r['model']} ({r['n']})" for r in models)),
                            ("Input tokens", t["input"]), ("Output tokens", t["output"]), ("Cache read tokens", t["cache_read"]), ("Cache write tokens", t["cache_write"]))
-        for heading, kind, col, cond in (("Skills", "skill", "c.skill", "c.skill IS NOT NULL"), ("Tools", "tool", "c.tool", "1=1"),
-                                         ("MCP servers", "mcp", "c.mcp_server", "c.mcp_server IS NOT NULL"), ("Subagent types", None, "c.subagent_type", "c.subagent_type IS NOT NULL")):
-            rows = conn.execute(f"SELECT {col} name, count(*) n FROM tool_calls c WHERE c.session_id = ? AND {cond} GROUP BY name ORDER BY n DESC, name LIMIT 100", (ident,)).fetchall()
-            if rows:
-                pg["sections"].append({"heading": heading, "items": [_item(r["name"], f"{r['n']} calls", kind, r["name"] if kind else None) for r in rows]})
-                if kind in ("skill", "mcp"):
-                    pg["links"] += [_ref(kind, r["name"]) for r in rows][:LINK_CAP]
+        known = {r.name for r in portal.repos()}  # the project value opens its page only when the portal has that project
+        pg["meta"] = [{**m, "kind": "project"} if m["label"] == "Project" and m["value"] in known else m for m in pg["meta"]]
+        pg["sections"] += wikisesstools.tool_sections(conn, ident)[0]  # the lists are the page's own sections: no second "Links" copy
+        if runtime == "codex" and not any(s["heading"] == "Tools" for s in pg["sections"]):
+            pg["sections"].append({"heading": "Tool calls", "items": [_item(CODEX_NOTE)]})
         saved = session_memories(portal, ident)
         if saved:
             pg["sections"].append({"heading": "Memories saved in this session", "items": [_item(r["title"], None, "memory", r["id"]) for r in saved]})
-            pg["links"] += saved
         return pg
     finally:
         conn.close()
+
+
+def agent_ids(portal):
+    """The ids of the agents that have a page (a usage row for such a subagent type links to it)."""
+    from . import wikiharness
+    return {e["id"] for e in wikiharness.index(portal).values() if e["kind"] == "agent"}

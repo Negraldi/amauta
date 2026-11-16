@@ -15,7 +15,7 @@ class HarnessTextCatalogTest(ToolsBase):
 
     def test_constants(self):
         fixed = [label for _, label in wikiharness.KINDS] + list(wikiharness.EVENT_WHEN.values()) + [
-            wikiharness.HOOK_FALLBACK_WHEN, wikiharness.MCP_WHAT, wikiharness.MCP_WHEN, wikiharness.AGENT_WHEN, wikiharness.COMMAND_WHEN, wikiharness.STYLE_WHEN, wikiharness.PLUGIN_WHAT,
+            wikiharness.HOOK_FALLBACK_WHEN, wikiharness.MCP_WHAT, wikiharness.AGENT_WHEN, wikiharness.COMMAND_WHEN, wikiharness.STYLE_WHEN, wikiharness.PLUGIN_WHAT,
             wikiharness.USER_LABEL, wikiharness.BUILTIN_LABEL, wikiharness.USAGE_LABEL, wikiharness.PLUGIN_DISABLED,
             wikitools.SERVER_LABEL, wikitools.CONNECTOR_WHAT, wikitools.CONNECTOR_WHEN, wikitools.MCPTOOL_WHEN, wikitools.USAGE_ONLY_NOTE, wikitools.TOOL_USAGE_NOTE] + [what for _, _, what in wikiharness.HOOK_SUMMARIES]
         self.assertEqual([s for s in fixed if not covered(s, self.keys)], [])
@@ -28,7 +28,7 @@ class HarnessTextCatalogTest(ToolsBase):
             texts = [m["label"] for m in pg["meta"]] + [s["heading"] for s in pg["sections"]] + [pg["summary"]["source"]]
             texts += [x for x in (pg["summary"]["note"], None if pg["summary"].get("i18n") else pg["summary"]["when"]) if x]  # curated tools carry their own Spanish text
             for s in pg["sections"]:
-                texts += [it["value"] for it in s["items"] if it.get("value") and s["heading"] in ("Configured in", "Source of these facts", "Reported by the server")]
+                texts += [it["value"] for it in s["items"] if it.get("value") and s["heading"] in ("Configured in", "Source of these facts")]
             missing |= {t for t in texts if not covered(t, self.keys)}
             if pg["kind"] in ("connector",) and pg["summary"]["description"]:
                 texts.append(pg["summary"]["description"])

@@ -15,7 +15,7 @@ const SKILL_PAGE = { kind: 'skill', id: 'artifact-capabilities', title: 'artifac
   sections: [{ heading: 'Tools of this server', items: [{ label: 'Read', value: '12 calls', kind: 'tool', id: 'Read' }] }], links: [], backlinks: [], missing: [], usage: null, history: null };
 const MEMORY_PAGE = { kind: 'memory', id: '7', title: 'Decision about caching', body_md: 'We keep the **latest** revision only.', progress: null, meta: [{ label: 'Type', value: 'decision' }, { label: 'Revision', value: 3 }],
   sections: [], links: [], backlinks: [], missing: [], usage: null, history: { available: false, note: 'This store keeps the latest revision only: saving the same topic_key again overwrites the previous text, so there is no earlier text to list or compare.' } };
-const PROJECTS = { auto_discover: true, config_repos: [], projects: [{ name: 'amauta', path: '/home/u/amauta', origin: ['config'], odd: { features: 2, done: 3, total: 5, percent: 60 }, sessions: 1234567, memories: 4, graph: { mirrored: true, nodes: 3, edges: 2, synced_at: '2026-10-05T10:00:00.000Z' } }] };
+const PROJECTS = { auto_discover: true, config_repos: [], projects: [{ name: 'amauta', path: '/home/u/amauta', origin: ['config'], odd: { features: 2, done: 1234567, total: 2000000, percent: 62 }, sessions: 1234567, memories: 4, graph: { mirrored: true, nodes: 3, edges: 2, synced_at: '2026-10-05T10:00:00.000Z' } }] };
 
 async function boot({ language = 'en-US', storage = memoryStorage(), hash = '#/', routes = {}, extra = {} } = {}) {
   const posts = [];
@@ -49,9 +49,10 @@ test('the default language comes from the browser: Spanish for es*, English othe
 test('the page is complete in Spanish without a missing-key fallback on the home route', async () => {
   const { env } = await boot({ language: 'es-ES' });
   assert.match(view(env).textContent, /Actividad reciente/);
-  assert.match(view(env).textContent, /Estado del harness/);
+  assert.match(view(env).textContent, /Gasto/); // T8 m: the rail health block became the lead sentence
   assert.doesNotMatch(view(env).textContent, /\b(Recent activity|Harness health)\b/);
-  assert.match($(env, 'refresh').textContent, /Actualizar uso/);
+  assert.equal($(env, 'refresh').textContent, 'Actualizar');
+  assert.equal($(env, 'display-open').textContent, 'Vista');
   assert.match($(env, 'search-text').textContent, /Buscar en la wiki/);
 });
 
@@ -62,8 +63,8 @@ test('switching the language re-renders the current route and the static chrome 
   await switchTo(env, 'es');
   assert.equal(lang(env), 'es');
   assert.match(view(env).textContent, /Actividad reciente/);
-  assert.match(nav(env).textContent, /Inicio/);
-  assert.equal($(env, 'refresh').textContent, 'Actualizar uso');
+  assert.match(nav(env).textContent, /Hoy/);
+  assert.equal($(env, 'refresh').textContent, 'Actualizar');
   assert.equal($(env, 'palette-input').attrs.placeholder.startsWith('Buscar'), true);
   assert.equal($(env, 'sidebar').attrs['aria-label'], 'Wiki');
   assert.equal($(env, 'prefs').attrs['aria-label'], 'Apariencia');
@@ -92,16 +93,15 @@ test('the stored choice wins over the browser language, and a throwing or missin
 
 test('numbers follow the language and region; dates stay YYYY-MM-DD in both languages', async () => {
   const es = await boot({ language: 'es-ES', hash: '#/project' });
-  assert.match(view(es.env).textContent, /1\.234\.567 sesiones/);
-  assert.match(view(es.env).textContent, /grafo reflejado 2026-10-05/);
-  assert.match(view(es.env).textContent, /3 de 5 tareas \(60 %\) en 2 funcionalidades/);
+  assert.match(view(es.env).textContent, /1\.234\.567 de 2\.000\.000 tareas \(62\s%\) en 2 funcionalidades/);
+  assert.match(view(es.env).textContent, /Cargado 2026-10-05/);
   const mx = await boot({ language: 'es-MX', hash: '#/project' });
-  assert.match(view(mx.env).textContent, /1,234,567 sesiones/);
+  assert.match(view(mx.env).textContent, /1,234,567 de 2,000,000 tareas/);
   const en = await boot({ language: 'en-US', hash: '#/project' });
-  assert.match(view(en.env).textContent, /1,234,567 sessions/);
-  assert.match(view(en.env).textContent, /graph mirrored 2026-10-05/);
+  assert.match(view(en.env).textContent, /1,234,567 of 2,000,000 tasks/);
+  assert.match(view(en.env).textContent, /Loaded 2026-10-05/);
   await switchTo(en.env, 'es');
-  assert.match(view(en.env).textContent, /1\.234\.567 sesiones/, 'the chosen language brings its own separators when the browser region is not Spanish');
+  assert.match(view(en.env).textContent, /1\.234\.567 de 2\.000\.000 tareas/, 'the chosen language brings its own separators when the browser region is not Spanish');
   assert.doesNotMatch(view(en.env).textContent, /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{1,2} de \w+ de \d{4}/);
 });
 
@@ -121,7 +121,7 @@ test('server text is translated, user content is left exactly as written', async
   assert.match(mtext, /Decision about caching/);
   assert.match(mtext, /We keep the latest revision only\./);
   assert.match(mtext, /Este almacén conserva solo la última revisión/);
-  assert.match(mtext, /decision/, 'a memory type is data');
+  assert.match(mtext, /Decisión/, 'a memory type has a label, like the list');
   assert.ok(tree(view(mem.env)).some((e) => e.tagName === 'dt' && e.textContent === 'Tipo'));
 });
 
@@ -142,7 +142,7 @@ test('hostile text stays text in both languages', async () => {
 
 test('errors and refusals are explained in the chosen language', async () => {
   const { env } = await boot({ language: 'es-ES', hash: '#/memory/99', routes: { '/api/wiki/page': { __status: 404, error: 'not found' } } });
-  assert.match(view(env).textContent, /No hay página de tipo memoria/);
+  assert.match(view(env).textContent, /Memoria no encontrada/);
   assert.match(view(env).textContent, /Las memorias aparecen aquí/);
   const s = await boot({ language: 'es-ES', hash: '#/settings', routes: {
     '/api/settings': { installed: true, current: { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } }, allowed: {}, undo: { available: false } },
@@ -160,12 +160,12 @@ test('the settings page speaks Spanish: options, help and values', async () => {
     '/api/settings': { installed: true, current: { persona: 'gentleman', review_mode: 'off', telemetry: 'on', modules: { sdd: 'off', rea: 'off', context7: 'off', impeccable: 'off', archify: 'off' } }, allowed: {}, undo: { available: false } } } });
   const t = view(env).textContent;
   assert.match(t, /Modo de revisión/);
-  assert.match(t, /ahora desactivado/);
+  assert.match(t, /ahora fuera de uso/); // T8: neutral status words, not the gendered activado/desactivado
   assert.match(t, /Módulos opcionales/);
   assert.match(t, /Desarrollo guiado por especificaciones \(SDD\)/);
   const sel = tree(view(env)).find((e) => e.attrs.id === 'set-review-mode');
   sel.value = 'on'; fire(sel, 'change');
-  assert.match(view(env).textContent, /◆ cambiado, era desactivado/);
+  assert.match(view(env).textContent, /◆ cambiado, era fuera de uso/);
 });
 
 test('the theme editor and its draft survive a language switch', async () => {

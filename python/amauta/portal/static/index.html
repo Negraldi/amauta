@@ -9,6 +9,7 @@
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style-pages.css">
 </head>
 <body>
 <a class="skip" id="skip" href="#view">Skip to content</a>
@@ -16,27 +17,33 @@
   <nav class="sidebar" id="sidebar" aria-label="Wiki">
     <a class="brand" href="#/">amauta</a>
     <div id="nav"></div>
-    <div class="prefs" id="prefs" role="group" aria-label="Appearance">
-      <label><span id="theme-label">Theme</span> <select id="theme-picker"></select></label>
-      <a id="theme-edit" href="#/themes">Edit themes</a>
-      <label><span id="lang-label">Language</span> <select id="lang-picker"><option value="en">English</option><option value="es">Español</option></select></label>
-    </div>
-    <section class="recent" aria-labelledby="recent-title">
-      <h2 id="recent-title">Recent changes</h2>
-      <div id="recent"><p class="muted" id="recent-loading">Loading...</p></div>
-    </section>
   </nav>
+  <div class="nav-scrim" id="nav-scrim" aria-hidden="true"></div>
   <div class="main-col">
     <header class="topbar">
       <button id="nav-toggle" class="nav-toggle" type="button" aria-controls="sidebar" aria-expanded="false">Menu</button>
-      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /"><span id="search-text">Search the wiki</span> <kbd>Ctrl K</kbd></button>
+      <button id="search-open" class="search-trigger" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K /"><svg class="search-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span id="search-text">Search the wiki</span> <kbd>Ctrl K</kbd></button>
+      <div class="topbar-end" id="topbar-end">
+        <span id="status" role="status"></span>
+        <button id="refresh" type="button">Refresh</button>
+        <button id="display-open" type="button" popovertarget="prefs" aria-expanded="false">Display</button>
+      </div>
+      <div class="prefs" id="prefs" popover role="group" aria-label="Appearance">
+        <label><span id="theme-label">Theme</span> <select id="theme-picker"></select></label>
+        <a id="theme-edit" href="#/settings?tab=appearance">Edit themes</a>
+        <label><span id="lang-label">Language</span> <select id="lang-picker"><option value="en">English</option><option value="es">Español</option></select></label>
+      </div>
     </header>
     <div class="page-bar" id="filters" role="group" aria-label="Filters">
-      <label><span id="range-label">Range</span> <select id="days"><option value="7" id="opt-7">7 days</option><option value="30" id="opt-30" selected>30 days</option><option value="90" id="opt-90">90 days</option><option value="365" id="opt-365">1 year</option><option value="3650" id="opt-3650">All</option></select></label>
-      <label><span id="project-label">Project</span> <select id="project"><option value="" id="opt-all-projects">All projects</option></select></label>
-      <label><span id="runtime-label">Runtime</span> <select id="runtime"><option value="" id="opt-all-runtimes">All</option><option value="claude" id="opt-claude">Claude Code</option><option value="codex" id="opt-codex">Codex</option></select></label>
-      <button id="refresh" type="button">Refresh usage</button>
-      <span id="status" role="status"></span>
+      <details id="filters-fold" class="filters-fold">
+        <summary id="filters-summary"></summary>
+        <div class="filters-fields">
+          <label><span id="range-label">Range</span> <select id="days"><option value="7" id="opt-7">7 days</option><option value="30" id="opt-30" selected>30 days</option><option value="90" id="opt-90">90 days</option><option value="365" id="opt-365">1 year</option><option value="3650" id="opt-3650">All</option></select></label>
+          <label><span id="project-label">Project</span> <select id="project"><option value="" id="opt-all-projects">All projects</option></select></label>
+          <label><span id="runtime-label">Runtime</span> <select id="runtime"><option value="" id="opt-all-runtimes">All</option><option value="claude" id="opt-claude">Claude Code</option><option value="codex" id="opt-codex">Codex</option></select></label>
+        </div>
+      </details>
+      <p id="data-at" class="data-at muted"></p>
     </div>
     <div id="toasts" class="toasts" aria-live="polite"></div>
     <main id="view" tabindex="-1"><p class="muted" id="view-loading">Loading...</p></main>
@@ -51,6 +58,11 @@
 <script src="/static/markdown.js"></script>
 <script src="/static/wikiroute.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/errors.js"></script>
+<script src="/static/fit.js"></script>
+<script src="/static/diagram-layout.js"></script>
+<script src="/static/paging.js"></script>
+<script src="/static/labels.js"></script>
 <script src="/static/page-activity.js"></script>
 <script src="/static/page-memory.js"></script>
 <script src="/static/page-harness.js"></script>

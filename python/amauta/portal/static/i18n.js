@@ -52,6 +52,8 @@
   function ts(text) {
     if (typeof text !== "string" || !text || current === "en") return text;
     if (Object.prototype.hasOwnProperty.call(srv, text)) return srv[text];
+    const tail = /^(.*) and (\d+) more$/s.exec(text); // "a, b and 5 more": the list is translated, the tail is a phrase of its own
+    if (tail && srv["and {n} more"]) return `${ts(tail[1])} ${fill(srv["and {n} more"], { n: tail[2] })}`;
     if (!templates) compile();
     for (const tpl of templates) {
       const m = tpl.re.exec(text);

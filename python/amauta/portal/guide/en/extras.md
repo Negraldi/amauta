@@ -20,7 +20,7 @@ All five are off by default and sticky until you turn them off. `context7` and `
 
 | Extra | Folder | Extension points | What it does |
 | --- | --- | --- | --- |
-| Pipelines | `extras/pipelines/` | `GET /api/pipelines`, `GET /api/pipelines/events`, `GET /api/pipelines/check`, `pipelines.run`, `pipelines.cancel` | Runs a project's processes; the Pipelines tab ([[guide:pipelines|The pipelines orchestrator]]) |
+| Pipelines | `extras/pipelines/` | `GET /api/pipelines`, `GET /api/pipelines/events`, `GET /api/pipelines/check`, `pipelines.run`, `pipelines.cancel` | Runs a project's processes; the Pipelines page ([[guide:pipelines|The pipelines orchestrator]]) |
 | Skill impact | `extras/skill_impact/` | `home.impact`, `skill.impact` | Compares sessions that loaded a skill with sessions that did not; comparative, not causal |
 | Wiki explanations | `extras/wiki_explain/` | `harness.explain`, `harness.pending`, `lint.categories`, `portal.explain_request` | Queued requests for a written explanation of a harness component, and the notes Claude writes back |
 | Theme editor | `extras/theme_editor/` | `themes.list`, `themes.write`, `themes.delete` | Custom light and dark themes in `<state dir>/themes/*.json` |
@@ -64,10 +64,10 @@ SDD is used only when you ask for it or accept a proposal; size or risk alone ne
 
 ### Use the extras
 
-- **Pipelines**: `amauta pipeline ...` and the Projects > Pipelines tab.
+- **Pipelines**: `amauta pipeline ...` and the Work > Pipelines page and each project's Pipelines tab.
 - **Skill impact**: the Home rail and each skill page; a side with fewer than 5 sessions shows "not enough data".
-- **Wiki explanations**: press Request explanation on a component page, then ask Claude Code to process the wiki explanation requests (skill `amauta-wiki-explain`).
-- **Theme editor**: Settings > Themes, with live preview, contrast warnings, import and export.
+- **Wiki explanations**: press Request explanation on a component page, then ask the agent (Claude Code or Codex) to process the wiki explanation requests (skill `amauta-wiki-explain`).
+- **Theme editor**: Settings > Appearance, with live preview, contrast warnings, import and export.
 - **Graphify semantic**: ask for a semantic pass; the skill plans chunks and dispatches one read-only extractor subagent per chunk.
 - **PBIR tools**: the `powerbi-report` skill calls them on a PBIP project.
 

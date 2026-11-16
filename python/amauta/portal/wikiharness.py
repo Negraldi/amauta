@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from .. import extensions
-from . import wikisecret
+from . import wikiblocks, wikicodex, wikisecret
 from .wikihooks import HOOK_SUMMARIES, known_hook  # noqa: F401 (HOOK_SUMMARIES re-exported for the i18n tests)
 from .api import NotFound
 from .wikibase import _blank, _item, _meta, _ref
@@ -39,27 +39,27 @@ NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,99}$")
 
 # kind -> (group label, "What it does" note shown when no description exists). Order is the catalog order.
 KINDS = (("hook", "Hooks"), ("mcp", "MCP servers"), ("mcptool", "MCP tools"), ("connector", "Connectors"), ("tool", "Built-in tools"),
-         ("agent", "Agents"), ("command", "Commands"), ("plugin", "Plugins"), ("outputstyle", "Output styles"))
+         ("agent", "Agents"), ("command", "Commands"), ("plugin", "Plugins"), ("outputstyle", "Output styles"), *wikiblocks.KINDS)
 NEW_KINDS = tuple(k for k, _ in KINDS if k not in ("mcp", "tool"))
 
 EVENT_WHEN = {
     "SessionStart": "When a session starts, resumes, is cleared or is compacted.",
     "SessionEnd": "When a session ends.",
-    "UserPromptSubmit": "Each time you submit a prompt, before Claude sees it.",
-    "PreToolUse": "Before Claude runs a tool; it can block or change the call.",
+    "UserPromptSubmit": "Each time you submit a prompt, before the agent sees it.",
+    "PreToolUse": "Before the agent runs a tool; it can block or change the call.",
     "PostToolUse": "After a tool call succeeds.",
     "PostToolUseFailure": "After a tool call fails.",
     "PermissionRequest": "When Claude Code asks you for a permission.",
     "Notification": "When Claude Code sends you a notification.",
-    "Stop": "When Claude finishes answering.",
+    "Stop": "When the agent finishes answering.",
     "SubagentStart": "When a subagent starts.",
     "SubagentStop": "When a subagent finishes.",
     "PreCompact": "Before the conversation is compacted.",
     "PostCompact": "After the conversation is compacted.",
 }
-HOOK_FALLBACK_WHEN = "When Claude Code reaches this hook event."
-MCP_WHAT = "A Model Context Protocol server: Claude Code starts it or connects to it, and the tools it lists become available to Claude."
-MCP_WHEN = "When a session starts, Claude Code connects to every configured server; Claude then calls its tools when a task needs them."
+HOOK_FALLBACK_WHEN = "When the agent reaches this hook event."
+MCP_WHAT = ("A Model Context Protocol server: the agent (Claude Code or Codex) starts it or connects to it, and the tools it lists "
+            "become available to the agent.")
 AGENT_WHEN = "When Claude delegates a task to this subagent type, or when you pick it."
 COMMAND_WHEN = "When you type this slash command."
 STYLE_WHEN = "While this output style is active, for every reply."
@@ -302,7 +302,7 @@ def _collect_servers(portal, repos, plugs):
         for c in configs:
             aliases |= server_aliases(name, c["scope"], c["plugin"])
         material = {"name": name, "configs": [{"source": c["source"], "path": c["path"], **c["facts"]} for c in configs]}
-        out.append({"kind": "mcp", "id": name, "title": name, "description": MCP_WHAT, "when": MCP_WHEN, "source": configs[0]["source"], "path": configs[0]["path"], "material": material,
+        out.append({"kind": "mcp", "id": name, "title": name, "generic": True, "source": configs[0]["source"], "path": configs[0]["path"], "material": material,
                     "configs": configs, "aliases": aliases, "plugin": next((c["plugin"] for c in configs if c["plugin"]), None),
                     "meta": _meta(("Type", first["type"]), ("Command", " ".join(x for x in [first["command"], *first["args"]] if x) or None), ("URL", first["url"]),
                                   ("Environment variables (names only)", ", ".join(first["env_keys"]) or None), ("Header names", ", ".join(first["header_keys"]) or None))})
@@ -371,7 +371,7 @@ def _extra_collectors(portal, base):
         from . import wikitools
     except ImportError:
         return []
-    return wikitools.collect(portal, base)
+    return wikitools.collect(portal, base) + wikiblocks.collect(portal)
 
 
 def index(portal):
@@ -384,6 +384,7 @@ def index(portal):
     base = []
     base += _collect_hooks(portal, repos, plugs)
     base += _collect_servers(portal, repos, plugs)
+    base = wikicodex.merge(portal, base)  # Codex hooks and MCP servers: their Claude twin, or entries of their own
     base += _collect_md(portal, repos, plugs, "agents", "agent")
     base += _collect_md(portal, repos, plugs, "commands", "command")
     base += _collect_md(portal, repos, plugs, "output-styles", "outputstyle")
@@ -426,9 +427,6 @@ def _links(e, entries):
             out.append(("mcptool", t[5:].replace("__", "/", 1)) if t.startswith("mcp__") and "__" in t[5:] else ("tool", t))
     if e["kind"] in ("mcp", "connector"):
         out += [("mcptool", f"{e['id']}/{t}") for t in e.get("tool_names", [])]
-    plugin = e.get("plugin")
-    if plugin and e["kind"] != "plugin":
-        pass  # the plugin links to its parts; the part reaches the plugin as a backlink
     seen, res = set(), []
     for key in out:
         if key not in seen and (key in entries or key[0] == "skill") and key != (e["kind"], e["id"]):
@@ -445,9 +443,8 @@ def _ref_of(entries, key):
 
 
 def summary_of(e):
-    out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
-    if e.get("i18n"):
-        out["i18n"] = e["i18n"]
+    out = {"description": e.get("description"), "trigger": None, "when": e.get("when"), "generic": bool(e.get("generic")), "source": e["source"], "path": e.get("path"), "builtin": e["source"] == BUILTIN_LABEL, "note": e.get("note")}
+    out.update({k: e[k] for k in ("i18n", "origins") if e.get(k)})  # origins: every file an instruction block is written to
     if e.get("disabled"):
         out["disabled"], out["status"] = True, PLUGIN_DISABLED
     return out
@@ -458,13 +455,13 @@ def source_section(e):
     rows = e.get("configs")
     if rows:
         return {"heading": "Configured in", "items": [_item(c["path"], c["source"]) for c in rows]}
-    return {"heading": "Source of these facts", "items": [_item(e.get("path") or e["source"], e["source"])]}
+    return {"heading": "Source of these facts", "items": [_item(e["path"], e["source"]) if e.get("path") else _item(e["source"])]}
 
 
 def stdio_config(e):
     """True when the first configuration of a server entry is a local command (the only kind the refresh asks)."""
     first = (e.get("configs") or [{}])[0].get("facts") or {}
-    return first.get("type") == "stdio" and bool(first.get("command"))
+    return not e.get("codex_only") and first.get("type") == "stdio" and bool(first.get("command"))
 
 
 def page_from(portal, kind, ident):
@@ -480,7 +477,7 @@ def build_page(portal, e):
     pg["summary"] = summary_of(e)
     if e["kind"] == "mcp" and stdio_config(e):
         pg["refresh"] = {"server": e["id"]}
-    pg["meta"] = e["meta"]
+    pg["meta"] = e["meta"] + wikicodex.runtime_meta(e, entries)
     pg["sections"] = [source_section(e)] + e.get("sections", [])
     pg["links"] = [r for r in (_ref_of(entries, k) for k in e["links"]) if r]
     pg["backlinks"] = [r for r in (_ref_of(entries, k) for k in e["backlinks"]) if r]
@@ -504,8 +501,7 @@ def _add_usage(portal, pg, e):
         if last is None:
             return
         pg["usage"] = {"daily": wikiusage._daily(conn, col, name, last), "days": wikiusage.DAYS}
-        have = {(r["kind"], r["id"]) for r in pg["backlinks"]}
-        pg["backlinks"] += [r for r in wikiusage._session_refs(conn, portal, f"{col} = ?", (name,)) if (r["kind"], r["id"]) not in have]
+        wikiusage.add_sessions(conn, portal, pg, col, name)
     finally:
         conn.close()
 
@@ -527,14 +523,14 @@ def groups(portal, q=None):
     out, total = [], 0
     servers = sum(1 for e in entries.values() if e["kind"] == "mcp" and stdio_config(e))
     for kind, label in KINDS:
-        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), **({"i18n": e["i18n"]} if e.get("i18n") else {}), **({"disabled": True} if e.get("disabled") else {})}
+        items = [{"kind": kind, "id": e["id"], "title": e["title"], "description": e.get("description"), "source": e["source"], "uses": e.get("uses", 0), "runtimes": wikicodex.runtimes_of(e, entries), **({"i18n": e["i18n"]} if e.get("i18n") else {}), **({"disabled": True} if e.get("disabled") else {})}
                  for e in entries.values() if e["kind"] == kind]
         if items:
             items.sort(key=lambda i: (-i["uses"], i["title"].lower()))
-            out.append({"kind": kind, "label": label, "items": items})
+            out.append({"kind": kind, "label": label, "items": items, **({"lead": MCP_WHAT} if kind == "mcp" else {})})
             total += len(items)
     pending = extensions.call("harness.pending", portal, default=0)
-    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending}
+    return {"groups": out, "total": total, "refresh": {"servers": servers}, "pending": pending, "runtimes": wikicodex.overview(portal)}
 
 
 def search(kind):

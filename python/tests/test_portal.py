@@ -4,6 +4,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -88,6 +89,7 @@ class UsageViewsTest(ApiBase):
         o = self.get("/api/overview", days=3650)
         self.assertEqual(o["totals"]["messages"], 3)
         self.assertEqual(o["totals"]["sessions"], 2)
+        self.assertEqual(o["totals"]["latest"][:10], "2026-10-02")  # the newest message: "Data as of" (T11 i)
         self.assertEqual((o["totals"]["input"], o["totals"]["output"], o["totals"]["cache_read"], o["totals"]["cache_write"]), (160, 85, 900, 150))
         self.assertAlmostEqual(o["cache_hit_ratio"], 900 / (160 + 900 + 150))
         days = {d["day"]: d for d in o["daily"]}
@@ -96,6 +98,27 @@ class UsageViewsTest(ApiBase):
         self.assertEqual({m["model"] for m in o["models"]}, {"claude-x", "claude-y"})
         self.assertEqual(o["dropped_events"], 3)
         self.assertEqual(o["events"], 1)
+
+    def test_usage_days_are_the_machine_local_date_not_utc(self):
+        conn = sqlite3.connect(self.f["state"] / "memory.db")
+        conn.execute("INSERT INTO usage_messages (message_id, session_id, ts, project, model, input, output, cache_read, cache_write_5m, cache_write_1h, thinking) "
+                     "SELECT 'late', 's9', '2026-10-05T03:30:00.000Z', 'alpha', 'claude-x', 7, 0, 0, 0, 0, 0")
+        conn.commit()
+        conn.close()
+        old = os.environ.get("TZ")
+        os.environ["TZ"] = "America/Lima"  # UTC-5, no daylight saving: 03:30Z is 22:30 the day before
+        time.tzset()
+        try:
+            days = {d["day"]: d for d in self.get("/api/overview", days=3650)["daily"]}
+            self.assertIn("2026-10-04", days)
+            self.assertNotIn("2026-10-05", days)
+            self.assertEqual(self.get("/api/overview", **{"from": "2026-10-04", "to": "2026-10-04"})["totals"]["input"], 7)
+        finally:
+            if old is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old
+            time.tzset()
 
     def test_overview_filters_by_project_and_dates(self):
         o = self.get("/api/overview", days=3650, project="beta")
@@ -261,6 +284,10 @@ class MemoryViewsTest(ApiBase):
         self.assertEqual(len(everything), 6)
         self.assertEqual([n["id"] for n in self.get("/api/graph/nodes", repo=key, q="alp")["items"]], ["a"])
         self.assertIn(fx.XSS, [n["label"] for n in everything])  # raw text; the UI renders it with textContent
+        self.assertEqual(everything[0]["id"], "a", "most connected first by default")
+        self.assertIn("links", everything[0])
+        by_name = self.get("/api/graph/nodes", repo=key, order="name")["items"]
+        self.assertEqual([n["label"] for n in by_name], sorted((n["label"] for n in by_name), key=str.lower))
         near = self.get("/api/graph/neighbors", repo=key, node="a", depth=2)
         self.assertEqual({n["id"] for n in near["nodes"]}, {"a", "b", "e", "c"})
 

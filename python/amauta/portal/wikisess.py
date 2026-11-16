@@ -1,15 +1,16 @@
 """Human labels for sessions. The usage tables keep only a project name taken from the last directory of the cwd, so the label is
-completed from the session's own transcript (read-only, first bytes only): the git root of its cwd and its first user prompt."""
+completed from the session's own transcript (read-only, first bytes only): its cwd (named by sessname.project_of) and its
+first user prompt."""
 from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
 SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 READ_BYTES = 65536
 SNIPPET = 60
 SEP = " · "
+CACHED = 50_000
 
 
 def _prompt_text(message):
@@ -22,14 +23,8 @@ def _prompt_text(message):
 def _transcript(portal, session_id):
     if not SESSION_ID.match(session_id) or ".." in session_id:
         return None
-    root = portal.cfg.claude_home / "projects"
-    if not root.is_dir():
-        return None
-    for folder in sorted(root.iterdir()):
-        path = folder / f"{session_id}.jsonl"
-        if folder.is_dir() and not folder.is_symlink() and path.is_file() and not path.is_symlink():
-            return path
-    return None
+    from . import sesswhere  # sesswhere reads this module for the transcript head
+    return sesswhere.claude_transcript(portal, session_id)
 
 
 def session_info(portal, session_id):
@@ -37,6 +32,11 @@ def session_info(portal, session_id):
     path = _transcript(portal, str(session_id))
     if path is None:
         return {}
+    done = getattr(portal, "_session_info", None)
+    if done is None:
+        done = portal._session_info = {}
+    if str(session_id) in done:  # a transcript's cwd and first prompt never change once both are written
+        return dict(done[str(session_id)])
     try:
         with path.open("rb") as fh:
             head = fh.read(READ_BYTES).decode("utf-8", "replace")
@@ -57,32 +57,28 @@ def session_info(portal, session_id):
             if text and not text.startswith("<"):
                 info["prompt"] = text[:SNIPPET] + ("..." if len(text) > SNIPPET else "")
         if "cwd" in info and "prompt" in info:
+            if len(done) < CACHED:
+                done[str(session_id)] = dict(info)
             break
     return info
 
 
-def repo_name(cwd):
-    """Basename of the nearest ancestor holding a .git entry (the cwd itself when none does)."""
-    if not cwd:
-        return ""
-    here = Path(cwd)
-    for d in [here, *here.parents][:24]:
-        try:
-            if (d / ".git").exists():
-                return d.name or str(d)
-        except OSError:
-            break
-    return here.name
-
-
-def label(portal, session_id, project, model, messages, first_ts):
+def label(portal, session_id, project, model, messages, first_ts, dated=True):
+    """"project · first prompt (or model, count) · start date"; the feed leaves the date out (`dated=False`): its day heading says it."""
+    from . import sessname  # sessname reads projects, which reads this module
     info = session_info(portal, session_id)
-    repo = repo_name(info.get("cwd")) or project or "unknown project"
+    repo = sessname.session_project(portal, session_id, project)
     n = int(messages or 0)
     middle = info.get("prompt") or f"{model or 'unknown model'}, {n} message{'' if n == 1 else 's'}"
-    return SEP.join(p for p in (repo, middle, (first_ts or "")[:10]) if p)
+    return SEP.join(p for p in (repo, middle, (first_ts or "")[:10] if dated else "") if p)
 
 
 def what(n):
-    """The recent-changes line of a session; one message is singular (the client translates both forms)."""
-    return "session, 1 message" if n == 1 else f"session, {n} messages"
+    """The recent-changes line of a session; one message is singular (the client translates both forms). The row's kind
+    label already says it is a session."""
+    return "1 message" if n == 1 else f"{n} messages"
+
+
+def feed_what(n, title):
+    """what(n), or nothing when the title already carries the count (a session without a first prompt)."""
+    return "" if what(n) in title else what(n)

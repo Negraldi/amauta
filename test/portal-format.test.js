@@ -13,7 +13,7 @@ const R = ctx.AmautaRoute;
 const tick = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 const cls = (e) => e.className || e.attrs.class || '';
-const css = await read('style.css');
+const css = (await read('style.css') + await read('style-pages.css'));
 const rule = (selector) => {
   const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return [...css.matchAll(new RegExp(`(?:^|\\n|\\})\\s*${esc}\\s*\\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join(' ');
@@ -132,13 +132,6 @@ test('a wiki page shows grouped numbers and readable dates in its rail and secti
   assert.ok(tree(path).some((e) => /\bpath\b/.test(cls(e))), 'a path breaks only at slashes (see portal-polish.test.js)');
   assert.doesNotMatch(cls(path), /\btok\b/);
   assert.doesNotMatch(cls(dds.find((d) => /Plan commits/.test(d.textContent))), /\btok\b/, 'prose wraps at spaces');
-});
-
-test('recent changes show a local YYYY-MM-DD HH:MM stamp', async () => {
-  const env = await boot('#/skill/artifact-capabilities', { '/api/wiki/page': PAGE });
-  const recent = env.document.getElementById('recent').textContent;
-  assert.match(recent, /2026-10-02 10:05/);
-  assert.doesNotMatch(recent, /T10:05|\.000Z/);
 });
 
 test('tables format numbers with grouping and date columns as dates', async () => {

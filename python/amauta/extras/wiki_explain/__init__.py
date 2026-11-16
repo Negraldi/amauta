@@ -9,8 +9,14 @@ from ...portal.wikibase import _ref
 from ...portal.wikilint import _category
 from . import wikiexplain
 
-STALE_NOTE = "The component changed after this explanation was written: request a new one."
-GONE_NOTE = "The component no longer exists: the note can be deleted."
+STALE_NOTE = "Component changed since the note"  # the category note explains what to do, once
+GONE_NOTE = "Component no longer exists"
+
+
+def _gone_title(kind, ident):
+    """A readable label for a component that is gone: a hook id is "<event>:<hash>"."""
+    event, _, digest = str(ident).partition(":")
+    return f"{event} hook ({digest})" if kind == "hook" and digest else str(ident)
 
 
 def _stale_notes(portal):
@@ -19,11 +25,11 @@ def _stale_notes(portal):
     for n in wikiexplain.notes(portal):
         e = index.get((n["kind"], n["id"]))
         if e is None:
-            items.append({"kind": n["kind"], "id": n["id"], "title": n["id"], "detail": GONE_NOTE})
+            items.append({"kind": n["kind"], "id": n["id"], "title": _gone_title(n["kind"], n["id"]), "detail": GONE_NOTE})
         elif wikiharness.digest(e["material"]) != n["source_hash"]:
             items.append({**_ref(n["kind"], n["id"], e["title"]), "detail": STALE_NOTE})
     return _category("stale_notes", "Stale explanations",
-                     "Explanations written for a harness component from its files. Flagged when the component changed afterwards or no longer exists: ask for a new one or delete the note.", items)
+                     "Explanations written for a harness component from its files. Flagged when the component changed afterwards (ask for a new explanation) or no longer exists (the note can be deleted).", items)
 
 
 

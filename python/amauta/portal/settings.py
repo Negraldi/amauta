@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import re
-import signal
 import secrets
 import shutil
 import subprocess
@@ -20,6 +19,9 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .. import oscompat
+from .settingstargets import backup_id_of as _backup_id, plan_view as _plan_view, target_args
 
 PERSONAS = ("gentleman", "neutral")
 ONOFF = ("on", "off")
@@ -155,11 +157,7 @@ class Settings:
         return argv
 
     def _targets(self) -> list:
-        out = ["--claude-home", str(self.cfg.claude_home), "--state-dir", str(self.cfg.state_dir)]
-        claude_json = os.environ.get("AMAUTA_CLAUDE_JSON") or (self._state() or {}).get("claude_json")
-        if isinstance(claude_json, str) and claude_json:
-            out.append(f"--claude-json={claude_json}")
-        return out
+        return target_args(self.cfg, (self._state() or {}).get("claude_json"))
 
     def _backup_ids(self) -> set:
         try:
@@ -168,7 +166,7 @@ class Settings:
             return set()
 
     def _run(self, argv: list, timeout: int) -> dict:
-        env = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
+        env = oscompat.child_env(os.environ, ENV_KEEP)
         try:
             # Own session = own process group, so a timeout can take down npm and anything else the installer started.
             proc = subprocess.Popen(argv, shell=False, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
@@ -177,10 +175,7 @@ class Settings:
         try:
             stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                proc.kill()
+            oscompat.kill_tree(proc)
             proc.communicate()
             raise SettingsError(504, f"the installer did not finish within {timeout} seconds") from None
         out = (stdout or "")[:OUTPUT_CAP]
@@ -208,7 +203,7 @@ class Settings:
         return {
             "changes": changes,
             "repair": desired["repair"],
-            "plan": {k: plan.get(k) for k in ("changed", "files", "removed", "skipped", "state_changes", "impeccable") if k in plan},
+            "plan": _plan_view(plan),
             "apply_token": token,
             "expires_in": int(TOKEN_TTL),
         }
@@ -270,14 +265,18 @@ class Settings:
                                "to": {k: desired[k] for k in KEPT}})
                     err.extra["backup"] = created[-1]
                 raise
-            backup = result.get("backup")
-            backup_id = os.path.basename(backup) if isinstance(backup, str) and backup else None
+            codex = result.get("codex") if isinstance(result.get("codex"), dict) else None
+            backup_id, codex_backup = _backup_id(result), _backup_id(codex)
             self._log({**entry_base, "ts": _now(), "changes": result.get("state_changes") or {}, "from": before, "to": {k: desired[k] for k in KEPT},
-                       "backup": backup_id, "state_hash_after": self.state_hash()})
+                       "backup": backup_id, **({"codex_backup": codex_backup} if codex else {}), "state_hash_after": self.state_hash()})
             out = {"ok": True, "backup": backup_id, "changed": bool(result.get("changed")), "files": result.get("files") or [], "removed": result.get("removed") or [],
-                   "skipped": result.get("skipped") or [], "state_changes": result.get("state_changes") or {}, "undo_available": backup_id is not None}
+                   "skipped": result.get("skipped") or [], "state_changes": result.get("state_changes") or {},
+                   "undo_available": (backup_id or codex_backup) is not None}
             if isinstance(result.get("impeccable"), dict):
                 out["impeccable"] = result["impeccable"]
+            if codex:
+                out["codex"] = {"changed": bool(codex.get("changed")), "files": codex.get("files") or [],
+                                "removed": codex.get("removed") or [], "backup": codex_backup}
             return out
         finally:
             self._apply_lock.release()
@@ -290,7 +289,7 @@ class Settings:
         desired, preview_hash, _ = self._take_token(body.get("apply_token"), "apply")
         desired = self._revalidate(desired)
         out = self._guarded_install(desired, preview_hash, {"action": "apply", "id": secrets.token_hex(6)})
-        out["undo_available"] = out["backup"] is not None and self._undo_candidate() is not None
+        out["undo_available"] = out["undo_available"] and self._undo_candidate() is not None
         return out
 
     def _revalidate(self, desired: dict) -> dict:

@@ -103,6 +103,26 @@ def parse_tasks(text):
     return items
 
 
+def strip_tasks(text):
+    """The document without its checklist lines (the page lists them once, as its Tasks section) and without the headings that held
+    only checklists. Prose, and headings that keep some, stay. A document with no checklist is returned as it is."""
+    lines = (text or "").splitlines()
+    if not any(_TASK.match(x.rstrip()) for x in lines):
+        return text
+    out, held = [], None  # held: index in `out` of a heading whose section has had only task lines so far
+    for raw in lines:
+        if _TASK.match(raw.rstrip()):
+            continue
+        if _HEADING.match(raw.rstrip()):
+            if held is not None and not any(x.strip() for x in out[held + 1:]):
+                del out[held:]
+            held = len(out)
+        out.append(raw)
+    if held is not None and not any(x.strip() for x in out[held + 1:]):
+        del out[held:]
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
 def task_diagram(name, tasks):
     """{source, tasks, shown} for the Mermaid grid of a document's tasks, or None when it has none."""
     src = diagrams.odd_progress(name, tasks)

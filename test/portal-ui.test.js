@@ -43,15 +43,16 @@ async function boot(hash = '') {
   await tick();
   return env;
 }
+// A title attribute shows hostile data as inert text (T16a: a clipped cell carries its full value), so only its name is checked.
 // Wiki links carry the percent-encoded id in href (e.g. %3Cimg%20onerror...): inert, and it must stay a wiki route.
-const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === 'href' ? v.startsWith('#/') : !v.includes('onerror')) && !k.startsWith('on'));
+const noHandlerAttrs = (e) => Object.entries(e.attrs).every(([k, v]) => (k === 'href' ? v.startsWith('#/') : k === 'title' || !v.includes('onerror')) && !k.startsWith('on'));
 const tree = (el) => { const all = []; el.walk((e) => all.push(e)); return all; };
 
 test('static files: no innerHTML-style sinks, no external URLs, no inline script or style', async () => {
   const js = await readApp();
   for (const sink of ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'new Function', 'localStorage']) assert.ok(!js.includes(sink), sink);
   const html = await read('index.html');
-  const css = await read('style.css');
+  const css = (await read('style.css') + await read('style-pages.css'));
   for (const [name, text] of [['the UI scripts', js], ['index.html', html], ['style.css', css]]) assert.ok(!/https?:\/\/(?!www\.w3\.org\/2000\/svg)/.test(text), `${name} references an external URL`);
   assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
   assert.match(html, /name="portal-token" content="__PORTAL_TOKEN__"/);
@@ -76,8 +77,8 @@ test('Activity opens with one summary sentence, then the chart; no stat tiles; d
   const text = view.textContent;
   const lead = tree(view).find((e) => e.tagName === 'p' && e.className === 'lead');
   assert.ok(lead, 'a summary sentence');
-  assert.equal(lead.textContent, 'In this range: 3 messages in 2 sessions, 160 input and 85 output tokens; the cache served 50.0% of the input.');
-  assert.match(text, /4 telemetry events, 7 dropped/);
+  assert.equal(lead.textContent, 'You spent 160 input and 85 output tokens in 3 messages across 2 sessions; the cache served 50.0% of the input.');
+  assert.match(text, /4 telemetry events in total \(all time, not filtered by the controls above\), 7 dropped/);
   assert.ok(!tree(view).some((e) => e.className === 'grid' || e.className === 'card'), 'no stat tiles');
   assert.ok(tree(view).some((e) => e.tagName === 'svg'));
   assert.ok(tree(view).some((e) => e.tagName === 'rect'));
@@ -93,7 +94,7 @@ test('an empty table says so instead of showing a bare header; prose keeps a 72c
     const env = await boot('#/usage');
     assert.match(env.document.getElementById('view').textContent, /Nothing to show for this selection/);
   } finally { routes['/api/overview'] = saved; }
-  const css = await read('style.css');
+  const css = (await read('style.css') + await read('style-pages.css'));
   assert.match(css, /#view p \{[^}]*max-width: 72ch/);
 });
 
@@ -101,10 +102,9 @@ for (const hash of ['#usage', '#sessions', '#memories', '#harness']) {
   test(`view ${hash} escapes hostile data`, async () => {
     const env = await boot(hash);
     const view = env.document.getElementById('view');
-    if (hash === '#usage') {
-      const tab = tree(view).find((e) => e.tagName === 'button' && e.textContent.startsWith('Tools'));
-      assert.ok(tab, 'Tools tab');
-      tab.click();
+    if (hash === '#usage') { // the usage tables moved to the Tools and skills tab (#/tool); the segment rides in the hash
+      env.location.hash = '#/tool?seg=tools';
+      env.listeners.hashchange();
       await tick();
     }
     assert.ok(view.textContent.includes(XSS), view.textContent.slice(0, 200));
@@ -162,8 +162,8 @@ test('memories: a failing search is shown inline and never becomes an unhandled 
   await withRoutes({}, '#memories', async (env, rejections) => {
     const view = env.document.getElementById('view');
     delete routes['/api/memories'];
-    const search = tree(view).find((e) => e.tagName === 'button' && e.textContent === 'Search');
-    search.click();
+    const search = tree(view).find((e) => e.tagName === 'input' && e.attrs.type === 'search'); // no Search button since T4: Enter or typing
+    for (const fn of search.listeners.keydown) fn({ key: 'Enter' });
     await tick();
     assert.match(view.textContent, /not found/); // the error message from the API is rendered
     assert.deepEqual(rejections, []);
@@ -191,11 +191,11 @@ test('overview reports invalid prices and an unreadable prices file', async () =
 });
 
 test('graph memory: per-repo stats, searchable node list and neighbors view, all as text', async () => {
-  const env = await boot('#memories');
+  const env = await boot('#/node');
   const view = env.document.getElementById('view');
   assert.match(view.textContent, /6 nodes, 4 edges/);
   assert.match(view.textContent, /2 SQL tables/);
-  assert.match(view.textContent, /Semantic pass pending: yes/);
+  assert.match(view.textContent, /A semantic pass is pending\./);
   assert.match(view.textContent, /Last semantic run: 2026-10-12 08:00 \(claude-haiku-5-5\)/);
   assert.match(view.textContent, /not mirrored|graphify update|<img/); // the unavailable repo shows its reason as text
   assert.ok(view.textContent.includes('src/a.py'), 'initial node list is loaded');
@@ -218,7 +218,7 @@ test('graph memory: per-repo stats, searchable node list and neighbors view, all
 });
 
 test('graph memory: API failures are shown inline', async () => {
-  await withRoutes({ '/api/graph/nodes': undefined }, '#memories', async (env, rejections) => {
+  await withRoutes({ '/api/graph/nodes': undefined }, '#/node', async (env, rejections) => {
     const view = env.document.getElementById('view');
     assert.match(view.textContent, /not found/);
     assert.deepEqual(rejections, []);

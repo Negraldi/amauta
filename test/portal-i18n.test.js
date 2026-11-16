@@ -14,6 +14,7 @@ const rctx = {};
 vm.runInNewContext(await read('wikiroute.js'), rctx);
 const R = rctx.AmautaRoute;
 const app = await readApp();
+const route = await read('wikiroute.js'); // the navigation model (R.NAV) carries the sidebar, tab and breadcrumb label keys
 const html = await read('index.html');
 const plain = (x) => JSON.parse(JSON.stringify(x));
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -40,7 +41,7 @@ test('both languages carry the same {placeholders} for every key, and no value i
 
 test('Spanish is neutral and professional: no voseo, no slang, no emoji', () => {
   const voseo = /\b(vos|tenés|podés|querés|sabés|hacé|elegí|mirá|andá|fijate|acordate|dale|che|boludo|chévere|guay)\b/i;
-  const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+  const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{2712}\u{2714}-\u{27BF}]/u; // U+2713 ✓ is the done mark the server writes in diagram labels
   for (const [k, v] of [...Object.entries(ES), ...Object.entries(SRV)]) {
     assert.doesNotMatch(v, voseo, k);
     assert.doesNotMatch(v, emoji, k);
@@ -62,9 +63,9 @@ test('the server-text catalog has a Spanish text with the same placeholders for 
 });
 
 // ---- the keys app.js uses exist, and none is dead ---------------------------------------------------------------------
-const DYNAMIC = /^(kind|hint|status|delta|themeErr|advice|origin|palette\.group|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
+const DYNAMIC = /^(kind|catalog\.kind|graph\.kind|set\.tab|hint|notfound|status|delta|themeErr|advice|origin|palette\.group|memtype|redact|meta|pipemode|memscope|memsource|scope|hooktype|transport|rel\.(out|in|edge|dir)|pipe\.(s|t|type|day|sched))\./; // pipe.s.<status>, .t.<trigger>, .type, .day, .sched: built from a run
 test('every key that app.js uses exists in en; every en key is used', () => {
-  const literals = [...app.matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
+  const literals = [...(app + route).matchAll(/"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)"/g)].map((m) => m[1]);
   const used = new Set(literals);
   for (const k of used) assert.ok(k in EN || k + '.other' in EN, `app.js uses ${k}, which is not in en`);
   for (const k of Object.keys(EN)) {
@@ -83,13 +84,13 @@ test('every key that app.js uses exists in en; every en key is used', () => {
 // ---- t, tn, ts -----------------------------------------------------------------------------------------------------------
 test('t resolves in the chosen language, falls back to English, then to the key', () => {
   assert.equal(I.lang(), 'en');
-  assert.equal(I.t('nav.home'), 'Home');
+  assert.equal(I.t('nav.home'), 'Today');
   I.setLang('es');
-  assert.equal(I.t('nav.home'), 'Inicio');
+  assert.equal(I.t('nav.home'), 'Hoy');
   assert.equal(I.t('no.such.key'), 'no.such.key');
   const saved = ES['nav.home'];
   delete ES['nav.home'];
-  try { assert.equal(I.t('nav.home'), 'Home', 'a key missing in es shows the English text'); } finally { ES['nav.home'] = saved; }
+  try { assert.equal(I.t('nav.home'), 'Today', 'a key missing in es shows the English text'); } finally { ES['nav.home'] = saved; }
 });
 
 test('t fills {params} and leaves unknown placeholders visible', () => {
@@ -98,7 +99,7 @@ test('t fills {params} and leaves unknown placeholders visible', () => {
   assert.equal(I.t('progress.label', { done: 2, total: 5 }), '2 de 5 hechas');
   assert.equal(I.t('progress.label', { done: 2 }), '2 de {total} hechas');
   assert.equal(I.t('progress.label'), '{done} de {total} hechas');
-  assert.equal(I.t('common.http', { status: '<b>' }), 'HTTP <b>', 'values are inserted as text, never interpreted');
+  assert.equal(I.t('common.http', { status: '<b>' }), 'El servidor respondió con un error (HTTP <b>).', 'values are inserted as text, never interpreted');
 });
 
 test('tn picks the singular for exactly one and the plural otherwise', () => {
@@ -244,7 +245,7 @@ const QUIET_BEFORE = new RegExp([
   String.raw`\bh\("code",\s*(?:null|\{[^}]*\}),\s*$`,
   String.raw`(?:===|!==|==|!=|case|\bin|\?\?|\|\||&&)\s*$`,
 ].join('|'));
-const ALLOW = new Set(['Tokens in the sessions that used it', 'use strict', 'Content-Type', 'X-Portal-Token', 'amauta', 'MCP', 'ODD', 'Source Serif 4']);
+const ALLOW = new Set(['Tokens in the sessions that used it', 'Tool calls', 'Last refresh', 'use strict', 'Content-Type', 'X-Portal-Token', 'amauta', 'MCP', 'ODD', 'Source Serif 4', '%%{init:']); // the last is Mermaid syntax (diagram-layout.js), not text
 function visible(l) {
   const v = l.value;
   if (!/[A-Za-z]/.test(v) || ALLOW.has(v.trim())) return false;
@@ -258,8 +259,9 @@ test('app.js has no user-visible text outside t(), tn() and ts()', () => {
 });
 
 test('navigation labels and page headings are keys, not literals', () => {
-  assert.match(app, /const SECTIONS = \[\["home", "#\/home", "nav\.home"\]/);
-  for (const k of ['nav.home', 'nav.activity', 'nav.tabs', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings']) assert.match(app, new RegExp(`"${k.replace('.', '\\.')}"`), k);
+  assert.match(route, /\{ id: "today", key: "nav\.group\.today", items: \[\{ hub: "home", kind: "home", hash: "#\/", key: "nav\.home" \}\] \}/);
+  assert.match(app, /R\.NAV\.map\(group\)/, 'the sidebar is built from the model');
+  for (const k of ['nav.home', 'nav.activity', 'nav.tabs', 'nav.project', 'nav.memory', 'nav.feature', 'nav.node', 'nav.skill', 'nav.tool', 'nav.mcp', 'nav.session', 'nav.usage', 'nav.lint', 'nav.themes', 'nav.settings', 'nav.breadcrumb', 'nav.group.harnessWiki']) assert.match(app + route, new RegExp(`"${k.replaceAll('.', '\\.')}"`), k);
   for (const heading of [/h\("h1", null, "/, /h\("h2", null, "/, /h\("h3", null, "/, /panel\("/, /teach\("/]) assert.doesNotMatch(app, heading, String(heading));
 });
 
@@ -306,11 +308,12 @@ test('copy pass (plan N12g): no "(s)" plurals, no jargon, counts through tn()', 
   }
 });
 
-test('the top bar holds only the menu toggle and search; filters sit in a page bar, theme and language in the sidebar (plan N12c)', () => {
+test('the top bar holds menu, search, Refresh and the Display popover (theme and language); filters sit in a page bar (T2)', () => {
   const topbar = /<header class="topbar">([\s\S]*?)<\/header>/.exec(html)[1];
-  assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]), ['nav-toggle', 'search-open', 'search-text']);
+  assert.deepEqual([...topbar.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]),
+    ['nav-toggle', 'search-open', 'search-text', 'topbar-end', 'status', 'refresh', 'display-open', 'prefs', 'theme-label', 'theme-picker', 'theme-edit', 'lang-label', 'lang-picker']);
   const sidebar = /<nav class="sidebar"[\s\S]*?<\/nav>/.exec(html)[0];
-  for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.match(sidebar, new RegExp(`id="${id}"`), id);
+  for (const id of ['prefs', 'theme-picker', 'theme-edit', 'lang-picker']) assert.doesNotMatch(sidebar, new RegExp(`id="${id}"`), id);
   assert.match(html, /<\/header>\s*<div class="page-bar" id="filters"/);
 });
 

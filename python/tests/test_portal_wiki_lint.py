@@ -5,7 +5,7 @@ from python.amauta.portal import api, wikilint
 from python.amauta.portal.config import Config
 from python.tests.test_portal_wiki import WikiBase
 
-IDS = ["orphans", "duplicates", "superseded", "unused_skills", "features_no_commits", "missing_links", "stale_notes"]
+IDS = ["orphans", "duplicates", "superseded", "unused_skills", "features_no_commits", "missing_links", "unspaced", "stale_notes"]
 
 
 class LintBase(WikiBase):
@@ -51,7 +51,23 @@ class ShapeTest(LintBase):
         empty = api.Portal(Config(state_dir=self.root / "nowhere", claude_home=self.f["home"], repos=[]))
         status, body = empty.get("/api/wiki/lint", {})
         self.assertEqual(status, 200)
-        self.assertEqual([c["count"] for c in body["categories"]], [0] * 7)
+        self.assertEqual([c["count"] for c in body["categories"]], [0] * 8)
+
+
+class UnspacedTest(LintBase):
+    GLUED = ("AvoidableRootROpreflight requestedper-parentworldreadsagainstLIVEglobalowner_fold/folded_cells.sqlite. "
+             "Globalcells_parentindexiscreatedONLYatENDparallel_assembly")
+
+    def test_memories_stored_without_spaces_are_listed_and_explained(self):
+        glued = self.save("Preflight reads", self.GLUED)
+        self.save("Readable", "A normal note with spaces between its words, long enough to be judged by the detector.")
+        c = self.cat("unspaced")
+        self.assertEqual([i["id"] for i in c["items"]], [str(glued["id"])])
+        self.assertIn("cannot be repaired automatically", c["note"])
+        self.assertIn("saved", c["note"])
+
+    def test_no_unspaced_memories_gives_zero(self):
+        self.assertEqual(self.cat("unspaced")["count"], 0)
 
 
 class OrphanTest(LintBase):
@@ -85,8 +101,9 @@ class DuplicateTest(LintBase):
         c = self.cat("duplicates")
         self.assertEqual(c["count"], 1)
         group = c["items"][0]
-        self.assertIn("review", group["detail"].lower())
-        self.assertNotIn("contradict", group["detail"].lower())
+        self.assertEqual(group["detail"], "2 notes")  # the reason is the category note's, said once
+        self.assertIn("review", c["note"].lower())
+        self.assertNotIn("contradict", c["note"].lower())
         self.assertEqual(len(group["members"]), 2)
 
     def test_same_topic_key_in_two_projects_is_not_a_duplicate(self):
@@ -186,15 +203,22 @@ class MissingLinkTest(LintBase):
 
 
 class CapTest(LintBase):
-    def test_items_are_capped_but_count_is_the_total(self):
+    def test_every_item_is_sent_so_the_page_can_show_more(self):
         st = mstore.Store(self.f["state"] / "memory.db")
-        for n in range(wikilint.ITEM_CAP + 20):
+        for n in range(wikilint.PAGE + 20):
             st.save(f"solo note {n:04d} unique words {n * 7919}", "x", type="note", project="alpha", topic_key=f"lonely{n}")
         st.close()
         c = self.cat("orphans")
-        self.assertLessEqual(len(c["items"]), wikilint.ITEM_CAP)
-        self.assertGreater(c["count"], wikilint.ITEM_CAP)
-        self.assertTrue(c["truncated"])
+        self.assertEqual(len(c["items"]), c["count"])
+        self.assertGreater(c["count"], wikilint.PAGE)
+        self.assertFalse(c["truncated"])
+
+    def test_a_duplicate_group_lists_every_member(self):
+        for n in range(wikilint.PAGE + 4):
+            self.save("Same title for everyone", "x", topic_key=f"t/{n}")
+        group = self.cat("duplicates")["items"][0]
+        self.assertEqual(len(group["members"]), wikilint.PAGE + 4)
+        self.assertEqual(group["detail"], f"{wikilint.PAGE + 4} notes")
 
     def test_scan_cap_is_reported(self):
         out = self.lint()

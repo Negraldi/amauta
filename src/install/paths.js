@@ -19,6 +19,8 @@ export function resolveTargets(opts = {}, env = process.env, home = os.homedir()
   return { claudeHome, claudeJson, stateDir };
 }
 
+const nonEmpty = (v) => (v === '' ? undefined : v);
+
 /**
  * Resolve the Codex install targets. Precedence: explicit option > AMAUTA_CODEX_HOME > CODEX_HOME > default.
  * Skills live in the shared agent skills directory (`~/.agents/skills`) unless AMAUTA_CODEX_SKILLS_DIR says otherwise.
@@ -29,8 +31,9 @@ export function resolveCodexTargets(opts = {}, env = process.env, home = os.home
   const claudeHomeInput = opts.claudeHome ?? env.AMAUTA_CLAUDE_HOME;
   const claudeCustom = claudeHomeInput !== undefined;
   const claudeHome = path.resolve(claudeHomeInput ?? path.join(home, '.claude'));
-  const explicit = opts.codexHome ?? env.AMAUTA_CODEX_HOME;
-  const codexHome = path.resolve(explicit ?? (claudeCustom ? path.join(claudeHome, '.codex') : (env.CODEX_HOME ?? path.join(home, '.codex'))));
+  const explicit = opts.codexHome ?? nonEmpty(env.AMAUTA_CODEX_HOME);
+  const ambient = nonEmpty(env.CODEX_HOME); // Codex ignores an empty CODEX_HOME too
+  const codexHome = path.resolve(explicit ?? (claudeCustom ? path.join(claudeHome, '.codex') : (ambient ?? path.join(home, '.codex'))));
   const sandboxed = claudeCustom || (explicit !== undefined && codexHome !== path.join(home, '.codex'));
   const codexSkillsDir = path.resolve(
     opts.codexSkillsDir ?? env.AMAUTA_CODEX_SKILLS_DIR ?? (sandboxed ? path.join(codexHome, '.agents', 'skills') : path.join(home, '.agents', 'skills')),
@@ -53,7 +56,7 @@ export function resolveClaudeSource(opts = {}, env = process.env, home = os.home
     const t = resolveTargets(opts, env, home);
     return { claudeHome: t.claudeHome, claudeJson: t.claudeJson };
   }
-  const codexExplicit = opts.codexHome ?? env.AMAUTA_CODEX_HOME;
+  const codexExplicit = opts.codexHome ?? nonEmpty(env.AMAUTA_CODEX_HOME);
   if (codexExplicit !== undefined && path.resolve(codexExplicit) !== path.join(home, '.codex')) {
     const sandbox = path.resolve(codexExplicit);
     return { claudeHome: path.join(sandbox, '.claude-source'), claudeJson: path.join(sandbox, '.claude-source.json') };

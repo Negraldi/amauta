@@ -17,7 +17,7 @@ function fmtClock(seconds) {
 // A step in the flow row: mark (never color alone), number and name, its kind, its last duration, and Only this.
 function stepItem({ name, n, id, type, seconds, enabled, onlyThis }) {
   const mark = h("span", { class: "pipe-mark", "aria-hidden": "true" }, STEP_MARK.idle);
-  const state = h("span", { class: "sr-only" }, ` (${t("pipe.s.idle")})`);
+  const state = h("span", { class: "visually-hidden" }, ` (${t("pipe.s.idle")})`);
   const time = h("span", { class: "muted" }, seconds == null ? "" : ` ${R.fmtDecimal(seconds, 1)} s`);
   const onlyLabel = t("pipe.onlyLabel", { n, step: name });
   const only = h("button", { type: "button", class: "link", disabled: !enabled, "aria-label": onlyLabel }, t("pipe.only"));
@@ -30,6 +30,11 @@ function stepItem({ name, n, id, type, seconds, enabled, onlyThis }) {
     mark.textContent = STEP_MARK[status] || "?";
     state.textContent = ` (${t(`pipe.s.${status}`)})`;
   };
+  const off = h("span", { class: "muted" }, "");
+  li.append(off);
+  li.setOff = (yes) => { li.setAttribute("data-off", String(yes)); off.textContent = yes ? ` (${t("pipe.offMode")})` : ""; };
+  // The stage joins the name with no-break spaces, so on a phone it never wraps onto a line of its own.
+  li.setStage = (k) => label.append(h("span", { class: "muted" }, `\u00a0·\u00a0${t("pipe.stage", { n: k }).replace(/ /g, "\u00a0")}`));
   li.setSeconds = (s) => { time.textContent = s == null ? "" : ` ${R.fmtDecimal(s, 1)} s`; };
   return li;
 }
@@ -120,7 +125,7 @@ function cancelButton(pr, run, actions) {
     stop.setAttribute("disabled", "");
     stop.disabled = true;
     stop.textContent = t("pipe.cancelling");
-    const failed = (e) => ({ ok: false, data: { error: e.message } });
+    const failed = (e) => ({ ok: false, data: { error: netError(e) } });
     const res = await postJson("/api/pipelines/cancel", { project: pr.path, run }).catch(failed);
     if (!res.ok) actions.append(h("p", { class: "warn", role: "alert" }, `▲ ${ts(res.data.error || "")}`));
   });

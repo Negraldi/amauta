@@ -10,7 +10,7 @@ const pipeFilter = { category: "", query: "" };
 async function viewPipelines() {
   const d = await api("pipelines");
   if (!d.available) return [teach(t("nav.pipelines"), t("pipe.notInstalled"))];
-  if (!d.projects.length) return [pageHead(t("nav.pipelines")), empty(codeSpans(t("pipe.none")))];
+  if (!d.projects.length) return [pageHead(t("nav.pipelines")), empty([t("pipe.none"), " ", link("guide", "pipelines", t("pipe.howTo"))])];
   const sections = d.projects.map(projectPipelines);
   return [pageHead(t("nav.pipelines"), t("pipe.lead")), pipeSummary(d.projects), pipeControls(d.projects, sections), ...sections];
 }
@@ -32,9 +32,10 @@ function pipeSummary(projects) {
 
 // The home page's rail: the same summary with a link, when any project has pipelines (null otherwise).
 async function pipelinesRail() {
-  const d = await api("pipelines").catch(() => null);
+  let d;
+  try { d = await api("pipelines"); } catch (err) { return errorNote(err, t("part.pipelines"), pipelinesRail); } // a failure is not "no pipelines"
   if (!d || !d.available || !d.projects.length) return null;
-  return h("div", null, h("p", null, pipeSummaryText(d.projects)), h("a", { href: "#/pipelines" }, t("pipe.open")));
+  return h("div", null, h("p", null, pipeSummaryText(d.projects)), h("a", { href: "#/pipelines", class: "rail-link" }, t("pipe.open")));
 }
 
 // Category pills with counts and a search over names, descriptions and step names (the cards stay; they are hidden).
@@ -59,7 +60,8 @@ function pipeControls(projects, sections) {
     }
   };
   queueMicrotask(apply);
-  const group = cats.length ? h("div", { class: "segmented", role: "group", "aria-label": t("pipe.category") }, pills) : null;
+  const group = cats.length ? h("div", { class: "segmented segmented-wrap", role: "group", "aria-label": t("pipe.category") },
+    pills) : null;
   const notify = typeof Notification !== "undefined" && Notification.permission === "default"
     ? h("button", { type: "button", onclick: (e) => { Notification.requestPermission(); e.target.hidden = true; } }, t("pipe.notify"))
     : null;
@@ -86,7 +88,8 @@ function lastRunText(last) {
 // "Mondays, Thursdays at 07:30", "On day 1 of each month at 06:00", "Every 30 minutes".
 function scheduleText(s) {
   const n = s.every_minutes;
-  if (n) return n < 60 ? t("pipe.sched.minutes", { n }) : n === 60 ? t("pipe.sched.hour") : t("pipe.sched.hours", { n: n / 60 });
+  if (n && n < 60) return tn("pipe.sched.minutes", n, { n });
+  if (n) return n === 60 ? t("pipe.sched.hour") : tn("pipe.sched.hours", n / 60, { n: R.fmtDecimal(n / 60, n % 60 ? 1 : 0) });
   if (s.days) return t("pipe.sched.days", { days: s.days.map((d) => t(`pipe.day.${d}`)).join(", "), at: s.at });
   if (s.day_of_month) return t("pipe.sched.month", { day: s.day_of_month, at: s.at });
   return t("pipe.sched.daily", { at: s.at });
@@ -97,22 +100,27 @@ function scheduleLines(p) {
   return (p.schedules || []).map((sc) => {
     const state = sc.state === "missed" ? h("span", { class: "warn" }, ` ▲ ${t("pipe.missed")}`)
       : sc.state === "never" ? h("span", { class: "muted" }, " ", codeSpans(t("pipe.neverScheduled", { id: p.id }))) : null;
-    return h("p", null, `⏲ ${scheduleText(sc)}${sc.mode ? ` · ${sc.mode}` : ""}.`, state);
+    return h("p", null, `⏲ ${scheduleText(sc)}${sc.mode ? ` · ${modeName(sc.mode)}` : ""}.`, state);
   });
 }
 
-// The steps by level: a level's steps need only earlier levels, so they may run side by side (ADR 0011).
+// The steps in declared order. When some steps may run side by side (ADR 0011 levels), each says its stage in words.
 function flowRow(p, items) {
   const ids = p.ids || p.steps.map((_, i) => String(i));
   const levels = p.levels || [ids];
-  const cols = levels.map((level) => h("ol", { class: "pipe-level" }, level.map((id) => items[ids.indexOf(id)])));
-  return h("div", { class: "pipe-steps", role: "group", "aria-label": t("pipe.steps") }, cols);
+  if (levels.some((level) => level.length > 1)) {
+    levels.forEach((level, k) => level.forEach((id) => {
+      const li = items[ids.indexOf(id)];
+      if (li) li.setStage(k + 1);
+    }));
+  }
+  return h("ol", { class: "pipe-steps", "aria-label": t("pipe.steps") }, items);
 }
 
 // The mode picker; `apply(mode)` marks the steps outside it.
 function modePicker(p, apply) {
   if (!p.modes || !p.modes.length) return null;
-  const pick = h("select", { "aria-label": t("pipe.mode") }, p.modes.map((m) => h("option", { value: m }, m)));
+  const pick = h("select", { "aria-label": t("pipe.mode") }, p.modes.map((m) => h("option", { value: m }, modeName(m))));
   pick.value = p.default_mode;
   pick.addEventListener("change", (e) => apply(e.target.value));
   return h("label", { class: "pipe-mode" }, `${t("pipe.mode")} `, pick);
@@ -121,16 +129,19 @@ function modePicker(p, apply) {
 // Recent runs as marks, oldest first; a mark replays that run in the console.
 function historyStrip(p, open) {
   if (!p.history || !p.history.length) return null;
+  const describe = (r) => t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
+    seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) })
+    + (r.mode ? ` · ${modeName(r.mode)}` : "");
   const marks = [...p.history].reverse().map((r) => {
-    const label = t("pipe.histLabel", { status: t(`pipe.s.${r.status}`), at: R.fmtDateTime(r.started),
-      seconds: r.seconds == null ? "?" : R.fmtDecimal(r.seconds, 1), trigger: t(`pipe.t.${r.trigger}`) }) + (r.mode ? ` · ${r.mode}` : "");
+    const label = describe(r);
     const attrs = { type: "button", class: "hist-mark", "data-status": r.status, "aria-label": label, title: label };
     const b = h("button", attrs, STEP_MARK[r.status] || "?");
     b.addEventListener("click", () => open(r.run));
     return h("li", null, b);
   });
   return h("div", { class: "pipe-history" }, h("span", { class: "muted" }, `${t("pipe.history")}: `),
-    h("ol", { "aria-label": t("pipe.history") }, marks));
+    h("ol", { "aria-label": t("pipe.history") }, marks),
+    h("span", { class: "muted" }, ` ${t("pipe.histLatest", { run: describe(p.history[0]) })}`));
 }
 
 function lastDetails(p) {
@@ -148,7 +159,7 @@ function checkButton(pr, p, result) {
   const b = h("button", { type: "button" }, t("pipe.check"));
   b.addEventListener("click", async () => {
     result.replaceChildren(h("p", { class: "muted", role: "status" }, t("pipe.checking")));
-    const r = await api("pipelines/check", { project: pr.path, id: p.id }).catch((e) => ({ error: e.message }));
+    const r = await api("pipelines/check", { project: pr.path, id: p.id }).catch((e) => ({ error: netError(e) }));
     if (r.error) { result.replaceChildren(h("p", { class: "warn", role: "status" }, `▲ ${ts(r.error)}`)); return; }
     const item = (f) => (f.level === "error" ? h("li", { class: "warn" }, `✗ ${f.step}: ${f.message}`)
       : h("li", { class: "muted" }, `ℹ ${f.step}: ${f.message}`));
@@ -189,7 +200,7 @@ function pipelineCard(pr, p) {
   const applyMode = (m) => {
     mode = m;
     const outside = (i) => Boolean(m && p.step_modes && p.step_modes[i] && !p.step_modes[i].includes(m));
-    items.forEach((li, i) => li.setAttribute("data-off", String(outside(i))));
+    items.forEach((li, i) => li.setOff(outside(i)));
   };
   applyMode(mode);
   const parts = { items, con, line, actions, idle: () => idle() };
@@ -200,7 +211,7 @@ function pipelineCard(pr, p) {
   card.pipeline = p;
   parts.card = card;
   const idle = () => {
-    const run = h("button", { type: "button", class: "primary", disabled: !pr.trusted }, t("pipe.run"));
+    const run = h("button", { type: "button", disabled: !pr.trusted }, t("pipe.run")); // the accent fill is for the confirm step only
     run.addEventListener("click", () => ask(null));
     actions.replaceChildren(run, checkButton(pr, p, checked));
   };
@@ -216,7 +227,7 @@ function pipelineCard(pr, p) {
   };
   const start = async (n) => {
     actions.replaceChildren(h("p", { role: "status", class: "muted" }, t("pipe.starting")));
-    const failed = (err) => ({ ok: false, data: { error: String(err.message || err) } });
+    const failed = (err) => ({ ok: false, data: { error: netError(err) } });
     const body = n ? { project: pr.path, id: p.id, step: n } : { project: pr.path, id: p.id, ...(mode ? { mode } : {}) };
     const res = await postJson("/api/pipelines/run", body).catch(failed);
     if (res.ok) { followRun(pr, p, res.data.run, parts); return; }

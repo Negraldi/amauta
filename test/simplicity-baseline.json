@@ -37,7 +37,7 @@
    "long": 2
   },
   "python/amauta/graph/query.py": {
-   "long": 8
+   "long": 5
   },
   "python/amauta/graph/refresh.py": {
    "long": 1
@@ -52,8 +52,8 @@
    "long": 2
   },
   "python/amauta/portal/api.py": {
-   "lines": 619,
-   "long": 32
+   "lines": 571,
+   "long": 24
   },
   "python/amauta/portal/archify.py": {
    "long": 11,
@@ -69,19 +69,19 @@
    "long": 4
   },
   "python/amauta/portal/projects.py": {
-   "long": 11
+   "long": 10
   },
   "python/amauta/portal/server.py": {
    "long": 10
   },
   "python/amauta/portal/settings.py": {
-   "long": 11
+   "long": 10
   },
   "python/amauta/portal/static/app.js": {
-   "long": 28
+   "long": 21
   },
   "python/amauta/portal/static/boot.js": {
-   "long": 3
+   "long": 1
   },
   "python/amauta/portal/static/i18n.js": {
    "long": 9
@@ -95,43 +95,42 @@
    "fn": 67
   },
   "python/amauta/portal/static/page-activity.js": {
-   "long": 13
+   "long": 7
   },
   "python/amauta/portal/static/page-harness.js": {
-   "long": 16
+   "long": 10
   },
   "python/amauta/portal/static/page-home.js": {
-   "long": 11
+   "long": 6
   },
   "python/amauta/portal/static/page-memory.js": {
-   "long": 8
+   "long": 5
   },
-  "python/amauta/portal/static/page-projects.js": {
-   "long": 16
+  "python/amauta/portal/static/page-pipelines.js": {
+   "long": 1
   },
   "python/amauta/portal/static/page-settings.js": {
-   "long": 28,
-   "fn": 133
+   "long": 23,
+   "fn": 130
   },
   "python/amauta/portal/static/page-themes.js": {
-   "long": 25,
+   "long": 26,
    "fn": 150
   },
   "python/amauta/portal/static/page-wiki.js": {
-   "long": 53
+   "long": 39
   },
   "python/amauta/portal/static/style.css": {
-   "long": 35
+   "long": 23
   },
   "python/amauta/portal/static/theme.js": {
-   "long": 15
+   "long": 13
   },
   "python/amauta/portal/static/wikiroute.js": {
-   "long": 20
+   "long": 19
   },
   "python/amauta/portal/wiki.py": {
-   "lines": 451,
-   "long": 28
+   "long": 18
   },
   "python/amauta/portal/wikibase.py": {
    "long": 2
@@ -140,11 +139,11 @@
    "long": 6
   },
   "python/amauta/portal/wikiharness.py": {
-   "lines": 590,
+   "lines": 586,
    "long": 21
   },
   "python/amauta/portal/wikihome.py": {
-   "long": 5
+   "long": 1
   },
   "python/amauta/portal/wikilint.py": {
    "long": 16
@@ -168,10 +167,10 @@
    "long": 7
   },
   "python/amauta/portal/wikitools.py": {
-   "long": 60
+   "long": 58
   },
   "python/amauta/portal/wikiusage.py": {
-   "long": 27
+   "long": 23
   },
   "python/amauta/sdd/__main__.py": {
    "long": 2
@@ -270,7 +269,7 @@
    "noHeader": true
   },
   "src/install/paths.js": {
-   "long": 2,
+   "long": 1,
    "noHeader": true
   },
   "src/install/sdd.js": {

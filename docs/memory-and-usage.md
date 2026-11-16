@@ -15,6 +15,12 @@ Memory guard (always on, ADR 0007): every title, content, prompt and session sum
 is refused with the fixed reply `rejected: secret-like content` and nothing is written. Personal identifiers (cedula,
 RUC, cards, IBAN, phones, e-mail) are replaced by `[REDACTED_<KIND>]`; the tool reply says how many of each kind, never
 which. Memories imported from an existing engram database keep their text as it was.
+Text saved without spaces between words (`python/amauta/memory/spacing.py`): `mem_save`, `mem_update`, `mem_save_prompt`,
+`mem_session_summary` and `mem_session_end` refuse a body of at least 80 Latin letters that has almost no spaces and
+long glued lowercase runs, with a reply asking the agent to resend it as prose; code, URLs, paths and scripts written
+without spaces (CJK, Thai) are not judged, and nothing is ever re-spaced automatically. Portal Memory > Quality lists
+notes already stored that way. This applies only to amauta's own memory server: the external engram program is not
+part of this repository and does not run the check.
 With the engram plugin enabled nothing is registered.
 
 Tools: `mem_save` (same project+scope+`topic_key` updates and bumps the revision), `mem_update`,
@@ -82,6 +88,13 @@ that reads the `transcript_path` of the payload and stores, per assistant messag
 timestamps and token counts (input, output, cache read, cache write 5m/1h, thinking) in `usage_messages`, plus tool
 names in `tool_calls` (Skill names, subagent types and MCP server names only; never prompt text or tool payloads).
 Ingestion is incremental through `ingest_state` (byte offset; a shrunk or rewritten file is rescanned).
+
+Codex rollouts feed the same two tables (`--runtime codex`): the `function_call`, `custom_tool_call` and `local_shell_call`
+lines become `tool_calls` rows, name only, never arguments or output. A namespaced call is named `namespace.name`
+(`collaboration.send_message`); an MCP namespace becomes `mcp__server__tool` with `mcp_server` set. Each call joins the
+usage row of the response that closes it, so the runtime filter applies to it. A rollout is rescanned from the start when it
+changed; one read by an older amauta (before tool calls) is rescanned once on the next backfill or Stop hook, with no action
+needed.
 
 ```
 PYTHONPATH=python python3 -P -m amauta.usage backfill [--claude-home ~/.claude] [--runtime claude|codex|all] [--codex-home ~/.codex]

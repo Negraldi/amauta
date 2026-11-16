@@ -56,3 +56,7 @@ export function makeEnv(routes) {
   const window = { addEventListener: (t, fn) => { listeners[t] = fn; } };
   return { document, fetch, location, window, calls, listeners, docListeners, byId, Node: NodeBase };
 }
+// A fake page has no layout: adaptive diagrams wait for a box with a width. This gives every fake element one (800px, on the page).
+export function giveLayout() {
+  for (const [k, value] of [['clientWidth', 800], ['isConnected', true]]) Object.defineProperty(Element.prototype, k, { value, writable: true, configurable: true });
+}

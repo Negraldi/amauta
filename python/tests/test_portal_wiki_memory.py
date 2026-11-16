@@ -24,7 +24,7 @@ class TitleDedupTest(Saver):
         pg = self.page("feature", "feat")
         self.assertEqual(pg["title"], "Feature")
         self.assertFalse(pg["body_md"].lstrip().startswith("#"))
-        self.assertIn("T1 Done thing", pg["body_md"])
+        self.assertNotIn("T1 Done thing", pg["body_md"])  # task lines are listed once, in the Tasks section
 
     def test_feature_prefix_and_case_are_ignored_and_other_headings_stay(self):
         (self.f["repo"] / "odd" / "tasks" / "other.md").write_text("# Feature: Portal Wiki\n\n## Objective\n\ntext\n# Portal wiki\n")
@@ -141,7 +141,7 @@ class MemoryFilePageTest(WikiBase):
         self.assertEqual((pg["kind"], pg["id"], pg["title"]), ("memfile", self.FILE_ID, "note.md"))
         self.assertIn(fx.XSS, pg["body_md"])  # raw data; the UI renders text nodes
         m = {x["label"]: x for x in pg["meta"]}
-        self.assertEqual(m["Project"]["value"], "-work-alpha")
+        self.assertEqual(m["Project"]["value"], "work-alpha")  # T15 W3 B8: no leading dash, as #/memory names projects
         self.assertEqual(m["Size"].get("fmt"), "number")
         self.assertIn("Modified", m)
         self.assertEqual(set(pg), {"kind", "id", "title", "body_md", "meta", "links", "backlinks", "sections", "missing"})

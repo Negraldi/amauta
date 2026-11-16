@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from . import vendored as vendored_rules
+
 MAX_DEPTH = 5
 PATH_MAX_DEPTH = 8
 NODE_LIMIT = 200
@@ -117,11 +119,21 @@ def neighbors(conn, repo, node, depth=1):
     ordered = sorted(reached.items(), key=lambda kv: (kv[1], kv[0]))
     kept = dict(ordered[:NODE_LIMIT])
     ids = list(kept)
-    edges = [dict(r) for r in conn.execute(
-        "SELECT src, dst, relation FROM graph_edges WHERE repo = ? AND src IN (SELECT value FROM json_each(?)) AND dst IN (SELECT value FROM json_each(?)) "
-        "ORDER BY src, dst, relation LIMIT ?", (repo, json.dumps(ids), json.dumps(ids), EDGE_LIMIT))]
+    scope = "FROM graph_edges WHERE repo = ? AND src IN (SELECT value FROM json_each(?)) AND dst IN (SELECT value FROM json_each(?))"
+    args = (repo, json.dumps(ids), json.dumps(ids))
+    edges = [dict(r) for r in conn.execute(f"SELECT src, dst, relation {scope} ORDER BY src, dst, relation LIMIT ?", (*args, EDGE_LIMIT))]
+    edges_total = conn.execute(f"SELECT count(*) {scope}", args).fetchone()[0]  # real count: the list above is cut at EDGE_LIMIT
     nodes = sorted(_nodes(conn, repo, ids, kept), key=lambda n: (n["depth"], n["id"]))
-    return {"repo": repo, "start": seeds, "depth": depth, "nodes": nodes, "edges": edges, "truncated": walk_cut or len(ordered) > NODE_LIMIT}
+    return {"repo": repo, "start": seeds, "depth": depth, "nodes": nodes, "edges": edges, "edges_total": edges_total,
+            "truncated": walk_cut or len(ordered) > NODE_LIMIT}  # truncated is about nodes; edges_total > len(edges) says the edges are cut
+
+
+def edge_counts(conn, repo, node):
+    """Edges leaving and entering one node id, counted in SQL; self-loops are in neither (the page lists neither)."""
+    row = conn.execute(
+        "SELECT (SELECT count(*) FROM graph_edges WHERE repo = :r AND src = :n AND dst != :n) o, "
+        "(SELECT count(*) FROM graph_edges WHERE repo = :r AND dst = :n AND src != :n) i", {"r": repo, "n": node}).fetchone()
+    return {"outgoing": row["o"], "incoming": row["i"]}
 
 
 def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
@@ -147,13 +159,55 @@ def path(conn, repo, a, b, max_depth=PATH_MAX_DEPTH):
     return {"repo": repo, "found": True, "depth": found, "max_depth": cap, "truncated": cut, "nodes": [by_id[i] for i in chain], "edges": edges}
 
 
-def search_nodes(conn, repo, text="", limit=50):
-    """Nodes whose label or id contains `text` (LIKE wildcards in `text` are literal)."""
+# Dependency, vendored and minified sources (vendored.py): hidden from the portal's default node list, never from search or walks.
+is_vendored = vendored_rules.is_vendored
+
+
+_LINKS = ("(SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.src = n.id)"
+          " + (SELECT count(*) FROM graph_edges e WHERE e.repo = n.repo AND e.dst = n.id)")
+
+
+# A concept or reference node has no source file ("os", "re", ref_node_path); the project's own code does.
+_NO_FILE = "coalesce(n.file, '') = ''"
+
+
+def search_nodes(conn, repo, text="", limit=50, vendored=True, order=None, offset=0, concepts=True):
+    """Nodes whose label or id contains `text` (LIKE wildcards in `text` are literal), by label.
+
+    order "links" (most connected first) or "name" adds each node's edge count as `links`; vendored=False leaves out
+    is_vendored files and concepts=False the nodes without a source file; `offset` skips that many rows of the same order
+    (Show more). The defaults keep the original shape and order."""
     _check_repo(conn, repo)
-    limit = max(1, min(int(limit), 200))
+    limit, offset = max(1, min(int(limit), 200)), max(0, int(offset))
     pat = _like(text or "")
-    return [_node(r) for r in conn.execute(
-        "SELECT id, label, kind, file FROM graph_nodes WHERE repo = ? AND (label LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\') ORDER BY label COLLATE NOCASE, id LIMIT ?", (repo, pat, pat, limit))]
+    conn.create_function("amauta_vendored", 1, vendored_rules.rule_for(repo), deterministic=True)
+    rows = conn.execute(
+        f"SELECT n.id, n.label, n.kind, n.file, {_LINKS if order else '0'} AS links FROM graph_nodes n WHERE n.repo = ? "
+        "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\') AND (? OR NOT amauta_vendored(n.file)) "
+        f"AND (? OR NOT ({_NO_FILE})) "
+        f"ORDER BY {'links DESC, ' if order == 'links' else ''}n.label COLLATE NOCASE, n.id LIMIT ? OFFSET ?",
+        (repo, pat, pat, 1 if vendored else 0, 1 if concepts else 0, limit, offset))
+    return [{**_node(r), "links": r["links"]} if order else _node(r) for r in rows]
+
+
+def node_counts(conn, repo, text="", vendored=True, concepts=True):
+    """{"matched": nodes whose label or id contains `text`, "hidden": how many of them the list leaves out (vendored files,
+    and nodes without a source file when concepts is off; a node that is both counts once)}."""
+    _check_repo(conn, repo)
+    pat = _like(text or "")
+    conn.create_function("amauta_vendored", 1, vendored_rules.rule_for(repo), deterministic=True)
+    row = conn.execute(
+        "SELECT count(*) matched, coalesce(sum(CASE WHEN (NOT ? AND amauta_vendored(n.file)) "
+        f"OR (NOT ? AND {_NO_FILE}) THEN 1 ELSE 0 END), 0) hidden FROM graph_nodes n WHERE n.repo = ? "
+        "AND (n.label LIKE ? ESCAPE '\\' OR n.id LIKE ? ESCAPE '\\')",
+        (1 if vendored else 0, 1 if concepts else 0, repo, pat, pat)).fetchone()
+    return {"matched": row["matched"], "hidden": row["hidden"]}
+
+
+def node_list(conn, repo, text="", limit=50, vendored=True, order=None, offset=0, concepts=True):
+    """The portal's node list: search_nodes() rows plus node_counts(), so the page can say how many it shows and hides."""
+    items = search_nodes(conn, repo, text, limit, vendored, order, offset, concepts)
+    return {"items": items, **node_counts(conn, repo, text, vendored, concepts)}
 
 
 def stats(conn, repo):

@@ -32,7 +32,7 @@ test('filterSkills matches name, description and trigger case-insensitively and 
 });
 
 async function boot(hash, over = {}) {
-  const env = makeEnv({ '/api/skills': CATALOG, '/api/wiki/recent': { items: [] }, '/api/sessions': { available: false }, ...over });
+  const env = makeEnv({ '/api/skills': CATALOG, '/api/harness/components': { total: 0, pending: 0, groups: [] }, '/api/wiki/recent': { items: [] }, '/api/sessions': { available: false }, ...over });
   env.location.hash = hash;
   await runPortal(env, { DOMParser: class {}, queueMicrotask });
   await tick();
@@ -41,17 +41,17 @@ async function boot(hash, over = {}) {
 const view = (env) => env.document.getElementById('view');
 const hrefs = (el) => tree(el).filter((e) => e.tagName === 'a').map((e) => e.getAttribute('href'));
 
-test('#/skill is a catalog grouped by source with description, trigger and usage, every row linking to its page', async () => {
+// T6: skills are one kind of the Catalog (#/skill folds into #/component?kind=skill); each row names where it comes from.
+test('#/skill opens the Catalog on its Skills group with description, source and usage, every row linking to its page', async () => {
   const env = await boot('#/skill');
   const v = view(env);
   const headings = tree(v).filter((e) => e.tagName === 'h2').map((e) => e.textContent);
-  assert.deepEqual(headings, ['Installed by amauta (1)', 'Plugins (1)', 'Built into Claude Code (2)']);
+  assert.deepEqual(headings, ['Skills (4)']);
   assert.match(v.textContent, /Split oversized changes/);
-  assert.match(v.textContent, /PRs over 400 lines/);
+  for (const source of ['Installed by amauta', 'Plugins', 'Built into Claude Code']) assert.match(v.textContent, new RegExp(source));
   assert.match(v.textContent, /1,234 calls/);
   assert.match(v.textContent, /2026-10-02/);
   assert.doesNotMatch(v.textContent, /T10:05/);
-  assert.match(v.textContent, /no local file/i);
   const links = hrefs(v);
   for (const id of ['chained-pr', 'plug%3Apskill', 'artifact-capabilities', 'anthropic-skills%3Adocs']) assert.ok(links.includes(`#/skill/${id}`), id);
   assert.equal(tree(v).filter((e) => e.tagName === 'img').length, 0, 'hostile description stays text');
@@ -67,12 +67,13 @@ test('the catalog filter narrows the rows as you type and says when nothing matc
   assert.deepEqual(hrefs(view(env)).filter((h) => h.startsWith('#/skill/')), ['#/skill/artifact-capabilities']);
   box.value = 'zzz';
   for (const fn of box.listeners.input ?? []) fn({ target: box });
-  assert.match(view(env).textContent, /No skill matches/);
+  assert.match(view(env).textContent, /No component matches/);
 });
 
 test('an empty catalog teaches where skills come from', async () => {
   const env = await boot('#/skill', { '/api/skills': { groups: [], total: 0 } });
-  assert.match(view(env).textContent, /No skills found/);
+  assert.match(view(env).textContent, /No components found/);
+  assert.match(view(env).textContent, /Skills live in/);
 });
 
 const PAGE = (summary, body) => ({ kind: 'skill', id: 's', title: 's', body_md: body, meta: [{ label: 'Source', value: summary.source }], links: [], backlinks: [], sections: [], missing: [], usage: { daily: [], days: 30 }, summary });

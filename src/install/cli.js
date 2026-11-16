@@ -156,6 +156,7 @@ async function runSync(opts, io) {
     io.stdout.write(r.dryRun ? `amauta: dry run, ${r.files.length} file(s) would change\n` : r.changed ? `amauta: synced (${r.files.length} file(s) written)\n` : 'amauta: already in sync\n');
     for (const f of r.files) io.stdout.write(`  ${f}\n`);
     printMcpSync(r.mirror, io);
+    for (const n of r.personal?.copied ?? []) io.stdout.write(`  skill copied, no link possible (amauta sync keeps it fresh): ${n}\n`);
     for (const n of r.personal?.conflicts ?? []) io.stdout.write(`  skill conflict, a real directory of that name exists in both runtimes: ${n}\n`);
   }
   return 0;

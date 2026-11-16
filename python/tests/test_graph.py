@@ -256,6 +256,65 @@ class QueryTest(Base):
         self.assertEqual(query.search_nodes(self.conn, self.key, "%"), [])
         self.assertEqual(len(query.search_nodes(self.conn, self.key, "")), 6)
 
+    def test_ranked_search_puts_connected_nodes_first_and_hides_vendored_files(self):
+        data = {"nodes": [node("hub", "zeta hub"), node("leaf1"), node("leaf2"), node("lone", "aaa lone"),
+                          node("min", "$d", source_file="static/mermaid.min.js"), node("dep", "dep", source_file="web/node_modules/x/i.js"),
+                          node("ven", "ven", source_file="vendor/lib.py"), node("vendorish", "vendorish", source_file="src/vendoring.py")],
+                "links": [edge("hub", "leaf1"), edge("hub", "leaf2"), edge("leaf1", "leaf2"), edge("min", "hub"), edge("dep", "hub")]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+        ranked = query.search_nodes(self.conn, self.key, "", order="links", vendored=False)
+        self.assertEqual([n["id"] for n in ranked], ["hub", "leaf1", "leaf2", "lone", "vendorish"])
+        self.assertEqual([n["links"] for n in ranked], [4, 2, 2, 0, 0])
+        everything = query.search_nodes(self.conn, self.key, "", order="links", vendored=True)
+        self.assertEqual(len(everything), 8)
+        self.assertNotIn("links", query.search_nodes(self.conn, self.key, "")[0], "the default shape is unchanged")
+        by_name = query.search_nodes(self.conn, self.key, "", order="name", vendored=False)
+        self.assertEqual(by_name[0]["label"], "aaa lone")
+        self.assertIn("links", by_name[0])
+
+    def test_vendored_paths(self):
+        for path in ("static/mermaid.min.js", "a/node_modules/b.js", "vendor/x.py", "third_party/y.c", "lib/site-packages/z.py",
+                     ".venv/lib/q.py", "web/bower_components/k.js", "css/app.min.css", "C:\\proj\\node_modules\\a.js"):
+            self.assertTrue(query.is_vendored(path), path)
+        for path in ("src/vendoring.py", "src/minimal.js", "docs/vendor.md", "", None, "app.js"):
+            self.assertFalse(query.is_vendored(path), path)
+
+
+class RepoVendoredTest(Base):
+    """A repository says what it vendors: .gitattributes linguist-vendored patterns and the folders its NOTICE names
+    (third-party attributions), on top of the generic dependency folders and minified names."""
+
+    def nodes(self, *files):
+        write_graph(self.repo, {"nodes": [node(f"n{i}", f"n{i}", source_file=f) for i, f in enumerate(files)], "links": []})
+        sync.sync_repo(self.conn, self.repo)
+        return [n["file"] for n in query.search_nodes(self.conn, self.key, "", limit=200, order="links", vendored=False)]
+
+    def test_generic_names_cover_more_dependency_folders_and_minified_files(self):
+        for path in ("third-party/a.c", "lib/thirdparty/b.c", "ios/Pods/c.m", "Carthage/Checkouts/d.swift", "web/jspm_packages/e.js",
+                     "static/app-min.js", "dist/lib.min.js.map", "static/bundle.min.mjs"):
+            self.assertTrue(query.is_vendored(path), path)
+        for path in ("src/minify.py", "src/admin.js", "docs/third-party.md"):
+            self.assertFalse(query.is_vendored(path), path)
+
+    def test_notice_folders_are_vendored_only_when_they_exist(self):
+        (self.repo / "assets" / "skills").mkdir(parents=True)
+        (self.repo / "NOTICE").write_text("Files under assets/ are derived from upstream (https://example.com/x/).\nSee nowhere/ too.\n")
+        shown = self.nodes("assets/skills/x/scripts/a.mjs", "src/own.py", "nowhere/b.py", "assetsx/c.py")
+        self.assertEqual(sorted(shown), ["assetsx/c.py", "nowhere/b.py", "src/own.py"])
+
+    def test_gitattributes_linguist_vendored_patterns(self):
+        (self.repo / ".gitattributes").write_text("* text=auto\nlib/ext/** linguist-vendored\n*.gen.js linguist-vendored=true\n"
+                                                    "lib/ext/own.py -linguist-vendored\nkeep/** linguist-vendored=false\n")
+        shown = self.nodes("lib/ext/a/b.py", "web/x.gen.js", "lib/ext/own.py", "keep/k.py", "lib/mine.py")
+        self.assertEqual(sorted(shown), ["keep/k.py", "lib/ext/own.py", "lib/mine.py"])
+
+    def test_absolute_source_paths_inside_the_repo_are_matched_relative_to_it(self):
+        (self.repo / "assets").mkdir()
+        (self.repo / "NOTICE").write_text("assets/ is vendored\n")
+        shown = self.nodes(str(self.repo / "assets" / "a.py"), str(self.repo / "src" / "b.py"))
+        self.assertEqual(shown, [str(self.repo / "src" / "b.py")])
+
 
 class WalkBoundsTest(Base):
     def test_walk_rows_are_bounded_before_grouping(self):
@@ -291,6 +350,29 @@ class WalkBoundsTest(Base):
         self.assertEqual(len(r["nodes"]), 60)
         self.assertEqual({n["depth"] for n in r["nodes"]}, {0, 1})
         self.assertFalse(r["truncated"])
+
+
+class EdgeCountTest(Base):
+    """T15 D1: edge counts are counted in SQL; a cut edge list says so instead of leaving truncated false."""
+
+    def setUp(self):
+        super().setUp()
+        data = {"nodes": [node("hub")] + [node(f"l{i}") for i in range(6)],
+                "links": [edge("hub", f"l{i}") for i in range(4)] + [edge(f"l{i}", "hub") for i in range(4, 6)]}
+        write_graph(self.repo, data)
+        sync.sync_repo(self.conn, self.repo)
+
+    def test_edge_counts_are_real_in_both_directions(self):
+        self.assertEqual(query.edge_counts(self.conn, self.key, "hub"), {"outgoing": 4, "incoming": 2})
+
+    def test_a_cut_edge_list_reports_its_real_total(self):
+        with mock.patch.object(query, "EDGE_LIMIT", 3):
+            r = query.neighbors(self.conn, self.key, "hub")
+        self.assertEqual((len(r["edges"]), r["edges_total"], r["truncated"]), (3, 6, False))  # nodes are all there; the edge list is the part that is cut
+
+    def test_an_uncut_edge_list_is_not_truncated(self):
+        r = query.neighbors(self.conn, self.key, "hub")
+        self.assertEqual((len(r["edges"]), r["edges_total"], r["truncated"]), (6, 6, False))
 
 
 class OldSqliteFallbackTest(Base):

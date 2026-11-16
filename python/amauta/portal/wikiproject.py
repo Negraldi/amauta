@@ -4,10 +4,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import diagrams, projects, wikifeature
+from .sessfacts import MAIN_MODEL
 from .api import NotFound, has_table
 from .wikibase import LINK_CAP, _blank, _item, _live, _meta, _ref
 
-MAX_DIAGRAMS = 8
+MAX_DIAGRAMS = 40  # a repository with more features than this gets the first ones and odd_diagrams_total says how many there are
 
 
 def _repo(portal, ident):
@@ -30,15 +31,15 @@ def _features(repo):
     return out
 
 
-def _sessions(portal, repo):
+def _sessions(portal, ids):
     from . import wikisess
-    ids = projects.session_ids(portal, repo)
-    conn = portal._usage_conn()
-    if conn is None or not ids:
+    ids = ids[:LINK_CAP]  # newest first already: the IN list stays small
+    conn = portal._usage_conn() if ids else None
+    if conn is None:
         return []
     try:
         marks = ",".join("?" for _ in ids)
-        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, max(u.model) model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u "
+        rows = conn.execute(f"SELECT u.session_id, max(u.project) project, {MAIN_MODEL} model, min(u.ts) first_ts, max(u.ts) last_ts, count(*) n FROM usage_messages u "
                             f"WHERE u.session_id IN ({marks}) GROUP BY u.session_id ORDER BY last_ts DESC LIMIT ?", [*ids, LINK_CAP]).fetchall()
         return [(r["session_id"], wikisess.label(portal, r["session_id"], r["project"], r["model"], r["n"], r["first_ts"])) for r in rows]
     finally:
@@ -64,11 +65,12 @@ def page(portal, ident, q):
         raise NotFound()
     feats = _features(repo)
     done, total = sum(t["done"] for _, ts in feats for t in ts), sum(len(ts) for _, ts in feats)
-    sessions, memories, graph = _sessions(portal, repo), _memories(portal, repo.name), projects.graph_status(portal, repo, detail=True)
+    ids = projects.session_ids(portal, repo)
+    sessions, memories, graph = _sessions(portal, ids), _memories(portal, repo.name), projects.graph_status(portal, repo, detail=True)
     origin = ", ".join(projects.collect(portal)["origin"].get(str(repo.resolve()), []))
     pg = _blank("project", repo.name, repo.name)
     pg["meta"] = _meta(("Path", str(repo.resolve())), ("Found by", origin), ("Features", len(feats)), ("Tasks done", f"{done} of {total}" if total else None),
-                       ("Sessions", len(projects.session_ids(portal, repo))), ("Memories", projects.memory_count(portal, repo.name)),
+                       ("Sessions", len(ids)), ("Memories", projects.memory_count(portal, repo.name)),
                        ("Graph memory", f"{graph['nodes']} nodes, {graph['edges']} edges, synced {graph['synced_at']}" if graph["mirrored"] else "not mirrored"))
     pg["progress"] = {"done": done, "total": total, "percent": round(100 * done / total) if total else 0}
     pg["sections"] = []
@@ -81,8 +83,9 @@ def page(portal, ident, q):
     pg["links"] = [_ref("feature", f"{repo.name}/{f.stem}", f.stem) for f, _ in feats][:LINK_CAP]
     pg["odd_diagrams"] = []
     for f, ts in feats[:MAX_DIAGRAMS]:
-        src = diagrams.odd_progress(f.name, ts)
+        src = diagrams.odd_progress(f.stem, ts)
         if src:
-            pg["odd_diagrams"].append({"feature": f"{repo.name}/{f.stem}", "name": f.name, "done": sum(t["done"] for t in ts), "total": len(ts), "source": src})
+            pg["odd_diagrams"].append({"feature": f"{repo.name}/{f.stem}", "name": f.stem, "done": sum(t["done"] for t in ts), "total": len(ts), "source": src})
+    pg["odd_diagrams_total"] = len(feats)
     pg["graph"] = graph
     return pg

@@ -40,3 +40,10 @@ test('killTree kills the process group on POSIX and runs taskkill /T /F on Windo
   killTree(4242, { platform: 'linux', kill: (pid, sig) => killed.push([pid, sig]) });
   assert.deepEqual(killed, [[-4242, 'SIGKILL']]);
 });
+
+test('the default Python interpreter is python3 on POSIX and python on Windows (python.org installs no python3.exe)', async () => {
+  const { defaultPython } = await import('../src/core/platform.js');
+  assert.equal(defaultPython('linux'), 'python3');
+  assert.equal(defaultPython('darwin'), 'python3');
+  assert.equal(defaultPython('win32'), 'python');
+});

@@ -249,11 +249,12 @@ const MODEL = { available: true, projects: [{ name: 'ml', path: '/work/ml', trus
     schedules: [{ at: '06:00', days: ['mon'], mode: 'train', state: 'ok' }, { every_minutes: 60, mode: 'predict', state: 'missed' }],
     typical: null, last: null, history: [] }] }] };
 
-test('a DAG is drawn by levels, with a mode picker that marks the steps outside the mode and goes with the run', async () => {
+test('a DAG lists its steps in declared order with their stage, with a mode picker that marks the steps outside the mode', async () => {
   const { view, posts } = await boot(() => {}, MODEL);
   const card = cards(view)[0];
-  const levels = tree(card).filter((e) => e.tagName === 'ol' && e.className === 'pipe-level');
-  assert.deepEqual(levels.map((l) => tree(l).filter((e) => e.tagName === 'li').length), [2, 1, 1]);
+  const steps = tree(card).filter((e) => e.tagName === 'li' && e.attrs['data-id']); // T8 f: declared order, the level as words
+  assert.deepEqual(steps.map((e) => e.attrs['data-id']), ['features', 'train', 'predict', 'report']);
+  assert.deepEqual(steps.map((e) => /stage\s(\d)/.exec(e.textContent)[1]), ['1', '2', '3', '1']);
   const picker = tree(card).find((e) => e.tagName === 'select' && e.attrs['aria-label'] === 'Mode');
   assert.deepEqual(picker.options.map((o) => o.textContent), ['train', 'train-predict', 'predict']);
   assert.equal(picker.value, 'predict');

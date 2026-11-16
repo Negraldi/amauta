@@ -39,8 +39,8 @@ export const CODEX_STATE_SCHEMA = 'amauta.codex-state/v1';
  *   .claude.json mcpServers -> <codex home>/config.toml [mcp_servers.<same name>] (same command, args and env)
  * Claude-only assets have no Codex meaning and are never installed: output styles (a Claude Code setting) and the
  * Claude agent definitions (Codex has no equivalent file format). Also not carried over: SDD slash commands and agents,
- * the SDD preflight hook (all Claude dispatch machinery), codegraph's own prompt hook, and the impeccable and archify
- * skills (their rendering is tied to the Claude home).
+ * the SDD preflight hook (all Claude dispatch machinery) and codegraph's own prompt hook. The impeccable and archify
+ * skills are shared like the others (rendered into the store by renderSkillSet, linked from both skills dirs).
  * State lives next to Claude's, in <state dir>/codex-state.json; backups use the shared backup mechanism.
  */
 /** The Claude hook set for Codex: same commands, tagged with the runtime. The SDD preflight guards Claude's Agent tool, so it is not carried over. */
@@ -261,8 +261,8 @@ export async function installCodex(opts = {}) {
   const engine = manifest.impeccable?.engine.version;
   if (opts.dryRun) {
     const personal = await personalSkills(opts, t, managedNames, true);
-    const pending = personal.linked.length > 0 || personal.removed.length > 0;
-    const listed = [...files, ...personal.linked.map((n) => `skills/${n} (link)`)];
+    const pending = personal.linked.length + personal.copied.length + personal.removed.length > 0;
+    const listed = [...files, ...personal.linked.map((n) => `skills/${n} (link)`), ...personal.copied.map((n) => `skills/${n} (copy)`)];
     const dry = { dryRun: true, changed: touches || pending, files: listed, removed, skipped, legacy, backup: null, mirror, personal };
     if (impeccable) dry.impeccable = { engine: (await engineVersion(t.stateDir)) === engine ? 'present' : 'would-install', version: engine };
     return dry;
@@ -277,7 +277,7 @@ export async function installCodex(opts = {}) {
   if (stateChanged) await writeFileAtomic(statePath, stateText);
   const recordText = toJson({ fingerprint: await sourceFingerprint(opts) }); // what the next SessionStart check compares with
   if (await needsWrite(syncRecordOf(t.stateDir), recordText)) await writeFileAtomic(syncRecordOf(t.stateDir), recordText);
-  const linkedAny = personal.linked.length > 0 || personal.removed.length > 0;
+  const linkedAny = personal.linked.length + personal.copied.length + personal.removed.length > 0;
   const result = { dryRun: false, changed: touches || stateChanged || !prev || linkedAny, files, removed, skipped, legacy, backup, mirror, personal };
   if (impeccable) {
     // The engine is one shared store: whichever runtime installs the module prepares it (after the state is written, so a failed run is retried).
