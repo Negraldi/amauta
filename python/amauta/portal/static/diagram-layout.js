@@ -26,16 +26,18 @@ function diagramCandidates(src) {
   const column = (s) => s.replace(/^(\s*direction\s+)(?:LR|RL)\b/gm, "$1TB");
   const base = [src, tight(src, 160), tight(flip, 160), tight(flip, 120), tight(src, 110)];
   const out = nested ? base.concat(tight(column(src), 160), tight(column(flip), 120), tight(column(src), 110)) : base;
-  const top = /^T[DB]$/.test(dir[2]), links = top ? stackLinks(src) : "", light = top ? stackLinks(src, true) : "";
+  const top = /^T[DB]$/.test(dir[2]), links = top ? stackLinks(src) : "";
   // Stacked: Mermaid lays unconnected nodes and sibling subgraphs side by side; invisible links put them in a column. Last,
-  // so a candidate that fits with more room as written still wins. The light stack goes first: it is wider and much shorter.
+  // so a candidate that fits with more room as written still wins. Lighter stacks go first: they are wider and shorter.
   const stack = (extra) => [tight(column(src) + extra, 160), tight(column(src) + extra, 120)];
-  return links ? out.concat(light && light !== links ? stack(light) : [], stack(links)) : out;
+  const steps = links ? [...new Set([stackLinks(src, "light"), stackLinks(src, "inner"), links])].filter(Boolean) : [];
+  return out.concat(steps.flatMap(stack));
 }
 // Invisible links (`a ~~~ b` lines to append) for a top-level TB flowchart: consecutive nodes of a subgraph that is (or turns) TB
 // with no edge between them, and sibling subgraphs that hang off the same source node. "" when there is no such pair.
-// `light` only chains the nodes of a subgraph that has no edge of its own: chains and sibling subgraphs stay side by side.
-function stackLinks(src, light) {
+// mode "light" only chains the nodes of a subgraph that has no edge of its own: chains and sibling subgraphs stay side by side.
+// mode "inner" chains the nodes of every subgraph and leaves the sibling subgraphs side by side.
+function stackLinks(src, mode) {
   const edges = new Set(), seen = new Set(), subs = [], stack = [], parents = new Map();
   for (const raw of src.split("\n")) {
     const line = raw.trim(), sub = /^subgraph\s+([\w.-]+)/.exec(line);
@@ -57,8 +59,8 @@ function stackLinks(src, light) {
   const chain = (ids, skipConnected) => ids.slice(1).map((id, i) => [ids[i], id])
     .filter(([a, b]) => !(skipConnected && edges.has(`${a} ${b}`))).map(([a, b]) => `\n  ${a} ~~~ ${b}`);
   const ids = new Set(subs.map((g) => g.id));
-  const lines = subs.filter((g) => !(light && g.edged)).flatMap((g) => chain(g.nodes, true));
-  if (light) return lines.join("");
+  const lines = subs.filter((g) => !(mode === "light" && g.edged)).flatMap((g) => chain(g.nodes, true));
+  if (mode) return lines.join("");
   for (const targets of parents.values()) lines.push(...chain(targets.filter((x) => ids.has(x)), false));
   return lines.join("");
 }
